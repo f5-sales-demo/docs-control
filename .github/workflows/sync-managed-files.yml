@@ -1,0 +1,290 @@
+name: Sync Managed Files
+
+on:
+  workflow_call:
+    secrets:
+      repo-sync-token:
+        description: 'PAT with contents, issues, and pull-request permissions for file sync'
+        required: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout calling repo
+        uses: actions/checkout@v6
+
+      - name: Sync managed files
+        env:
+          GH_TOKEN: ${{ secrets.repo-sync-token }}
+        run: |
+          set -euo pipefail
+
+          OWNER="${GITHUB_REPOSITORY%/*}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+          CONFIG_FILE=".github/config/repo-settings.json"
+          DEFAULTS_REPO="f5xc-salesdemos/docs-control"
+          DEFAULTS_PATH=".github/config/default-repo-settings.json"
+
+          # ─── Phase 1: Validate ─────────────────────────────────────────────
+          echo "=== Phase 1: Validate ==="
+
+          if ! command -v jq &>/dev/null; then
+            echo "[ERROR] jq is not installed" >&2; exit 1
+          fi
+          if ! command -v gh &>/dev/null; then
+            echo "[ERROR] gh CLI is not installed" >&2; exit 1
+          fi
+          if ! gh auth status &>/dev/null; then
+            echo "[ERROR] gh is not authenticated" >&2; exit 1
+          fi
+
+          # Fetch universal defaults from template repo
+          echo "[INFO] Fetching defaults from ${DEFAULTS_REPO}/${DEFAULTS_PATH}..."
+          DEFAULTS=$(gh api "repos/${DEFAULTS_REPO}/contents/${DEFAULTS_PATH}" --jq '.content' | base64 -d)
+          if ! echo "$DEFAULTS" | jq empty 2>/dev/null; then
+            echo "[ERROR] Failed to fetch or parse defaults from ${DEFAULTS_REPO}" >&2; exit 1
+          fi
+          echo "[OK] Fetched universal defaults from ${DEFAULTS_REPO}"
+
+          # Deep-merge defaults with per-repo overrides
+          if [ -f "$CONFIG_FILE" ]; then
+            if ! jq empty "$CONFIG_FILE" 2>/dev/null; then
+              echo "[ERROR] Config file is not valid JSON: $CONFIG_FILE" >&2; exit 1
+            fi
+            CONFIG=$(echo "$DEFAULTS" | jq -s '.[0] * .[1]' - "$CONFIG_FILE")
+            echo "[OK] Merged defaults with per-repo overrides from $CONFIG_FILE"
+          else
+            CONFIG="$DEFAULTS"
+            echo "[OK] No per-repo overrides found — using defaults only"
+          fi
+
+          echo "[OK] Config validated for ${OWNER}/${REPO}"
+
+          # ─── Phase 2: Sync Managed Files ─────────────────────────────────────
+          echo ""
+          echo "=== Phase 2: Sync Managed Files ==="
+
+          MANAGED_FILES=$(echo "$CONFIG" | jq -c '.managed_files // empty')
+          SYNC_PR_CREATED=false
+          EXISTING_PR=""
+          SOURCE_REPO=""
+
+          if [ -z "$MANAGED_FILES" ]; then
+            echo "[SKIP] No managed_files in config"
+          else
+            SOURCE_REPO=$(echo "$MANAGED_FILES" | jq -r '.source_repo')
+
+            # Guard: skip if running in the source repo itself
+            if [ "${OWNER}/${REPO}" = "$SOURCE_REPO" ]; then
+              echo "[SKIP] Running in source repo — skipping managed file sync"
+            else
+              DRIFT_FILES=""
+              DRIFT_COUNT=0
+
+              for file_obj in $(echo "$MANAGED_FILES" | jq -c '.files[]'); do
+                src=$(echo "$file_obj" | jq -r '.src')
+                dest=$(echo "$file_obj" | jq -r '.dest')
+
+                # Fetch canonical content from source path
+                CANONICAL_RESPONSE=$(gh api "repos/${SOURCE_REPO}/contents/${src}" 2>/dev/null) || true
+                if [ -z "$CANONICAL_RESPONSE" ]; then
+                  echo "[WARN] Could not fetch canonical: ${src}"
+                  continue
+                fi
+                CANONICAL_CONTENT=$(echo "$CANONICAL_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
+
+                # Fetch downstream content at dest path (handle 404)
+                DOWNSTREAM_RESPONSE=$(gh api "repos/${OWNER}/${REPO}/contents/${dest}" 2>/dev/null) || true
+                if [ -z "$DOWNSTREAM_RESPONSE" ]; then
+                  echo "[DRIFT] Missing downstream: ${dest}"
+                  DRIFT_FILES="${DRIFT_FILES}${dest}\n"
+                  DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                  continue
+                fi
+                DOWNSTREAM_CONTENT=$(echo "$DOWNSTREAM_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
+
+                if [ "$CANONICAL_CONTENT" != "$DOWNSTREAM_CONTENT" ]; then
+                  echo "[DRIFT] Content mismatch: ${dest}"
+                  DRIFT_FILES="${DRIFT_FILES}${dest}\n"
+                  DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                else
+                  echo "[OK] ${dest}"
+                fi
+              done
+
+              # ─── Dynamic dependabot.yml generation ────────────────────────
+              echo ""
+              echo "--- Dynamic dependabot.yml ---"
+              DEPENDABOT_DRIFT=false
+
+              # Detect ecosystems in target repo
+              HAS_NPM=false; HAS_PIP=false; HAS_DOCKER=false
+              if gh api "repos/${OWNER}/${REPO}/contents/package.json" --jq '.sha' >/dev/null 2>&1; then
+                HAS_NPM=true; echo "[INFO] Detected package.json → npm"
+              fi
+              if gh api "repos/${OWNER}/${REPO}/contents/Dockerfile" --jq '.sha' >/dev/null 2>&1; then
+                HAS_DOCKER=true; echo "[INFO] Detected Dockerfile → docker"
+              fi
+              for pyfile in requirements.txt pyproject.toml setup.py; do
+                if gh api "repos/${OWNER}/${REPO}/contents/${pyfile}" --jq '.sha' >/dev/null 2>&1; then
+                  HAS_PIP=true; echo "[INFO] Detected ${pyfile} → pip"; break
+                fi
+              done
+
+              # Build dependabot.yml content
+              DEPBOT="---\nversion: 2\nupdates:\n  # --- GitHub Actions ---\n  - package-ecosystem: \"github-actions\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    assignees:\n      - \"robinmordasiewicz\"\n    open-pull-requests-limit: 10\n    groups:\n      actions-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+
+              if [ "$HAS_NPM" = true ]; then
+                DEPBOT="${DEPBOT}\n\n  # --- npm ---\n  - package-ecosystem: \"npm\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    assignees:\n      - \"robinmordasiewicz\"\n    open-pull-requests-limit: 10\n    groups:\n      npm-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+              fi
+
+              if [ "$HAS_PIP" = true ]; then
+                DEPBOT="${DEPBOT}\n\n  # --- pip ---\n  - package-ecosystem: \"pip\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    assignees:\n      - \"robinmordasiewicz\"\n    open-pull-requests-limit: 10\n    groups:\n      pip-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+              fi
+
+              if [ "$HAS_DOCKER" = true ]; then
+                DEPBOT="${DEPBOT}\n\n  # --- Docker ---\n  - package-ecosystem: \"docker\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    assignees:\n      - \"robinmordasiewicz\"\n    open-pull-requests-limit: 5\n    groups:\n      docker-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+              fi
+
+              DEPBOT="${DEPBOT}\n"
+              GENERATED_DEPENDABOT=$(printf '%b' "$DEPBOT")
+
+              # Compare with current dependabot.yml in target repo
+              CURRENT_DEPBOT_RESPONSE=$(gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" 2>/dev/null) || true
+              if [ -n "$CURRENT_DEPBOT_RESPONSE" ]; then
+                CURRENT_DEPENDABOT=$(echo "$CURRENT_DEPBOT_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
+              else
+                CURRENT_DEPENDABOT=""
+              fi
+
+              if [ "$GENERATED_DEPENDABOT" != "$CURRENT_DEPENDABOT" ]; then
+                echo "[DRIFT] .github/dependabot.yml needs update"
+                DEPENDABOT_DRIFT=true
+                DRIFT_FILES="${DRIFT_FILES}.github/dependabot.yml\n"
+                DRIFT_COUNT=$((DRIFT_COUNT + 1))
+              else
+                echo "[OK] .github/dependabot.yml"
+              fi
+
+              if [ "$DRIFT_COUNT" -eq 0 ]; then
+                echo "[OK] All managed files match canonical"
+              else
+                echo "[INFO] Found ${DRIFT_COUNT} drifted file(s)"
+
+                # Check for existing open sync PR (idempotency)
+                EXISTING_PR=$(gh pr list --repo "${OWNER}/${REPO}" \
+                  --head "governance/sync-managed-files" \
+                  --state open --json number --jq '.[0].number // empty' 2>/dev/null) || true
+                if [ -n "$EXISTING_PR" ]; then
+                  echo "[SKIP] Open sync PR #${EXISTING_PR} already exists"
+                else
+                  # Create issue
+                  DRIFT_LIST=$(printf '%b' "$DRIFT_FILES" | sed '/^$/d' | sed 's/^/- /')
+                  ISSUE_BODY=$(printf 'The following managed files have drifted from the canonical source in `%s`:\n\n%s\n\nThis issue was created automatically by the governance enforcement workflow.' \
+                    "$SOURCE_REPO" "$DRIFT_LIST")
+                  ISSUE_NUM=$(gh issue create --repo "${OWNER}/${REPO}" \
+                    --title "chore: sync managed files from governance template" \
+                    --body "$ISSUE_BODY" | grep -o '[0-9]*$')
+                  echo "[OK] Created issue #${ISSUE_NUM}"
+
+                  # Create branch from main HEAD (try create, fall back to update if concurrent run created it)
+                  MAIN_SHA=$(gh api "repos/${OWNER}/${REPO}/git/ref/heads/main" --jq '.object.sha')
+                  if ! gh api "repos/${OWNER}/${REPO}/git/refs" --method POST \
+                    --input <(jq -n --arg sha "$MAIN_SHA" \
+                      '{"ref":"refs/heads/governance/sync-managed-files","sha":$sha}') >/dev/null 2>&1; then
+                    gh api "repos/${OWNER}/${REPO}/git/refs/heads/governance/sync-managed-files" \
+                      --method PATCH --input <(jq -n --arg sha "$MAIN_SHA" '{"sha":$sha,"force":true}') >/dev/null
+                  fi
+                  echo "[OK] Created or updated branch governance/sync-managed-files"
+
+                  # Commit each drifted file to the branch
+                  for dest_file in $(printf '%b' "$DRIFT_FILES" | sed '/^$/d'); do
+                    # Skip dynamic dependabot.yml — committed separately below
+                    if [ "$dest_file" = ".github/dependabot.yml" ]; then
+                      continue
+                    fi
+
+                    # Look up the source path from the manifest
+                    src_file=$(echo "$MANAGED_FILES" | jq -r --arg d "$dest_file" '.files[] | select(.dest == $d) | .src')
+
+                    # Get canonical content as base64
+                    B64=$(gh api "repos/${SOURCE_REPO}/contents/${src_file}" --jq '.content' | tr -d '\n')
+
+                    # Check if file exists downstream (need SHA for update)
+                    FILE_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/${dest_file}" --jq '.sha' 2>/dev/null) || true
+
+                    if [ -n "$FILE_SHA" ]; then
+                      # Update existing file
+                      jq -n --arg msg "chore: sync ${dest_file}" \
+                            --arg content "$B64" \
+                            --arg sha "$FILE_SHA" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}' | \
+                        gh api "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT --input - >/dev/null
+                    else
+                      # Create new file
+                      jq -n --arg msg "chore: sync ${dest_file}" \
+                            --arg content "$B64" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"branch":$branch}' | \
+                        gh api "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT --input - >/dev/null
+                    fi
+                    echo "[OK] Synced ${dest_file}"
+                  done
+
+                  # Commit dynamic dependabot.yml if drifted
+                  if [ "$DEPENDABOT_DRIFT" = true ]; then
+                    DEPBOT_B64=$(printf '%s' "$GENERATED_DEPENDABOT" | base64 -w 0)
+                    DEPBOT_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --jq '.sha' 2>/dev/null) || true
+
+                    if [ -n "$DEPBOT_SHA" ]; then
+                      jq -n --arg msg "chore: update .github/dependabot.yml" \
+                            --arg content "$DEPBOT_B64" \
+                            --arg sha "$DEPBOT_SHA" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}' | \
+                        gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT --input - >/dev/null
+                    else
+                      jq -n --arg msg "chore: create .github/dependabot.yml" \
+                            --arg content "$DEPBOT_B64" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"branch":$branch}' | \
+                        gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT --input - >/dev/null
+                    fi
+                    echo "[OK] Synced .github/dependabot.yml (dynamic)"
+                  fi
+
+                  # Create PR
+                  PR_BODY=$(printf 'Closes #%s\n\nSynced managed files from `%s` canonical source:\n\n%s' \
+                    "$ISSUE_NUM" "$SOURCE_REPO" "$DRIFT_LIST")
+                  PR_URL=$(gh pr create --repo "${OWNER}/${REPO}" \
+                    --head governance/sync-managed-files \
+                    --title "chore: sync managed files from governance template" \
+                    --body "$PR_BODY")
+                  PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
+                  echo "[OK] Created sync PR #${PR_NUM}"
+
+                  SYNC_PR_CREATED=true
+                fi
+              fi
+            fi
+          fi
+
+          # ─── Phase 3: Verify ──────────────────────────────────────────────────
+          echo ""
+          echo "=== Phase 3: Verify ==="
+
+          if [ -n "$MANAGED_FILES" ] && [ "${OWNER}/${REPO}" != "$SOURCE_REPO" ]; then
+            if [ "$SYNC_PR_CREATED" = true ]; then
+              echo "[OK] Sync PR created — managed files will match after merge"
+            elif [ -n "$EXISTING_PR" ]; then
+              echo "[OK] Sync PR #${EXISTING_PR} pending — managed files will match after merge"
+            else
+              echo "[OK] Managed files verified"
+            fi
+          else
+            echo "[SKIP] No managed files to verify"
+          fi
+
+          echo "[OK] Managed file sync complete"
