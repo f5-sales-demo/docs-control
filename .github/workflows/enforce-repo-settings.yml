@@ -1,0 +1,593 @@
+name: Enforce Repository Settings
+
+on:
+  workflow_call:
+    secrets:
+      repo-admin-token:
+        description: 'PAT with admin permissions for repository settings'
+        required: true
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout calling repo
+        uses: actions/checkout@v6
+
+      - name: Enforce repository settings
+        env:
+          GH_TOKEN: ${{ secrets.repo-admin-token }}
+        run: |
+          set -euo pipefail
+
+          OWNER="${GITHUB_REPOSITORY%/*}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+          CONFIG_FILE=".github/config/repo-settings.json"
+          DEFAULTS_REPO="f5xc-salesdemos/docs-control"
+          DEFAULTS_PATH=".github/config/default-repo-settings.json"
+
+          # ─── Phase 1: Validate ─────────────────────────────────────────────
+          echo "=== Phase 1: Validate ==="
+
+          if ! command -v jq &>/dev/null; then
+            echo "[ERROR] jq is not installed" >&2; exit 1
+          fi
+          if ! command -v gh &>/dev/null; then
+            echo "[ERROR] gh CLI is not installed" >&2; exit 1
+          fi
+          if ! gh auth status &>/dev/null; then
+            echo "[ERROR] gh is not authenticated" >&2; exit 1
+          fi
+
+          # Fetch universal defaults from template repo
+          echo "[INFO] Fetching defaults from ${DEFAULTS_REPO}/${DEFAULTS_PATH}..."
+          DEFAULTS=$(gh api "repos/${DEFAULTS_REPO}/contents/${DEFAULTS_PATH}" --jq '.content' | base64 -d)
+          if ! echo "$DEFAULTS" | jq empty 2>/dev/null; then
+            echo "[ERROR] Failed to fetch or parse defaults from ${DEFAULTS_REPO}" >&2; exit 1
+          fi
+          echo "[OK] Fetched universal defaults from ${DEFAULTS_REPO}"
+
+          # Deep-merge defaults with per-repo overrides
+          if [ -f "$CONFIG_FILE" ]; then
+            if ! jq empty "$CONFIG_FILE" 2>/dev/null; then
+              echo "[ERROR] Config file is not valid JSON: $CONFIG_FILE" >&2; exit 1
+            fi
+            CONFIG=$(echo "$DEFAULTS" | jq -s '.[0] * .[1]' - "$CONFIG_FILE")
+            echo "[OK] Merged defaults with per-repo overrides from $CONFIG_FILE"
+          else
+            CONFIG="$DEFAULTS"
+            echo "[OK] No per-repo overrides found — using defaults only"
+          fi
+
+          # Auto-compute homepage if empty
+          HOMEPAGE=$(echo "$CONFIG" | jq -r '.repository.homepage // empty')
+          if [ -z "$HOMEPAGE" ]; then
+            HOMEPAGE="https://f5xc-salesdemos.github.io/${REPO}/"
+            CONFIG=$(echo "$CONFIG" | jq --arg hp "$HOMEPAGE" '.repository.homepage = $hp')
+            echo "[INFO] Auto-computed homepage: $HOMEPAGE"
+          fi
+
+          echo "[OK] Config validated for ${OWNER}/${REPO}"
+
+          # ─── Phase 2: Apply repo settings ────────────────────────────────────
+          echo ""
+          echo "=== Phase 2: Apply repo settings ==="
+
+          DESIRED_REPO=$(echo "$CONFIG" | jq -c '.repository')
+          CURRENT_REPO=$(gh api "repos/${OWNER}/${REPO}" 2>/dev/null)
+
+          REPO_DRIFT=false
+          REPO_PATCH="{}"
+
+          for key in $(echo "$DESIRED_REPO" | jq -r 'keys[]'); do
+            desired_val=$(echo "$DESIRED_REPO" | jq -c ".[\"$key\"]")
+            current_val=$(echo "$CURRENT_REPO" | jq -c ".[\"$key\"]")
+            if [ "$desired_val" != "$current_val" ]; then
+              echo "[WARN] Drift in repo.$key: current=$current_val desired=$desired_val"
+              REPO_PATCH=$(echo "$REPO_PATCH" | jq --argjson v "$desired_val" ". + {\"$key\": \$v}")
+              REPO_DRIFT=true
+            fi
+          done
+
+          if [ "$REPO_DRIFT" = true ]; then
+            echo "[INFO] Patching repository settings..."
+            echo "$REPO_PATCH" | gh api "repos/${OWNER}/${REPO}" --method PATCH --input - >/dev/null
+            echo "[OK] Repository settings updated"
+          else
+            echo "[OK] Repository settings match — no changes needed"
+          fi
+
+          # ─── Phase 3: Apply Actions permissions ──────────────────────────────
+          echo ""
+          echo "=== Phase 3: Apply Actions permissions ==="
+
+          DESIRED_ACTIONS=$(echo "$CONFIG" | jq -c '.actions_permissions // empty')
+
+          if [ -n "$DESIRED_ACTIONS" ]; then
+            CURRENT_ACTIONS=$(gh api "repos/${OWNER}/${REPO}/actions/permissions/workflow" 2>/dev/null)
+            ACTIONS_DRIFT=false
+
+            for key in $(echo "$DESIRED_ACTIONS" | jq -r 'keys[]'); do
+              desired_val=$(echo "$DESIRED_ACTIONS" | jq -c ".[\"$key\"]")
+              current_val=$(echo "$CURRENT_ACTIONS" | jq -c ".[\"$key\"]")
+              if [ "$desired_val" != "$current_val" ]; then
+                echo "[WARN] Drift in actions.$key: current=$current_val desired=$desired_val"
+                ACTIONS_DRIFT=true
+              fi
+            done
+
+            if [ "$ACTIONS_DRIFT" = true ]; then
+              echo "[INFO] Updating Actions workflow permissions..."
+              echo "$DESIRED_ACTIONS" | gh api "repos/${OWNER}/${REPO}/actions/permissions/workflow" \
+                --method PUT --input - >/dev/null
+              echo "[OK] Actions permissions updated"
+            else
+              echo "[OK] Actions permissions match — no changes needed"
+            fi
+          else
+            echo "[SKIP] No actions_permissions in config"
+          fi
+
+          # ─── Phase 4: Apply branch protection ────────────────────────────────
+          echo ""
+          echo "=== Phase 4: Apply branch protection ==="
+
+          BRANCH_COUNT=$(echo "$CONFIG" | jq '.branch_protection | length')
+
+          for i in $(seq 0 $((BRANCH_COUNT - 1))); do
+            BRANCH=$(echo "$CONFIG" | jq -r ".branch_protection[$i].branch")
+            echo "--- Branch: $BRANCH ---"
+
+            DESIRED_PAYLOAD=$(echo "$CONFIG" | jq -c ".branch_protection[$i] | del(.branch)")
+
+            HTTP_CODE=$(gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
+              --include 2>/dev/null | head -1 | awk '{print $2}') || true
+            CURRENT_PROTECTION=$(gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" 2>/dev/null) || true
+
+            PROTECTION_DRIFT=false
+
+            if [ "$HTTP_CODE" = "404" ] || [ -z "$CURRENT_PROTECTION" ]; then
+              echo "[WARN] No branch protection found — will create"
+              PROTECTION_DRIFT=true
+            else
+              desired_enforce=$(echo "$DESIRED_PAYLOAD" | jq '.enforce_admins')
+              current_enforce=$(echo "$CURRENT_PROTECTION" | jq '.enforce_admins.enabled')
+              if [ "$desired_enforce" != "$current_enforce" ]; then
+                echo "[WARN] Drift in enforce_admins: current=$current_enforce desired=$desired_enforce"
+                PROTECTION_DRIFT=true
+              fi
+
+              desired_checks=$(echo "$DESIRED_PAYLOAD" | jq -c '.required_status_checks')
+              if [ "$desired_checks" = "null" ]; then
+                current_checks=$(echo "$CURRENT_PROTECTION" | jq -c '.required_status_checks')
+                if [ "$current_checks" != "null" ]; then
+                  echo "[WARN] Drift in required_status_checks"
+                  PROTECTION_DRIFT=true
+                fi
+              fi
+
+              desired_reviews=$(echo "$DESIRED_PAYLOAD" | jq -c '.required_pull_request_reviews')
+              if [ "$desired_reviews" != "null" ]; then
+                for review_key in required_approving_review_count dismiss_stale_reviews require_code_owner_reviews require_last_push_approval; do
+                  desired_val=$(echo "$desired_reviews" | jq ".$review_key")
+                  current_val=$(echo "$CURRENT_PROTECTION" | jq ".required_pull_request_reviews.$review_key // false")
+                  if [ "$desired_val" != "$current_val" ]; then
+                    echo "[WARN] Drift in $review_key: current=$current_val desired=$desired_val"
+                    PROTECTION_DRIFT=true
+                  fi
+                done
+              fi
+
+              desired_restrictions=$(echo "$DESIRED_PAYLOAD" | jq -c '.restrictions')
+              if [ "$desired_restrictions" = "null" ]; then
+                current_restrictions=$(echo "$CURRENT_PROTECTION" | jq -c '.restrictions')
+                if [ "$current_restrictions" != "null" ]; then
+                  echo "[WARN] Drift in restrictions"
+                  PROTECTION_DRIFT=true
+                fi
+              fi
+
+              for flag in required_linear_history allow_force_pushes allow_deletions block_creations required_conversation_resolution lock_branch allow_fork_syncing; do
+                desired_flag=$(echo "$DESIRED_PAYLOAD" | jq ".$flag")
+                current_flag=$(echo "$CURRENT_PROTECTION" | jq ".$flag.enabled // false")
+                if [ "$desired_flag" != "$current_flag" ]; then
+                  echo "[WARN] Drift in $flag: current=$current_flag desired=$desired_flag"
+                  PROTECTION_DRIFT=true
+                fi
+              done
+            fi
+
+            if [ "$PROTECTION_DRIFT" = true ]; then
+              echo "[INFO] Applying branch protection for $BRANCH..."
+
+              PUT_PAYLOAD=$(jq -n \
+                --argjson desired "$DESIRED_PAYLOAD" \
+                '{
+                  enforce_admins: $desired.enforce_admins,
+                  required_status_checks: $desired.required_status_checks,
+                  required_pull_request_reviews: (
+                    if $desired.required_pull_request_reviews == null then null
+                    else {
+                      required_approving_review_count: $desired.required_pull_request_reviews.required_approving_review_count,
+                      dismiss_stale_reviews: $desired.required_pull_request_reviews.dismiss_stale_reviews,
+                      require_code_owner_reviews: $desired.required_pull_request_reviews.require_code_owner_reviews,
+                      require_last_push_approval: $desired.required_pull_request_reviews.require_last_push_approval
+                    }
+                    end
+                  ),
+                  restrictions: $desired.restrictions,
+                  required_linear_history: $desired.required_linear_history,
+                  allow_force_pushes: $desired.allow_force_pushes,
+                  allow_deletions: $desired.allow_deletions,
+                  block_creations: $desired.block_creations,
+                  required_conversation_resolution: $desired.required_conversation_resolution,
+                  lock_branch: $desired.lock_branch,
+                  allow_fork_syncing: $desired.allow_fork_syncing
+                }')
+
+              echo "$PUT_PAYLOAD" | gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
+                --method PUT --input - >/dev/null
+              echo "[OK] Branch protection updated for $BRANCH"
+            else
+              echo "[OK] Branch protection matches — no changes needed"
+            fi
+          done
+
+          # ─── Phase 5: Apply topics ────────────────────────────────────────────
+          echo ""
+          echo "=== Phase 5: Apply topics ==="
+
+          DESIRED_TOPICS=$(echo "$CONFIG" | jq -c '.topics // []')
+          if [ "$DESIRED_TOPICS" != "[]" ]; then
+            CURRENT_TOPICS=$(gh api "repos/${OWNER}/${REPO}/topics" 2>/dev/null | jq -c '.names // []')
+            if [ "$DESIRED_TOPICS" != "$CURRENT_TOPICS" ]; then
+              echo "[WARN] Drift in topics: current=$CURRENT_TOPICS desired=$DESIRED_TOPICS"
+              echo "[INFO] Updating topics..."
+              jq -n --argjson names "$DESIRED_TOPICS" '{"names": $names}' | \
+                gh api "repos/${OWNER}/${REPO}/topics" --method PUT --input - >/dev/null
+              echo "[OK] Topics updated"
+            else
+              echo "[OK] Topics match — no changes needed"
+            fi
+          else
+            echo "[SKIP] No topics specified"
+          fi
+
+          # ─── Phase 6: Apply Pages ─────────────────────────────────────────────
+          echo ""
+          echo "=== Phase 6: Apply Pages ==="
+
+          PAGES_ENABLED=$(echo "$CONFIG" | jq -r '.pages.enabled // false')
+          DESIRED_BUILD_TYPE=$(echo "$CONFIG" | jq -r '.pages.build_type // "workflow"')
+          if [ "$PAGES_ENABLED" = "true" ]; then
+            PAGES_HTTP_CODE=$(gh api "repos/${OWNER}/${REPO}/pages" --include 2>/dev/null | head -1 | awk '{print $2}') || true
+            if [ "$PAGES_HTTP_CODE" = "404" ]; then
+              echo "[INFO] Enabling GitHub Pages with ${DESIRED_BUILD_TYPE} source..."
+              jq -n --arg bt "$DESIRED_BUILD_TYPE" '{"build_type": $bt, "source": {"branch": "main", "path": "/"}}' | \
+                gh api "repos/${OWNER}/${REPO}/pages" --method POST --input - >/dev/null 2>&1 || true
+              echo "[OK] Pages enabled with build_type=${DESIRED_BUILD_TYPE}"
+            else
+              PAGES_RESPONSE=$(gh api "repos/${OWNER}/${REPO}/pages" 2>/dev/null) || true
+              CURRENT_BUILD_TYPE=$(echo "$PAGES_RESPONSE" | jq -r '.build_type // empty')
+              if [ "$CURRENT_BUILD_TYPE" != "$DESIRED_BUILD_TYPE" ]; then
+                echo "[WARN] Drift in pages.build_type: current=$CURRENT_BUILD_TYPE desired=$DESIRED_BUILD_TYPE"
+                echo "[INFO] Updating Pages build_type to ${DESIRED_BUILD_TYPE}..."
+                jq -n --arg bt "$DESIRED_BUILD_TYPE" '{"build_type": $bt, "source": {"branch": "main", "path": "/"}}' | \
+                  gh api "repos/${OWNER}/${REPO}/pages" --method PUT --input - >/dev/null 2>&1
+                echo "[OK] Pages build_type updated to ${DESIRED_BUILD_TYPE}"
+              else
+                echo "[OK] Pages build_type matches (${CURRENT_BUILD_TYPE}) — no changes needed"
+              fi
+            fi
+          else
+            echo "[SKIP] Pages not enabled in config"
+          fi
+
+          # ─── Phase 7: Sync Managed Files ──────────────────────────────────────
+          echo ""
+          echo "=== Phase 7: Sync Managed Files ==="
+
+          MANAGED_FILES=$(echo "$CONFIG" | jq -c '.managed_files // empty')
+          SYNC_PR_CREATED=false
+          EXISTING_PR=""
+          SOURCE_REPO=""
+
+          if [ -z "$MANAGED_FILES" ]; then
+            echo "[SKIP] No managed_files in config"
+          else
+            SOURCE_REPO=$(echo "$MANAGED_FILES" | jq -r '.source_repo')
+
+            # Guard: skip if running in the source repo itself
+            if [ "${OWNER}/${REPO}" = "$SOURCE_REPO" ]; then
+              echo "[SKIP] Running in source repo — skipping managed file sync"
+            else
+              DRIFT_FILES=""
+              DRIFT_COUNT=0
+
+              for file_obj in $(echo "$MANAGED_FILES" | jq -c '.files[]'); do
+                src=$(echo "$file_obj" | jq -r '.src')
+                dest=$(echo "$file_obj" | jq -r '.dest')
+
+                # Fetch canonical content from source path
+                CANONICAL_RESPONSE=$(gh api "repos/${SOURCE_REPO}/contents/${src}" 2>/dev/null) || true
+                if [ -z "$CANONICAL_RESPONSE" ]; then
+                  echo "[WARN] Could not fetch canonical: ${src}"
+                  continue
+                fi
+                CANONICAL_CONTENT=$(echo "$CANONICAL_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
+
+                # Fetch downstream content at dest path (handle 404)
+                DOWNSTREAM_RESPONSE=$(gh api "repos/${OWNER}/${REPO}/contents/${dest}" 2>/dev/null) || true
+                if [ -z "$DOWNSTREAM_RESPONSE" ]; then
+                  echo "[DRIFT] Missing downstream: ${dest}"
+                  DRIFT_FILES="${DRIFT_FILES}${dest}\n"
+                  DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                  continue
+                fi
+                DOWNSTREAM_CONTENT=$(echo "$DOWNSTREAM_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
+
+                if [ "$CANONICAL_CONTENT" != "$DOWNSTREAM_CONTENT" ]; then
+                  echo "[DRIFT] Content mismatch: ${dest}"
+                  DRIFT_FILES="${DRIFT_FILES}${dest}\n"
+                  DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                else
+                  echo "[OK] ${dest}"
+                fi
+              done
+
+              # ─── Dynamic dependabot.yml generation ────────────────────────
+              echo ""
+              echo "--- Dynamic dependabot.yml ---"
+              DEPENDABOT_DRIFT=false
+
+              # Detect ecosystems in target repo
+              HAS_NPM=false; HAS_PIP=false; HAS_DOCKER=false
+              if gh api "repos/${OWNER}/${REPO}/contents/package.json" --jq '.sha' >/dev/null 2>&1; then
+                HAS_NPM=true; echo "[INFO] Detected package.json → npm"
+              fi
+              if gh api "repos/${OWNER}/${REPO}/contents/Dockerfile" --jq '.sha' >/dev/null 2>&1; then
+                HAS_DOCKER=true; echo "[INFO] Detected Dockerfile → docker"
+              fi
+              for pyfile in requirements.txt pyproject.toml setup.py; do
+                if gh api "repos/${OWNER}/${REPO}/contents/${pyfile}" --jq '.sha' >/dev/null 2>&1; then
+                  HAS_PIP=true; echo "[INFO] Detected ${pyfile} → pip"; break
+                fi
+              done
+
+              # Build dependabot.yml content
+              DEPBOT="---\nversion: 2\nupdates:\n  # --- GitHub Actions ---\n  - package-ecosystem: \"github-actions\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    assignees:\n      - \"robinmordasiewicz\"\n    open-pull-requests-limit: 10\n    groups:\n      actions-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+
+              if [ "$HAS_NPM" = true ]; then
+                DEPBOT="${DEPBOT}\n\n  # --- npm ---\n  - package-ecosystem: \"npm\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    assignees:\n      - \"robinmordasiewicz\"\n    open-pull-requests-limit: 10\n    groups:\n      npm-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+              fi
+
+              if [ "$HAS_PIP" = true ]; then
+                DEPBOT="${DEPBOT}\n\n  # --- pip ---\n  - package-ecosystem: \"pip\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    assignees:\n      - \"robinmordasiewicz\"\n    open-pull-requests-limit: 10\n    groups:\n      pip-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+              fi
+
+              if [ "$HAS_DOCKER" = true ]; then
+                DEPBOT="${DEPBOT}\n\n  # --- Docker ---\n  - package-ecosystem: \"docker\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    assignees:\n      - \"robinmordasiewicz\"\n    open-pull-requests-limit: 5\n    groups:\n      docker-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+              fi
+
+              DEPBOT="${DEPBOT}\n"
+              GENERATED_DEPENDABOT=$(printf '%b' "$DEPBOT")
+
+              # Compare with current dependabot.yml in target repo
+              CURRENT_DEPBOT_RESPONSE=$(gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" 2>/dev/null) || true
+              if [ -n "$CURRENT_DEPBOT_RESPONSE" ]; then
+                CURRENT_DEPENDABOT=$(echo "$CURRENT_DEPBOT_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
+              else
+                CURRENT_DEPENDABOT=""
+              fi
+
+              if [ "$GENERATED_DEPENDABOT" != "$CURRENT_DEPENDABOT" ]; then
+                echo "[DRIFT] .github/dependabot.yml needs update"
+                DEPENDABOT_DRIFT=true
+                DRIFT_FILES="${DRIFT_FILES}.github/dependabot.yml\n"
+                DRIFT_COUNT=$((DRIFT_COUNT + 1))
+              else
+                echo "[OK] .github/dependabot.yml"
+              fi
+
+              if [ "$DRIFT_COUNT" -eq 0 ]; then
+                echo "[OK] All managed files match canonical"
+              else
+                echo "[INFO] Found ${DRIFT_COUNT} drifted file(s)"
+
+                # Check for existing open sync PR (idempotency)
+                EXISTING_PR=$(gh pr list --repo "${OWNER}/${REPO}" \
+                  --head "governance/sync-managed-files" \
+                  --state open --json number --jq '.[0].number // empty' 2>/dev/null) || true
+                if [ -n "$EXISTING_PR" ]; then
+                  echo "[SKIP] Open sync PR #${EXISTING_PR} already exists"
+                else
+                  # Create issue
+                  DRIFT_LIST=$(printf '%b' "$DRIFT_FILES" | sed '/^$/d' | sed 's/^/- /')
+                  ISSUE_BODY=$(printf 'The following managed files have drifted from the canonical source in `%s`:\n\n%s\n\nThis issue was created automatically by the governance enforcement workflow.' \
+                    "$SOURCE_REPO" "$DRIFT_LIST")
+                  ISSUE_NUM=$(gh issue create --repo "${OWNER}/${REPO}" \
+                    --title "chore: sync managed files from governance template" \
+                    --body "$ISSUE_BODY" | grep -o '[0-9]*$')
+                  echo "[OK] Created issue #${ISSUE_NUM}"
+
+                  # Create branch from main HEAD (try create, fall back to update if concurrent run created it)
+                  MAIN_SHA=$(gh api "repos/${OWNER}/${REPO}/git/ref/heads/main" --jq '.object.sha')
+                  if ! gh api "repos/${OWNER}/${REPO}/git/refs" --method POST \
+                    --input <(jq -n --arg sha "$MAIN_SHA" \
+                      '{"ref":"refs/heads/governance/sync-managed-files","sha":$sha}') >/dev/null 2>&1; then
+                    gh api "repos/${OWNER}/${REPO}/git/refs/heads/governance/sync-managed-files" \
+                      --method PATCH --input <(jq -n --arg sha "$MAIN_SHA" '{"sha":$sha,"force":true}') >/dev/null
+                  fi
+                  echo "[OK] Created or updated branch governance/sync-managed-files"
+
+                  # Commit each drifted file to the branch
+                  for dest_file in $(printf '%b' "$DRIFT_FILES" | sed '/^$/d'); do
+                    # Skip dynamic dependabot.yml — committed separately below
+                    if [ "$dest_file" = ".github/dependabot.yml" ]; then
+                      continue
+                    fi
+
+                    # Look up the source path from the manifest
+                    src_file=$(echo "$MANAGED_FILES" | jq -r --arg d "$dest_file" '.files[] | select(.dest == $d) | .src')
+
+                    # Get canonical content as base64
+                    B64=$(gh api "repos/${SOURCE_REPO}/contents/${src_file}" --jq '.content' | tr -d '\n')
+
+                    # Check if file exists downstream (need SHA for update)
+                    FILE_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/${dest_file}" --jq '.sha' 2>/dev/null) || true
+
+                    if [ -n "$FILE_SHA" ]; then
+                      # Update existing file
+                      jq -n --arg msg "chore: sync ${dest_file}" \
+                            --arg content "$B64" \
+                            --arg sha "$FILE_SHA" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}' | \
+                        gh api "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT --input - >/dev/null
+                    else
+                      # Create new file
+                      jq -n --arg msg "chore: sync ${dest_file}" \
+                            --arg content "$B64" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"branch":$branch}' | \
+                        gh api "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT --input - >/dev/null
+                    fi
+                    echo "[OK] Synced ${dest_file}"
+                  done
+
+                  # Commit dynamic dependabot.yml if drifted
+                  if [ "$DEPENDABOT_DRIFT" = true ]; then
+                    DEPBOT_B64=$(printf '%s' "$GENERATED_DEPENDABOT" | base64 -w 0)
+                    DEPBOT_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --jq '.sha' 2>/dev/null) || true
+
+                    if [ -n "$DEPBOT_SHA" ]; then
+                      jq -n --arg msg "chore: update .github/dependabot.yml" \
+                            --arg content "$DEPBOT_B64" \
+                            --arg sha "$DEPBOT_SHA" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}' | \
+                        gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT --input - >/dev/null
+                    else
+                      jq -n --arg msg "chore: create .github/dependabot.yml" \
+                            --arg content "$DEPBOT_B64" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"branch":$branch}' | \
+                        gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT --input - >/dev/null
+                    fi
+                    echo "[OK] Synced .github/dependabot.yml (dynamic)"
+                  fi
+
+                  # Create PR
+                  PR_BODY=$(printf 'Closes #%s\n\nSynced managed files from `%s` canonical source:\n\n%s' \
+                    "$ISSUE_NUM" "$SOURCE_REPO" "$DRIFT_LIST")
+                  PR_URL=$(gh pr create --repo "${OWNER}/${REPO}" \
+                    --head governance/sync-managed-files \
+                    --title "chore: sync managed files from governance template" \
+                    --body "$PR_BODY")
+                  PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
+                  echo "[OK] Created sync PR #${PR_NUM}"
+
+                  SYNC_PR_CREATED=true
+                fi
+              fi
+            fi
+          fi
+
+          # ─── Phase 8: Verify ──────────────────────────────────────────────────
+          echo ""
+          echo "=== Phase 8: Verify ==="
+
+          VERIFY_FAILED=false
+
+          VERIFY_REPO=$(gh api "repos/${OWNER}/${REPO}" 2>/dev/null)
+          for key in $(echo "$DESIRED_REPO" | jq -r 'keys[]'); do
+            desired_val=$(echo "$DESIRED_REPO" | jq -c ".[\"$key\"]")
+            actual_val=$(echo "$VERIFY_REPO" | jq -c ".[\"$key\"]")
+            if [ "$desired_val" != "$actual_val" ]; then
+              echo "[FAIL] repo.$key: expected=$desired_val actual=$actual_val"
+              VERIFY_FAILED=true
+            fi
+          done
+
+          if [ -n "$DESIRED_ACTIONS" ]; then
+            VERIFY_ACTIONS=$(gh api "repos/${OWNER}/${REPO}/actions/permissions/workflow" 2>/dev/null)
+            for key in $(echo "$DESIRED_ACTIONS" | jq -r 'keys[]'); do
+              desired_val=$(echo "$DESIRED_ACTIONS" | jq -c ".[\"$key\"]")
+              actual_val=$(echo "$VERIFY_ACTIONS" | jq -c ".[\"$key\"]")
+              if [ "$desired_val" != "$actual_val" ]; then
+                echo "[FAIL] actions.$key: expected=$desired_val actual=$actual_val"
+                VERIFY_FAILED=true
+              fi
+            done
+          fi
+
+          for i in $(seq 0 $((BRANCH_COUNT - 1))); do
+            BRANCH=$(echo "$CONFIG" | jq -r ".branch_protection[$i].branch")
+            DESIRED_PAYLOAD=$(echo "$CONFIG" | jq -c ".branch_protection[$i] | del(.branch)")
+            VERIFY_PROTECTION=$(gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" 2>/dev/null) || true
+
+            if [ -z "$VERIFY_PROTECTION" ]; then
+              echo "[FAIL] Branch protection for $BRANCH not found after apply"
+              VERIFY_FAILED=true
+              continue
+            fi
+
+            desired_enforce=$(echo "$DESIRED_PAYLOAD" | jq '.enforce_admins')
+            actual_enforce=$(echo "$VERIFY_PROTECTION" | jq '.enforce_admins.enabled')
+            if [ "$desired_enforce" != "$actual_enforce" ]; then
+              echo "[FAIL] $BRANCH enforce_admins: expected=$desired_enforce actual=$actual_enforce"
+              VERIFY_FAILED=true
+            fi
+
+            desired_reviews=$(echo "$DESIRED_PAYLOAD" | jq -c '.required_pull_request_reviews')
+            if [ "$desired_reviews" != "null" ]; then
+              desired_approvals=$(echo "$desired_reviews" | jq '.required_approving_review_count')
+              actual_approvals=$(echo "$VERIFY_PROTECTION" | jq '.required_pull_request_reviews.required_approving_review_count // empty')
+              if [ "$desired_approvals" != "$actual_approvals" ]; then
+                echo "[FAIL] $BRANCH required_approving_review_count: expected=$desired_approvals actual=$actual_approvals"
+                VERIFY_FAILED=true
+              fi
+            fi
+
+            for flag in required_linear_history allow_force_pushes allow_deletions block_creations required_conversation_resolution lock_branch allow_fork_syncing; do
+              desired_flag=$(echo "$DESIRED_PAYLOAD" | jq ".$flag")
+              actual_flag=$(echo "$VERIFY_PROTECTION" | jq ".$flag.enabled // false")
+              if [ "$desired_flag" != "$actual_flag" ]; then
+                echo "[FAIL] $BRANCH $flag: expected=$desired_flag actual=$actual_flag"
+                VERIFY_FAILED=true
+              fi
+            done
+          done
+
+          if [ "$PAGES_ENABLED" = "true" ]; then
+            VERIFY_PAGES_CODE=$(gh api "repos/${OWNER}/${REPO}/pages" --include 2>/dev/null | head -1 | awk '{print $2}') || true
+            if [ "$VERIFY_PAGES_CODE" = "404" ]; then
+              echo "[WARN] Pages not found after apply — repo may lack a deploy workflow"
+            else
+              VERIFY_PAGES=$(gh api "repos/${OWNER}/${REPO}/pages" 2>/dev/null) || true
+              ACTUAL_BUILD_TYPE=$(echo "$VERIFY_PAGES" | jq -r '.build_type // empty')
+              if [ "$ACTUAL_BUILD_TYPE" != "$DESIRED_BUILD_TYPE" ]; then
+                echo "[FAIL] pages.build_type: expected=$DESIRED_BUILD_TYPE actual=$ACTUAL_BUILD_TYPE"
+                VERIFY_FAILED=true
+              fi
+            fi
+          fi
+
+          # Verify managed files (Phase 7 follow-up)
+          if [ -n "$MANAGED_FILES" ] && [ "${OWNER}/${REPO}" != "$SOURCE_REPO" ]; then
+            if [ "$SYNC_PR_CREATED" = true ]; then
+              echo "[OK] Sync PR created — managed files will match after merge"
+            elif [ -n "$EXISTING_PR" ]; then
+              echo "[OK] Sync PR #${EXISTING_PR} pending — managed files will match after merge"
+            else
+              echo "[OK] Managed files verified"
+            fi
+          fi
+
+          if [ "$VERIFY_FAILED" = true ]; then
+            echo ""
+            echo "[ERROR] Verification failed — settings do not match desired state"
+            exit 1
+          fi
+
+          echo "[OK] All settings verified successfully"

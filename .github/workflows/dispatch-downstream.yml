@@ -1,0 +1,49 @@
+name: Dispatch Downstream Enforcement
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/config/default-repo-settings.json'
+      - '.github/config/downstream-repos.json'
+      - '.github/config/docs-sites.json'
+      - 'workflows/**'
+      - '.github/workflows/enforce-repo-settings.yml'
+      - '.github/workflows/github-pages-deploy.yml'
+      - '.github/workflows/require-linked-issue.yml'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+      - '.github/ISSUE_TEMPLATE/**'
+      - 'CONTRIBUTING.md'
+      - 'CLAUDE.md'
+      - '.editorconfig'
+      - '.gitignore'
+      - 'LICENSE'
+      - '.pre-commit-config.yaml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dispatch-downstream
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Dispatch to downstream repos
+        env:
+          GH_TOKEN: ${{ secrets.REPO_ADMIN_TOKEN }}
+        run: |
+          repos=$(jq -r '.[]' .github/config/downstream-repos.json)
+          for repo in $repos; do
+            echo "Dispatching to $repo..."
+            if gh workflow run enforce-repo-settings.yml --repo "$repo"; then
+              echo "  [OK] $repo"
+            else
+              echo "  [FAIL] $repo"
+            fi
+          done

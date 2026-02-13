@@ -1,0 +1,110 @@
+---
+title: Governance Reference
+sidebar:
+  order: 1
+---
+
+This page documents the governance enforcement system that keeps downstream repositories aligned with this template. It references source files rather than duplicating their contents so that the documentation stays current as the system evolves.
+
+## System Overview
+
+The docs-control repository serves two purposes:
+
+1. **Define defaults** -- repository settings, branch protection rules, Actions permissions, GitHub Pages configuration, and a manifest of managed files.
+2. **Enforce those defaults** -- a reusable workflow that downstream repos call to detect drift and auto-correct it, plus a dispatch workflow that triggers enforcement whenever the template changes.
+
+## Source Files
+
+| File | Role |
+|---|---|
+| `.github/config/default-repo-settings.json` | Universal defaults: repo settings, branch protection, Actions permissions, Pages config, and the managed files manifest |
+| `.github/config/downstream-repos.json` | Registry of enrolled downstream repositories |
+| `.github/config/repo-settings.json` | Per-repo override template (checked into each downstream repo) |
+| `.github/workflows/enforce-repo-settings.yml` | Reusable 8-phase enforcement workflow |
+| `.github/workflows/dispatch-downstream.yml` | Dispatch trigger that pushes enforcement to all downstream repos |
+| `.github/workflows/github-pages-deploy.yml` | Reusable docs build and deploy workflow |
+| `.github/workflows/require-linked-issue.yml` | PR check requiring a linked GitHub issue |
+| `workflows/enforce-repo-settings.yml` | Caller template -- downstream repos install this to call the reusable enforcement workflow |
+| `workflows/github-pages-deploy.yml` | Caller template -- downstream repos install this for docs deployment |
+
+## Enforcement Pipeline
+
+The reusable workflow at `.github/workflows/enforce-repo-settings.yml` runs in 8 phases. Each phase is idempotent: it compares the desired state against the current state and only makes changes when drift is detected.
+
+### Phase 1: Validate
+
+Fetches the universal defaults from this template repo via the GitHub API. If the downstream repo has a `.github/config/repo-settings.json` file, it is deep-merged on top of the defaults (per-repo values win). The merged config drives all subsequent phases.
+
+### Phase 2: Apply repository settings
+
+Compares each key in the `repository` object (visibility, merge options, branch-on-delete, etc.) against the repo's current settings. Patches only the keys that have drifted.
+
+### Phase 3: Apply Actions permissions
+
+Compares the `actions_permissions` object (default workflow permissions, PR review approval) against the current Actions workflow permissions and updates if drifted.
+
+### Phase 4: Apply branch protection
+
+Iterates over the `branch_protection` array. For each branch, compares enforce-admins, required status checks, required reviews, restrictions, and boolean flags (linear history, force pushes, deletions, etc.). Creates or updates protection rules as needed.
+
+### Phase 5: Apply topics
+
+Compares the `topics` array against the repo's current topics and replaces them if drifted.
+
+### Phase 6: Apply Pages
+
+Enables GitHub Pages with the configured `build_type` (default: `workflow`) if not already enabled, or updates the build type if it has drifted.
+
+### Phase 7: Sync managed files
+
+Compares each file listed in the `managed_files.files` array against the canonical version in this template repo. If any file has drifted or is missing, the workflow:
+
+1. Creates a GitHub issue documenting the drifted files
+2. Creates a `governance/sync-managed-files` branch
+3. Commits the canonical content for each drifted file
+4. Opens a PR linking to the issue
+
+If a sync PR is already open, the phase skips to avoid duplicates.
+
+### Phase 8: Verify
+
+Re-reads all settings via the GitHub API and compares them against the desired state. Fails the workflow if any setting does not match after the apply phases.
+
+## Managed Files Manifest
+
+The canonical list of managed files is defined in `.github/config/default-repo-settings.json` under the `managed_files.files` array. Each entry maps a source path in this template repo to a destination path in the downstream repo.
+
+The manifest includes caller workflows, issue and PR templates, contributor guidelines, editor configuration, the license, and AI assistant instructions. See the `managed_files` section of `default-repo-settings.json` for the current list.
+
+## Dispatch Trigger
+
+When files in this template repo change on the `main` branch, the dispatch workflow at `.github/workflows/dispatch-downstream.yml` triggers the enforcement workflow in every downstream repo.
+
+The trigger paths are listed in that workflow file. They cover the config directory, the `workflows/` caller templates, the reusable workflows, issue/PR templates, and root-level managed files like `CONTRIBUTING.md`, `CLAUDE.md`, `.editorconfig`, `.gitignore`, and `LICENSE`.
+
+The dispatch reads the downstream repo list from `.github/config/downstream-repos.json` and calls `gh workflow run enforce-repo-settings.yml` for each repo using the `REPO_ADMIN_TOKEN` secret.
+
+## Downstream Repos
+
+The registry of enrolled downstream repositories is maintained in `.github/config/downstream-repos.json`. This is a JSON array of `owner/repo` strings. To enroll a new repo, add it to this file and follow the onboarding procedure in `MIGRATION.md`.
+
+## Per-Repo Overrides
+
+Each downstream repo can customize its settings by creating `.github/config/repo-settings.json`. This file is deep-merged on top of the universal defaults during Phase 1, so only the keys that need to differ must be specified.
+
+The override template at `.github/config/repo-settings.json` in this repo shows the expected structure. Common overrides include `repository.description`, `repository.homepage`, and `topics`.
+
+## Caller Workflow Templates
+
+The `workflows/` directory contains workflow files that downstream repos copy into their `.github/workflows/` directory. These are thin callers that invoke the reusable workflows hosted in this template repo.
+
+| Template | Calls | Trigger |
+|---|---|---|
+| `workflows/enforce-repo-settings.yml` | `.github/workflows/enforce-repo-settings.yml` | Schedule (every 6 hours), push to `.github/config/**`, manual dispatch |
+| `workflows/github-pages-deploy.yml` | `.github/workflows/github-pages-deploy.yml` | Push to `docs/**` on main, manual dispatch |
+
+The `require-linked-issue.yml` workflow is synced directly as a managed file (not via a caller template) because it runs identically in every repo.
+
+## Onboarding
+
+To add a new downstream repository to the governance system, follow the step-by-step procedure in `MIGRATION.md` at the repository root. The runbook covers per-repo config, caller workflow installation, governance file setup, docs conversion, and verification.
