@@ -21,6 +21,12 @@ on:
         required: false
         default: 'https://f5xc-salesdemos.github.io'
         type: string
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+  schedule:
+    - cron: '0 7 * * *'
   workflow_dispatch:
     inputs:
       content-path:
