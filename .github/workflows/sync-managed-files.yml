@@ -165,7 +165,7 @@ jobs:
                   --state open --json number --jq '.[0].number // empty' 2>/dev/null) || true
                 if [ -n "$EXISTING_PR" ]; then
                   echo "[INFO] Open sync PR #${EXISTING_PR} already exists — attempting merge"
-                  if gh pr checks "${EXISTING_PR}" --repo "${OWNER}/${REPO}" --watch --fail-fast 2>/dev/null; then
+                  if gh pr checks "${EXISTING_PR}" --repo "${OWNER}/${REPO}" --watch; then
                     echo "[INFO] CI passed — merging PR #${EXISTING_PR}..."
                     if gh pr merge "${EXISTING_PR}" --repo "${OWNER}/${REPO}" --squash --delete-branch; then
                       echo "[OK] Merged existing sync PR #${EXISTING_PR}"
@@ -264,7 +264,8 @@ jobs:
 
                   # ─── Auto-merge governance PR ───────────────────────────
                   echo "[INFO] Waiting for CI checks on PR #${PR_NUM}..."
-                  if gh pr checks "${PR_NUM}" --repo "${OWNER}/${REPO}" --watch --fail-fast 2>/dev/null; then
+                  sleep 15  # Give GitHub time to register check runs
+                  if gh pr checks "${PR_NUM}" --repo "${OWNER}/${REPO}" --watch --fail-fast; then
                     echo "[INFO] CI passed — merging PR #${PR_NUM}..."
                     if gh pr merge "${PR_NUM}" --repo "${OWNER}/${REPO}" --squash --delete-branch; then
                       echo "[OK] Merged sync PR #${PR_NUM}"
