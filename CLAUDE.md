@@ -7,23 +7,32 @@ This repo enforces a strict governance workflow.
 not complete until the PR is merged, all post-merge
 workflows succeed, and local branches are cleaned.
 
-### Making Changes (Steps 1-5)
+### Making Changes (Steps 1-6)
 
 1. **Create a GitHub issue** before making any
    changes
-2. **Create a feature branch** from `main` — never
+2. **Sync local main** — pull the latest changes
+   before branching to avoid conflicts with recent
+   work:
+
+   ```
+   git checkout main
+   git pull origin main
+   ```
+
+3. **Create a feature branch** from `main` — never
    commit to `main` directly
-3. **Commit changes** with conventional format
+4. **Commit changes** with conventional format
    (`feat:`, `fix:`, `docs:`) and push to remote
-4. **Open a PR** that links to the issue using
+5. **Open a PR** that links to the issue using
    `Closes #N` — fill out the PR template completely
-5. **Fix any CI failures** — monitor checks with
+6. **Fix any CI failures** — monitor checks with
    `gh pr checks <NUMBER>`, fix locally, push to
    trigger re-runs
 
-### Merging (Step 6)
+### Merging (Step 7)
 
-6. **Merge after CI passes** — once all status checks
+7. **Merge after CI passes** — once all status checks
    are green, merge the PR yourself. Do not wait for
    manual approval (none is required).
 
@@ -38,9 +47,9 @@ workflows succeed, and local branches are cleaned.
    gh pr view <NUMBER> --json mergeable,mergeStateStatus
    ```
 
-### Post-Merge Monitoring (Steps 7-8)
+### Post-Merge Monitoring (Steps 8-9)
 
-7. **Monitor post-merge workflows** — merging to
+8. **Monitor post-merge workflows** — merging to
    `main` triggers additional workflows (docs
    builds, governance sync, etc.). Discover and
    watch them:
@@ -53,20 +62,20 @@ workflows succeed, and local branches are cleaned.
    gh run watch <RUN-ID> --exit-status
    ```
 
-8. **Iterate on failures** — if any workflow fails:
+9. **Iterate on failures** — if any workflow fails:
    - View logs: `gh run view <RUN-ID> --log-failed`
    - Analyze the root cause
    - Fix the code locally
    - Create a new issue, branch, and PR with the fix
-   - Return to Step 5 and repeat until all workflows
+   - Return to Step 6 and repeat until all workflows
      pass
    - For pre-existing failures unrelated to your
      changes: create a GitHub issue (per CI
      Monitoring rules below) and continue
 
-### Cleanup (Steps 9-10)
+### Cleanup (Steps 10-11)
 
-9. **Clean up branches** — only after all workflows
+10. **Clean up branches** — only after all workflows
     succeed. Delete your feature branch and any other
     stale local branches already merged to `main`:
 
@@ -75,7 +84,7 @@ workflows succeed, and local branches are cleaned.
     git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
     ```
 
-10. **Verify completion** — confirm clean state:
+11. **Verify completion** — confirm clean state:
 
     ```
     git status
