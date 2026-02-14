@@ -152,12 +152,20 @@ jobs:
               fi
 
               desired_checks=$(echo "$DESIRED_PAYLOAD" | jq -c '.required_status_checks')
-              if [ "$desired_checks" = "null" ]; then
-                current_checks=$(echo "$CURRENT_PROTECTION" | jq -c '.required_status_checks')
-                if [ "$current_checks" != "null" ]; then
-                  echo "[WARN] Drift in required_status_checks"
-                  PROTECTION_DRIFT=true
-                fi
+              current_checks_raw=$(echo "$CURRENT_PROTECTION" | jq -c '.required_status_checks')
+              if [ "$current_checks_raw" != "null" ]; then
+                current_checks=$(echo "$current_checks_raw" | jq -c '{strict: .strict, contexts: (.contexts | sort)}')
+              else
+                current_checks="null"
+              fi
+              if [ "$desired_checks" != "null" ]; then
+                desired_checks_norm=$(echo "$desired_checks" | jq -c '{strict: .strict, contexts: (.contexts | sort)}')
+              else
+                desired_checks_norm="null"
+              fi
+              if [ "$desired_checks_norm" != "$current_checks" ]; then
+                echo "[WARN] Drift in required_status_checks"
+                PROTECTION_DRIFT=true
               fi
 
               desired_reviews=$(echo "$DESIRED_PAYLOAD" | jq -c '.required_pull_request_reviews')
