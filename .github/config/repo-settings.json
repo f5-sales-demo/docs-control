@@ -1,4 +1,5 @@
 {
+  "_comment": "Central repo-settings config — enforced by enforce-repo-settings.yml",
   "repository": {
     "private": false,
     "has_issues": true,
