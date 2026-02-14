@@ -128,6 +128,37 @@ Use the format `<prefix>/<issue-number>-short-description`:
 - Always delete local feature branches after successful merge
 - Always clean up stale merged branches and workspace clutter when noticed
 
+## Planning Before Execution
+
+**Default to plan mode.** Before making any code or
+configuration changes, enter plan mode to present your
+approach for user review. Do not start writing code,
+creating branches, or modifying files until the user
+approves the plan.
+
+Plan mode is **required** when:
+
+- The task involves creating or modifying multiple files
+- The scope, approach, or requirements are ambiguous
+- The change affects CI workflows, governance, or shared
+  infrastructure
+- You need to make architectural or design decisions
+- The task could reasonably be done in more than one way
+
+Plan mode may be **skipped** when:
+
+- The user gives an explicit, complete instruction with
+  no ambiguity (e.g., "change X to Y in file Z")
+- The task is a single-line fix (typo, obvious syntax
+  error)
+- The operation is read-only (searching, explaining
+  code, reviewing logs)
+- The user explicitly says to skip planning (e.g.,
+  "just do it", "no need to plan")
+
+When in doubt, plan first. A 30-second planning pause
+is always cheaper than undoing unwanted changes.
+
 ## CI Monitoring and Problem Reporting
 
 When monitoring CI workflows, **never ignore
