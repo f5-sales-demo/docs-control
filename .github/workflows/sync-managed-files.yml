@@ -164,7 +164,17 @@ jobs:
                   --head "governance/sync-managed-files" \
                   --state open --json number --jq '.[0].number // empty' 2>/dev/null) || true
                 if [ -n "$EXISTING_PR" ]; then
-                  echo "[SKIP] Open sync PR #${EXISTING_PR} already exists"
+                  echo "[INFO] Open sync PR #${EXISTING_PR} already exists — attempting merge"
+                  if gh pr checks "${EXISTING_PR}" --repo "${OWNER}/${REPO}" --watch --fail-fast 2>/dev/null; then
+                    echo "[INFO] CI passed — merging PR #${EXISTING_PR}..."
+                    if gh pr merge "${EXISTING_PR}" --repo "${OWNER}/${REPO}" --squash --delete-branch; then
+                      echo "[OK] Merged existing sync PR #${EXISTING_PR}"
+                    else
+                      echo "[WARN] Failed to merge PR #${EXISTING_PR} — may need manual merge"
+                    fi
+                  else
+                    echo "[WARN] CI not passing on PR #${EXISTING_PR} — skipping auto-merge"
+                  fi
                 else
                   # Create issue
                   DRIFT_LIST=$(printf '%b' "$DRIFT_FILES" | sed '/^$/d' | sed 's/^/- /')
@@ -252,6 +262,19 @@ jobs:
                   PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
                   echo "[OK] Created sync PR #${PR_NUM}"
 
+                  # ─── Auto-merge governance PR ───────────────────────────
+                  echo "[INFO] Waiting for CI checks on PR #${PR_NUM}..."
+                  if gh pr checks "${PR_NUM}" --repo "${OWNER}/${REPO}" --watch --fail-fast 2>/dev/null; then
+                    echo "[INFO] CI passed — merging PR #${PR_NUM}..."
+                    if gh pr merge "${PR_NUM}" --repo "${OWNER}/${REPO}" --squash --delete-branch; then
+                      echo "[OK] Merged sync PR #${PR_NUM}"
+                    else
+                      echo "[WARN] Failed to merge PR #${PR_NUM} — may need manual merge"
+                    fi
+                  else
+                    echo "[WARN] CI checks failed on PR #${PR_NUM} — skipping auto-merge"
+                  fi
+
                   SYNC_PR_CREATED=true
                 fi
               fi
@@ -264,9 +287,9 @@ jobs:
 
           if [ -n "$MANAGED_FILES" ] && [ "${OWNER}/${REPO}" != "$SOURCE_REPO" ]; then
             if [ "$SYNC_PR_CREATED" = true ]; then
-              echo "[OK] Sync PR created — managed files will match after merge"
+              echo "[OK] Sync PR created and merge attempted — check logs above for result"
             elif [ -n "$EXISTING_PR" ]; then
-              echo "[OK] Sync PR #${EXISTING_PR} pending — managed files will match after merge"
+              echo "[OK] Existing sync PR #${EXISTING_PR} merge attempted — check logs above for result"
             else
               echo "[OK] Managed files verified"
             fi
