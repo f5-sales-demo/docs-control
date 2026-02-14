@@ -22,9 +22,8 @@ jobs:
 
           OWNER="${GITHUB_REPOSITORY%/*}"
           REPO="${GITHUB_REPOSITORY#*/}"
-          CONFIG_FILE=".github/config/repo-settings.json"
-          DEFAULTS_REPO="f5xc-salesdemos/docs-control"
-          DEFAULTS_PATH=".github/config/default-repo-settings.json"
+          CONFIG_REPO="f5xc-salesdemos/docs-control"
+          CONFIG_PATH=".github/config/repo-settings.json"
 
           # ─── Phase 1: Validate ─────────────────────────────────────────────
           echo "=== Phase 1: Validate ==="
@@ -39,25 +38,13 @@ jobs:
             echo "[ERROR] gh is not authenticated" >&2; exit 1
           fi
 
-          # Fetch universal defaults from template repo
-          echo "[INFO] Fetching defaults from ${DEFAULTS_REPO}/${DEFAULTS_PATH}..."
-          DEFAULTS=$(gh api "repos/${DEFAULTS_REPO}/contents/${DEFAULTS_PATH}" --jq '.content' | base64 -d)
-          if ! echo "$DEFAULTS" | jq empty 2>/dev/null; then
-            echo "[ERROR] Failed to fetch or parse defaults from ${DEFAULTS_REPO}" >&2; exit 1
+          # Fetch central config from docs-control
+          echo "[INFO] Fetching config from ${CONFIG_REPO}/${CONFIG_PATH}..."
+          CONFIG=$(gh api "repos/${CONFIG_REPO}/contents/${CONFIG_PATH}" --jq '.content' | base64 -d)
+          if ! echo "$CONFIG" | jq empty 2>/dev/null; then
+            echo "[ERROR] Failed to fetch or parse config from ${CONFIG_REPO}" >&2; exit 1
           fi
-          echo "[OK] Fetched universal defaults from ${DEFAULTS_REPO}"
-
-          # Deep-merge defaults with per-repo overrides
-          if [ -f "$CONFIG_FILE" ]; then
-            if ! jq empty "$CONFIG_FILE" 2>/dev/null; then
-              echo "[ERROR] Config file is not valid JSON: $CONFIG_FILE" >&2; exit 1
-            fi
-            CONFIG=$(echo "$DEFAULTS" | jq -s '.[0] * .[1]' - "$CONFIG_FILE")
-            echo "[OK] Merged defaults with per-repo overrides from $CONFIG_FILE"
-          else
-            CONFIG="$DEFAULTS"
-            echo "[OK] No per-repo overrides found — using defaults only"
-          fi
+          echo "[OK] Fetched config from ${CONFIG_REPO}"
 
           echo "[OK] Config validated for ${OWNER}/${REPO}"
 

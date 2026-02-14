@@ -10,16 +10,15 @@ This page documents the governance enforcement system that keeps downstream repo
 
 The docs-control repository serves two purposes:
 
-1. **Define defaults** -- repository settings, branch protection rules, Actions permissions, GitHub Pages configuration, and a manifest of managed files.
-2. **Enforce those defaults** -- a reusable workflow that downstream repos call to detect drift and auto-correct it, plus a dispatch workflow that triggers enforcement whenever the template changes.
+1. **Define settings** -- repository settings, branch protection rules, Actions permissions, GitHub Pages configuration, and a manifest of managed files in a single centrally controlled config.
+2. **Enforce those settings** -- a reusable workflow that downstream repos call to detect drift and auto-correct it, plus a dispatch workflow that triggers enforcement whenever the template changes.
 
 ## Source Files
 
 | File | Role |
 |---|---|
-| `.github/config/default-repo-settings.json` | Universal defaults: repo settings, branch protection, Actions permissions, Pages config, and the managed files manifest |
+| `.github/config/repo-settings.json` | Central config: repo settings, branch protection, Actions permissions, Pages config, and the managed files manifest |
 | `.github/config/downstream-repos.json` | Registry of enrolled downstream repositories |
-| `.github/config/repo-settings.json` | Per-repo override template (checked into each downstream repo) |
 | `.github/workflows/enforce-repo-settings.yml` | Reusable 7-phase enforcement workflow (repo settings, branch protection, Actions, topics, Pages) |
 | `.github/workflows/sync-managed-files.yml` | Reusable 3-phase managed file sync workflow (file comparison, issue/PR creation) |
 | `.github/workflows/dispatch-downstream.yml` | Dispatch trigger that pushes enforcement to all downstream repos |
@@ -41,7 +40,7 @@ Each phase is idempotent: it compares the desired state against the current stat
 
 #### Phase 1: Validate
 
-Fetches the universal defaults from this template repo via the GitHub API. If the downstream repo has a `.github/config/repo-settings.json` file, it is deep-merged on top of the defaults (per-repo values win). The merged config drives all subsequent phases.
+Fetches the central config from this template repo via the GitHub API. The config drives all subsequent phases. There are no per-repo overrides -- all settings are centrally controlled.
 
 #### Phase 2: Apply repository settings
 
@@ -71,7 +70,7 @@ Re-reads all settings via the GitHub API and compares them against the desired s
 
 #### Phase 1: Validate
 
-Loads and merges the config independently (same logic as the settings workflow) since the two workflows run as separate jobs with separate tokens.
+Fetches the central config independently (same source as the settings workflow) since the two workflows run as separate jobs with separate tokens.
 
 #### Phase 2: Sync managed files
 
@@ -90,9 +89,9 @@ Confirms that a sync PR was created (or already exists) for any drifted files, o
 
 ## Managed Files Manifest
 
-The canonical list of managed files is defined in `.github/config/default-repo-settings.json` under the `managed_files.files` array. Each entry maps a source path in this template repo to a destination path in the downstream repo.
+The canonical list of managed files is defined in `.github/config/repo-settings.json` under the `managed_files.files` array. Each entry maps a source path in this template repo to a destination path in the downstream repo.
 
-The manifest includes caller workflows, issue and PR templates, contributor guidelines, editor configuration, the license, and AI assistant instructions. See the `managed_files` section of `default-repo-settings.json` for the current list.
+The manifest includes caller workflows, issue and PR templates, contributor guidelines, editor configuration, the license, and AI assistant instructions. See the `managed_files` section of `repo-settings.json` for the current list.
 
 ## Dispatch Trigger
 
@@ -105,12 +104,6 @@ The dispatch reads the downstream repo list from `.github/config/downstream-repo
 ## Downstream Repos
 
 The registry of enrolled downstream repositories is maintained in `.github/config/downstream-repos.json`. This is a JSON array of `owner/repo` strings. To enroll a new repo, add it to this file and follow the onboarding procedure in `MIGRATION.md`.
-
-## Per-Repo Overrides
-
-Each downstream repo can customize its settings by creating `.github/config/repo-settings.json`. This file is deep-merged on top of the universal defaults during Phase 1, so only the keys that need to differ must be specified.
-
-The override template at `.github/config/repo-settings.json` in this repo shows the expected structure. Common overrides include `repository.description`, `repository.homepage`, and `topics`.
 
 ## Caller Workflow Templates
 
