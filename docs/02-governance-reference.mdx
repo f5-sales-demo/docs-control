@@ -20,7 +20,8 @@ The docs-control repository serves two purposes:
 | `.github/config/default-repo-settings.json` | Universal defaults: repo settings, branch protection, Actions permissions, Pages config, and the managed files manifest |
 | `.github/config/downstream-repos.json` | Registry of enrolled downstream repositories |
 | `.github/config/repo-settings.json` | Per-repo override template (checked into each downstream repo) |
-| `.github/workflows/enforce-repo-settings.yml` | Reusable 8-phase enforcement workflow |
+| `.github/workflows/enforce-repo-settings.yml` | Reusable 7-phase enforcement workflow (repo settings, branch protection, Actions, topics, Pages) |
+| `.github/workflows/sync-managed-files.yml` | Reusable 3-phase managed file sync workflow (file comparison, issue/PR creation) |
 | `.github/workflows/dispatch-downstream.yml` | Dispatch trigger that pushes enforcement to all downstream repos |
 | `.github/workflows/github-pages-deploy.yml` | Reusable docs build and deploy workflow |
 | `.github/workflows/require-linked-issue.yml` | PR check requiring a linked GitHub issue |
@@ -29,33 +30,50 @@ The docs-control repository serves two purposes:
 
 ## Enforcement Pipeline
 
-The reusable workflow at `.github/workflows/enforce-repo-settings.yml` runs in 8 phases. Each phase is idempotent: it compares the desired state against the current state and only makes changes when drift is detected.
+Enforcement is split into two reusable workflows that run as parallel jobs, each with its own least-privilege token:
 
-### Phase 1: Validate
+- **`enforce-repo-settings.yml`** uses `REPO_SETTINGS_TOKEN` (Administration R/W, Pages R/W, Contents Read, Metadata Read)
+- **`sync-managed-files.yml`** uses `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read)
+
+### enforce-repo-settings.yml (7 phases)
+
+Each phase is idempotent: it compares the desired state against the current state and only makes changes when drift is detected.
+
+#### Phase 1: Validate
 
 Fetches the universal defaults from this template repo via the GitHub API. If the downstream repo has a `.github/config/repo-settings.json` file, it is deep-merged on top of the defaults (per-repo values win). The merged config drives all subsequent phases.
 
-### Phase 2: Apply repository settings
+#### Phase 2: Apply repository settings
 
 Compares each key in the `repository` object (visibility, merge options, branch-on-delete, etc.) against the repo's current settings. Patches only the keys that have drifted.
 
-### Phase 3: Apply Actions permissions
+#### Phase 3: Apply Actions permissions
 
 Compares the `actions_permissions` object (default workflow permissions, PR review approval) against the current Actions workflow permissions and updates if drifted.
 
-### Phase 4: Apply branch protection
+#### Phase 4: Apply branch protection
 
 Iterates over the `branch_protection` array. For each branch, compares enforce-admins, required status checks, required reviews, restrictions, and boolean flags (linear history, force pushes, deletions, etc.). Creates or updates protection rules as needed.
 
-### Phase 5: Apply topics
+#### Phase 5: Apply topics
 
 Compares the `topics` array against the repo's current topics and replaces them if drifted.
 
-### Phase 6: Apply Pages
+#### Phase 6: Apply Pages
 
 Enables GitHub Pages with the configured `build_type` (default: `workflow`) if not already enabled, or updates the build type if it has drifted.
 
-### Phase 7: Sync managed files
+#### Phase 7: Verify
+
+Re-reads all settings via the GitHub API and compares them against the desired state. Fails the workflow if any setting does not match after the apply phases.
+
+### sync-managed-files.yml (3 phases)
+
+#### Phase 1: Validate
+
+Loads and merges the config independently (same logic as the settings workflow) since the two workflows run as separate jobs with separate tokens.
+
+#### Phase 2: Sync managed files
 
 Compares each file listed in the `managed_files.files` array against the canonical version in this template repo. If any file has drifted or is missing, the workflow:
 
@@ -66,9 +84,9 @@ Compares each file listed in the `managed_files.files` array against the canonic
 
 If a sync PR is already open, the phase skips to avoid duplicates.
 
-### Phase 8: Verify
+#### Phase 3: Verify
 
-Re-reads all settings via the GitHub API and compares them against the desired state. Fails the workflow if any setting does not match after the apply phases.
+Confirms that a sync PR was created (or already exists) for any drifted files, or that all managed files match their canonical versions.
 
 ## Managed Files Manifest
 
@@ -82,7 +100,7 @@ When files in this template repo change on the `main` branch, the dispatch workf
 
 The trigger paths are listed in that workflow file. They cover the config directory, the `workflows/` caller templates, the reusable workflows, issue/PR templates, and root-level managed files like `CONTRIBUTING.md`, `CLAUDE.md`, `.editorconfig`, `.gitignore`, and `LICENSE`.
 
-The dispatch reads the downstream repo list from `.github/config/downstream-repos.json` and calls `gh workflow run enforce-repo-settings.yml` for each repo using the `REPO_ADMIN_TOKEN` secret.
+The dispatch reads the downstream repo list from `.github/config/downstream-repos.json` and calls `gh workflow run enforce-repo-settings.yml` for each repo using the `REPO_SETTINGS_TOKEN` secret.
 
 ## Downstream Repos
 
@@ -100,7 +118,7 @@ The `workflows/` directory contains workflow files that downstream repos copy in
 
 | Template | Calls | Trigger |
 |---|---|---|
-| `workflows/enforce-repo-settings.yml` | `.github/workflows/enforce-repo-settings.yml` | Schedule (every 6 hours), push to `.github/config/**`, manual dispatch |
+| `workflows/enforce-repo-settings.yml` | `.github/workflows/enforce-repo-settings.yml` and `.github/workflows/sync-managed-files.yml` (parallel jobs) | Schedule (every 6 hours), push to `.github/config/**`, manual dispatch |
 | `workflows/github-pages-deploy.yml` | `.github/workflows/github-pages-deploy.yml` | Push to `docs/**` on main, manual dispatch |
 
 The `require-linked-issue.yml` workflow is synced directly as a managed file (not via a caller template) because it runs identically in every repo.

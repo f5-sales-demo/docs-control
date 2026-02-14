@@ -5,7 +5,7 @@ This runbook documents how to onboard a downstream repo into the docs-control go
 ## Prerequisites
 
 - The repo is owned by `f5xc-salesdemos` on GitHub
-- You have the `REPO_ADMIN_TOKEN` secret configured in the downstream repo
+- You have the `REPO_SETTINGS_TOKEN` and `REPO_SYNC_TOKEN` secrets configured in the downstream repo
 - The docs-builder Docker image (`ghcr.io/f5xc-salesdemos/docs-builder:latest`) supports Astro Starlight builds
 - GitHub Pages is enabled (or will be enabled by enforcement)
 

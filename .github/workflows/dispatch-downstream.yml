@@ -9,6 +9,7 @@ on:
       - '.github/config/docs-sites.json'
       - 'workflows/**'
       - '.github/workflows/enforce-repo-settings.yml'
+      - '.github/workflows/sync-managed-files.yml'
       - '.github/workflows/github-pages-deploy.yml'
       - '.github/workflows/require-linked-issue.yml'
       - '.github/PULL_REQUEST_TEMPLATE.md'
@@ -36,7 +37,7 @@ jobs:
 
       - name: Dispatch to downstream repos
         env:
-          GH_TOKEN: ${{ secrets.REPO_ADMIN_TOKEN }}
+          GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
         run: |
           repos=$(jq -r '.[]' .github/config/downstream-repos.json)
           for repo in $repos; do
