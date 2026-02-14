@@ -21,18 +21,18 @@ workflows succeed, and local branches are cleaned.
    `gh pr checks <NUMBER>`, fix locally, push to
    trigger re-runs
 
-### Waiting for Merge (Step 6)
+### Merging (Step 6)
 
-6. **Wait for merge** — PRs require manual approval.
-   After CI checks pass, wait for a reviewer to
-   approve and merge. Poll until the PR state is
-   `MERGED`:
+6. **Merge after CI passes** — once all status checks
+   are green, merge the PR yourself. Do not wait for
+   manual approval (none is required).
 
    ```
-   gh pr view <NUMBER> --json state --jq '.state'
+   gh pr checks <NUMBER> --watch
+   gh pr merge <NUMBER> --squash --delete-branch
    ```
 
-   If the PR is not merging, check for issues:
+   If the merge fails, check why:
 
    ```
    gh pr view <NUMBER> --json mergeable,mergeStateStatus
