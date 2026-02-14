@@ -8,5 +8,10 @@
     "label": "XC Docs Theme",
     "url": "https://f5xc-salesdemos.github.io/docs-theme/llms-full.txt",
     "description": "Shared branding and styling for F5 Distributed Cloud documentation sites"
+  },
+  {
+    "label": "F5 XC Docs",
+    "url": "https://f5xc-salesdemos.github.io/docs/llms-full.txt",
+    "description": "Organization landing page for F5 Distributed Cloud documentation"
   }
 ]
