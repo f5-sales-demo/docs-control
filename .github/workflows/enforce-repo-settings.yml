@@ -27,6 +27,46 @@ jobs:
         run: |
           set -euo pipefail
 
+          # ─── Retry helpers ─────────────────────────────────────────────────
+          # Retry with exponential backoff (for commands without stdin)
+          # Usage: retry <max_attempts> <command> [args...]
+          retry() {
+            local max="$1"; shift
+            local attempt=1
+            local delay=2
+            while true; do
+              if "$@"; then return 0; fi
+              if [ "$attempt" -ge "$max" ]; then
+                echo "[ERROR] Failed after ${max} attempts: $*" >&2
+                return 1
+              fi
+              echo "[WARN] Attempt ${attempt}/${max} failed — retrying in ${delay}s..." >&2
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
+
+          # Retry with JSON body (for gh api --input - calls)
+          # Usage: retry_json <max_attempts> <json_string> <gh api args...>
+          retry_json() {
+            local max="$1"; shift
+            local json="$1"; shift
+            local attempt=1
+            local delay=2
+            while true; do
+              if echo "$json" | gh api "$@" --input -; then return 0; fi
+              if [ "$attempt" -ge "$max" ]; then
+                echo "[ERROR] Failed after ${max} attempts: gh api $*" >&2
+                return 1
+              fi
+              echo "[WARN] Attempt ${attempt}/${max} failed — retrying in ${delay}s..." >&2
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
+
           OWNER="${GITHUB_REPOSITORY%/*}"
           REPO="${GITHUB_REPOSITORY#*/}"
           CONFIG_REPO="f5xc-salesdemos/docs-control"
@@ -47,7 +87,8 @@ jobs:
 
           # Fetch central config from docs-control
           echo "[INFO] Fetching config from ${CONFIG_REPO}/${CONFIG_PATH}..."
-          CONFIG=$(gh api "repos/${CONFIG_REPO}/contents/${CONFIG_PATH}" --jq '.content' | base64 -d)
+          CONFIG_B64=$(retry 5 gh api "repos/${CONFIG_REPO}/contents/${CONFIG_PATH}" --jq '.content')
+          CONFIG=$(echo "$CONFIG_B64" | base64 -d)
           if ! echo "$CONFIG" | jq empty 2>/dev/null; then
             echo "[ERROR] Failed to fetch or parse config from ${CONFIG_REPO}" >&2; exit 1
           fi
@@ -68,7 +109,7 @@ jobs:
           echo "=== Phase 2: Apply repo settings ==="
 
           DESIRED_REPO=$(echo "$CONFIG" | jq -c '.repository')
-          CURRENT_REPO=$(gh api "repos/${OWNER}/${REPO}" 2>/dev/null)
+          CURRENT_REPO=$(retry 3 gh api "repos/${OWNER}/${REPO}")
 
           REPO_DRIFT=false
           REPO_PATCH="{}"
@@ -85,7 +126,7 @@ jobs:
 
           if [ "$REPO_DRIFT" = true ]; then
             echo "[INFO] Patching repository settings..."
-            echo "$REPO_PATCH" | gh api "repos/${OWNER}/${REPO}" --method PATCH --input - >/dev/null
+            retry_json 3 "$REPO_PATCH" "repos/${OWNER}/${REPO}" --method PATCH >/dev/null
             echo "[OK] Repository settings updated"
           else
             echo "[OK] Repository settings match — no changes needed"
@@ -98,7 +139,7 @@ jobs:
           DESIRED_ACTIONS=$(echo "$CONFIG" | jq -c '.actions_permissions // empty')
 
           if [ -n "$DESIRED_ACTIONS" ]; then
-            CURRENT_ACTIONS=$(gh api "repos/${OWNER}/${REPO}/actions/permissions/workflow" 2>/dev/null)
+            CURRENT_ACTIONS=$(retry 3 gh api "repos/${OWNER}/${REPO}/actions/permissions/workflow")
             ACTIONS_DRIFT=false
 
             for key in $(echo "$DESIRED_ACTIONS" | jq -r 'keys[]'); do
@@ -112,8 +153,8 @@ jobs:
 
             if [ "$ACTIONS_DRIFT" = true ]; then
               echo "[INFO] Updating Actions workflow permissions..."
-              echo "$DESIRED_ACTIONS" | gh api "repos/${OWNER}/${REPO}/actions/permissions/workflow" \
-                --method PUT --input - >/dev/null
+              retry_json 3 "$DESIRED_ACTIONS" "repos/${OWNER}/${REPO}/actions/permissions/workflow" \
+                --method PUT >/dev/null
               echo "[OK] Actions permissions updated"
             else
               echo "[OK] Actions permissions match — no changes needed"
@@ -134,9 +175,9 @@ jobs:
 
             DESIRED_PAYLOAD=$(echo "$CONFIG" | jq -c ".branch_protection[$i] | del(.branch)")
 
-            HTTP_CODE=$(gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
+            HTTP_CODE=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
               --include 2>/dev/null | head -1 | awk '{print $2}') || true
-            CURRENT_PROTECTION=$(gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" 2>/dev/null) || true
+            CURRENT_PROTECTION=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" 2>/dev/null) || true
 
             PROTECTION_DRIFT=false
 
@@ -227,8 +268,8 @@ jobs:
                   allow_fork_syncing: $desired.allow_fork_syncing
                 }')
 
-              echo "$PUT_PAYLOAD" | gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
-                --method PUT --input - >/dev/null
+              retry_json 3 "$PUT_PAYLOAD" "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
+                --method PUT >/dev/null
               echo "[OK] Branch protection updated for $BRANCH"
             else
               echo "[OK] Branch protection matches — no changes needed"
@@ -241,12 +282,12 @@ jobs:
 
           DESIRED_TOPICS=$(echo "$CONFIG" | jq -c '.topics // []')
           if [ "$DESIRED_TOPICS" != "[]" ]; then
-            CURRENT_TOPICS=$(gh api "repos/${OWNER}/${REPO}/topics" 2>/dev/null | jq -c '.names // []')
+            CURRENT_TOPICS=$(retry 3 gh api "repos/${OWNER}/${REPO}/topics" | jq -c '.names // []')
             if [ "$DESIRED_TOPICS" != "$CURRENT_TOPICS" ]; then
               echo "[WARN] Drift in topics: current=$CURRENT_TOPICS desired=$DESIRED_TOPICS"
               echo "[INFO] Updating topics..."
-              jq -n --argjson names "$DESIRED_TOPICS" '{"names": $names}' | \
-                gh api "repos/${OWNER}/${REPO}/topics" --method PUT --input - >/dev/null
+              TOPICS_JSON=$(jq -n --argjson names "$DESIRED_TOPICS" '{"names": $names}')
+              retry_json 3 "$TOPICS_JSON" "repos/${OWNER}/${REPO}/topics" --method PUT >/dev/null
               echo "[OK] Topics updated"
             else
               echo "[OK] Topics match — no changes needed"
@@ -262,20 +303,19 @@ jobs:
           PAGES_ENABLED=$(echo "$CONFIG" | jq -r '.pages.enabled // false')
           DESIRED_BUILD_TYPE=$(echo "$CONFIG" | jq -r '.pages.build_type // "workflow"')
           if [ "$PAGES_ENABLED" = "true" ]; then
-            PAGES_HTTP_CODE=$(gh api "repos/${OWNER}/${REPO}/pages" --include 2>/dev/null | head -1 | awk '{print $2}') || true
+            PAGES_HTTP_CODE=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages" --include 2>/dev/null | head -1 | awk '{print $2}') || true
+            PAGES_JSON=$(jq -n --arg bt "$DESIRED_BUILD_TYPE" '{"build_type": $bt, "source": {"branch": "main", "path": "/"}}')
             if [ "$PAGES_HTTP_CODE" = "404" ]; then
               echo "[INFO] Enabling GitHub Pages with ${DESIRED_BUILD_TYPE} source..."
-              jq -n --arg bt "$DESIRED_BUILD_TYPE" '{"build_type": $bt, "source": {"branch": "main", "path": "/"}}' | \
-                gh api "repos/${OWNER}/${REPO}/pages" --method POST --input - >/dev/null 2>&1 || true
+              retry_json 3 "$PAGES_JSON" "repos/${OWNER}/${REPO}/pages" --method POST >/dev/null 2>&1 || true
               echo "[OK] Pages enabled with build_type=${DESIRED_BUILD_TYPE}"
             else
-              PAGES_RESPONSE=$(gh api "repos/${OWNER}/${REPO}/pages" 2>/dev/null) || true
+              PAGES_RESPONSE=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages" 2>/dev/null) || true
               CURRENT_BUILD_TYPE=$(echo "$PAGES_RESPONSE" | jq -r '.build_type // empty')
               if [ "$CURRENT_BUILD_TYPE" != "$DESIRED_BUILD_TYPE" ]; then
                 echo "[WARN] Drift in pages.build_type: current=$CURRENT_BUILD_TYPE desired=$DESIRED_BUILD_TYPE"
                 echo "[INFO] Updating Pages build_type to ${DESIRED_BUILD_TYPE}..."
-                jq -n --arg bt "$DESIRED_BUILD_TYPE" '{"build_type": $bt, "source": {"branch": "main", "path": "/"}}' | \
-                  gh api "repos/${OWNER}/${REPO}/pages" --method PUT --input - >/dev/null 2>&1
+                retry_json 3 "$PAGES_JSON" "repos/${OWNER}/${REPO}/pages" --method PUT >/dev/null 2>&1
                 echo "[OK] Pages build_type updated to ${DESIRED_BUILD_TYPE}"
               else
                 echo "[OK] Pages build_type matches (${CURRENT_BUILD_TYPE}) — no changes needed"
@@ -291,7 +331,7 @@ jobs:
 
           VERIFY_FAILED=false
 
-          VERIFY_REPO=$(gh api "repos/${OWNER}/${REPO}" 2>/dev/null)
+          VERIFY_REPO=$(retry 3 gh api "repos/${OWNER}/${REPO}")
           for key in $(echo "$DESIRED_REPO" | jq -r 'keys[]'); do
             desired_val=$(echo "$DESIRED_REPO" | jq -c ".[\"$key\"]")
             actual_val=$(echo "$VERIFY_REPO" | jq -c ".[\"$key\"]")
@@ -302,7 +342,7 @@ jobs:
           done
 
           if [ -n "$DESIRED_ACTIONS" ]; then
-            VERIFY_ACTIONS=$(gh api "repos/${OWNER}/${REPO}/actions/permissions/workflow" 2>/dev/null)
+            VERIFY_ACTIONS=$(retry 3 gh api "repos/${OWNER}/${REPO}/actions/permissions/workflow")
             for key in $(echo "$DESIRED_ACTIONS" | jq -r 'keys[]'); do
               desired_val=$(echo "$DESIRED_ACTIONS" | jq -c ".[\"$key\"]")
               actual_val=$(echo "$VERIFY_ACTIONS" | jq -c ".[\"$key\"]")
@@ -316,7 +356,7 @@ jobs:
           for i in $(seq 0 $((BRANCH_COUNT - 1))); do
             BRANCH=$(echo "$CONFIG" | jq -r ".branch_protection[$i].branch")
             DESIRED_PAYLOAD=$(echo "$CONFIG" | jq -c ".branch_protection[$i] | del(.branch)")
-            VERIFY_PROTECTION=$(gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" 2>/dev/null) || true
+            VERIFY_PROTECTION=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" 2>/dev/null) || true
 
             if [ -z "$VERIFY_PROTECTION" ]; then
               echo "[FAIL] Branch protection for $BRANCH not found after apply"
@@ -352,11 +392,11 @@ jobs:
           done
 
           if [ "$PAGES_ENABLED" = "true" ]; then
-            VERIFY_PAGES_CODE=$(gh api "repos/${OWNER}/${REPO}/pages" --include 2>/dev/null | head -1 | awk '{print $2}') || true
+            VERIFY_PAGES_CODE=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages" --include 2>/dev/null | head -1 | awk '{print $2}') || true
             if [ "$VERIFY_PAGES_CODE" = "404" ]; then
               echo "[WARN] Pages not found after apply — repo may lack a deploy workflow"
             else
-              VERIFY_PAGES=$(gh api "repos/${OWNER}/${REPO}/pages" 2>/dev/null) || true
+              VERIFY_PAGES=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages" 2>/dev/null) || true
               ACTUAL_BUILD_TYPE=$(echo "$VERIFY_PAGES" | jq -r '.build_type // empty')
               if [ "$ACTUAL_BUILD_TYPE" != "$DESIRED_BUILD_TYPE" ]; then
                 echo "[FAIL] pages.build_type: expected=$DESIRED_BUILD_TYPE actual=$ACTUAL_BUILD_TYPE"
