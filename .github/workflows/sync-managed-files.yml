@@ -25,6 +25,54 @@ jobs:
           CONFIG_REPO="f5xc-salesdemos/docs-control"
           CONFIG_PATH=".github/config/repo-settings.json"
 
+          # ─── Helper: wait for checks and auto-merge ──────────────────────
+          wait_and_merge() {
+            local pr_num="$1"
+            local repo_slug="$2"
+            local max_wait=180   # 3 minutes total
+            local poll_interval=15
+            local elapsed=0
+
+            echo "[INFO] Waiting for CI checks on PR #${pr_num} (timeout: ${max_wait}s)..."
+
+            # Poll until checks appear or timeout
+            while [ "$elapsed" -lt "$max_wait" ]; do
+              sleep "$poll_interval"
+              elapsed=$((elapsed + poll_interval))
+
+              # Check if any checks have been reported
+              CHECK_OUTPUT=$(gh pr checks "${pr_num}" --repo "${repo_slug}" 2>&1) || true
+              if echo "$CHECK_OUTPUT" | grep -q "no checks reported"; then
+                echo "[INFO] No checks reported yet (${elapsed}s elapsed)..."
+                continue
+              fi
+
+              # Checks exist — watch them to completion
+              echo "[INFO] Checks detected — watching for completion..."
+              if gh pr checks "${pr_num}" --repo "${repo_slug}" --watch; then
+                echo "[INFO] CI passed — merging PR #${pr_num}..."
+                local merge_attempts=0
+                while [ "$merge_attempts" -lt 3 ]; do
+                  if gh pr merge "${pr_num}" --repo "${repo_slug}" --squash --delete-branch; then
+                    echo "[OK] Merged sync PR #${pr_num}"
+                    return 0
+                  fi
+                  merge_attempts=$((merge_attempts + 1))
+                  echo "[WARN] Merge attempt ${merge_attempts}/3 failed — retrying in 10s..."
+                  sleep 10
+                done
+                echo "[WARN] Failed to merge PR #${pr_num} after 3 attempts — may need manual merge"
+                return 1
+              else
+                echo "[WARN] CI checks failed on PR #${pr_num} — skipping auto-merge"
+                return 1
+              fi
+            done
+
+            echo "[WARN] Timed out waiting for checks on PR #${pr_num} (${max_wait}s) — skipping auto-merge"
+            return 1
+          }
+
           # ─── Phase 1: Validate ─────────────────────────────────────────────
           echo "=== Phase 1: Validate ==="
 
@@ -223,16 +271,7 @@ jobs:
                   --state open --json number --jq '.[0].number // empty' 2>/dev/null) || true
                 if [ -n "$EXISTING_PR" ]; then
                   echo "[INFO] Open sync PR #${EXISTING_PR} already exists — attempting merge"
-                  if gh pr checks "${EXISTING_PR}" --repo "${OWNER}/${REPO}" --watch; then
-                    echo "[INFO] CI passed — merging PR #${EXISTING_PR}..."
-                    if gh pr merge "${EXISTING_PR}" --repo "${OWNER}/${REPO}" --squash --delete-branch; then
-                      echo "[OK] Merged existing sync PR #${EXISTING_PR}"
-                    else
-                      echo "[WARN] Failed to merge PR #${EXISTING_PR} — may need manual merge"
-                    fi
-                  else
-                    echo "[WARN] CI not passing on PR #${EXISTING_PR} — skipping auto-merge"
-                  fi
+                  wait_and_merge "${EXISTING_PR}" "${OWNER}/${REPO}" || true
                 else
                   # Create issue
                   DRIFT_LIST=$(printf '%b' "$DRIFT_FILES" | sed '/^$/d' | sed 's/^/- /')
@@ -343,18 +382,7 @@ jobs:
                   echo "[OK] Created sync PR #${PR_NUM}"
 
                   # ─── Auto-merge governance PR ───────────────────────────
-                  echo "[INFO] Waiting for CI checks on PR #${PR_NUM}..."
-                  sleep 15  # Give GitHub time to register check runs
-                  if gh pr checks "${PR_NUM}" --repo "${OWNER}/${REPO}" --watch --fail-fast; then
-                    echo "[INFO] CI passed — merging PR #${PR_NUM}..."
-                    if gh pr merge "${PR_NUM}" --repo "${OWNER}/${REPO}" --squash --delete-branch; then
-                      echo "[OK] Merged sync PR #${PR_NUM}"
-                    else
-                      echo "[WARN] Failed to merge PR #${PR_NUM} — may need manual merge"
-                    fi
-                  else
-                    echo "[WARN] CI checks failed on PR #${PR_NUM} — skipping auto-merge"
-                  fi
+                  wait_and_merge "${PR_NUM}" "${OWNER}/${REPO}" || true
 
                   SYNC_PR_CREATED=true
                 fi
