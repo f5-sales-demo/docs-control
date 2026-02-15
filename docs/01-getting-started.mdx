@@ -4,22 +4,28 @@ sidebar:
   order: 1
 ---
 
-This repository is the governance template for F5 Distributed Cloud (f5xc) downstream repos. It defines the canonical versions of workflows, configuration files, issue templates, and editor settings that are automatically synced to all enrolled repositories.
+This repository is the governance control plane for F5 Distributed Cloud (F5 XC) downstream repos. It defines the canonical versions of workflows, configuration files, issue templates, and editor settings that are automatically synced to all enrolled repositories. It also provides dynamic file generation for README and Dependabot configuration.
 
-## Key Directories
+## Key Directories and Files
 
 | Directory / File | Purpose |
 |---|---|
-| `.github/config/` | Central repo settings config and downstream repo registry |
-| `.github/workflows/` | Reusable workflows (enforcement, pages deploy, linked-issue check) |
-| `workflows/` | Caller workflow templates that downstream repos install into `.github/workflows/` |
+| `.github/config/repo-settings.json` | Central config: repo settings, branch protection, Actions permissions, Pages config, and the managed files manifest |
+| `.github/config/downstream-repos.json` | Registry of enrolled downstream repositories |
+| `.github/config/docs-sites.json` | Metadata for each downstream docs site (label, URL, description) used by README templating |
+| `.github/workflows/` | Reusable workflows: enforcement, file sync, pages deploy, linked-issue check, and dispatch |
+| `workflows/` | Caller templates downstream repos install into `.github/workflows/` (enforce-repo-settings, github-pages-deploy) |
 | `docs/` | Documentation source (built and deployed via Astro Starlight) |
-| `CONTRIBUTING.md` | Contributor workflow rules synced to all downstream repos |
-| `CLAUDE.md` | AI assistant instructions synced to all downstream repos |
-| `MIGRATION.md` | Step-by-step runbook for onboarding a new downstream repo |
+| `CONTRIBUTING.md` | Contributor workflow rules (synced to all downstream repos) |
+| `CLAUDE.md` | AI assistant instructions (synced to all downstream repos) |
+| `MIGRATION.md` | Runbook for onboarding a repo to the Astro Starlight documentation pipeline |
+| `README.md.tpl` | Template for dynamically generated downstream README files |
+| `.pre-commit-config.yaml` | Pre-commit hooks configuration (synced to all downstream repos) |
+| `.markdownlint.json` | Markdown linting rules |
+| `.yamllint.yaml` | YAML linting rules |
 
 ## Next Steps
 
-- Read the [Governance Reference](../02-governance-reference/) for a detailed explanation of the enforcement system
-- See `MIGRATION.md` in the repository root for the full onboarding procedure
-- See `CONTRIBUTING.md` for the branch, commit, and PR workflow
+- Read the [Governance Reference](../02-governance-reference/) for a detailed explanation of the enforcement system, dynamic file generation, and auto-merge behavior
+- See `CONTRIBUTING.md` for the branch, commit, and PR workflow that all repos follow
+- See `MIGRATION.md` in the repository root for the step-by-step procedure to onboard a new downstream repo to the Astro Starlight documentation pipeline
