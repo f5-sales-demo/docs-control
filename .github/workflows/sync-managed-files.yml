@@ -20,6 +20,46 @@ jobs:
         run: |
           set -euo pipefail
 
+          # ─── Retry helpers ─────────────────────────────────────────────────
+          # Retry with exponential backoff (for commands without stdin)
+          # Usage: retry <max_attempts> <command> [args...]
+          retry() {
+            local max="$1"; shift
+            local attempt=1
+            local delay=2
+            while true; do
+              if "$@"; then return 0; fi
+              if [ "$attempt" -ge "$max" ]; then
+                echo "[ERROR] Failed after ${max} attempts: $*" >&2
+                return 1
+              fi
+              echo "[WARN] Attempt ${attempt}/${max} failed — retrying in ${delay}s..." >&2
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
+
+          # Retry with JSON body (for gh api --input - calls)
+          # Usage: retry_json <max_attempts> <json_string> <gh api args...>
+          retry_json() {
+            local max="$1"; shift
+            local json="$1"; shift
+            local attempt=1
+            local delay=2
+            while true; do
+              if echo "$json" | gh api "$@" --input -; then return 0; fi
+              if [ "$attempt" -ge "$max" ]; then
+                echo "[ERROR] Failed after ${max} attempts: gh api $*" >&2
+                return 1
+              fi
+              echo "[WARN] Attempt ${attempt}/${max} failed — retrying in ${delay}s..." >&2
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
+
           OWNER="${GITHUB_REPOSITORY%/*}"
           REPO="${GITHUB_REPOSITORY#*/}"
           CONFIG_REPO="f5xc-salesdemos/docs-control"
@@ -58,8 +98,9 @@ jobs:
                     return 0
                   fi
                   merge_attempts=$((merge_attempts + 1))
-                  echo "[WARN] Merge attempt ${merge_attempts}/3 failed — retrying in 10s..."
-                  sleep 10
+                  local merge_delay=$((5 * (2 ** (merge_attempts - 1))))
+                  echo "[WARN] Merge attempt ${merge_attempts}/3 failed — retrying in ${merge_delay}s..."
+                  sleep "$merge_delay"
                 done
                 echo "[WARN] Failed to merge PR #${pr_num} after 3 attempts — may need manual merge"
                 return 1
@@ -88,7 +129,8 @@ jobs:
 
           # Fetch central config from docs-control
           echo "[INFO] Fetching config from ${CONFIG_REPO}/${CONFIG_PATH}..."
-          CONFIG=$(gh api "repos/${CONFIG_REPO}/contents/${CONFIG_PATH}" --jq '.content' | base64 -d)
+          CONFIG_B64=$(retry 5 gh api "repos/${CONFIG_REPO}/contents/${CONFIG_PATH}" --jq '.content')
+          CONFIG=$(echo "$CONFIG_B64" | base64 -d)
           if ! echo "$CONFIG" | jq empty 2>/dev/null; then
             echo "[ERROR] Failed to fetch or parse config from ${CONFIG_REPO}" >&2; exit 1
           fi
@@ -122,7 +164,7 @@ jobs:
                 dest=$(echo "$file_obj" | jq -r '.dest')
 
                 # Fetch canonical content from source path
-                CANONICAL_RESPONSE=$(gh api "repos/${SOURCE_REPO}/contents/${src}" 2>/dev/null) || true
+                CANONICAL_RESPONSE=$(retry 3 gh api "repos/${SOURCE_REPO}/contents/${src}" 2>/dev/null) || true
                 if [ -z "$CANONICAL_RESPONSE" ]; then
                   echo "[WARN] Could not fetch canonical: ${src}"
                   continue
@@ -130,7 +172,7 @@ jobs:
                 CANONICAL_CONTENT=$(echo "$CANONICAL_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
 
                 # Fetch downstream content at dest path (handle 404)
-                DOWNSTREAM_RESPONSE=$(gh api "repos/${OWNER}/${REPO}/contents/${dest}" 2>/dev/null) || true
+                DOWNSTREAM_RESPONSE=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/${dest}" 2>/dev/null) || true
                 if [ -z "$DOWNSTREAM_RESPONSE" ]; then
                   echo "[DRIFT] Missing downstream: ${dest}"
                   DRIFT_FILES="${DRIFT_FILES}${dest}\n"
@@ -155,14 +197,14 @@ jobs:
 
               # Detect ecosystems in target repo
               HAS_NPM=false; HAS_PIP=false; HAS_DOCKER=false
-              if gh api "repos/${OWNER}/${REPO}/contents/package.json" --jq '.sha' >/dev/null 2>&1; then
+              if retry 3 gh api "repos/${OWNER}/${REPO}/contents/package.json" --jq '.sha' >/dev/null 2>&1; then
                 HAS_NPM=true; echo "[INFO] Detected package.json → npm"
               fi
-              if gh api "repos/${OWNER}/${REPO}/contents/Dockerfile" --jq '.sha' >/dev/null 2>&1; then
+              if retry 3 gh api "repos/${OWNER}/${REPO}/contents/Dockerfile" --jq '.sha' >/dev/null 2>&1; then
                 HAS_DOCKER=true; echo "[INFO] Detected Dockerfile → docker"
               fi
               for pyfile in requirements.txt pyproject.toml setup.py; do
-                if gh api "repos/${OWNER}/${REPO}/contents/${pyfile}" --jq '.sha' >/dev/null 2>&1; then
+                if retry 3 gh api "repos/${OWNER}/${REPO}/contents/${pyfile}" --jq '.sha' >/dev/null 2>&1; then
                   HAS_PIP=true; echo "[INFO] Detected ${pyfile} → pip"; break
                 fi
               done
@@ -186,7 +228,7 @@ jobs:
               GENERATED_DEPENDABOT=$(printf '%b' "$DEPBOT")
 
               # Compare with current dependabot.yml in target repo
-              CURRENT_DEPBOT_RESPONSE=$(gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" 2>/dev/null) || true
+              CURRENT_DEPBOT_RESPONSE=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" 2>/dev/null) || true
               if [ -n "$CURRENT_DEPBOT_RESPONSE" ]; then
                 CURRENT_DEPENDABOT=$(echo "$CURRENT_DEPBOT_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
               else
@@ -208,7 +250,8 @@ jobs:
               README_DRIFT=false
 
               # Fetch docs-sites.json from docs-control
-              DOCS_SITES_JSON=$(gh api "repos/${CONFIG_REPO}/contents/.github/config/docs-sites.json" --jq '.content' | base64 -d)
+              DOCS_SITES_B64=$(retry 3 gh api "repos/${CONFIG_REPO}/contents/.github/config/docs-sites.json" --jq '.content')
+              DOCS_SITES_JSON=$(echo "$DOCS_SITES_B64" | base64 -d)
 
               # Look up label and description by matching repo name in URL
               README_TITLE=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
@@ -234,7 +277,8 @@ jobs:
               DOCS_URL="https://f5xc-salesdemos.github.io/${REPO}/"
 
               # Fetch README.md.tpl from docs-control
-              README_TPL=$(gh api "repos/${CONFIG_REPO}/contents/README.md.tpl" --jq '.content' | base64 -d)
+              README_TPL_B64=$(retry 3 gh api "repos/${CONFIG_REPO}/contents/README.md.tpl" --jq '.content')
+              README_TPL=$(echo "$README_TPL_B64" | base64 -d)
 
               # Substitute placeholders
               GENERATED_README=$(echo "$README_TPL" | \
@@ -244,7 +288,7 @@ jobs:
                 sed "s|__DOCS_URL__|${DOCS_URL}|g")
 
               # Compare with current README.md in target repo
-              CURRENT_README_RESPONSE=$(gh api "repos/${OWNER}/${REPO}/contents/README.md" 2>/dev/null) || true
+              CURRENT_README_RESPONSE=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/README.md" 2>/dev/null) || true
               if [ -n "$CURRENT_README_RESPONSE" ]; then
                 CURRENT_README=$(echo "$CURRENT_README_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
               else
@@ -283,12 +327,11 @@ jobs:
                   echo "[OK] Created issue #${ISSUE_NUM}"
 
                   # Create branch from main HEAD (try create, fall back to update if concurrent run created it)
-                  MAIN_SHA=$(gh api "repos/${OWNER}/${REPO}/git/ref/heads/main" --jq '.object.sha')
-                  if ! gh api "repos/${OWNER}/${REPO}/git/refs" --method POST \
-                    --input <(jq -n --arg sha "$MAIN_SHA" \
-                      '{"ref":"refs/heads/governance/sync-managed-files","sha":$sha}') >/dev/null 2>&1; then
-                    gh api "repos/${OWNER}/${REPO}/git/refs/heads/governance/sync-managed-files" \
-                      --method PATCH --input <(jq -n --arg sha "$MAIN_SHA" '{"sha":$sha,"force":true}') >/dev/null
+                  MAIN_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/git/ref/heads/main" --jq '.object.sha')
+                  BRANCH_CREATE_JSON=$(jq -n --arg sha "$MAIN_SHA" '{"ref":"refs/heads/governance/sync-managed-files","sha":$sha}')
+                  if ! retry_json 3 "$BRANCH_CREATE_JSON" "repos/${OWNER}/${REPO}/git/refs" --method POST >/dev/null 2>&1; then
+                    BRANCH_UPDATE_JSON=$(jq -n --arg sha "$MAIN_SHA" '{"sha":$sha,"force":true}')
+                    retry_json 3 "$BRANCH_UPDATE_JSON" "repos/${OWNER}/${REPO}/git/refs/heads/governance/sync-managed-files" --method PATCH >/dev/null
                   fi
                   echo "[OK] Created or updated branch governance/sync-managed-files"
 
@@ -303,26 +346,26 @@ jobs:
                     src_file=$(echo "$MANAGED_FILES" | jq -r --arg d "$dest_file" '.files[] | select(.dest == $d) | .src')
 
                     # Get canonical content as base64
-                    B64=$(gh api "repos/${SOURCE_REPO}/contents/${src_file}" --jq '.content' | tr -d '\n')
+                    B64=$(retry 3 gh api "repos/${SOURCE_REPO}/contents/${src_file}" --jq '.content' | tr -d '\n')
 
                     # Check if file exists downstream (need SHA for update)
-                    FILE_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/${dest_file}" --jq '.sha' 2>/dev/null) || true
+                    FILE_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/${dest_file}" --jq '.sha' 2>/dev/null) || true
 
                     if [ -n "$FILE_SHA" ]; then
                       # Update existing file
-                      jq -n --arg msg "chore: sync ${dest_file}" \
+                      COMMIT_JSON=$(jq -n --arg msg "chore: sync ${dest_file}" \
                             --arg content "$B64" \
                             --arg sha "$FILE_SHA" \
                             --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}' | \
-                        gh api "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT --input - >/dev/null
+                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
+                      retry_json 3 "$COMMIT_JSON" "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT >/dev/null
                     else
                       # Create new file
-                      jq -n --arg msg "chore: sync ${dest_file}" \
+                      COMMIT_JSON=$(jq -n --arg msg "chore: sync ${dest_file}" \
                             --arg content "$B64" \
                             --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"branch":$branch}' | \
-                        gh api "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT --input - >/dev/null
+                        '{"message":$msg,"content":$content,"branch":$branch}')
+                      retry_json 3 "$COMMIT_JSON" "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT >/dev/null
                     fi
                     echo "[OK] Synced ${dest_file}"
                   done
@@ -330,21 +373,21 @@ jobs:
                   # Commit dynamic dependabot.yml if drifted
                   if [ "$DEPENDABOT_DRIFT" = true ]; then
                     DEPBOT_B64=$(printf '%s' "$GENERATED_DEPENDABOT" | base64 -w 0)
-                    DEPBOT_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --jq '.sha' 2>/dev/null) || true
+                    DEPBOT_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --jq '.sha' 2>/dev/null) || true
 
                     if [ -n "$DEPBOT_SHA" ]; then
-                      jq -n --arg msg "chore: update .github/dependabot.yml" \
+                      DEPBOT_COMMIT=$(jq -n --arg msg "chore: update .github/dependabot.yml" \
                             --arg content "$DEPBOT_B64" \
                             --arg sha "$DEPBOT_SHA" \
                             --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}' | \
-                        gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT --input - >/dev/null
+                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
+                      retry_json 3 "$DEPBOT_COMMIT" "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT >/dev/null
                     else
-                      jq -n --arg msg "chore: create .github/dependabot.yml" \
+                      DEPBOT_COMMIT=$(jq -n --arg msg "chore: create .github/dependabot.yml" \
                             --arg content "$DEPBOT_B64" \
                             --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"branch":$branch}' | \
-                        gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT --input - >/dev/null
+                        '{"message":$msg,"content":$content,"branch":$branch}')
+                      retry_json 3 "$DEPBOT_COMMIT" "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT >/dev/null
                     fi
                     echo "[OK] Synced .github/dependabot.yml (dynamic)"
                   fi
@@ -352,21 +395,21 @@ jobs:
                   # Commit dynamic README.md if drifted
                   if [ "$README_DRIFT" = true ]; then
                     README_B64=$(printf '%s' "$GENERATED_README" | base64 -w 0)
-                    README_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/README.md" --jq '.sha' 2>/dev/null) || true
+                    README_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/README.md" --jq '.sha' 2>/dev/null) || true
 
                     if [ -n "$README_SHA" ]; then
-                      jq -n --arg msg "chore: update README.md" \
+                      README_COMMIT=$(jq -n --arg msg "chore: update README.md" \
                             --arg content "$README_B64" \
                             --arg sha "$README_SHA" \
                             --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}' | \
-                        gh api "repos/${OWNER}/${REPO}/contents/README.md" --method PUT --input - >/dev/null
+                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
+                      retry_json 3 "$README_COMMIT" "repos/${OWNER}/${REPO}/contents/README.md" --method PUT >/dev/null
                     else
-                      jq -n --arg msg "chore: create README.md" \
+                      README_COMMIT=$(jq -n --arg msg "chore: create README.md" \
                             --arg content "$README_B64" \
                             --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"branch":$branch}' | \
-                        gh api "repos/${OWNER}/${REPO}/contents/README.md" --method PUT --input - >/dev/null
+                        '{"message":$msg,"content":$content,"branch":$branch}')
+                      retry_json 3 "$README_COMMIT" "repos/${OWNER}/${REPO}/contents/README.md" --method PUT >/dev/null
                     fi
                     echo "[OK] Synced README.md (dynamic)"
                   fi

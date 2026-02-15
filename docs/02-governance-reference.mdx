@@ -107,8 +107,19 @@ Governance sync PRs are automatically merged when CI checks pass. The auto-merge
 
 1. **Polling** -- waits up to 180 seconds for CI checks to appear, polling every 15 seconds
 2. **Watch** -- once checks are detected, watches them to completion
-3. **Merge with retries** -- if CI passes, attempts a squash merge up to 3 times with 10-second backoff between attempts
+3. **Merge with retries** -- if CI passes, attempts a squash merge up to 3 times with exponential backoff (5s, 10s, 20s)
 4. **Graceful fallback** -- if CI fails or the merge cannot complete after retries, the PR is left open for manual review
+
+## Transient Error Handling
+
+All GitHub API calls in the enforcement, sync, and dispatch workflows use exponential backoff retry. Two helper functions provide this:
+
+- **`retry`** wraps any command with backoff (2s, 4s, 8s between attempts)
+- **`retry_json`** handles piped JSON input to `gh api --input -`, replaying the body on each attempt
+
+Read operations and idempotent writes retry up to 3 attempts. The config fetch (most critical single point of failure) retries up to 5 attempts. Dispatch calls to downstream repos also retry 3 times.
+
+Non-idempotent operations (issue creation, PR creation) are **not** retried to avoid duplicates. If these operations fail, the workflow aborts and can be safely rerun.
 
 ## Managed Files Manifest
 

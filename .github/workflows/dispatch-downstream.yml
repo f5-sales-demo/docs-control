@@ -41,12 +41,31 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
         run: |
+          # Retry with exponential backoff
+          # Usage: retry <max_attempts> <command> [args...]
+          retry() {
+            local max="$1"; shift
+            local attempt=1
+            local delay=2
+            while true; do
+              if "$@"; then return 0; fi
+              if [ "$attempt" -ge "$max" ]; then
+                echo "[ERROR] Failed after ${max} attempts: $*" >&2
+                return 1
+              fi
+              echo "[WARN] Attempt ${attempt}/${max} failed — retrying in ${delay}s..." >&2
+              sleep "$delay"
+              attempt=$((attempt + 1))
+              delay=$((delay * 2))
+            done
+          }
+
           repos=$(jq -r '.[]' .github/config/downstream-repos.json)
           for repo in $repos; do
             echo "Dispatching to $repo..."
-            if gh workflow run enforce-repo-settings.yml --repo "$repo"; then
+            if retry 3 gh workflow run enforce-repo-settings.yml --repo "$repo"; then
               echo "  [OK] $repo"
             else
-              echo "  [FAIL] $repo"
+              echo "  [FAIL] $repo (failed after retries)"
             fi
           done
