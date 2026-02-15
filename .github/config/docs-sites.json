@@ -65,9 +65,14 @@
     "description": "F5 XC DDoS protection"
   },
   {
-    "label": "WAAP",
-    "url": "https://f5xc-salesdemos.github.io/waap/llms-full.txt",
-    "description": "F5 XC web application and API protection"
+    "label": "WAF",
+    "url": "https://f5xc-salesdemos.github.io/waf/llms-full.txt",
+    "description": "F5 XC web application firewall"
+  },
+  {
+    "label": "API Security",
+    "url": "https://f5xc-salesdemos.github.io/api/llms-full.txt",
+    "description": "F5 XC API security"
   },
   {
     "label": "Client-Side Defense",

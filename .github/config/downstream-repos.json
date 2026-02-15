@@ -12,6 +12,7 @@
   "f5xc-salesdemos/bot-standard",
   "f5xc-salesdemos/bot-advanced",
   "f5xc-salesdemos/ddos",
-  "f5xc-salesdemos/waap",
+  "f5xc-salesdemos/waf",
+  "f5xc-salesdemos/api",
   "f5xc-salesdemos/csd"
 ]
