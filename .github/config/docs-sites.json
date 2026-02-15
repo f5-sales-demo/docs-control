@@ -13,5 +13,65 @@
     "label": "F5 XC Docs",
     "url": "https://f5xc-salesdemos.github.io/docs/llms-full.txt",
     "description": "Organization landing page for F5 Distributed Cloud documentation"
+  },
+  {
+    "label": "Administration",
+    "url": "https://f5xc-salesdemos.github.io/administration/llms-full.txt",
+    "description": "F5 XC administration and tenant management"
+  },
+  {
+    "label": "NGINX",
+    "url": "https://f5xc-salesdemos.github.io/nginx/llms-full.txt",
+    "description": "F5 XC NGINX integration and configuration"
+  },
+  {
+    "label": "Observability",
+    "url": "https://f5xc-salesdemos.github.io/observability/llms-full.txt",
+    "description": "F5 XC observability and monitoring"
+  },
+  {
+    "label": "Web App Scanning",
+    "url": "https://f5xc-salesdemos.github.io/was/llms-full.txt",
+    "description": "F5 XC web application scanning"
+  },
+  {
+    "label": "Multi-Cloud Networking",
+    "url": "https://f5xc-salesdemos.github.io/mcn/llms-full.txt",
+    "description": "F5 XC multi-cloud networking"
+  },
+  {
+    "label": "DNS",
+    "url": "https://f5xc-salesdemos.github.io/dns/llms-full.txt",
+    "description": "F5 XC DNS management"
+  },
+  {
+    "label": "CDN",
+    "url": "https://f5xc-salesdemos.github.io/cdn/llms-full.txt",
+    "description": "F5 XC content delivery network"
+  },
+  {
+    "label": "Bot Standard",
+    "url": "https://f5xc-salesdemos.github.io/bot-standard/llms-full.txt",
+    "description": "F5 XC standard bot defense"
+  },
+  {
+    "label": "Bot Advanced",
+    "url": "https://f5xc-salesdemos.github.io/bot-advanced/llms-full.txt",
+    "description": "F5 XC advanced bot defense"
+  },
+  {
+    "label": "DDoS",
+    "url": "https://f5xc-salesdemos.github.io/ddos/llms-full.txt",
+    "description": "F5 XC DDoS protection"
+  },
+  {
+    "label": "WAAP",
+    "url": "https://f5xc-salesdemos.github.io/waap/llms-full.txt",
+    "description": "F5 XC web application and API protection"
+  },
+  {
+    "label": "Client-Side Defense",
+    "url": "https://f5xc-salesdemos.github.io/csd/llms-full.txt",
+    "description": "F5 XC client-side defense"
   }
 ]

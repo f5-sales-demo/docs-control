@@ -1,5 +1,17 @@
 [
   "f5xc-salesdemos/docs-builder",
   "f5xc-salesdemos/docs-theme",
-  "f5xc-salesdemos/docs"
+  "f5xc-salesdemos/docs",
+  "f5xc-salesdemos/administration",
+  "f5xc-salesdemos/nginx",
+  "f5xc-salesdemos/observability",
+  "f5xc-salesdemos/was",
+  "f5xc-salesdemos/mcn",
+  "f5xc-salesdemos/dns",
+  "f5xc-salesdemos/cdn",
+  "f5xc-salesdemos/bot-standard",
+  "f5xc-salesdemos/bot-advanced",
+  "f5xc-salesdemos/ddos",
+  "f5xc-salesdemos/waap",
+  "f5xc-salesdemos/csd"
 ]
