@@ -29,7 +29,7 @@
       "enforce_admins": false,
       "required_status_checks": {
         "strict": false,
-        "contexts": ["Check linked issues"]
+        "contexts": ["check / Check linked issues"]
       },
       "required_pull_request_reviews": null,
       "restrictions": null,
@@ -52,7 +52,7 @@
     "files": [
       {"src": "workflows/github-pages-deploy.yml", "dest": ".github/workflows/github-pages-deploy.yml"},
       {"src": "workflows/enforce-repo-settings.yml", "dest": ".github/workflows/enforce-repo-settings.yml"},
-      {"src": ".github/workflows/require-linked-issue.yml", "dest": ".github/workflows/require-linked-issue.yml"},
+      {"src": "workflows/require-linked-issue.yml", "dest": ".github/workflows/require-linked-issue.yml"},
       {"src": ".github/PULL_REQUEST_TEMPLATE.md", "dest": ".github/PULL_REQUEST_TEMPLATE.md"},
       {"src": ".github/ISSUE_TEMPLATE/bug_report.md", "dest": ".github/ISSUE_TEMPLATE/bug_report.md"},
       {"src": ".github/ISSUE_TEMPLATE/feature_request.md", "dest": ".github/ISSUE_TEMPLATE/feature_request.md"},
