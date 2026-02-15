@@ -26,7 +26,7 @@
   "branch_protection": [
     {
       "branch": "main",
-      "enforce_admins": false,
+      "enforce_admins": true,
       "required_status_checks": {
         "strict": false,
         "contexts": ["check / Check linked issues"]
