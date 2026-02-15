@@ -25,10 +25,9 @@ The docs-control repository serves three purposes:
 | `.github/workflows/sync-managed-files.yml` | Reusable managed file sync workflow with dynamic generation and auto-merge |
 | `.github/workflows/dispatch-downstream.yml` | Dispatch trigger that pushes enforcement to all downstream repos |
 | `.github/workflows/github-pages-deploy.yml` | Reusable docs build and deploy workflow |
-| `.github/workflows/require-linked-issue.yml` | Reusable PR check requiring a linked GitHub issue |
+| `.github/workflows/require-linked-issue.yml` | PR check requiring a linked GitHub issue (synced directly as a managed file) |
 | `workflows/enforce-repo-settings.yml` | Caller template -- downstream repos install this to call the reusable enforcement workflow |
 | `workflows/github-pages-deploy.yml` | Caller template -- downstream repos install this for docs deployment |
-| `workflows/require-linked-issue.yml` | Caller template -- downstream repos install this for the linked-issue PR check |
 | `README.md.tpl` | Template with placeholders for dynamically generated downstream README files |
 
 ## Enforcement Pipeline
@@ -115,7 +114,8 @@ The canonical list of managed files is defined in `.github/config/repo-settings.
 
 The manifest includes:
 
-- Caller workflows (`enforce-repo-settings.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`)
+- Caller workflows (`enforce-repo-settings.yml`, `github-pages-deploy.yml`)
+- The `require-linked-issue.yml` workflow (synced directly, not via a caller template, because it runs identically in every repo)
 - Issue and PR templates
 - `CONTRIBUTING.md`, `CLAUDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
 - `.pre-commit-config.yaml`
@@ -176,13 +176,14 @@ The registry of enrolled downstream repositories is maintained in `.github/confi
 
 ## Caller Workflow Templates
 
-The `workflows/` directory contains three workflow files that downstream repos copy into their `.github/workflows/` directory. These are thin callers that invoke the reusable workflows hosted in this template repo.
+The `workflows/` directory contains two workflow files that downstream repos copy into their `.github/workflows/` directory. These are thin callers that invoke the reusable workflows hosted in this template repo.
 
 | Template | Calls | Trigger |
 |---|---|---|
 | `workflows/enforce-repo-settings.yml` | `.github/workflows/enforce-repo-settings.yml` and `.github/workflows/sync-managed-files.yml` (parallel jobs) | Schedule (every 6 hours), push to `.github/config/**`, manual dispatch |
 | `workflows/github-pages-deploy.yml` | `.github/workflows/github-pages-deploy.yml` | Push to `docs/**` on main, manual dispatch |
-| `workflows/require-linked-issue.yml` | `.github/workflows/require-linked-issue.yml` | `pull_request_target` (opened, edited, reopened, synchronize) |
+
+The `require-linked-issue.yml` workflow is not a caller template. It is synced directly as a managed file because it runs identically in every repo without needing to call back to a reusable workflow.
 
 ## Onboarding
 
