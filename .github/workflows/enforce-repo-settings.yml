@@ -104,6 +104,14 @@ jobs:
 
           echo "[OK] Config validated for ${OWNER}/${REPO}"
 
+          # ─── Self-detection ──────────────────────────────────────────────────
+          SOURCE_REPO=$(echo "$CONFIG" | jq -r '.managed_files.source_repo // empty')
+          IS_SELF=false
+          if [ "$SOURCE_REPO" = "${{ github.repository }}" ]; then
+            IS_SELF=true
+            echo "[INFO] Running on source repo — will use self_contexts if present"
+          fi
+
           # ─── Phase 2: Apply repo settings ────────────────────────────────────
           echo ""
           echo "=== Phase 2: Apply repo settings ==="
@@ -174,6 +182,21 @@ jobs:
             echo "--- Branch: $BRANCH ---"
 
             DESIRED_PAYLOAD=$(echo "$CONFIG" | jq -c ".branch_protection[$i] | del(.branch)")
+
+            # self_contexts override: use self_contexts instead of contexts for source repo
+            if [ "$IS_SELF" = true ]; then
+              SELF_CTX=$(echo "$DESIRED_PAYLOAD" | jq -c '.required_status_checks.self_contexts // empty')
+              if [ -n "$SELF_CTX" ] && [ "$SELF_CTX" != "null" ]; then
+                DESIRED_PAYLOAD=$(echo "$DESIRED_PAYLOAD" | jq -c \
+                  '.required_status_checks.contexts = .required_status_checks.self_contexts')
+                echo "[INFO] Overriding contexts with self_contexts for source repo"
+              fi
+            fi
+            # Strip self_contexts from payload (not part of GitHub API)
+            DESIRED_PAYLOAD=$(echo "$DESIRED_PAYLOAD" | jq -c \
+              'if .required_status_checks then
+                 .required_status_checks |= del(.self_contexts)
+               else . end')
 
             HTTP_CODE=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
               --include 2>/dev/null | head -1 | awk '{print $2}') || true
@@ -356,6 +379,20 @@ jobs:
           for i in $(seq 0 $((BRANCH_COUNT - 1))); do
             BRANCH=$(echo "$CONFIG" | jq -r ".branch_protection[$i].branch")
             DESIRED_PAYLOAD=$(echo "$CONFIG" | jq -c ".branch_protection[$i] | del(.branch)")
+
+            # self_contexts override (same as Phase 4)
+            if [ "$IS_SELF" = true ]; then
+              SELF_CTX=$(echo "$DESIRED_PAYLOAD" | jq -c '.required_status_checks.self_contexts // empty')
+              if [ -n "$SELF_CTX" ] && [ "$SELF_CTX" != "null" ]; then
+                DESIRED_PAYLOAD=$(echo "$DESIRED_PAYLOAD" | jq -c \
+                  '.required_status_checks.contexts = .required_status_checks.self_contexts')
+              fi
+            fi
+            DESIRED_PAYLOAD=$(echo "$DESIRED_PAYLOAD" | jq -c \
+              'if .required_status_checks then
+                 .required_status_checks |= del(.self_contexts)
+               else . end')
+
             VERIFY_PROTECTION=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" 2>/dev/null) || true
 
             if [ -z "$VERIFY_PROTECTION" ]; then
