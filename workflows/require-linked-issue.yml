@@ -14,5 +14,5 @@ concurrency:
 
 jobs:
   check:
-    uses: f5xc-salesdemos/docs-control/.github/workflows/reusable-require-linked-issue.yml@main
+    uses: f5xc-salesdemos/docs-control/.github/workflows/require-linked-issue.yml@main
     secrets: inherit

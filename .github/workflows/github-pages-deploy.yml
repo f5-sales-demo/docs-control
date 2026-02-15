@@ -1,5 +1,9 @@
 name: Build and Deploy Docs
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
   workflow_call:
     inputs:
       content-path:
@@ -43,6 +47,12 @@ on:
         default: 'https://f5xc-salesdemos.github.io'
         type: string
 
+permissions:
+  contents: read
+  packages: read
+  pages: write
+  id-token: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -64,7 +74,7 @@ jobs:
       - name: Detect static asset directories
         id: assets
         run: |
-          CONTENT="${{ inputs.content-path }}"
+          CONTENT="${{ inputs.content-path || 'docs' }}"
           MOUNTS=""
           for dir in "$CONTENT"/*/; do
             [ ! -d "$dir" ] && continue
@@ -82,15 +92,15 @@ jobs:
 
           docker run --rm \
             --name docs-builder \
-            -v ${{ github.workspace }}/${{ inputs.content-path }}:/content/docs:ro \
+            -v ${{ github.workspace }}/${{ inputs.content-path || 'docs' }}:/content/docs:ro \
             ${{ steps.assets.outputs.mounts }} \
             -v ${{ runner.temp }}/docs-output:/output \
             -e CONTENT_DIR=/content/docs \
             -e OUTPUT_DIR=/output \
-            -e DOCS_SITE="${{ inputs.docs-site }}" \
+            -e DOCS_SITE="${{ inputs.docs-site || 'https://f5xc-salesdemos.github.io' }}" \
             -e GITHUB_REPOSITORY="${{ github.repository }}" \
             ${{ inputs.docs-title && format('-e DOCS_TITLE="{0}"', inputs.docs-title) || '' }} \
-            ${{ inputs.builder-image }}
+            ${{ inputs.builder-image || 'ghcr.io/f5xc-salesdemos/docs-builder:latest' }}
 
           echo "✅ Build completed successfully"
           ls -lah ${{ runner.temp }}/docs-output/
