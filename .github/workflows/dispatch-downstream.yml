@@ -20,6 +20,7 @@ on:
       - '.gitignore'
       - 'LICENSE'
       - '.pre-commit-config.yaml'
+      - 'README.md.tpl'
 
 permissions:
   contents: read

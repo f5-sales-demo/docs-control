@@ -154,6 +154,64 @@ jobs:
                 echo "[OK] .github/dependabot.yml"
               fi
 
+              # ─── Dynamic README.md generation ──────────────────────────────
+              echo ""
+              echo "--- Dynamic README.md ---"
+              README_DRIFT=false
+
+              # Fetch docs-sites.json from docs-control
+              DOCS_SITES_JSON=$(gh api "repos/${CONFIG_REPO}/contents/.github/config/docs-sites.json" --jq '.content' | base64 -d)
+
+              # Look up label and description by matching repo name in URL
+              README_TITLE=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
+                '.[] | select(.url | contains("/" + $r + "/")) | .label' 2>/dev/null) || true
+              README_DESC=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
+                '.[] | select(.url | contains("/" + $r + "/")) | .description' 2>/dev/null) || true
+
+              # Fallback: capitalize repo name for title
+              if [ -z "$README_TITLE" ] || [ "$README_TITLE" = "null" ]; then
+                README_TITLE=$(echo "$REPO" | sed 's/-/ /g; s/\b\(.\)/\u\1/g')
+                echo "[INFO] No docs-sites.json match — using capitalized repo name: ${README_TITLE}"
+              fi
+
+              # Fallback: GitHub API repo description
+              if [ -z "$README_DESC" ] || [ "$README_DESC" = "null" ]; then
+                README_DESC=$(gh api "repos/${OWNER}/${REPO}" --jq '.description // ""') || true
+                if [ -z "$README_DESC" ] || [ "$README_DESC" = "null" ]; then
+                  README_DESC=""
+                fi
+                echo "[INFO] No docs-sites.json description — using GitHub API description"
+              fi
+
+              DOCS_URL="https://f5xc-salesdemos.github.io/${REPO}/"
+
+              # Fetch README.md.tpl from docs-control
+              README_TPL=$(gh api "repos/${CONFIG_REPO}/contents/README.md.tpl" --jq '.content' | base64 -d)
+
+              # Substitute placeholders
+              GENERATED_README=$(echo "$README_TPL" | \
+                sed "s|__TITLE__|${README_TITLE}|g" | \
+                sed "s|__DESCRIPTION__|${README_DESC}|g" | \
+                sed "s|__REPO_NAME__|${REPO}|g" | \
+                sed "s|__DOCS_URL__|${DOCS_URL}|g")
+
+              # Compare with current README.md in target repo
+              CURRENT_README_RESPONSE=$(gh api "repos/${OWNER}/${REPO}/contents/README.md" 2>/dev/null) || true
+              if [ -n "$CURRENT_README_RESPONSE" ]; then
+                CURRENT_README=$(echo "$CURRENT_README_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
+              else
+                CURRENT_README=""
+              fi
+
+              if [ "$GENERATED_README" != "$CURRENT_README" ]; then
+                echo "[DRIFT] README.md needs update"
+                README_DRIFT=true
+                DRIFT_FILES="${DRIFT_FILES}README.md\n"
+                DRIFT_COUNT=$((DRIFT_COUNT + 1))
+              else
+                echo "[OK] README.md"
+              fi
+
               if [ "$DRIFT_COUNT" -eq 0 ]; then
                 echo "[OK] All managed files match canonical"
               else
@@ -197,8 +255,8 @@ jobs:
 
                   # Commit each drifted file to the branch
                   for dest_file in $(printf '%b' "$DRIFT_FILES" | sed '/^$/d'); do
-                    # Skip dynamic dependabot.yml — committed separately below
-                    if [ "$dest_file" = ".github/dependabot.yml" ]; then
+                    # Skip dynamically generated files — committed separately below
+                    if [ "$dest_file" = ".github/dependabot.yml" ] || [ "$dest_file" = "README.md" ]; then
                       continue
                     fi
 
@@ -250,6 +308,28 @@ jobs:
                         gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT --input - >/dev/null
                     fi
                     echo "[OK] Synced .github/dependabot.yml (dynamic)"
+                  fi
+
+                  # Commit dynamic README.md if drifted
+                  if [ "$README_DRIFT" = true ]; then
+                    README_B64=$(printf '%s' "$GENERATED_README" | base64 -w 0)
+                    README_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/README.md" --jq '.sha' 2>/dev/null) || true
+
+                    if [ -n "$README_SHA" ]; then
+                      jq -n --arg msg "chore: update README.md" \
+                            --arg content "$README_B64" \
+                            --arg sha "$README_SHA" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}' | \
+                        gh api "repos/${OWNER}/${REPO}/contents/README.md" --method PUT --input - >/dev/null
+                    else
+                      jq -n --arg msg "chore: create README.md" \
+                            --arg content "$README_B64" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"branch":$branch}' | \
+                        gh api "repos/${OWNER}/${REPO}/contents/README.md" --method PUT --input - >/dev/null
+                    fi
+                    echo "[OK] Synced README.md (dynamic)"
                   fi
 
                   # Create PR
