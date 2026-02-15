@@ -319,7 +319,7 @@ Serve with `npx serve output/ -l 8080` and open
 `http://localhost:8080/<repo>/`.
 
 Full content authoring guide:
-<https://f5xc-salesdemos.github.io/docs-builder/06-content-authors/>
+<https://f5xc-salesdemos.github.io/docs-builder/content-authors/>
 
 ## Reference
 
