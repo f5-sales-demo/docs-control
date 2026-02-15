@@ -8,10 +8,11 @@ This page documents the governance enforcement system that keeps downstream repo
 
 ## System Overview
 
-The docs-control repository serves two purposes:
+The docs-control repository serves three purposes:
 
 1. **Define settings** -- repository settings, branch protection rules, Actions permissions, GitHub Pages configuration, and a manifest of managed files in a single centrally controlled config.
 2. **Enforce those settings** -- a reusable workflow that downstream repos call to detect drift and auto-correct it, plus a dispatch workflow that triggers enforcement whenever the template changes.
+3. **Generate dynamic files** -- produce per-repo README.md and dependabot.yml files based on templates and ecosystem detection.
 
 ## Source Files
 
@@ -19,13 +20,15 @@ The docs-control repository serves two purposes:
 |---|---|
 | `.github/config/repo-settings.json` | Central config: repo settings, branch protection, Actions permissions, Pages config, and the managed files manifest |
 | `.github/config/downstream-repos.json` | Registry of enrolled downstream repositories |
+| `.github/config/docs-sites.json` | Metadata for each downstream docs site (label, URL, description) used by README templating |
 | `.github/workflows/enforce-repo-settings.yml` | Reusable 7-phase enforcement workflow (repo settings, branch protection, Actions, topics, Pages) |
-| `.github/workflows/sync-managed-files.yml` | Reusable 3-phase managed file sync workflow (file comparison, issue/PR creation) |
+| `.github/workflows/sync-managed-files.yml` | Reusable managed file sync workflow with dynamic generation and auto-merge |
 | `.github/workflows/dispatch-downstream.yml` | Dispatch trigger that pushes enforcement to all downstream repos |
 | `.github/workflows/github-pages-deploy.yml` | Reusable docs build and deploy workflow |
-| `.github/workflows/require-linked-issue.yml` | PR check requiring a linked GitHub issue |
+| `.github/workflows/require-linked-issue.yml` | PR check requiring a linked GitHub issue (synced directly as a managed file) |
 | `workflows/enforce-repo-settings.yml` | Caller template -- downstream repos install this to call the reusable enforcement workflow |
 | `workflows/github-pages-deploy.yml` | Caller template -- downstream repos install this for docs deployment |
+| `README.md.tpl` | Template with placeholders for dynamically generated downstream README files |
 
 ## Enforcement Pipeline
 
@@ -72,32 +75,98 @@ Re-reads all settings via the GitHub API and compares them against the desired s
 
 Fetches the central config independently (same source as the settings workflow) since the two workflows run as separate jobs with separate tokens.
 
-#### Phase 2: Sync managed files
+#### Phase 2: Sync managed files and generate dynamic files
 
-Compares each file listed in the `managed_files.files` array against the canonical version in this template repo. If any file has drifted or is missing, the workflow:
+This phase performs three categories of work:
+
+**Static file sync** -- Compares each file listed in the `managed_files.files` array against the canonical version in this template repo. This includes caller workflows, issue and PR templates, contributor guidelines, editor configuration, pre-commit hooks, the license, and AI assistant instructions.
+
+**Dynamic dependabot.yml generation** -- Detects which package ecosystems exist in the downstream repo by checking for `package.json` (npm), `Dockerfile` (docker), and `requirements.txt` / `pyproject.toml` / `setup.py` (pip). Generates a `dependabot.yml` with a `github-actions` ecosystem entry plus entries for each detected ecosystem.
+
+**Dynamic README.md generation** -- Fetches `README.md.tpl` from docs-control and `docs-sites.json` for per-repo metadata (label, description). Substitutes `__TITLE__`, `__DESCRIPTION__`, `__REPO_NAME__`, and `__DOCS_URL__` placeholders. Falls back to a capitalized repo name for the title and the GitHub API repo description if no `docs-sites.json` match is found.
+
+If any static or dynamic file has drifted or is missing, the workflow:
 
 1. Creates a GitHub issue documenting the drifted files
 2. Creates a `governance/sync-managed-files` branch
-3. Commits the canonical content for each drifted file
+3. Commits the canonical or generated content for each drifted file
 4. Opens a PR linking to the issue
+5. Attempts auto-merge (see below)
 
-If a sync PR is already open, the phase skips to avoid duplicates.
+If a sync PR is already open, the workflow attempts to merge it rather than creating a duplicate.
 
 #### Phase 3: Verify
 
 Confirms that a sync PR was created (or already exists) for any drifted files, or that all managed files match their canonical versions.
 
+## Auto-Merge
+
+Governance sync PRs are automatically merged when CI checks pass. The auto-merge process uses polling with retries:
+
+1. **Polling** -- waits up to 180 seconds for CI checks to appear, polling every 15 seconds
+2. **Watch** -- once checks are detected, watches them to completion
+3. **Merge with retries** -- if CI passes, attempts a squash merge up to 3 times with 10-second backoff between attempts
+4. **Graceful fallback** -- if CI fails or the merge cannot complete after retries, the PR is left open for manual review
+
 ## Managed Files Manifest
 
 The canonical list of managed files is defined in `.github/config/repo-settings.json` under the `managed_files.files` array. Each entry maps a source path in this template repo to a destination path in the downstream repo.
 
-The manifest includes caller workflows, issue and PR templates, contributor guidelines, editor configuration, the license, and AI assistant instructions. See the `managed_files` section of `repo-settings.json` for the current list.
+The manifest includes:
+
+- Caller workflows (`enforce-repo-settings.yml`, `github-pages-deploy.yml`)
+- The `require-linked-issue.yml` workflow (synced directly, not via a caller template, because it runs identically in every repo)
+- Issue and PR templates
+- `CONTRIBUTING.md`, `CLAUDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
+- `.pre-commit-config.yaml`
+
+In addition to the manifest, `dependabot.yml` and `README.md` are generated dynamically (not listed in the manifest).
+
+## Dynamic File Generation
+
+### README.md
+
+Each downstream repo receives a generated `README.md` built from:
+
+- **`README.md.tpl`** -- a template in the docs-control root with placeholders (`__TITLE__`, `__DESCRIPTION__`, `__REPO_NAME__`, `__DOCS_URL__`)
+- **`docs-sites.json`** -- provides the human-readable label and description for each repo by matching the repo name against the URL field
+
+The generated README includes CI status badges, a link to the published documentation site, clone instructions, and references to `CONTRIBUTING.md` and `LICENSE`.
+
+### dependabot.yml
+
+Each downstream repo receives a generated `.github/dependabot.yml` configured for:
+
+- **github-actions** -- always included
+- **npm** -- included if `package.json` exists
+- **pip** -- included if `requirements.txt`, `pyproject.toml`, or `setup.py` exists
+- **docker** -- included if `Dockerfile` exists
+
+All ecosystems use weekly Monday schedules with conventional commit prefixes and minor/patch grouping.
 
 ## Dispatch Trigger
 
 When files in this template repo change on the `main` branch, the dispatch workflow at `.github/workflows/dispatch-downstream.yml` triggers the enforcement workflow in every downstream repo.
 
-The trigger paths are listed in that workflow file. They cover the config directory, the `workflows/` caller templates, the reusable workflows, issue/PR templates, and root-level managed files like `CONTRIBUTING.md`, `CLAUDE.md`, `.editorconfig`, `.gitignore`, and `LICENSE`.
+The trigger paths are:
+
+- `.github/config/repo-settings.json`
+- `.github/config/downstream-repos.json`
+- `.github/config/docs-sites.json`
+- `workflows/**`
+- `.github/workflows/enforce-repo-settings.yml`
+- `.github/workflows/sync-managed-files.yml`
+- `.github/workflows/github-pages-deploy.yml`
+- `.github/workflows/require-linked-issue.yml`
+- `.github/PULL_REQUEST_TEMPLATE.md`
+- `.github/ISSUE_TEMPLATE/**`
+- `CONTRIBUTING.md`
+- `CLAUDE.md`
+- `.editorconfig`
+- `.gitignore`
+- `LICENSE`
+- `.pre-commit-config.yaml`
+- `README.md.tpl`
 
 The dispatch reads the downstream repo list from `.github/config/downstream-repos.json` and calls `gh workflow run enforce-repo-settings.yml` for each repo using the `REPO_SETTINGS_TOKEN` secret.
 
@@ -107,14 +176,14 @@ The registry of enrolled downstream repositories is maintained in `.github/confi
 
 ## Caller Workflow Templates
 
-The `workflows/` directory contains workflow files that downstream repos copy into their `.github/workflows/` directory. These are thin callers that invoke the reusable workflows hosted in this template repo.
+The `workflows/` directory contains two workflow files that downstream repos copy into their `.github/workflows/` directory. These are thin callers that invoke the reusable workflows hosted in this template repo.
 
 | Template | Calls | Trigger |
 |---|---|---|
 | `workflows/enforce-repo-settings.yml` | `.github/workflows/enforce-repo-settings.yml` and `.github/workflows/sync-managed-files.yml` (parallel jobs) | Schedule (every 6 hours), push to `.github/config/**`, manual dispatch |
 | `workflows/github-pages-deploy.yml` | `.github/workflows/github-pages-deploy.yml` | Push to `docs/**` on main, manual dispatch |
 
-The `require-linked-issue.yml` workflow is synced directly as a managed file (not via a caller template) because it runs identically in every repo.
+The `require-linked-issue.yml` workflow is not a caller template. It is synced directly as a managed file because it runs identically in every repo without needing to call back to a reusable workflow.
 
 ## Onboarding
 
