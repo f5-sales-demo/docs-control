@@ -1,5 +1,25 @@
 ---
 title: Docs Control
 hero:
-  tagline: Governance enforcement and documentation pipeline for F5 XC downstream repositories
+  tagline: Central governance hub for F5 Distributed Cloud downstream repositories
 ---
+
+Docs-control is the single source of truth for repository settings, branch protection rules, Actions permissions, GitHub Pages configuration, and managed governance files across all enrolled F5 XC repositories.
+
+## What it does
+
+- **Enforces repository settings** -- a 7-phase idempotent workflow detects drift and auto-corrects repo settings, branch protection, Actions permissions, topics, and Pages configuration
+- **Synchronizes governance files** -- caller workflows, issue templates, contributor guidelines, and editor config are synced from canonical sources, with drift resolved via auto-merged PRs
+- **Generates dynamic files** -- per-repo README.md and dependabot.yml are built from templates and ecosystem detection
+- **Dispatches changes downstream** -- when template files change on `main`, enforcement is triggered across all 16 enrolled repos
+- **Deploys documentation** -- builds and publishes Astro Starlight docs to GitHub Pages
+- **Gates PR quality** -- requires all PRs to link to a GitHub issue
+
+## Learn more
+
+- [Architecture](./architecture/) -- system design, repo layout, token model, and data flow
+- [Configuration](./configuration/) -- field-by-field walkthrough of the central config file
+- [Settings Enforcement](./settings-enforcement/) -- how the 7-phase enforcement workflow operates
+- [File Synchronization](./file-sync/) -- managed file sync, dynamic generation, and auto-merge
+- [Downstream Dispatch](./dispatch/) -- change propagation and caller workflow templates
+- [Onboarding](./onboarding/) -- step-by-step procedure to enroll a new repository

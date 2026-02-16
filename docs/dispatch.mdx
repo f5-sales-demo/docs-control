@@ -1,0 +1,66 @@
+---
+title: Downstream Dispatch
+sidebar:
+  order: 5
+---
+
+import { Code } from '@astrojs/starlight/components';
+import downstreamRepos from './_data/downstream-repos.json?raw';
+import callerEnforce from './_data/enforce-repo-settings.yml?raw';
+import callerDeploy from './_data/github-pages-deploy.yml?raw';
+import callerLinkedIssue from './_data/require-linked-issue.yml?raw';
+
+## Dispatch trigger
+
+When template files change on docs-control's `main` branch, the dispatch workflow at `.github/workflows/dispatch-downstream.yml` triggers enforcement in every enrolled downstream repo.
+
+The trigger paths include:
+- `.github/config/repo-settings.json`, `downstream-repos.json`, `docs-sites.json`
+- `workflows/**` (caller templates)
+- `.github/workflows/enforce-repo-settings.yml`, `sync-managed-files.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`
+- `.github/PULL_REQUEST_TEMPLATE.md`, `.github/ISSUE_TEMPLATE/**`
+- `CONTRIBUTING.md`, `CLAUDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`, `.pre-commit-config.yaml`, `README.md.tpl`
+
+The workflow reads the downstream repo list, then calls `gh workflow run enforce-repo-settings.yml` for each repo using the `REPO_SETTINGS_TOKEN` secret (with 3 retry attempts per repo).
+
+## Enrolled repositories
+
+<Code code={downstreamRepos} lang="json" title=".github/config/downstream-repos.json" />
+
+To enroll a new repo, add it to this file and follow the [onboarding procedure](./onboarding/).
+
+## Caller workflow templates
+
+The `workflows/` directory contains three workflow files that downstream repos copy into their `.github/workflows/` directory. These are thin callers that invoke the reusable workflows hosted in docs-control.
+
+### enforce-repo-settings.yml
+
+Calls both `enforce-repo-settings.yml` and `sync-managed-files.yml` as parallel jobs with separate tokens. Triggers on schedule (every 6 hours), push to `.github/config/**`, and manual dispatch.
+
+<Code code={callerEnforce} lang="yaml" title="workflows/enforce-repo-settings.yml" />
+
+### github-pages-deploy.yml
+
+Calls the reusable docs build and deploy workflow. Triggers on push to `docs/**` on main and manual dispatch.
+
+<Code code={callerDeploy} lang="yaml" title="workflows/github-pages-deploy.yml" />
+
+### require-linked-issue.yml
+
+Calls the reusable linked-issue check workflow. Triggers on `pull_request_target` events.
+
+<Code code={callerLinkedIssue} lang="yaml" title="workflows/require-linked-issue.yml" />
+
+## Check name format
+
+When a downstream repo uses a caller workflow, the GitHub Actions status check name becomes `<caller_job_key> / <reusable_job_name>`. For example:
+
+| Caller job key | Reusable job name | Resulting check name |
+|---|---|---|
+| `check` | `Check linked issues` | `check / Check linked issues` |
+
+This is why docs-control's [configuration](./configuration/) has both `contexts` (for downstream repos) and `self_contexts` (for docs-control itself) -- the check names differ depending on whether the workflow runs directly or through a caller.
+
+## PR quality gate
+
+The `require-linked-issue.yml` caller enforces that every PR is linked to a GitHub issue. PRs from automated branches (`dependabot/**`, `governance/**`, `sync/**`, etc.) are excluded.

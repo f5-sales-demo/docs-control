@@ -1,0 +1,70 @@
+---
+title: Settings Enforcement
+sidebar:
+  order: 3
+---
+
+The enforcement workflow at `.github/workflows/enforce-repo-settings.yml` is a reusable, idempotent workflow that compares desired repository state against current state and patches any drift. Downstream repos call it via a [caller workflow](./dispatch/). Docs-control also runs it directly on push to `.github/config/repo-settings.json`.
+
+## Triggers
+
+- **`workflow_call`** -- invoked by downstream caller workflows (scheduled every 6 hours, on config push, or manual dispatch)
+- **`push`** -- fires when `repo-settings.json` changes on docs-control's `main` branch
+
+## Parallel execution
+
+Enforcement is split into two reusable workflows that run as parallel jobs in the caller, each with its own least-privilege token:
+
+- **`enforce-repo-settings.yml`** uses `REPO_SETTINGS_TOKEN` (Administration R/W, Pages R/W, Contents Read, Metadata Read)
+- **`sync-managed-files.yml`** uses `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read)
+
+This page covers the settings enforcement workflow. See [File Synchronization](./file-sync/) for the managed files workflow.
+
+## The 7 phases
+
+Each phase is idempotent: it compares desired state against current state and only makes changes when drift is detected.
+
+### Phase 1: Validate
+
+Fetches the central [configuration](./configuration/) from docs-control via the GitHub API (with 5 retry attempts). Validates that `jq` and `gh` are available and authenticated. Auto-computes the `homepage` URL if the config value is empty.
+
+Detects whether the workflow is running on the source repo itself by comparing `managed_files.source_repo` against `github.repository`. If running on self, the `self_contexts` override is activated for Phase 4.
+
+### Phase 2: Apply repository settings
+
+Compares each key in the `repository` object against the repo's current settings via `GET /repos/{owner}/{repo}`. Builds a patch object containing only the keys that have drifted and applies it via `PATCH /repos/{owner}/{repo}`.
+
+### Phase 3: Apply Actions permissions
+
+Compares the `actions_permissions` object (default workflow permissions, PR review approval) against the current Actions workflow permissions via `GET /repos/{owner}/{repo}/actions/permissions/workflow`. Updates via `PUT` if any key has drifted.
+
+### Phase 4: Apply branch protection
+
+Iterates over the `branch_protection` array. For each branch:
+
+1. If running on self, swaps `self_contexts` into `contexts`
+2. Strips `self_contexts` from the payload (not part of the GitHub API)
+3. Fetches current protection via `GET /repos/{owner}/{repo}/branches/{branch}/protection`
+4. Compares: `enforce_admins`, `required_status_checks` (strict + contexts), `required_pull_request_reviews`, `restrictions`, and boolean flags (`required_linear_history`, `allow_force_pushes`, `allow_deletions`, `block_creations`, `required_conversation_resolution`, `lock_branch`, `allow_fork_syncing`)
+5. Creates or updates protection rules via `PUT` if any drift is detected
+
+### Phase 5: Apply topics
+
+Compares the `topics` array against the repo's current topics via `GET /repos/{owner}/{repo}/topics`. Replaces via `PUT` if drifted.
+
+### Phase 6: Apply Pages
+
+Checks whether GitHub Pages is enabled via `GET /repos/{owner}/{repo}/pages`. If not found (404), enables Pages with the configured `build_type`. If found but the `build_type` has drifted, updates it via `PUT`.
+
+### Phase 7: Verify
+
+Re-reads all settings via the GitHub API and compares them against the desired state. Verifies repository settings, Actions permissions, branch protection (including boolean flags), and Pages build type. Fails the workflow if any setting does not match after the apply phases.
+
+## Retry logic
+
+All GitHub API calls use exponential backoff retry via two helper functions:
+
+- **`retry`** wraps any command with backoff (2s, 4s, 8s between attempts) -- used for read operations and idempotent writes (up to 3 attempts)
+- **`retry_json`** handles piped JSON input to `gh api --input -`, replaying the body on each attempt
+
+The config fetch (most critical single point of failure) retries up to 5 attempts. Non-idempotent operations (issue creation, PR creation) are not retried to avoid duplicates.

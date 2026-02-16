@@ -1,0 +1,63 @@
+---
+title: File Synchronization
+sidebar:
+  order: 4
+---
+
+import { Code } from '@astrojs/starlight/components';
+import docsSites from './_data/docs-sites.json?raw';
+
+The file sync workflow at `.github/workflows/sync-managed-files.yml` runs as a parallel job alongside [settings enforcement](./settings-enforcement/), using the `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read).
+
+It skips execution when running on the source repo itself (docs-control), since the canonical files already live here.
+
+## Static file sync
+
+The workflow iterates the `managed_files.files` array from the [central config](./configuration/). For each entry, it fetches the canonical content from docs-control and compares it against the downstream copy. Files that are missing or have drifted are flagged for sync.
+
+The managed files manifest includes:
+- Caller workflows (`enforce-repo-settings.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`)
+- Issue and PR templates
+- `CONTRIBUTING.md`, `CLAUDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
+- `.pre-commit-config.yaml`
+
+## Dynamic dependabot.yml generation
+
+The workflow detects which package ecosystems exist in the downstream repo:
+- **npm** -- `package.json` exists
+- **pip** -- `requirements.txt`, `pyproject.toml`, or `setup.py` exists
+- **docker** -- `Dockerfile` exists
+
+It generates a `.github/dependabot.yml` with a `github-actions` ecosystem entry (always included) plus entries for each detected ecosystem. All ecosystems use weekly Monday schedules with conventional commit prefixes and minor/patch grouping.
+
+## Dynamic README.md generation
+
+Each downstream repo receives a generated `README.md` built from two sources:
+
+- **`README.md.tpl`** -- a template in the docs-control root with placeholders (`__TITLE__`, `__DESCRIPTION__`, `__REPO_NAME__`, `__DOCS_URL__`)
+- **`docs-sites.json`** -- provides the human-readable label and description for each repo by matching the repo name against the URL field
+
+<Code code={docsSites} lang="json" title=".github/config/docs-sites.json" />
+
+The workflow matches the repo name against docs-sites.json URLs to find the label and description. It falls back to a capitalized repo name for the title and the GitHub API repo description if no match is found.
+
+## Drift resolution
+
+When drift is detected in any static or dynamic file, the workflow:
+
+1. Creates a GitHub issue documenting the drifted files
+2. Creates a `governance/sync-managed-files` branch from `main` HEAD
+3. Commits the canonical or generated content for each drifted file
+4. Opens a PR linking to the issue with `Closes #N`
+5. Attempts auto-merge
+
+If a sync PR is already open, the workflow attempts to merge it rather than creating a duplicate.
+
+## Auto-merge
+
+Governance sync PRs are automatically merged when CI checks pass:
+
+1. **Polling** -- waits up to 180 seconds for CI checks to appear, polling every 15 seconds
+2. **Watch** -- once checks are detected, watches them to completion
+3. **Merge with retries** -- if CI passes, attempts a squash merge up to 3 times with exponential backoff (5s, 10s, 20s)
+4. **Graceful fallback** -- if CI fails or the merge cannot complete after retries, the PR is left open for manual review

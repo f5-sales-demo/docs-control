@@ -72,6 +72,9 @@ cache/
 src/generated/
 out/
 
+# Documentation build artifacts
+docs/_data/
+
 # API spec pipeline
 specs/original/
 specs/discovered/diffs/
