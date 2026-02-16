@@ -210,18 +210,18 @@ jobs:
               done
 
               # Build dependabot.yml content
-              DEPBOT="---\nversion: 2\nupdates:\n  # --- GitHub Actions ---\n  - package-ecosystem: \"github-actions\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    assignees:\n      - \"robinmordasiewicz\"\n    open-pull-requests-limit: 10\n    groups:\n      actions-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+              DEPBOT="---\nversion: 2\nupdates:\n  # --- GitHub Actions ---\n  - package-ecosystem: \"github-actions\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      actions-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
 
               if [ "$HAS_NPM" = true ]; then
-                DEPBOT="${DEPBOT}\n\n  # --- npm ---\n  - package-ecosystem: \"npm\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    assignees:\n      - \"robinmordasiewicz\"\n    open-pull-requests-limit: 10\n    groups:\n      npm-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+                DEPBOT="${DEPBOT}\n\n  # --- npm ---\n  - package-ecosystem: \"npm\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      npm-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
               fi
 
               if [ "$HAS_PIP" = true ]; then
-                DEPBOT="${DEPBOT}\n\n  # --- pip ---\n  - package-ecosystem: \"pip\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    assignees:\n      - \"robinmordasiewicz\"\n    open-pull-requests-limit: 10\n    groups:\n      pip-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+                DEPBOT="${DEPBOT}\n\n  # --- pip ---\n  - package-ecosystem: \"pip\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      pip-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
               fi
 
               if [ "$HAS_DOCKER" = true ]; then
-                DEPBOT="${DEPBOT}\n\n  # --- Docker ---\n  - package-ecosystem: \"docker\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    assignees:\n      - \"robinmordasiewicz\"\n    open-pull-requests-limit: 5\n    groups:\n      docker-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+                DEPBOT="${DEPBOT}\n\n  # --- Docker ---\n  - package-ecosystem: \"docker\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 5\n    groups:\n      docker-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
               fi
 
               DEPBOT="${DEPBOT}\n"
