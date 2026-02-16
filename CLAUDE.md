@@ -190,6 +190,32 @@ Use the format `<prefix>/<issue-number>-short-description`:
 - Always delete local feature branches after successful merge
 - Always clean up stale merged branches and workspace clutter when noticed
 
+## Managed Files
+
+The following files are centrally managed by the
+[docs-control](https://github.com/f5xc-salesdemos/docs-control)
+repository and automatically synced to this repo.
+**Do not modify these files here** — local changes
+will be overwritten on the next enforcement run.
+
+To change any of these files, open a PR in
+`f5xc-salesdemos/docs-control` instead.
+
+- `.github/workflows/github-pages-deploy.yml`
+- `.github/workflows/enforce-repo-settings.yml`
+- `.github/workflows/require-linked-issue.yml`
+- `.github/PULL_REQUEST_TEMPLATE.md`
+- `.github/ISSUE_TEMPLATE/bug_report.md`
+- `.github/ISSUE_TEMPLATE/feature_request.md`
+- `.github/ISSUE_TEMPLATE/documentation.md`
+- `.github/ISSUE_TEMPLATE/config.yml`
+- `CONTRIBUTING.md`
+- `CLAUDE.md`
+- `.editorconfig`
+- `.gitignore`
+- `LICENSE`
+- `.pre-commit-config.yaml`
+
 ## Planning Before Execution
 
 **Default to plan mode.** Before making any code or
