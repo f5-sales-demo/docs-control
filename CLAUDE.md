@@ -365,33 +365,12 @@ changes):
 docker run --rm -it \
   -v "$(pwd)/docs:/content/docs" \
   -p 4321:4321 \
-  --entrypoint sh \
-  ghcr.io/f5xc-salesdemos/docs-builder:latest \
-  -c '
-    npm install --legacy-peer-deps && \
-    npm update --legacy-peer-deps && \
-    cp /app/node_modules/f5xc-docs-theme/astro.config.mjs \
-       /app/astro.config.mjs && \
-    cp /app/node_modules/f5xc-docs-theme/src/content.config.ts \
-       /app/src/content.config.ts && \
-    cp -r /content/docs/* /app/src/content/docs/ && \
-    DOCS_TITLE=$(grep -m1 "^title:" /app/src/content/docs/index.mdx \
-      | sed "s/title: *[\"]*//;s/[\"]*$//") \
-    npx astro dev --host
-  '
+  -e MODE=dev \
+  ghcr.io/f5xc-salesdemos/docs-builder:latest
 ```
 
 Open `http://localhost:4321`. File changes on the
 host require restarting the container.
-
-If your `docs/` directory contains static asset
-subdirectories (images, diagrams — folders with
-no `.md`/`.mdx` files), add a volume mount for
-each one so they are served as public assets:
-
-```bash
--v "$(pwd)/docs/images:/app/public/images:ro"
-```
 
 For a full production build:
 
