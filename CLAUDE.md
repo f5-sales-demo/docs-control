@@ -302,8 +302,8 @@ shared pipeline:
 
 | Repo | Role |
 | ---- | ---- |
-| `f5xc-docs-theme` | npm package — Starlight plugin, Astro config, CSS, fonts, logos, layout components |
-| `f5xc-docs-builder` | Docker image — build orchestration, npm deps, Puppeteer PDF generation, interactive components |
+| `docs-theme` | npm package — Starlight plugin, Astro config, CSS, fonts, logos, layout components |
+| `docs-builder` | Docker image — build orchestration, npm deps, Puppeteer PDF generation, interactive components |
 | `docs-control` | Source-of-truth — reusable CI workflows, governance templates, repo settings enforcement |
 
 Content repos only need a `docs/` directory — the
@@ -314,15 +314,15 @@ CI builds trigger when files in `docs/` change on
 ### Where to make changes
 
 - **Site appearance, navigation, or Astro config** —
-  change `f5xc-docs-theme` (owns
+  change `docs-theme` (owns
   `astro.config.mjs`, `content.config.ts`,
   CSS, fonts, logos, and layout components)
 - **Build process, Docker image, or npm deps** —
-  change `f5xc-docs-builder` (owns the
+  change `docs-builder` (owns the
   Dockerfile, entrypoint, and dependency set)
 - **Interactive components** (placeholder forms,
   API viewers, Mermaid rendering) —
-  change `f5xc-docs-builder`
+  change `docs-builder`
 - **CI workflow or governance files** —
   change `docs-control` (syncs managed files
   and repo settings to downstream repos)
