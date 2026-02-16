@@ -215,6 +215,8 @@ To change any of these files, open a PR in
 - `.gitignore`
 - `LICENSE`
 - `.pre-commit-config.yaml`
+- `.yamllint.yaml`
+- `.markdownlint.json`
 
 ## Planning Before Execution
 

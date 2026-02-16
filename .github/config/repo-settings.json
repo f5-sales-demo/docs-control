@@ -65,7 +65,9 @@
       {"src": ".editorconfig", "dest": ".editorconfig"},
       {"src": ".gitignore", "dest": ".gitignore"},
       {"src": "LICENSE", "dest": "LICENSE"},
-      {"src": ".pre-commit-config.yaml", "dest": ".pre-commit-config.yaml"}
+      {"src": ".pre-commit-config.yaml", "dest": ".pre-commit-config.yaml"},
+      {"src": ".yamllint.yaml", "dest": ".yamllint.yaml"},
+      {"src": ".markdownlint.json", "dest": ".markdownlint.json"}
     ]
   }
 }
