@@ -1,0 +1,58 @@
+---
+title: Architecture
+sidebar:
+  order: 1
+---
+
+## Three-repo pipeline
+
+The documentation and governance system spans three repositories, each with a distinct responsibility:
+
+| Repository | Role |
+|---|---|
+| **docs-control** | Central governance hub -- repo settings, branch protection config, managed files manifest, reusable CI workflows, caller workflow templates, and downstream dispatch |
+| **docs-builder** | Docker build image -- Astro + Starlight build orchestration, npm dependencies, Puppeteer PDF generation, interactive components |
+| **docs-theme** | Astro Starlight plugin -- shared branding, CSS, fonts, logos, layout components, `astro.config.mjs`, and `content.config.ts` |
+
+Content repos only need a `docs/` directory. The build container and workflow handle everything else.
+
+## Data flow
+
+When a template file changes in docs-control on `main`:
+
+1. The [dispatch workflow](./dispatch/) fires and triggers enforcement in every downstream repo
+2. The [enforcement workflow](./settings-enforcement/) compares desired state against current state and patches any drift
+3. The [file sync workflow](./file-sync/) detects drifted managed files, creates a PR with canonical content, and auto-merges it
+
+## Token model
+
+Two fine-grained personal access tokens provide least-privilege separation:
+
+| Token | Permissions | Used by |
+|---|---|---|
+| `REPO_SETTINGS_TOKEN` | Administration R/W, Pages R/W, Contents Read, Metadata Read | `enforce-repo-settings.yml`, `dispatch-downstream.yml` |
+| `REPO_SYNC_TOKEN` | Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read | `sync-managed-files.yml` |
+
+The enforcement workflow needs admin access to modify branch protection and Pages settings. The sync workflow needs contents and PR access to create branches, commit files, and merge PRs. Splitting these reduces the blast radius if either token is compromised.
+
+## Self-detection
+
+Docs-control is both the provider and consumer of its own governance config. When `enforce-repo-settings.yml` runs on docs-control itself (via the `push` trigger), it detects this by comparing `managed_files.source_repo` against `github.repository`. This triggers the `self_contexts` override in branch protection -- docs-control uses workflows directly (check name: `Check linked issues`), while downstream repos use caller wrappers (check name: `check / Check linked issues`). See the [configuration page](./configuration/) for details on `contexts` vs `self_contexts`.
+
+## Repository layout
+
+| Directory / File | Purpose |
+|---|---|
+| `.github/config/repo-settings.json` | Central config: repo settings, branch protection, Actions permissions, Pages config, and the managed files manifest |
+| `.github/config/downstream-repos.json` | Registry of enrolled downstream repositories |
+| `.github/config/docs-sites.json` | Metadata for each downstream docs site (label, URL, description) used by README templating |
+| `.github/workflows/` | Reusable workflows: enforcement, file sync, pages deploy, linked-issue check, and dispatch |
+| `workflows/` | Caller templates downstream repos install into `.github/workflows/` |
+| `docs/` | Documentation source (built and deployed via Astro Starlight) |
+| `CONTRIBUTING.md` | Contributor workflow rules (synced to all downstream repos) |
+| `CLAUDE.md` | AI assistant instructions (synced to all downstream repos) |
+| `MIGRATION.md` | Runbook for onboarding a repo to the Astro Starlight documentation pipeline |
+| `README.md.tpl` | Template for dynamically generated downstream README files |
+| `.pre-commit-config.yaml` | Pre-commit hooks configuration (synced to all downstream repos) |
+| `.markdownlint.json` | Markdown linting rules |
+| `.yamllint.yaml` | YAML linting rules |

@@ -1,0 +1,65 @@
+---
+title: Configuration Reference
+sidebar:
+  order: 2
+---
+
+import { Code } from '@astrojs/starlight/components';
+import repoSettings from './_data/repo-settings.json?raw';
+
+The central configuration file drives all enforcement, sync, and dispatch behavior. It lives at `.github/config/repo-settings.json` in docs-control and is fetched by downstream repos at workflow runtime.
+
+<Code code={repoSettings} lang="json" title=".github/config/repo-settings.json" />
+
+## Field reference
+
+### `repository`
+
+Standard GitHub repository settings applied via `PATCH /repos/{owner}/{repo}`. Each key maps directly to the GitHub API field. The [enforcement workflow](./settings-enforcement/) compares each key against the repo's current value and only patches keys that have drifted.
+
+Notable settings:
+- `delete_branch_on_merge: true` -- automatically cleans up merged PR branches
+- `allow_update_branch: true` -- enables the "Update branch" button on PRs
+- `homepage: ""` -- auto-computed at runtime as `https://f5xc-salesdemos.github.io/{repo}/`
+
+### `actions_permissions`
+
+Controls GitHub Actions workflow permissions for the repository:
+- `default_workflow_permissions: "write"` -- workflows get read/write access to the repo by default
+- `can_approve_pull_request_reviews: true` -- allows workflows to approve PRs
+
+### `branch_protection`
+
+An array of branch protection rules. Each entry specifies a `branch` name and the desired protection settings. Currently only `main` is protected.
+
+Key fields:
+- `enforce_admins: true` -- protection rules apply to repository administrators too
+- `required_status_checks.strict: false` -- branches don't need to be up-to-date before merging
+- `required_status_checks.contexts` -- the check names downstream repos must pass (e.g., `check / Check linked issues`)
+- `required_status_checks.self_contexts` -- the check names docs-control itself must pass (e.g., `Check linked issues`)
+- `required_pull_request_reviews: null` -- no PR review approval required
+- `restrictions: null` -- no push restrictions beyond branch protection
+
+#### `contexts` vs `self_contexts`
+
+When a downstream repo uses a caller workflow, the status check name becomes `<caller_job_key> / <reusable_job_name>`. For example, the `require-linked-issue.yml` caller has job key `check`, so the check name is `check / Check linked issues`. But when docs-control runs the same workflow directly (via the `pull_request_target` trigger), the check name is just `Check linked issues`.
+
+The `self_contexts` field stores the check names that apply to docs-control itself. During [enforcement](./settings-enforcement/), the workflow detects whether it's running on the source repo and swaps `self_contexts` into `contexts` before applying branch protection. The `self_contexts` field is always stripped before sending the payload to the GitHub API.
+
+### `topics`
+
+An array of GitHub topics to apply to the repository. Currently empty -- topics are not enforced.
+
+### `pages`
+
+GitHub Pages configuration:
+- `enabled: true` -- ensures Pages is enabled on every enrolled repo
+- `build_type: "workflow"` -- uses GitHub Actions for the Pages build (not legacy branch-based builds)
+
+### `managed_files`
+
+Defines the file synchronization manifest:
+- `source_repo` -- the repository that holds canonical versions of managed files (`f5xc-salesdemos/docs-control`)
+- `files` -- an array of `{src, dest}` objects mapping source paths in docs-control to destination paths in downstream repos
+
+The [file sync workflow](./file-sync/) iterates this array to detect and correct drift. Files not listed here (like `dependabot.yml` and `README.md`) are generated dynamically rather than synced from static sources.

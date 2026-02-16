@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - '.github/config/**'
+      - 'workflows/**'
   workflow_call:
     inputs:
       content-path:
@@ -70,6 +72,22 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Stage imported files for documentation
+        run: |
+          CONTENT="${{ inputs.content-path || 'docs' }}"
+          IMPORTS="${CONTENT}/_imports"
+          DATA_DIR="${CONTENT}/_data"
+          if [ -f "$IMPORTS" ]; then
+            mkdir -p "$DATA_DIR"
+            while IFS= read -r file; do
+              [ -z "$file" ] || [ "${file:0:1}" = "#" ] && continue
+              if [ -f "$file" ]; then
+                cp "$file" "$DATA_DIR/"
+                echo "Staged: $file"
+              fi
+            done < "$IMPORTS"
+          fi
 
       - name: Detect static asset directories
         id: assets
