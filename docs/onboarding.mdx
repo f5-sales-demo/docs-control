@@ -4,7 +4,7 @@ sidebar:
   order: 6
 ---
 
-This page covers the procedure to enroll a new repository in the docs-control governance system.
+This page covers the procedure to enroll a new repository in the docs-control governance system and optionally migrate existing documentation to Astro Starlight.
 
 ## Prerequisites
 
@@ -12,7 +12,7 @@ This page covers the procedure to enroll a new repository in the docs-control go
 - `REPO_SETTINGS_TOKEN` and `REPO_SYNC_TOKEN` secrets configured as organization-level secrets (or added to the new repo individually)
 - Access to the `ghcr.io/f5xc-salesdemos/docs-builder` container image
 
-## Steps
+## Enrollment steps
 
 ### 1. Add to downstream-repos.json
 
@@ -27,7 +27,22 @@ If the repo will publish documentation, add an entry to `.github/config/docs-sit
 
 If no entry is added, the README generator falls back to a capitalized repo name and the GitHub API description.
 
-### 3. Install caller workflows
+### 3. Consolidate .gitignore
+
+The enforcement workflow **overwrites** the downstream `.gitignore` entirely. Before onboarding, merge any repo-specific entries into the template `.gitignore` in docs-control so they are not lost.
+
+```bash
+# Fetch the downstream .gitignore
+gh api repos/f5xc-salesdemos/<repo-name>/contents/.gitignore \
+  --jq '.content' | base64 -d > /tmp/downstream-gitignore
+
+# Compare with the template
+diff /tmp/downstream-gitignore .gitignore
+```
+
+Add any missing entries to the docs-control `.gitignore` and commit the change before proceeding. Extra ignore patterns for file types that do not exist in a repo are harmless.
+
+### 4. Install caller workflows
 
 Copy the three caller workflow templates from `workflows/` in docs-control into the new repo's `.github/workflows/` directory:
 
@@ -37,7 +52,7 @@ Copy the three caller workflow templates from `workflows/` in docs-control into 
 
 These files are also synced automatically by the [file sync workflow](./file-sync/), but installing them manually bootstraps the process.
 
-### 4. Trigger enforcement
+### 5. Trigger enforcement
 
 Run the enforcement workflow manually in the new repo:
 
@@ -47,7 +62,7 @@ gh workflow run enforce-repo-settings.yml --repo f5xc-salesdemos/<repo-name>
 
 This applies all [repository settings](./settings-enforcement/), creates any missing governance files, and opens a sync PR if needed.
 
-### 5. Verify settings
+### 6. Verify settings
 
 Confirm that enforcement succeeded:
 
@@ -62,7 +77,7 @@ gh api repos/f5xc-salesdemos/<repo-name>/branches/main/protection \
   --jq '.required_status_checks.contexts'
 ```
 
-### 6. Verify docs site
+### 7. Verify docs site
 
 If the repo has a `docs/` directory, confirm the docs site is accessible after the first successful deploy:
 
@@ -71,11 +86,197 @@ curl -sf "https://f5xc-salesdemos.github.io/<repo-name>/" \
   && echo "OK" || echo "FAIL"
 ```
 
+## Setting up docs content
+
+Every repo that publishes documentation needs a `docs/` directory with at least an `index.mdx` file containing YAML frontmatter.
+
+**Landing page** (`docs/index.mdx`):
+
+```yaml
+---
+title: Site Title
+description: Site description
+template: splash
+sidebar:
+  hidden: true
+hero:
+  tagline: Your tagline
+  actions:
+    - text: Get Started
+      link: getting-started/
+      icon: right-arrow
+      variant: primary
+---
+```
+
+**Content pages** (`docs/01-page-name.mdx`):
+
+```yaml
+---
+title: Page Title
+description: One-line description of the page content
+---
+
+Content here in standard Markdown.
+```
+
+Sidebar order is controlled by numeric prefixes in filenames (e.g., `01-getting-started.mdx`) or by adding `sidebar: \{ order: N \}` to the frontmatter. See the [content authoring guide](https://f5xc-salesdemos.github.io/docs-builder/content-authors/) for full MDX conventions.
+
+## Migrating from MkDocs
+
+If the repo currently uses MkDocs Material, follow these additional steps to convert the documentation to Starlight MDX format.
+
+### Rename files
+
+Rename all `.md` files under `docs/` to `.mdx`:
+
+```bash
+find docs/ -name '*.md' -exec bash -c 'mv "$0" "${0%.md}.mdx"' \{} \;
+```
+
+### Add Starlight frontmatter
+
+Every `.mdx` file needs YAML frontmatter with at least a `title` field. Remove any MkDocs-specific frontmatter keys (`hide:`, `icon:`, `status:`).
+
+### Convert admonitions
+
+MkDocs Material uses `!!! type "Title"` with indented content. Starlight uses fenced directives:
+
+| MkDocs syntax | Starlight syntax |
+|---|---|
+| `!!! note "Title"` | `:::note[Title]` ... `:::` |
+| `!!! tip "Title"` | `:::tip[Title]` ... `:::` |
+| `!!! warning "Title"` | `:::caution[Title]` ... `:::` |
+| `!!! danger "Title"` | `:::danger[Title]` ... `:::` |
+| `??? info "Title"` (collapsible) | `&lt;details>&lt;summary>Title&lt;/summary>` ... `&lt;/details>` |
+
+**Type mapping**:
+
+| MkDocs type | Starlight directive |
+|---|---|
+| `note`, `info`, `abstract`, `summary`, `tldr`, `quote`, `cite`, `question`, `help`, `faq` | `:::note` |
+| `tip`, `hint`, `success`, `check`, `example` | `:::tip` |
+| `warning`, `attention` | `:::caution` |
+| `danger`, `error`, `fail`, `bug` | `:::danger` |
+
+Remove the 4-space content indentation that MkDocs requires -- Starlight directives do not use it.
+
+### Replace Material icons
+
+MkDocs Material uses `:material-icon-name:` syntax. Replace with emoji or plain text:
+
+| Material icon | Replacement |
+|---|---|
+| `:material-check:` | &#10003; |
+| `:material-close:` | &#10007; |
+| `:material-arrow-right:` | &#8594; |
+| `:material-arrow-left:` | &#8592; |
+| `:material-information:` | &#8505; |
+| `:material-alert:` | &#9888; |
+| `:material-cog:`, `:material-wrench:` | &#9881; |
+
+For any icon not listed, use descriptive text.
+
+### Delete legacy MkDocs files
+
+Remove previous docs tooling that is no longer needed:
+
+- `mkdocs.yml`
+- `requirements-docs.txt`
+- `docs/overrides/`
+- `docs/stylesheets/`
+- `docs/javascripts/`
+- `docs/includes/`
+
+### Validate the conversion
+
+```bash
+# Find remaining Material icon references
+grep -r ':material-' docs/ --include='*.mdx'
+
+# Find remaining MkDocs admonitions
+grep -r '^!!!' docs/ --include='*.mdx'
+grep -r '^???' docs/ --include='*.mdx'
+
+# Find files missing frontmatter
+for file in $(find docs/ -name '*.mdx'); do
+  if ! head -1 "$file" | grep -q '^---'; then
+    echo "Missing frontmatter: $file"
+  fi
+done
+```
+
+Check for common MDX issues:
+- Bare `&lt;` is treated as a JSX tag -- use `&amp;lt;` or wrap in backtick inline code
+- `\{` and `\}` are JSX expressions -- escape them or wrap in backtick inline code
+- Self-close HTML void tags: `&lt;br />`, `&lt;img />`
+- Use `className` instead of `class` in HTML elements
+
+## Dynamic doc generation
+
+For repos where docs are generated from pipeline artifacts (e.g., validation reports), add a workflow job that generates MDX files and opens a PR. The commit to `docs/` on main then triggers the standard `github-pages-deploy.yml` workflow.
+
+```yaml
+  update-docs:
+    name: Update Documentation
+    needs: [validate]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: validation-reports
+          path: reports/
+      - run: python -m scripts.generate_docs --output docs/01-validation-report.mdx
+      - name: Commit and PR if changed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/
+          if git diff --cached --quiet; then
+            echo "No docs changes"
+            exit 0
+          fi
+          BRANCH="docs/update-validation-report-$(date +%s)"
+          git checkout -b "$BRANCH"
+          git commit -m "docs: update validation report"
+          git push origin "$BRANCH"
+          gh pr create --title "docs: update validation report" \
+            --body "Auto-generated from validation pipeline run."
+```
+
+## Post-onboarding cleanup
+
+### Delete the gh-pages branch
+
+If the repo previously deployed docs via a `gh-pages` branch, it is no longer needed since Pages now uses `build_type: workflow`. Delete it after verifying the new pipeline works:
+
+```bash
+gh api repos/f5xc-salesdemos/<repo-name>/git/refs/heads/gh-pages --method DELETE
+```
+
+### Clean stale branches
+
+Remove merged feature branches and old automation branches:
+
+```bash
+# Delete local branches already merged to main
+git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
+
+# Prune remote tracking references
+git fetch --prune
+```
+
 ## Troubleshooting
 
 ### Chicken-and-egg problem
 
-The enforcement workflow requires the caller workflows to be installed, but the file sync that installs them needs the enforcement workflow to run. Break the cycle by manually installing the three caller workflows first (Step 3), then triggering enforcement (Step 4).
+The enforcement workflow requires the caller workflows to be installed, but the file sync that installs them needs the enforcement workflow to run. Break the cycle by manually installing the three caller workflows first (Step 4), then triggering enforcement (Step 5).
 
 ### Pages not building
 
@@ -83,6 +284,12 @@ Ensure:
 - The repo has a `docs/` directory with at least an `index.mdx` file
 - GitHub Pages is enabled with `build_type: workflow` (enforcement handles this)
 - The `GITHUB_TOKEN` has `pages: write` and `id-token: write` permissions
+
+Verify Pages config:
+
+```bash
+gh api repos/f5xc-salesdemos/<repo-name>/pages --jq '.build_type'
+```
 
 ### Stale sync branches
 
@@ -95,5 +302,4 @@ gh api repos/f5xc-salesdemos/<repo-name>/git/refs/heads/governance/sync-managed-
 
 ## Further reading
 
-- [MIGRATION.md](https://github.com/f5xc-salesdemos/docs-control/blob/main/MIGRATION.md) in the repository root for the full MkDocs-to-Starlight conversion runbook
 - [Content authoring guide](https://f5xc-salesdemos.github.io/docs-builder/content-authors/) from docs-builder for page content and MDX conventions
