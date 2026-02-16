@@ -317,6 +317,17 @@ jobs:
                   echo "[INFO] Open sync PR #${EXISTING_PR} already exists — attempting merge"
                   wait_and_merge "${EXISTING_PR}" "${OWNER}/${REPO}" || true
                 else
+                  # Close any orphaned sync issues from previous runs
+                  STALE_ISSUES=$(gh issue list --repo "${OWNER}/${REPO}" \
+                    --state open \
+                    --search "chore: sync managed files from governance template" \
+                    --json number --jq '.[].number' 2>/dev/null) || true
+                  for stale_num in $STALE_ISSUES; do
+                    gh issue close "$stale_num" --repo "${OWNER}/${REPO}" \
+                      --comment "Superseded by new sync run. Closing stale issue." 2>/dev/null || true
+                    echo "[INFO] Closed stale sync issue #${stale_num}"
+                  done
+
                   # Create issue
                   DRIFT_LIST=$(printf '%b' "$DRIFT_FILES" | sed '/^$/d' | sed 's/^/- /')
                   ISSUE_BODY=$(printf 'The following managed files have drifted from the canonical source in `%s`:\n\n%s\n\nThis issue was created automatically by the governance enforcement workflow.' \
