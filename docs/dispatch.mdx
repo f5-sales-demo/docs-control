@@ -4,12 +4,6 @@ sidebar:
   order: 5
 ---
 
-import { Code } from '@astrojs/starlight/components';
-import downstreamRepos from './_data/downstream-repos.json?raw';
-import callerEnforce from './_data/enforce-repo-settings.yml?raw';
-import callerDeploy from './_data/github-pages-deploy.yml?raw';
-import callerLinkedIssue from './_data/require-linked-issue.yml?raw';
-
 ## Dispatch trigger
 
 When template files change on docs-control's `main` branch, the dispatch workflow at `.github/workflows/dispatch-downstream.yml` triggers enforcement in every enrolled downstream repo.
@@ -25,7 +19,26 @@ The workflow reads the downstream repo list, then calls `gh workflow run enforce
 
 ## Enrolled repositories
 
-<Code code={downstreamRepos} lang="json" title=".github/config/downstream-repos.json" />
+```json title=".github/config/downstream-repos.json"
+[
+  "f5xc-salesdemos/docs-builder",
+  "f5xc-salesdemos/docs-theme",
+  "f5xc-salesdemos/docs",
+  "f5xc-salesdemos/administration",
+  "f5xc-salesdemos/nginx",
+  "f5xc-salesdemos/observability",
+  "f5xc-salesdemos/was",
+  "f5xc-salesdemos/mcn",
+  "f5xc-salesdemos/dns",
+  "f5xc-salesdemos/cdn",
+  "f5xc-salesdemos/bot-standard",
+  "f5xc-salesdemos/bot-advanced",
+  "f5xc-salesdemos/ddos",
+  "f5xc-salesdemos/waf",
+  "f5xc-salesdemos/api",
+  "f5xc-salesdemos/csd"
+]
+```
 
 To enroll a new repo, add it to this file and follow the [onboarding procedure](./onboarding/).
 
@@ -37,19 +50,89 @@ The `workflows/` directory contains three workflow files that downstream repos c
 
 Calls both `enforce-repo-settings.yml` and `sync-managed-files.yml` as parallel jobs with separate tokens. Triggers on schedule (every 6 hours), push to `.github/config/**`, and manual dispatch.
 
-<Code code={callerEnforce} lang="yaml" title="workflows/enforce-repo-settings.yml" />
+```yaml title="workflows/enforce-repo-settings.yml"
+name: Enforce Repository Settings
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/config/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: enforce-repo-settings
+  cancel-in-progress: true
+
+jobs:
+  enforce-settings:
+    uses: f5xc-salesdemos/docs-control/.github/workflows/enforce-repo-settings.yml@main
+    secrets:
+      repo-settings-token: $\{{ secrets.REPO_SETTINGS_TOKEN }}
+
+  sync-files:
+    uses: f5xc-salesdemos/docs-control/.github/workflows/sync-managed-files.yml@main
+    secrets:
+      repo-sync-token: $\{{ secrets.REPO_SYNC_TOKEN }}
+```
 
 ### github-pages-deploy.yml
 
 Calls the reusable docs build and deploy workflow. Triggers on push to `docs/**` on main and manual dispatch.
 
-<Code code={callerDeploy} lang="yaml" title="workflows/github-pages-deploy.yml" />
+```yaml title="workflows/github-pages-deploy.yml"
+name: GitHub Pages Deploy
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    uses: f5xc-salesdemos/docs-control/.github/workflows/github-pages-deploy.yml@main
+```
 
 ### require-linked-issue.yml
 
 Calls the reusable linked-issue check workflow. Triggers on `pull_request_target` events.
 
-<Code code={callerLinkedIssue} lang="yaml" title="workflows/require-linked-issue.yml" />
+```yaml title="workflows/require-linked-issue.yml"
+name: Require Linked Issue
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  issues: read
+  pull-requests: write
+
+concurrency:
+  group: $\{{ github.workflow }}-$\{{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    uses: f5xc-salesdemos/docs-control/.github/workflows/require-linked-issue.yml@main
+    secrets: inherit
+```
 
 ## Check name format
 

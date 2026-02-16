@@ -4,9 +4,6 @@ sidebar:
   order: 4
 ---
 
-import { Code } from '@astrojs/starlight/components';
-import docsSites from './_data/docs-sites.json?raw';
-
 The file sync workflow at `.github/workflows/sync-managed-files.yml` runs as a parallel job alongside [settings enforcement](./settings-enforcement/), using the `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read).
 
 It skips execution when running on the source repo itself (docs-control), since the canonical files already live here.
@@ -37,7 +34,90 @@ Each downstream repo receives a generated `README.md` built from two sources:
 - **`README.md.tpl`** -- a template in the docs-control root with placeholders (`__TITLE__`, `__DESCRIPTION__`, `__REPO_NAME__`, `__DOCS_URL__`)
 - **`docs-sites.json`** -- provides the human-readable label and description for each repo by matching the repo name against the URL field
 
-<Code code={docsSites} lang="json" title=".github/config/docs-sites.json" />
+```json title=".github/config/docs-sites.json"
+[
+  {
+    "label": "f5xc Docs Builder",
+    "url": "https://f5xc-salesdemos.github.io/docs-builder/llms-full.txt",
+    "description": "Containerized Astro + Starlight documentation build system"
+  },
+  {
+    "label": "XC Docs Theme",
+    "url": "https://f5xc-salesdemos.github.io/docs-theme/llms-full.txt",
+    "description": "Shared branding and styling for F5 Distributed Cloud documentation sites"
+  },
+  {
+    "label": "F5 XC Docs",
+    "url": "https://f5xc-salesdemos.github.io/docs/llms-full.txt",
+    "description": "Organization landing page for F5 Distributed Cloud documentation"
+  },
+  {
+    "label": "Administration",
+    "url": "https://f5xc-salesdemos.github.io/administration/llms-full.txt",
+    "description": "F5 XC administration and tenant management"
+  },
+  {
+    "label": "NGINX",
+    "url": "https://f5xc-salesdemos.github.io/nginx/llms-full.txt",
+    "description": "F5 XC NGINX integration and configuration"
+  },
+  {
+    "label": "Observability",
+    "url": "https://f5xc-salesdemos.github.io/observability/llms-full.txt",
+    "description": "F5 XC observability and monitoring"
+  },
+  {
+    "label": "Web App Scanning",
+    "url": "https://f5xc-salesdemos.github.io/was/llms-full.txt",
+    "description": "F5 XC web application scanning"
+  },
+  {
+    "label": "Multi-Cloud Networking",
+    "url": "https://f5xc-salesdemos.github.io/mcn/llms-full.txt",
+    "description": "F5 XC multi-cloud networking"
+  },
+  {
+    "label": "DNS",
+    "url": "https://f5xc-salesdemos.github.io/dns/llms-full.txt",
+    "description": "F5 XC DNS management"
+  },
+  {
+    "label": "CDN",
+    "url": "https://f5xc-salesdemos.github.io/cdn/llms-full.txt",
+    "description": "F5 XC content delivery network"
+  },
+  {
+    "label": "Bot Standard",
+    "url": "https://f5xc-salesdemos.github.io/bot-standard/llms-full.txt",
+    "description": "F5 XC standard bot defense"
+  },
+  {
+    "label": "Bot Advanced",
+    "url": "https://f5xc-salesdemos.github.io/bot-advanced/llms-full.txt",
+    "description": "F5 XC advanced bot defense"
+  },
+  {
+    "label": "DDoS",
+    "url": "https://f5xc-salesdemos.github.io/ddos/llms-full.txt",
+    "description": "F5 XC DDoS protection"
+  },
+  {
+    "label": "WAF",
+    "url": "https://f5xc-salesdemos.github.io/waf/llms-full.txt",
+    "description": "F5 XC web application firewall"
+  },
+  {
+    "label": "API Security",
+    "url": "https://f5xc-salesdemos.github.io/api/llms-full.txt",
+    "description": "F5 XC API security"
+  },
+  {
+    "label": "Client-Side Defense",
+    "url": "https://f5xc-salesdemos.github.io/csd/llms-full.txt",
+    "description": "F5 XC client-side defense"
+  }
+]
+```
 
 The workflow matches the repo name against docs-sites.json URLs to find the label and description. It falls back to a capitalized repo name for the title and the GitHub API repo description if no match is found.
 
