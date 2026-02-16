@@ -300,11 +300,11 @@ git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
 All repos publish docs to GitHub Pages using a
 shared pipeline:
 
-| Repo | Role |
-| ---- | ---- |
-| `docs-theme` | npm package — Starlight plugin, Astro config, CSS, fonts, logos, layout components |
-| `docs-builder` | Docker image — build orchestration, npm deps, Puppeteer PDF generation, interactive components |
-| `docs-control` | Source-of-truth — reusable CI workflows, governance templates, repo settings enforcement |
+| Repo | Role | Owns |
+| ---- | ---- | ---- |
+| `docs-theme` | npm package — Starlight plugin, Astro config, CSS, fonts, logos, layout components | `astro.config.mjs`, `config.ts`, `content.config.ts`, all Starlight plugins and Astro integrations |
+| `docs-builder` | Docker image — build orchestration, npm deps, Puppeteer PDF generation, interactive components | `Dockerfile`, `entrypoint.sh`, `package.json` (npm dependency set only) |
+| `docs-control` | Source-of-truth — reusable CI workflows, governance templates, repo settings enforcement | CI workflows, `CLAUDE.md`, PR/issue templates, repo settings |
 
 Content repos only need a `docs/` directory — the
 build container and workflow handle everything else.
@@ -332,6 +332,46 @@ CI builds trigger when files in `docs/` change on
 - **Never** add `astro.config.mjs`,
   `package.json`, or build config to a content
   repo — the pipeline provides these
+- **Never** create `astro.config.mjs`,
+  `uno.config.ts`, or Astro integration config
+  in `docs-builder` — these are owned exclusively
+  by `docs-theme`
+
+### Configuration ownership rules
+
+The build image (`docs-builder`) copies configuration
+files from the theme package at image build time.
+This is the mechanism that enforces
+single-source-of-truth:
+
+- `astro.config.mjs` — copied from `docs-theme`
+  into the image. **Never** create or override this
+  file in `docs-builder` or any content repo.
+- `content.config.ts` — copied from `docs-theme`
+  into the image. Same rule applies.
+- Astro integrations and Starlight plugins — defined
+  in `docs-theme/config.ts`. To add a new
+  integration, add it to docs-theme, not
+  docs-builder.
+- npm packages (icon packs, runtime libraries) —
+  added to `docs-builder/package.json`. These are
+  build-time dependencies that integrations in
+  docs-theme consume.
+- `uno.config.ts`, `tsconfig.json`, and other
+  tooling configs — owned by `docs-theme` if they
+  affect the Astro build. `docs-builder` must not
+  create competing configs.
+
+**Pattern for adding new capabilities** (e.g., icon
+packs):
+
+1. Add the npm data packages to
+   `docs-builder/package.json`
+2. Add the Astro integration/plugin to
+   `docs-theme/config.ts`
+3. The Dockerfile copies the updated config from
+   docs-theme at build time — no manual config in
+   docs-builder needed
 
 ## Content Authoring
 
