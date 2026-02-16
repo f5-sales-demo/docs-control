@@ -1,5 +1,6 @@
 {
   "_comment": "Central repo-settings config — enforced by enforce-repo-settings.yml",
+  "_last_verified": "2026-02-16",
   "repository": {
     "private": false,
     "has_issues": true,
