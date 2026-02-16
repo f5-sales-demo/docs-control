@@ -8,3 +8,6 @@ paths:
   .github/workflows/**/*.yml:
     ignore:
       - "SC2016:.+"
+  .github/workflows/enforce-repo-settings.yml:
+    ignore:
+      - 'property "repo_settings_token" is not defined'

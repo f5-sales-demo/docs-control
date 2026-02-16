@@ -24,7 +24,7 @@ jobs:
 
       - name: Enforce repository settings
         env:
-          GH_TOKEN: ${{ secrets.repo-settings-token }}
+          GH_TOKEN: ${{ secrets.repo-settings-token || secrets.REPO_SETTINGS_TOKEN }}
         run: |
           set -euo pipefail
 
