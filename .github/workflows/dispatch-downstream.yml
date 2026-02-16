@@ -1,3 +1,4 @@
+---
 name: Dispatch Downstream Enforcement
 
 on:
@@ -20,6 +21,8 @@ on:
       - '.gitignore'
       - 'LICENSE'
       - '.pre-commit-config.yaml'
+      - '.yamllint.yaml'
+      - '.markdownlint.json'
       - 'README.md.tpl'
 
 permissions:

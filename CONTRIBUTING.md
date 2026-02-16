@@ -27,7 +27,7 @@ Blank issues are disabled. Pick the template that best fits your change.
 Branch from `main` using one of these naming conventions:
 
 | Prefix | Use for | Example |
-|--------|---------|---------|
+| -------- | --------- | --------- |
 | `feature/` | New features | `feature/42-add-rate-limiting` |
 | `fix/` | Bug fixes | `fix/17-correct-threshold-calc` |
 | `docs/` | Documentation | `docs/8-update-setup-guide` |
