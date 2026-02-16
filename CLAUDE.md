@@ -92,6 +92,63 @@ workflows succeed, and local branches are cleaned.
     gh run list --branch main --limit 5
     ```
 
+### Verification (Steps 12-13)
+
+12. **Verify outcomes** — confirm changes had the
+    intended effect, not just that workflows passed:
+
+    Always check:
+
+    ```
+    # Issue was closed by the PR
+    gh issue view <NUMBER> --json state --jq '.state'
+
+    # Branch protection matches expected state
+    gh api repos/{owner}/{repo}/branches/main/protection \
+      --jq '.required_status_checks.contexts'
+    ```
+
+    If `docs/**` changed:
+
+    ```
+    # Docs site is accessible
+    REPO=$(basename $(pwd))
+    curl -sf "https://f5xc-salesdemos.github.io/${REPO}/" \
+      && echo "OK" || echo "FAIL"
+    ```
+
+    If governance or config files changed:
+
+    ```
+    # Downstream repos were dispatched successfully
+    for repo in $(jq -r '.[]' .github/config/downstream-repos.json); do
+      echo "$repo:"
+      gh run list --repo "$repo" \
+        --workflow enforce-repo-settings.yml --limit 1
+    done
+    ```
+
+13. **Check repo health** — after your task is fully
+    done, scan for any outstanding problems across
+    the repository:
+
+    ```
+    # Open issues
+    gh issue list --state open
+
+    # Unmerged PRs
+    gh pr list --state open
+
+    # Recent failing workflows on main
+    gh run list --branch main --status failure --limit 5
+    ```
+
+    If any open issues, stale PRs, or failing
+    workflows are found, report them to the user.
+    For failures unrelated to your changes, create
+    a GitHub issue (per CI Monitoring rules) and
+    move on.
+
 ## Task Completion Criteria
 
 A task is **not complete** until ALL of the
@@ -104,6 +161,11 @@ following are true:
 - Local feature branch deleted
 - No stale merged branches remain locally
 - Current branch is `main` with clean working tree
+- GitHub issue is in `closed` state
+- Outcome verification passed (settings applied, docs
+  accessible if changed, downstream dispatched if changed)
+- Repo health checked (open issues, unmerged PRs, and
+  failing workflows reported)
 
 If any post-merge workflow fails due to your
 changes, fix and resubmit. Do not clean up branches
