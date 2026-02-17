@@ -78,5 +78,10 @@
     "label": "Client-Side Defense",
     "url": "https://f5xc-salesdemos.github.io/csd/llms-full.txt",
     "description": "F5 XC client-side defense"
+  },
+  {
+    "label": "Docs Icons",
+    "url": "https://f5xc-salesdemos.github.io/docs-icons/llms-full.txt",
+    "description": "NPM icon packages and plugins for the F5 XC documentation build system"
   }
 ]
