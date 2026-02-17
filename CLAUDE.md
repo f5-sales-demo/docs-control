@@ -307,6 +307,7 @@ shared pipeline:
 | `docs-theme` | npm package — Starlight plugin, Astro config, CSS, fonts, logos, layout components | `astro.config.mjs`, `config.ts`, `content.config.ts`, all Starlight plugins and Astro integrations |
 | `docs-builder` | Docker image — build orchestration, npm deps, Puppeteer PDF generation, interactive components | `Dockerfile`, `entrypoint.sh`, `package.json` (npm dependency set only) |
 | `docs-control` | Source-of-truth — reusable CI workflows, governance templates, repo settings enforcement | CI workflows, `CLAUDE.md`, PR/issue templates, repo settings |
+| `docs-icons` | npm packages — Iconify JSON icon sets, Astro icon components | Icon packaging, npm publishing, dispatch to docs-builder on release |
 
 Content repos only need a `docs/` directory — the
 build container and workflow handle everything else.
@@ -325,6 +326,9 @@ CI builds trigger when files in `docs/` change on
 - **Interactive components** (placeholder forms,
   API viewers, Mermaid rendering) —
   change `docs-builder`
+- **Icon packages** (Iconify JSON sets, Astro icon
+  components) — change `docs-icons` (publishes npm
+  packages consumed by `docs-builder`)
 - **CI workflow or governance files** —
   change `docs-control` (syncs managed files
   and repo settings to downstream repos)
@@ -374,6 +378,12 @@ packs):
 3. The Dockerfile copies the updated config from
    docs-theme at build time — no manual config in
    docs-builder needed
+
+**Icon package pipeline**: `docs-icons` owns all icon
+packaging — Iconify JSON sets and Astro components. On
+npm publish, `docs-icons` dispatches to `docs-builder`
+to rebuild the Docker image with updated icon packages.
+Content repos never install icon packages directly.
 
 ## Content Authoring
 
