@@ -10,7 +10,7 @@
     "allow_squash_merge": true,
     "allow_merge_commit": true,
     "allow_rebase_merge": true,
-    "allow_auto_merge": false,
+    "allow_auto_merge": true,
     "delete_branch_on_merge": true,
     "web_commit_signoff_required": false,
     "squash_merge_commit_title": "COMMIT_OR_PR_TITLE",
@@ -68,7 +68,8 @@
       {"src": "LICENSE", "dest": "LICENSE"},
       {"src": ".pre-commit-config.yaml", "dest": ".pre-commit-config.yaml"},
       {"src": ".yamllint.yaml", "dest": ".yamllint.yaml"},
-      {"src": ".markdownlint.json", "dest": ".markdownlint.json"}
+      {"src": ".markdownlint.json", "dest": ".markdownlint.json"},
+      {"src": "workflows/dependabot-auto-merge.yml", "dest": ".github/workflows/dependabot-auto-merge.yml"}
     ]
   }
 }

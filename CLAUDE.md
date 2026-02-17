@@ -204,6 +204,7 @@ To change any of these files, open a PR in
 - `.github/workflows/github-pages-deploy.yml`
 - `.github/workflows/enforce-repo-settings.yml`
 - `.github/workflows/require-linked-issue.yml`
+- `.github/workflows/dependabot-auto-merge.yml`
 - `.github/PULL_REQUEST_TEMPLATE.md`
 - `.github/ISSUE_TEMPLATE/bug_report.md`
 - `.github/ISSUE_TEMPLATE/feature_request.md`
