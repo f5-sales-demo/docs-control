@@ -1,20 +1,29 @@
 # Docs Control
 
+[![GitHub Pages Deploy](https://github.com/f5xc-salesdemos/docs-control/actions/workflows/github-pages-deploy.yml/badge.svg)](https://github.com/f5xc-salesdemos/docs-control/actions/workflows/github-pages-deploy.yml)
+[![Repo Settings](https://github.com/f5xc-salesdemos/docs-control/actions/workflows/enforce-repo-settings.yml/badge.svg)](https://github.com/f5xc-salesdemos/docs-control/actions/workflows/enforce-repo-settings.yml)
+[![License](https://img.shields.io/github/license/f5xc-salesdemos/docs-control)](LICENSE)
+
 Governance and CI workflow templates for the f5xc-salesdemos documentation pipeline.
 
-## Quick Start
+## Documentation
 
-1. Create a new repo in the `f5xc-salesdemos` org
-2. Enable GitHub Pages (Settings > Pages > Source: GitHub Actions)
-3. Edit `docs/index.mdx` to set your title and description
-4. Add `.mdx` files under `docs/`
-5. Push to `main` -- your site builds and deploys automatically
+Full documentation is available at **[https://f5xc-salesdemos.github.io/docs-control/](https://f5xc-salesdemos.github.io/docs-control/)**.
 
-## Structure
+## Getting Started
 
+```bash
+git clone https://github.com/f5xc-salesdemos/docs-control.git
 ```
-docs/
-  index.mdx              # Landing page (set title here)
-  01-getting-started.mdx
-  02-your-next-page.mdx
-```
+
+See the [documentation](https://f5xc-salesdemos.github.io/docs-control/) for detailed setup
+and usage guides.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow rules,
+branch naming, and CI requirements.
+
+## License
+
+See [LICENSE](LICENSE).
