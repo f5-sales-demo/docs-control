@@ -386,6 +386,32 @@ npm publish, `docs-icons` dispatches to `docs-builder`
 to rebuild the Docker image with updated icon packages.
 Content repos never install icon packages directly.
 
+### Release dispatch chain
+
+When an infrastructure package (`docs-theme` or
+`docs-icons`) merges to `main`, the following
+automated chain runs end-to-end — no manual
+triggering should be needed:
+
+1. **Semantic Release** publishes a new npm version
+   and creates a GitHub release
+2. **Dispatch to `docs-builder`** — the release
+   event triggers `dispatch-downstream.yml`, which
+   sends a `rebuild-image` repository dispatch
+3. **Docker image rebuild** — `docs-builder`
+   rebuilds the container with the updated package
+4. **Dispatch to content repos** — `docs-builder`
+   reads `docs-sites.json` from `docs-control` and
+   dispatches `github-pages-deploy.yml` to every
+   content repo
+5. **GitHub Pages rebuild** — each content repo
+   rebuilds its site using the new image
+
+If a theme or icon change does not appear on live
+sites, check each step in this chain for failures —
+do not manually trigger `github-pages-deploy.yml`
+as a workaround.
+
 ## Content Authoring
 
 ### Structure
