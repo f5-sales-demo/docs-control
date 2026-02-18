@@ -69,9 +69,6 @@ workflows succeed, and local branches are cleaned.
    - Create a new issue, branch, and PR with the fix
    - Return to Step 6 and repeat until all workflows
      pass
-   - For pre-existing failures unrelated to your
-     changes: create a GitHub issue (per CI
-     Monitoring rules below) and continue
 
 ### Cleanup (Steps 10-11)
 
@@ -89,7 +86,7 @@ workflows succeed, and local branches are cleaned.
     ```
     git status
     git branch
-    gh run list --branch main --limit 5
+    gh run list --branch main --commit $MERGE_SHA
     ```
 
 ### Verification (Steps 12-13)
@@ -129,8 +126,7 @@ workflows succeed, and local branches are cleaned.
     ```
 
 13. **Check repo health** — after your task is fully
-    done, scan for any outstanding problems across
-    the repository:
+    done, check for outstanding items:
 
     ```
     # Open issues
@@ -138,16 +134,10 @@ workflows succeed, and local branches are cleaned.
 
     # Unmerged PRs
     gh pr list --state open
-
-    # Recent failing workflows on main
-    gh run list --branch main --status failure --limit 5
     ```
 
-    If any open issues, stale PRs, or failing
-    workflows are found, report them to the user.
-    For failures unrelated to your changes, create
-    a GitHub issue (per CI Monitoring rules) and
-    move on.
+    If any open issues or stale PRs are found,
+    report them to the user.
 
 ## Task Completion Criteria
 
@@ -164,8 +154,8 @@ following are true:
 - GitHub issue is in `closed` state
 - Outcome verification passed (settings applied, docs
   accessible if changed, downstream dispatched if changed)
-- Repo health checked (open issues, unmerged PRs, and
-  failing workflows reported)
+- Repo health checked (open issues and unmerged PRs
+  reported)
 
 If any post-merge workflow fails due to your
 changes, fix and resubmit. Do not clean up branches
@@ -250,29 +240,25 @@ Plan mode may be **skipped** when:
 When in doubt, plan first. A 30-second planning pause
 is always cheaper than undoing unwanted changes.
 
-## CI Monitoring and Problem Reporting
+## CI Monitoring
 
-When monitoring CI workflows, **never ignore
-failures** — even pre-existing or unrelated ones.
-You are authorized to create GitHub issues without
-asking for confirmation. This is a standing
-instruction, not a suggestion.
+When monitoring CI workflows, focus only on
+workflows triggered by your current changes.
+Use the merge commit SHA (`$MERGE_SHA`) to scope
+`gh run list` and `gh run watch` commands.
 
-For every problem observed:
+If a workflow triggered by your commit fails:
 
-1. **Immediately create a GitHub issue** — do not
-   ask whether to create it, just create it
-   - Use a clear, descriptive title
-   - Include the workflow run URL or relevant logs
-   - Note it was discovered during CI monitoring
-   - Apply the `bug` label
-2. **Continue with your primary task** — issue
-   creation must not block your current work
-3. **Report to the user** what issues you created
+1. **Investigate the failure** — view logs with
+   `gh run view <RUN-ID> --log-failed`
+2. **Fix the root cause** — create a new issue,
+   branch, and PR with the fix
+3. **Report to the user** what failed and what
+   you did to fix it
 
-Do not ask "Want me to create an issue?" — the
-answer is always yes. See a problem, file an issue,
-move on.
+Do not investigate or report on workflow failures
+from other commits. Historical failures are out
+of scope for the current task.
 
 ## Workspace Hygiene
 
