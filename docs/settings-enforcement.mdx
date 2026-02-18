@@ -1,7 +1,7 @@
 ---
 title: Settings Enforcement
 sidebar:
-  order: 3
+  order: 4
 ---
 
 The enforcement workflow at `.github/workflows/enforce-repo-settings.yml` is a reusable, idempotent workflow that compares desired repository state against current state and patches any drift. Downstream repos call it via a [caller workflow](./dispatch/). Docs-control also runs it directly on push to `.github/config/repo-settings.json`.
