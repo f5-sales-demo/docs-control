@@ -199,8 +199,8 @@ jobs:
             # Strip self_contexts from payload (not part of GitHub API)
             DESIRED_PAYLOAD=$(echo "$DESIRED_PAYLOAD" | jq -c \
               'if .required_status_checks then
-                 .required_status_checks |= del(.self_contexts)
-               else . end')
+                .required_status_checks |= del(.self_contexts)
+              else . end')
 
             HTTP_CODE=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
               --include 2>/dev/null | head -1 | awk '{print $2}') || true
@@ -394,8 +394,8 @@ jobs:
             fi
             DESIRED_PAYLOAD=$(echo "$DESIRED_PAYLOAD" | jq -c \
               'if .required_status_checks then
-                 .required_status_checks |= del(.self_contexts)
-               else . end')
+                .required_status_checks |= del(.self_contexts)
+              else . end')
 
             VERIFY_PROTECTION=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" 2>/dev/null) || true
 
