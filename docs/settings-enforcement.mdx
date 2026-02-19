@@ -4,7 +4,7 @@ sidebar:
   order: 4
 ---
 
-The enforcement workflow at `.github/workflows/enforce-repo-settings.yml` is a reusable, idempotent workflow that compares desired repository state against current state and patches any drift. Downstream repos call it via a [caller workflow](./dispatch/). Docs-control also runs it directly on push to `.github/config/repo-settings.json`.
+The enforcement workflow at `.github/workflows/enforce-repo-settings.yml` is a reusable, idempotent workflow that compares desired repository state against current state and patches any drift. Downstream repositories call it via a [caller workflow](./dispatch/). Docs-control also runs it directly on push to `.github/config/repo-settings.json`.
 
 ## Triggers
 
@@ -28,11 +28,11 @@ Each phase is idempotent: it compares desired state against current state and on
 
 Fetches the central [configuration](./configuration/) from docs-control via the GitHub API (with 5 retry attempts). Validates that `jq` and `gh` are available and authenticated. Auto-computes the `homepage` URL if the config value is empty.
 
-Detects whether the workflow is running on the source repo itself by comparing `managed_files.source_repo` against `github.repository`. If running on self, the `self_contexts` override is activated for Phase 4.
+Detects whether the workflow is running on the source repository itself by comparing `managed_files.source_repo` against `github.repository`. If running on self, the `self_contexts` override is activated for Phase 4.
 
 ### Phase 2: Apply repository settings
 
-Compares each key in the `repository` object against the repo's current settings via `GET /repos/{owner}/{repo}`. Builds a patch object containing only the keys that have drifted and applies it via `PATCH /repos/{owner}/{repo}`.
+Compares each key in the `repository` object against the repository's current settings via `GET /repos/{owner}/{repo}`. Builds a patch object containing only the keys that have drifted and applies it via `PATCH /repos/{owner}/{repo}`.
 
 ### Phase 3: Apply Actions permissions
 
@@ -50,7 +50,7 @@ Iterates over the `branch_protection` array. For each branch:
 
 ### Phase 5: Apply topics
 
-Compares the `topics` array against the repo's current topics via `GET /repos/{owner}/{repo}/topics`. Replaces via `PUT` if drifted.
+Compares the `topics` array against the repository's current topics via `GET /repos/{owner}/{repo}/topics`. Replaces via `PUT` if drifted.
 
 ### Phase 6: Apply Pages
 

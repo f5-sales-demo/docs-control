@@ -6,7 +6,7 @@ sidebar:
 
 The file sync workflow at `.github/workflows/sync-managed-files.yml` runs as a parallel job alongside [settings enforcement](./settings-enforcement/), using the `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read).
 
-It skips execution when running on the source repo itself (docs-control), since the canonical files already live here.
+It skips execution when running on the source repository itself (docs-control), since the canonical files already live here.
 
 ## Static file sync
 
@@ -20,7 +20,7 @@ The managed files manifest includes:
 
 ## Dynamic dependabot.yml generation
 
-The workflow detects which package ecosystems exist in the downstream repo:
+The workflow detects which package ecosystems exist in the downstream repository:
 - **npm** -- `package.json` exists
 - **pip** -- `requirements.txt`, `pyproject.toml`, or `setup.py` exists
 - **docker** -- `Dockerfile` exists
@@ -29,10 +29,10 @@ It generates a `.github/dependabot.yml` with a `github-actions` ecosystem entry 
 
 ## Dynamic README.md generation
 
-Each downstream repo receives a generated `README.md` built from two sources:
+Each downstream repository receives a generated `README.md` built from two sources:
 
 - **`README.md.tpl`** -- a template in the docs-control root with placeholders (`__TITLE__`, `__DESCRIPTION__`, `__REPO_NAME__`, `__DOCS_URL__`)
-- **`docs-sites.json`** -- provides the human-readable label and description for each repo by matching the repo name against the URL field
+- **`docs-sites.json`** -- provides the human-readable label and description for each repository by matching the repository name against the URL field
 
 ```json title=".github/config/docs-sites.json"
 [
@@ -119,7 +119,7 @@ Each downstream repo receives a generated `README.md` built from two sources:
 ]
 ```
 
-The workflow matches the repo name against docs-sites.json URLs to find the label and description. It falls back to a capitalized repo name for the title and the GitHub API repo description if no match is found.
+The workflow matches the repository name against docs-sites.json URLs to find the label and description. It falls back to a capitalized repository name for the title and the GitHub API repository description if no match is found.
 
 ## Drift resolution
 

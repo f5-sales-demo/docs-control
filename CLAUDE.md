@@ -2,7 +2,7 @@
 
 ## Repository Workflow
 
-This repo enforces a strict governance workflow.
+This repository enforces a strict governance workflow.
 **DO NOT STOP after creating a PR** — the task is
 not complete until the PR is merged, all post-merge
 workflows succeed, and local branches are cleaned.
@@ -125,7 +125,7 @@ workflows succeed, and local branches are cleaned.
     done
     ```
 
-13. **Check repo health** — after your task is fully
+13. **Check repository health** — after your task is fully
     done, check for outstanding items:
 
     ```
@@ -154,7 +154,7 @@ following are true:
 - GitHub issue is in `closed` state
 - Outcome verification passed (settings applied, docs
   accessible if changed, downstream dispatched if changed)
-- Repo health checked (open issues and unmerged PRs
+- Repository health checked (open issues and unmerged PRs
   reported)
 
 If any post-merge workflow fails due to your
@@ -184,7 +184,7 @@ Use the format `<prefix>/<issue-number>-short-description`:
 
 The following files are centrally managed by the
 [docs-control](https://github.com/f5xc-salesdemos/docs-control)
-repository and automatically synced to this repo.
+repository and automatically synced to this repository.
 **Do not modify these files here** — local changes
 will be overwritten on the next enforcement run.
 
@@ -294,17 +294,17 @@ git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
 
 ## Documentation Pipeline
 
-All repos publish docs to GitHub Pages using a
+All repositories publish docs to GitHub Pages using a
 shared pipeline:
 
-| Repo | Role | Owns |
+| Repository | Role | Owns |
 | ---- | ---- | ---- |
 | `docs-theme` | npm package — Starlight plugin, Astro config, CSS, fonts, logos, layout components | `astro.config.mjs`, `config.ts`, `content.config.ts`, all Starlight plugins and Astro integrations |
 | `docs-builder` | Docker image — build orchestration, npm deps, Puppeteer PDF generation, interactive components | `Dockerfile`, `entrypoint.sh`, `package.json` (npm dependency set only) |
-| `docs-control` | Source-of-truth — reusable CI workflows, governance templates, repo settings enforcement | CI workflows, `CLAUDE.md`, PR/issue templates, repo settings |
+| `docs-control` | Source-of-truth — reusable CI workflows, governance templates, repository settings enforcement | CI workflows, `CLAUDE.md`, PR/issue templates, repository settings |
 | `docs-icons` | npm packages — Iconify JSON icon sets, Astro icon components | Icon packaging, npm publishing, dispatch to docs-builder on release |
 
-Content repos only need a `docs/` directory — the
+Content repositories only need a `docs/` directory — the
 build container and workflow handle everything else.
 CI builds trigger when files in `docs/` change on
 `main`.
@@ -326,13 +326,13 @@ CI builds trigger when files in `docs/` change on
   packages consumed by `docs-builder`)
 - **CI workflow or governance files** —
   change `docs-control` (syncs managed files
-  and repo settings to downstream repos)
+  and repository settings to downstream repositories)
 - **Page content and images** —
   change the `docs/` directory in the content
-  repo itself
+  repository itself
 - **Never** add `astro.config.mjs`,
   `package.json`, or build config to a content
-  repo — the pipeline provides these
+  repository — the pipeline provides these
 - **Never** create `astro.config.mjs`,
   `uno.config.ts`, or Astro integration config
   in `docs-builder` — these are owned exclusively
@@ -347,7 +347,7 @@ single-source-of-truth:
 
 - `astro.config.mjs` — copied from `docs-theme`
   into the image. **Never** create or override this
-  file in `docs-builder` or any content repo.
+  file in `docs-builder` or any content repository.
 - `content.config.ts` — copied from `docs-theme`
   into the image. Same rule applies.
 - Astro integrations and Starlight plugins — defined
@@ -378,7 +378,7 @@ packs):
 packaging — Iconify JSON sets and Astro components. On
 npm publish, `docs-icons` dispatches to `docs-builder`
 to rebuild the Docker image with updated icon packages.
-Content repos never install icon packages directly.
+Content repositories never install icon packages directly.
 
 ### Release dispatch chain
 
@@ -394,11 +394,11 @@ triggering should be needed:
    sends a `rebuild-image` repository dispatch
 3. **Docker image rebuild** — `docs-builder`
    rebuilds the container with the updated package
-4. **Dispatch to content repos** — `docs-builder`
+4. **Dispatch to content repositories** — `docs-builder`
    reads `docs-sites.json` from `docs-control` and
    dispatches `github-pages-deploy.yml` to every
-   content repo
-5. **GitHub Pages rebuild** — each content repo
+   content repository
+5. **GitHub Pages rebuild** — each content repository
    rebuilds its site using the new image
 
 If a theme or icon change does not appear on live
