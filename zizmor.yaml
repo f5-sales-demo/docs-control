@@ -29,3 +29,6 @@ rules:
   # are flagged as cache poisoning vectors; these are first-party actions.
   cache-poisoning:
     disable: true
+  # Caller wrappers use secrets: inherit for reusable workflows
+  secrets-inherit:
+    disable: true
