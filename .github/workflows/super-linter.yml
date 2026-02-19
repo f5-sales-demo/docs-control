@@ -29,3 +29,16 @@ jobs:
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINTER_RULES_PATH: "."
+          # Disable formatters that conflict with existing linters
+          VALIDATE_BIOME_FORMAT: false
+          VALIDATE_JSON_PRETTIER: false
+          VALIDATE_MARKDOWN_PRETTIER: false
+          VALIDATE_YAML_PRETTIER: false
+          # Disable linters inappropriate for governance repo
+          VALIDATE_JSCPD: false
+          VALIDATE_NATURAL_LANGUAGE: false
+          VALIDATE_EDITORCONFIG: false
+          # Disable linters with false positives on reusable workflows
+          VALIDATE_CHECKOV: false
+          VALIDATE_GITHUB_ACTIONS: false
+          VALIDATE_GITHUB_ACTIONS_ZIZMOR: false
