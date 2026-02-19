@@ -1,0 +1,14 @@
+{
+  "rules": {
+    "terminology": {
+      "defaultTerms": true,
+      "exclude": [
+        "repo\\b",
+        "bug[- ]fix(es)?",
+        "code[- ]base(es)?",
+        "auto[- ]fix",
+        "auto[- ]fixing"
+      ]
+    }
+  }
+}

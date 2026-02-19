@@ -29,3 +29,17 @@ jobs:
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINTER_RULES_PATH: "."
+          # Disable prettier formatters that conflict with dedicated linters
+          # (yamllint handles YAML, markdownlint handles MD, eslint-plugin-jsonc handles JSON)
+          VALIDATE_JSON_PRETTIER: false
+          VALIDATE_MARKDOWN_PRETTIER: false
+          VALIDATE_YAML_PRETTIER: false
+          # Pass SC2016 exclusion to shellcheck via env so actionlint's
+          # embedded shellcheck also skips it (.shellcheckrc only works
+          # for the direct BASH linter, not actionlint's subprocess)
+          SHELLCHECK_OPTS: "-e SC2016"
+          # editorconfig-checker: use .editorconfig-checker.json config
+          # (super-linter default file name, disables indent-size and
+          # excludes .md/.mdx/.yml/.yaml which have dedicated linters)
+          # zizmor: use zizmor.yaml config (super-linter default
+          # GITHUB_ACTIONS_ZIZMOR_FILE_NAME; no leading dot required)

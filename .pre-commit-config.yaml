@@ -62,30 +62,20 @@ repos:
       - id: gitleaks
 
   # ===========================================================================
-  # Linting
+  # Super-Linter (manual stage — run with: pre-commit run super-linter --hook-stage manual)
+  # Replaces individual yamllint, markdownlint, shellcheck, and actionlint hooks.
+  # Requires Docker installed locally (~2GB image pull on first run).
   # ===========================================================================
-  - repo: https://github.com/adrienverge/yamllint
-    rev: v1.38.0
+  - repo: local
     hooks:
-      - id: yamllint
-
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.47.0
-    hooks:
-      - id: markdownlint
-        args: ["--fix"]
-
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    rev: v0.11.0.1
-    hooks:
-      - id: shellcheck
-
-  - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.10
-    hooks:
-      - id: actionlint
+      - id: super-linter
+        name: Super-Linter (local Docker)
+        entry: bash -c 'docker run --rm -v "$(pwd):/tmp/lint" -w /tmp/lint -e RUN_LOCAL=true -e DEFAULT_BRANCH=main -e LINTER_RULES_PATH="." -e VALIDATE_JSON_PRETTIER=false -e VALIDATE_MARKDOWN_PRETTIER=false -e VALIDATE_YAML_PRETTIER=false ghcr.io/super-linter/super-linter:v8'
+        language: system
+        pass_filenames: false
+        stages: [manual]
 
 ci:
   autofix_prs: true
   autoupdate_schedule: weekly
-  skip: [local-hooks, gitleaks]
+  skip: [local-hooks, gitleaks, super-linter]

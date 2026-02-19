@@ -11,6 +11,9 @@ on:
       repo-settings-token:
         description: 'PAT with admin permissions for repository settings'
         required: true
+      REPO_SETTINGS_TOKEN:
+        description: 'Repo-level fallback used by push trigger context'
+        required: false
 
 permissions:
   contents: read
