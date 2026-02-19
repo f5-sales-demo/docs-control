@@ -75,6 +75,11 @@
     "description": "F5 XC API security"
   },
   {
+    "label": "API MCP",
+    "url": "https://f5xc-salesdemos.github.io/api-mcp/llms-full.txt",
+    "description": "MCP server for F5 Distributed Cloud API"
+  },
+  {
     "label": "Client-Side Defense",
     "url": "https://f5xc-salesdemos.github.io/csd/llms-full.txt",
     "description": "F5 XC client-side defense"
