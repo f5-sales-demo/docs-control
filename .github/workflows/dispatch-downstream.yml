@@ -24,6 +24,13 @@ on:
       - '.pre-commit-config.yaml'
       - '.yamllint.yaml'
       - '.markdownlint.json'
+      - 'biome.json'
+      - '.jscpd.json'
+      - '.textlintrc'
+      - '.ecrc'
+      - '.checkov.yaml'
+      - '.zizmor.yml'
+      - '.shellcheckrc'
       - 'README.md.tpl'
 
 permissions:

@@ -209,6 +209,13 @@ To change any of these files, open a PR in
 - `.pre-commit-config.yaml`
 - `.yamllint.yaml`
 - `.markdownlint.json`
+- `biome.json`
+- `.jscpd.json`
+- `.textlintrc`
+- `.ecrc`
+- `.checkov.yaml`
+- `.zizmor.yml`
+- `.shellcheckrc`
 
 ## Planning Before Execution
 

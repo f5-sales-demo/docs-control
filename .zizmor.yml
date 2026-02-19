@@ -1,0 +1,7 @@
+rules:
+  pull-request-target:
+    level: ignore
+  unpinned-uses:
+    level: warn
+  artipacked:
+    level: ignore

@@ -1,0 +1,8 @@
+{
+  "threshold": 10,
+  "reporters": ["console"],
+  "ignore": [
+    "**/.github/workflows/**",
+    "**/workflows/**"
+  ]
+}

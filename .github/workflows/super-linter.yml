@@ -29,3 +29,8 @@ jobs:
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINTER_RULES_PATH: "."
+          # Disable prettier formatters that conflict with dedicated linters
+          # (yamllint handles YAML, markdownlint handles MD, eslint-plugin-jsonc handles JSON)
+          VALIDATE_JSON_PRETTIER: false
+          VALIDATE_MARKDOWN_PRETTIER: false
+          VALIDATE_YAML_PRETTIER: false

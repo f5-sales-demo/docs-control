@@ -70,7 +70,15 @@
       {"src": ".pre-commit-config.yaml", "dest": ".pre-commit-config.yaml"},
       {"src": ".yamllint.yaml", "dest": ".yamllint.yaml"},
       {"src": ".markdownlint.json", "dest": ".markdownlint.json"},
-      {"src": "workflows/dependabot-auto-merge.yml", "dest": ".github/workflows/dependabot-auto-merge.yml"}
+      {"src": "workflows/dependabot-auto-merge.yml", "dest": ".github/workflows/dependabot-auto-merge.yml"},
+
+      {"src": "biome.json", "dest": "biome.json"},
+      {"src": ".jscpd.json", "dest": ".jscpd.json"},
+      {"src": ".textlintrc", "dest": ".textlintrc"},
+      {"src": ".ecrc", "dest": ".ecrc"},
+      {"src": ".checkov.yaml", "dest": ".checkov.yaml"},
+      {"src": ".zizmor.yml", "dest": ".zizmor.yml"},
+      {"src": ".shellcheckrc", "dest": ".shellcheckrc"}
     ]
   }
 }

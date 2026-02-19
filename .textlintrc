@@ -1,0 +1,12 @@
+{
+  "rules": {
+    "terminology": {
+      "defaultTerms": true,
+      "exclude": [
+        "repo",
+        "Code Base",
+        "code base"
+      ]
+    }
+  }
+}
