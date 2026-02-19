@@ -30,8 +30,8 @@
       "enforce_admins": true,
       "required_status_checks": {
         "strict": false,
-        "contexts": ["check / Check linked issues"],
-        "self_contexts": ["Check linked issues"]
+        "contexts": ["check / Check linked issues", "lint / Lint Code Base"],
+        "self_contexts": ["Check linked issues", "Lint Code Base"]
       },
       "required_pull_request_reviews": null,
       "restrictions": null,
@@ -55,6 +55,7 @@
       {"src": "workflows/github-pages-deploy.yml", "dest": ".github/workflows/github-pages-deploy.yml"},
       {"src": "workflows/enforce-repo-settings.yml", "dest": ".github/workflows/enforce-repo-settings.yml"},
       {"src": "workflows/require-linked-issue.yml", "dest": ".github/workflows/require-linked-issue.yml"},
+      {"src": "workflows/super-linter.yml", "dest": ".github/workflows/super-linter.yml"},
       {"src": ".github/PULL_REQUEST_TEMPLATE.md", "dest": ".github/PULL_REQUEST_TEMPLATE.md"},
       {"src": ".github/ISSUE_TEMPLATE/bug_report.md", "dest": ".github/ISSUE_TEMPLATE/bug_report.md"},
       {"src": ".github/ISSUE_TEMPLATE/feature_request.md", "dest": ".github/ISSUE_TEMPLATE/feature_request.md"},
