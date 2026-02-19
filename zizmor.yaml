@@ -25,3 +25,7 @@ rules:
   # analysis unreliable. Repos manage permissions via workflow-level blocks.
   excessive-permissions:
     disable: true
+  # Standard GitHub Actions cache patterns (setup-node, upload-artifact)
+  # are flagged as cache poisoning vectors; these are first-party actions.
+  cache-poisoning:
+    disable: true
