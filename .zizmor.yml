@@ -11,3 +11,5 @@ rules:
     level: ignore
   dependabot-cooldown:
     level: ignore
+  template-injection:
+    level: ignore

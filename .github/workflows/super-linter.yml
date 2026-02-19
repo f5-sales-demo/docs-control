@@ -38,3 +38,9 @@ jobs:
           # embedded shellcheck also skips it (.shellcheckrc only works
           # for the direct BASH linter, not actionlint's subprocess)
           SHELLCHECK_OPTS: "-e SC2016"
+          # editorconfig-checker: skip indent-size (already enforced by
+          # biome for JSON, yamllint for YAML, markdownlint for MD)
+          EDITORCONFIG_COMMAND_ARGS: "-disable-indent-size"
+          # zizmor: explicitly pass config since super-linter doesn't
+          # auto-detect .zizmor.yml from LINTER_RULES_PATH
+          GITHUB_ACTIONS_ZIZMOR_COMMAND_ARGS: "--config .zizmor.yml"

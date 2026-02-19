@@ -3,25 +3,11 @@
     "terminology": {
       "defaultTerms": true,
       "exclude": [
-        "repo",
-        "Repo",
-        "repos",
-        "Repos",
-        "code base",
-        "Code Base",
-        "Code base",
-        "bug fix",
-        "Bug fix",
-        "bug fixes",
-        "Bug fixes",
-        "bugfix",
-        "Bugfix",
-        "bugfixes",
-        "Bugfixes",
-        "auto-merge",
-        "Auto-merge",
-        "pre-commit",
-        "Pre-commit"
+        "repo\\b",
+        "bug[- ]fix(es)?",
+        "code[- ]base(es)?",
+        "auto[- ]fix",
+        "auto[- ]fixing"
       ]
     }
   }
