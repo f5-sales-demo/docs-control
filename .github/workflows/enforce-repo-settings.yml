@@ -202,6 +202,22 @@ jobs:
                 .required_status_checks |= del(.self_contexts)
               else . end')
 
+            # Merge per-repo additional contexts from repo_overrides
+            REPO_OVERRIDES=$(echo "$CONFIG" | jq -c ".repo_overrides[\"${REPO}\"] // empty")
+            if [ -n "$REPO_OVERRIDES" ] && [ "$REPO_OVERRIDES" != "null" ]; then
+              if [ "$IS_SELF" = true ]; then
+                EXTRA_CTX=$(echo "$REPO_OVERRIDES" | jq -c '.additional_self_contexts // []')
+              else
+                EXTRA_CTX=$(echo "$REPO_OVERRIDES" | jq -c '.additional_contexts // []')
+              fi
+              if [ "$EXTRA_CTX" != "[]" ]; then
+                DESIRED_PAYLOAD=$(echo "$DESIRED_PAYLOAD" | jq -c \
+                  --argjson extra "$EXTRA_CTX" \
+                  '.required_status_checks.contexts = (.required_status_checks.contexts + $extra | unique)')
+                echo "[INFO] Merged additional contexts for ${REPO}: $EXTRA_CTX"
+              fi
+            fi
+
             HTTP_CODE=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
               --include 2>/dev/null | head -1 | awk '{print $2}') || true
             CURRENT_PROTECTION=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" 2>/dev/null) || true
@@ -396,6 +412,21 @@ jobs:
               'if .required_status_checks then
                 .required_status_checks |= del(.self_contexts)
               else . end')
+
+            # Merge per-repo additional contexts (same as Phase 4)
+            REPO_OVERRIDES=$(echo "$CONFIG" | jq -c ".repo_overrides[\"${REPO}\"] // empty")
+            if [ -n "$REPO_OVERRIDES" ] && [ "$REPO_OVERRIDES" != "null" ]; then
+              if [ "$IS_SELF" = true ]; then
+                EXTRA_CTX=$(echo "$REPO_OVERRIDES" | jq -c '.additional_self_contexts // []')
+              else
+                EXTRA_CTX=$(echo "$REPO_OVERRIDES" | jq -c '.additional_contexts // []')
+              fi
+              if [ "$EXTRA_CTX" != "[]" ]; then
+                DESIRED_PAYLOAD=$(echo "$DESIRED_PAYLOAD" | jq -c \
+                  --argjson extra "$EXTRA_CTX" \
+                  '.required_status_checks.contexts = (.required_status_checks.contexts + $extra | unique)')
+              fi
+            fi
 
             VERIFY_PROTECTION=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" 2>/dev/null) || true
 
