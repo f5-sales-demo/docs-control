@@ -4,7 +4,7 @@
       "defaultTerms": true,
       "exclude": [
         "repo\\b",
-        "[Bb]ug[- ]fix(es)?\\b"
+        "bug[- ]fix(es)?"
       ]
     }
   }
