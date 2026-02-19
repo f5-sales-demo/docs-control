@@ -29,7 +29,7 @@ on:
       - '.textlintrc'
       - '.editorconfig-checker.json'
       - '.checkov.yaml'
-      - 'zizmor.yml'
+      - 'zizmor.yaml'
       - '.shellcheckrc'
       - 'README.md.tpl'
 

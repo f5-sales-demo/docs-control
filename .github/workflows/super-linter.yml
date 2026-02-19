@@ -41,5 +41,5 @@ jobs:
           # editorconfig-checker: use .editorconfig-checker.json config
           # (super-linter default file name, disables indent-size and
           # excludes .md/.mdx/.yml/.yaml which have dedicated linters)
-          # zizmor: use zizmor.yml config (no leading dot — zizmor's
-          # native config discovery expects zizmor.yml or zizmor.yaml)
+          # zizmor: use zizmor.yaml config (super-linter default
+          # GITHUB_ACTIONS_ZIZMOR_FILE_NAME; no leading dot required)

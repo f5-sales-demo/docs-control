@@ -214,7 +214,7 @@ To change any of these files, open a PR in
 - `.textlintrc`
 - `.editorconfig-checker.json`
 - `.checkov.yaml`
-- `zizmor.yml`
+- `zizmor.yaml`
 - `.shellcheckrc`
 
 ## Planning Before Execution
