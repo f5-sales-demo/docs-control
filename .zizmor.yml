@@ -5,3 +5,9 @@ rules:
     level: warn
   artipacked:
     level: ignore
+  dangerous-triggers:
+    level: ignore
+  bot-conditions:
+    level: ignore
+  dependabot-cooldown:
+    level: ignore

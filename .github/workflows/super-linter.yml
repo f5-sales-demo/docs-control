@@ -34,3 +34,7 @@ jobs:
           VALIDATE_JSON_PRETTIER: false
           VALIDATE_MARKDOWN_PRETTIER: false
           VALIDATE_YAML_PRETTIER: false
+          # Pass SC2016 exclusion to shellcheck via env so actionlint's
+          # embedded shellcheck also skips it (.shellcheckrc only works
+          # for the direct BASH linter, not actionlint's subprocess)
+          SHELLCHECK_OPTS: "-e SC2016"
