@@ -1,7 +1,11 @@
 {
   "rules": {
     "terminology": {
-      "defaultTerms": true
+      "defaultTerms": true,
+      "exclude": [
+        "repo\\b",
+        "bug[- ]fix(es)?\\b"
+      ]
     }
   }
 }
