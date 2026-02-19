@@ -212,9 +212,9 @@ To change any of these files, open a PR in
 - `biome.json`
 - `.jscpd.json`
 - `.textlintrc`
-- `.ecrc`
+- `.editorconfig-checker.json`
 - `.checkov.yaml`
-- `.zizmor.yml`
+- `zizmor.yml`
 - `.shellcheckrc`
 
 ## Planning Before Execution

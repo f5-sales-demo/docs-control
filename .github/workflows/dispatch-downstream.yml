@@ -27,9 +27,9 @@ on:
       - 'biome.json'
       - '.jscpd.json'
       - '.textlintrc'
-      - '.ecrc'
+      - '.editorconfig-checker.json'
       - '.checkov.yaml'
-      - '.zizmor.yml'
+      - 'zizmor.yml'
       - '.shellcheckrc'
       - 'README.md.tpl'
 

@@ -75,9 +75,9 @@
       { "src": "biome.json", "dest": "biome.json" },
       { "src": ".jscpd.json", "dest": ".jscpd.json" },
       { "src": ".textlintrc", "dest": ".textlintrc" },
-      { "src": ".ecrc", "dest": ".ecrc" },
+      { "src": ".editorconfig-checker.json", "dest": ".editorconfig-checker.json" },
       { "src": ".checkov.yaml", "dest": ".checkov.yaml" },
-      { "src": ".zizmor.yml", "dest": ".zizmor.yml" },
+      { "src": "zizmor.yml", "dest": "zizmor.yml" },
       { "src": ".shellcheckrc", "dest": ".shellcheckrc" }
     ]
   }
