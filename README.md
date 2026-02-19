@@ -1,7 +1,7 @@
 # Docs Control
 
 [![GitHub Pages Deploy](https://github.com/f5xc-salesdemos/docs-control/actions/workflows/github-pages-deploy.yml/badge.svg)](https://github.com/f5xc-salesdemos/docs-control/actions/workflows/github-pages-deploy.yml)
-[![Repo Settings](https://github.com/f5xc-salesdemos/docs-control/actions/workflows/enforce-repo-settings.yml/badge.svg)](https://github.com/f5xc-salesdemos/docs-control/actions/workflows/enforce-repo-settings.yml)
+[![Repository Settings](https://github.com/f5xc-salesdemos/docs-control/actions/workflows/enforce-repo-settings.yml/badge.svg)](https://github.com/f5xc-salesdemos/docs-control/actions/workflows/enforce-repo-settings.yml)
 [![License](https://img.shields.io/github/license/f5xc-salesdemos/docs-control)](LICENSE)
 
 Governance and CI workflow templates for the f5xc-salesdemos documentation pipeline.

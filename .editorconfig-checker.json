@@ -1,4 +1,1 @@
-{
-  "Exclude": ["\\.md$", "\\.mdx$", "\\.yml$", "\\.yaml$"],
-  "DisableIndentSize": true
-}
+{}

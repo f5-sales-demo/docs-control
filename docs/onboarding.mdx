@@ -9,27 +9,27 @@ This page covers the procedure to enroll a new repository in the docs-control go
 ## Prerequisites
 
 - Org membership in `f5xc-salesdemos`
-- `REPO_SETTINGS_TOKEN` and `REPO_SYNC_TOKEN` secrets configured as organization-level secrets (or added to the new repo individually)
+- `REPO_SETTINGS_TOKEN` and `REPO_SYNC_TOKEN` secrets configured as organization-level secrets (or added to the new repository individually)
 - Access to the `ghcr.io/f5xc-salesdemos/docs-builder` container image
 
 ## Enrollment steps
 
 ### 1. Add to downstream-repos.json
 
-Add the repo's `owner/repo` string to `.github/config/downstream-repos.json` in docs-control. This registers it for dispatch and enforcement.
+Add the repository's `owner/repo` string to `.github/config/downstream-repos.json` in docs-control. This registers it for dispatch and enforcement.
 
 ### 2. Optionally add to docs-sites.json
 
-If the repo will publish documentation, add an entry to `.github/config/docs-sites.json` with:
+If the repository will publish documentation, add an entry to `.github/config/docs-sites.json` with:
 - `label` -- human-readable site name
 - `url` -- URL to the site's `llms-full.txt` endpoint
 - `description` -- short description used in the generated README
 
-If no entry is added, the README generator falls back to a capitalized repo name and the GitHub API description.
+If no entry is added, the README generator falls back to a capitalized repository name and the GitHub API description.
 
 ### 3. Consolidate .gitignore
 
-The enforcement workflow **overwrites** the downstream `.gitignore` entirely. Before onboarding, merge any repo-specific entries into the template `.gitignore` in docs-control so they are not lost.
+The enforcement workflow **overwrites** the downstream `.gitignore` entirely. Before onboarding, merge any repository-specific entries into the template `.gitignore` in docs-control so they are not lost.
 
 ```bash
 # Fetch the downstream .gitignore
@@ -40,11 +40,11 @@ gh api repos/f5xc-salesdemos/<repo-name>/contents/.gitignore \
 diff /tmp/downstream-gitignore .gitignore
 ```
 
-Add any missing entries to the docs-control `.gitignore` and commit the change before proceeding. Extra ignore patterns for file types that do not exist in a repo are harmless.
+Add any missing entries to the docs-control `.gitignore` and commit the change before proceeding. Extra ignore patterns for file types that do not exist in a repository are harmless.
 
 ### 4. Install caller workflows
 
-Copy the three caller workflow templates from `workflows/` in docs-control into the new repo's `.github/workflows/` directory:
+Copy the three caller workflow templates from `workflows/` in docs-control into the new repository's `.github/workflows/` directory:
 
 - `enforce-repo-settings.yml` -- triggers enforcement and file sync
 - `github-pages-deploy.yml` -- triggers docs build and deploy
@@ -54,7 +54,7 @@ These files are also synced automatically by the [file sync workflow](./file-syn
 
 ### 5. Trigger enforcement
 
-Run the enforcement workflow manually in the new repo:
+Run the enforcement workflow manually in the new repository:
 
 ```bash
 gh workflow run enforce-repo-settings.yml --repo f5xc-salesdemos/<repo-name>
@@ -79,7 +79,7 @@ gh api repos/f5xc-salesdemos/<repo-name>/branches/main/protection \
 
 ### 7. Verify docs site
 
-If the repo has a `docs/` directory, confirm the docs site is accessible after the first successful deploy:
+If the repository has a `docs/` directory, confirm the docs site is accessible after the first successful deploy:
 
 ```bash
 curl -sf "https://f5xc-salesdemos.github.io/<repo-name>/" \
@@ -88,7 +88,7 @@ curl -sf "https://f5xc-salesdemos.github.io/<repo-name>/" \
 
 ## Setting up docs content
 
-Every repo that publishes documentation needs a `docs/` directory with at least an `index.mdx` file containing YAML frontmatter.
+Every repository that publishes documentation needs a `docs/` directory with at least an `index.mdx` file containing YAML frontmatter.
 
 **Landing page** (`docs/index.mdx`):
 
@@ -124,7 +124,7 @@ Sidebar order is controlled by numeric prefixes in filenames (e.g., `01-getting-
 
 ## Migrating from MkDocs
 
-If the repo currently uses MkDocs Material, follow these additional steps to convert the documentation to Starlight MDX format.
+If the repository currently uses MkDocs Material, follow these additional steps to convert the documentation to Starlight MDX format.
 
 ### Rename files
 
@@ -214,7 +214,7 @@ Check for common MDX issues:
 
 ## Dynamic doc generation
 
-For repos where docs are generated from pipeline artifacts (e.g., validation reports), add a workflow job that generates MDX files and opens a PR. The commit to `docs/` on main then triggers the standard `github-pages-deploy.yml` workflow.
+For repositories where docs are generated from pipeline artifacts (e.g., validation reports), add a workflow job that generates MDX files and opens a PR. The commit to `docs/` on main then triggers the standard `github-pages-deploy.yml` workflow.
 
 ```yaml
   update-docs:
@@ -254,7 +254,7 @@ For repos where docs are generated from pipeline artifacts (e.g., validation rep
 
 ### Delete the gh-pages branch
 
-If the repo previously deployed docs via a `gh-pages` branch, it is no longer needed since Pages now uses `build_type: workflow`. Delete it after verifying the new pipeline works:
+If the repository previously deployed docs via a `gh-pages` branch, it is no longer needed since Pages now uses `build_type: workflow`. Delete it after verifying the new pipeline works:
 
 ```bash
 gh api repos/f5xc-salesdemos/<repo-name>/git/refs/heads/gh-pages --method DELETE
@@ -281,7 +281,7 @@ The enforcement workflow requires the caller workflows to be installed, but the 
 ### Pages not building
 
 Ensure:
-- The repo has a `docs/` directory with at least an `index.mdx` file
+- The repository has a `docs/` directory with at least an `index.mdx` file
 - GitHub Pages is enabled with `build_type: workflow` (enforcement handles this)
 - The `GITHUB_TOKEN` has `pages: write` and `id-token: write` permissions
 

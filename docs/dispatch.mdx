@@ -6,7 +6,7 @@ sidebar:
 
 ## Dispatch trigger
 
-When template files change on docs-control's `main` branch, the dispatch workflow at `.github/workflows/dispatch-downstream.yml` triggers enforcement in every enrolled downstream repo.
+When template files change on docs-control's `main` branch, the dispatch workflow at `.github/workflows/dispatch-downstream.yml` triggers enforcement in every enrolled downstream repository.
 
 The trigger paths include:
 - `.github/config/repo-settings.json`, `downstream-repos.json`, `docs-sites.json`
@@ -15,7 +15,7 @@ The trigger paths include:
 - `.github/PULL_REQUEST_TEMPLATE.md`, `.github/ISSUE_TEMPLATE/**`
 - `CONTRIBUTING.md`, `CLAUDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`, `.pre-commit-config.yaml`, `README.md.tpl`
 
-The workflow reads the downstream repo list, then calls `gh workflow run enforce-repo-settings.yml` for each repo using the `REPO_SETTINGS_TOKEN` secret (with 3 retry attempts per repo).
+The workflow reads the downstream repository list, then calls `gh workflow run enforce-repo-settings.yml` for each repository using the `REPO_SETTINGS_TOKEN` secret (with 3 retry attempts per repository).
 
 ## Enrolled repositories
 
@@ -40,11 +40,11 @@ The workflow reads the downstream repo list, then calls `gh workflow run enforce
 ]
 ```
 
-To enroll a new repo, add it to this file and follow the [onboarding procedure](./onboarding/).
+To enroll a new repository, add it to this file and follow the [onboarding procedure](./onboarding/).
 
 ## Caller workflow templates
 
-The `workflows/` directory contains three workflow files that downstream repos copy into their `.github/workflows/` directory. These are thin callers that invoke the reusable workflows hosted in docs-control.
+The `workflows/` directory contains three workflow files that downstream repositories copy into their `.github/workflows/` directory. These are thin callers that invoke the reusable workflows hosted in docs-control.
 
 ### enforce-repo-settings.yml
 
@@ -136,13 +136,13 @@ jobs:
 
 ## Check name format
 
-When a downstream repo uses a caller workflow, the GitHub Actions status check name becomes `<caller_job_key> / <reusable_job_name>`. For example:
+When a downstream repository uses a caller workflow, the GitHub Actions status check name becomes `<caller_job_key> / <reusable_job_name>`. For example:
 
 | Caller job key | Reusable job name | Resulting check name |
 |---|---|---|
 | `check` | `Check linked issues` | `check / Check linked issues` |
 
-This is why docs-control's [configuration](./configuration/) has both `contexts` (for downstream repos) and `self_contexts` (for docs-control itself) -- the check names differ depending on whether the workflow runs directly or through a caller.
+This is why docs-control's [configuration](./configuration/) has both `contexts` (for downstream repositories) and `self_contexts` (for docs-control itself) -- the check names differ depending on whether the workflow runs directly or through a caller.
 
 ## PR quality gate
 
