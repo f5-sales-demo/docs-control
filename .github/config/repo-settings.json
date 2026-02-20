@@ -44,12 +44,7 @@
       "allow_fork_syncing": false
     }
   ],
-  "repo_overrides": {
-    "api-mcp": {
-      "additional_contexts": ["Lint & Type Check", "Test", "Build"],
-      "additional_self_contexts": []
-    }
-  },
+  "repo_overrides": {},
   "topics": [],
   "pages": {
     "enabled": true,
