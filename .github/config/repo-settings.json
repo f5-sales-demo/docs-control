@@ -79,7 +79,8 @@
       { "src": ".editorconfig-checker.json", "dest": ".editorconfig-checker.json" },
       { "src": ".checkov.yaml", "dest": ".checkov.yaml" },
       { "src": "zizmor.yaml", "dest": "zizmor.yaml" },
-      { "src": ".shellcheckrc", "dest": ".shellcheckrc" }
+      { "src": ".shellcheckrc", "dest": ".shellcheckrc" },
+      { "src": ".codespellrc", "dest": ".codespellrc" }
     ]
   }
 }
