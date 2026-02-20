@@ -5,7 +5,7 @@
       "exclude": [
         "repo\\b",
         "bug[- ]fix(es)?",
-        "build system"
+        "build system(s)?"
       ]
     }
   }
