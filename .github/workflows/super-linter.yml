@@ -41,6 +41,7 @@ jobs:
           # TypeScript run ESLint in their own CI with proper dependencies.
           VALIDATE_JAVASCRIPT_ES: false
           VALIDATE_TYPESCRIPT_ES: false
+          VALIDATE_TSX: false
           # Disable pre-commit — cannot execute inside super-linter container
           VALIDATE_PRE_COMMIT: false
           # Pass SC2016 exclusion to shellcheck via env so actionlint's
