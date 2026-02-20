@@ -16,6 +16,12 @@
     }
   },
   "linter": {
-    "enabled": false
+    "enabled": true,
+    "rules": {
+      "recommended": true
+    }
+  },
+  "files": {
+    "maxSize": 5242880
   }
 }
