@@ -349,7 +349,7 @@ jobs:
 
                   # Commit dynamic dependabot.yml if drifted
                   if [ "$DEPENDABOT_DRIFT" = true ]; then
-                    DEPBOT_B64=$(printf '%s' "$GENERATED_DEPENDABOT" | base64 -w 0)
+                    DEPBOT_B64=$(printf '%s\n' "$GENERATED_DEPENDABOT" | base64 -w 0)
                     DEPBOT_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml?ref=governance/sync-managed-files" --jq '.sha' 2>/dev/null) || true
                     if [ -n "$DEPBOT_SHA" ]; then
                       DEPBOT_COMMIT=$(jq -n --arg msg "chore: update .github/dependabot.yml" \
@@ -368,7 +368,7 @@ jobs:
 
                   # Commit dynamic README.md if drifted
                   if [ "$README_DRIFT" = true ]; then
-                    README_B64=$(printf '%s' "$GENERATED_README" | base64 -w 0)
+                    README_B64=$(printf '%s\n' "$GENERATED_README" | base64 -w 0)
                     README_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/README.md?ref=governance/sync-managed-files" --jq '.sha' 2>/dev/null) || true
                     if [ -n "$README_SHA" ]; then
                       README_COMMIT=$(jq -n --arg msg "chore: update README.md" \
@@ -454,7 +454,7 @@ jobs:
 
                   # Commit dynamic dependabot.yml if drifted
                   if [ "$DEPENDABOT_DRIFT" = true ]; then
-                    DEPBOT_B64=$(printf '%s' "$GENERATED_DEPENDABOT" | base64 -w 0)
+                    DEPBOT_B64=$(printf '%s\n' "$GENERATED_DEPENDABOT" | base64 -w 0)
                     DEPBOT_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --jq '.sha' 2>/dev/null) || true
 
                     if [ -n "$DEPBOT_SHA" ]; then
@@ -476,7 +476,7 @@ jobs:
 
                   # Commit dynamic README.md if drifted
                   if [ "$README_DRIFT" = true ]; then
-                    README_B64=$(printf '%s' "$GENERATED_README" | base64 -w 0)
+                    README_B64=$(printf '%s\n' "$GENERATED_README" | base64 -w 0)
                     README_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/README.md" --jq '.sha' 2>/dev/null) || true
 
                     if [ -n "$README_SHA" ]; then
