@@ -108,6 +108,7 @@ jobs:
       - name: Build docs with container
         run: |
           mkdir -p ${{ runner.temp }}/docs-output
+          chmod 777 ${{ runner.temp }}/docs-output
 
           docker run --rm \
             --name docs-builder \
