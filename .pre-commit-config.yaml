@@ -36,30 +36,13 @@ repos:
         pass_filenames: false
 
   # ===========================================================================
-  # File hygiene
+  # File size guard (no super-linter equivalent)
   # ===========================================================================
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: mixed-line-ending
-        args: ["--fix=lf"]
-      - id: check-yaml
-        args: ["--allow-multiple-documents"]
-      - id: check-json
       - id: check-added-large-files
         args: ["--maxkb=1024"]
-      - id: check-merge-conflict
-      - id: detect-private-key
-
-  # ===========================================================================
-  # Security
-  # ===========================================================================
-  - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.30.0
-    hooks:
-      - id: gitleaks
 
   # ===========================================================================
   # Super-Linter (manual stage — run with: pre-commit run super-linter --hook-stage manual)
@@ -78,4 +61,4 @@ repos:
 ci:
   autofix_prs: true
   autoupdate_schedule: weekly
-  skip: [local-hooks, gitleaks, super-linter]
+  skip: [local-hooks, super-linter]
