@@ -315,7 +315,77 @@ jobs:
                   --head "governance/sync-managed-files" \
                   --state open --json number --jq '.[0].number // empty' 2>/dev/null) || true
                 if [ -n "$EXISTING_PR" ]; then
-                  echo "[INFO] Open sync PR #${EXISTING_PR} already exists — attempting merge"
+                  echo "[INFO] Open sync PR #${EXISTING_PR} already exists — updating drifted files"
+
+                  # Force-update the PR branch to main's HEAD so it stays rebased
+                  MAIN_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/git/ref/heads/main" --jq '.object.sha')
+                  BRANCH_UPDATE_JSON=$(jq -n --arg sha "$MAIN_SHA" '{"sha":$sha,"force":true}')
+                  retry_json 3 "$BRANCH_UPDATE_JSON" \
+                    "repos/${OWNER}/${REPO}/git/refs/heads/governance/sync-managed-files" --method PATCH >/dev/null
+                  echo "[OK] Rebased PR branch onto main HEAD"
+
+                  # Commit each drifted managed file to the existing PR branch
+                  for dest_file in $(printf '%b' "$DRIFT_FILES" | sed '/^$/d'); do
+                    if [ "$dest_file" = ".github/dependabot.yml" ] || [ "$dest_file" = "README.md" ]; then
+                      continue
+                    fi
+                    src_file=$(echo "$MANAGED_FILES" | jq -r --arg d "$dest_file" '.files[] | select(.dest == $d) | .src')
+                    B64=$(retry 3 gh api "repos/${SOURCE_REPO}/contents/${src_file}" --jq '.content' | tr -d '\n')
+                    FILE_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/${dest_file}?ref=governance/sync-managed-files" --jq '.sha' 2>/dev/null) || true
+                    if [ -n "$FILE_SHA" ]; then
+                      COMMIT_JSON=$(jq -n --arg msg "chore: sync ${dest_file}" \
+                            --arg content "$B64" --arg sha "$FILE_SHA" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
+                    else
+                      COMMIT_JSON=$(jq -n --arg msg "chore: sync ${dest_file}" \
+                            --arg content "$B64" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"branch":$branch}')
+                    fi
+                    retry_json 3 "$COMMIT_JSON" "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT >/dev/null
+                    echo "[OK] Updated ${dest_file} on PR branch"
+                  done
+
+                  # Commit dynamic dependabot.yml if drifted
+                  if [ "$DEPENDABOT_DRIFT" = true ]; then
+                    DEPBOT_B64=$(printf '%s' "$GENERATED_DEPENDABOT" | base64 -w 0)
+                    DEPBOT_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml?ref=governance/sync-managed-files" --jq '.sha' 2>/dev/null) || true
+                    if [ -n "$DEPBOT_SHA" ]; then
+                      DEPBOT_COMMIT=$(jq -n --arg msg "chore: update .github/dependabot.yml" \
+                            --arg content "$DEPBOT_B64" --arg sha "$DEPBOT_SHA" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
+                    else
+                      DEPBOT_COMMIT=$(jq -n --arg msg "chore: create .github/dependabot.yml" \
+                            --arg content "$DEPBOT_B64" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"branch":$branch}')
+                    fi
+                    retry_json 3 "$DEPBOT_COMMIT" "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT >/dev/null
+                    echo "[OK] Updated .github/dependabot.yml on PR branch"
+                  fi
+
+                  # Commit dynamic README.md if drifted
+                  if [ "$README_DRIFT" = true ]; then
+                    README_B64=$(printf '%s' "$GENERATED_README" | base64 -w 0)
+                    README_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/README.md?ref=governance/sync-managed-files" --jq '.sha' 2>/dev/null) || true
+                    if [ -n "$README_SHA" ]; then
+                      README_COMMIT=$(jq -n --arg msg "chore: update README.md" \
+                            --arg content "$README_B64" --arg sha "$README_SHA" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
+                    else
+                      README_COMMIT=$(jq -n --arg msg "chore: create README.md" \
+                            --arg content "$README_B64" \
+                            --arg branch "governance/sync-managed-files" \
+                        '{"message":$msg,"content":$content,"branch":$branch}')
+                    fi
+                    retry_json 3 "$README_COMMIT" "repos/${OWNER}/${REPO}/contents/README.md" --method PUT >/dev/null
+                    echo "[OK] Updated README.md on PR branch"
+                  fi
+
+                  echo "[INFO] PR branch updated — attempting merge"
                   wait_and_merge "${EXISTING_PR}" "${OWNER}/${REPO}" || true
                 else
                   # Close any orphaned sync issues from previous runs
