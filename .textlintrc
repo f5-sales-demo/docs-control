@@ -4,7 +4,8 @@
       "defaultTerms": true,
       "exclude": [
         "repo\\b",
-        "bug[- ]fix(es)?"
+        "bug[- ]fix(es)?",
+        "build system"
       ]
     }
   }

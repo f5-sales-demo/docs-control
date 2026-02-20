@@ -226,17 +226,19 @@ jobs:
               fi
 
               DEPBOT="${DEPBOT}\n"
-              GENERATED_DEPENDABOT=$(printf '%b' "$DEPBOT")
+              # Write generated dependabot.yml to temp file (preserves trailing newline)
+              printf '%b' "$DEPBOT" > /tmp/generated_dependabot.yml
+              GENERATED_DEPENDABOT=$(cat /tmp/generated_dependabot.yml)
 
-              # Compare with current dependabot.yml in target repo
+              # Compare with current dependabot.yml in target repo (file-based to preserve trailing newlines)
               CURRENT_DEPBOT_RESPONSE=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" 2>/dev/null) || true
               if [ -n "$CURRENT_DEPBOT_RESPONSE" ]; then
-                CURRENT_DEPENDABOT=$(echo "$CURRENT_DEPBOT_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
+                echo "$CURRENT_DEPBOT_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d > /tmp/current_dependabot.yml 2>/dev/null || true
               else
-                CURRENT_DEPENDABOT=""
+                : > /tmp/current_dependabot.yml
               fi
 
-              if [ "$GENERATED_DEPENDABOT" != "$CURRENT_DEPENDABOT" ]; then
+              if ! diff -q /tmp/generated_dependabot.yml /tmp/current_dependabot.yml >/dev/null 2>&1; then
                 echo "[DRIFT] .github/dependabot.yml needs update"
                 DEPENDABOT_DRIFT=true
                 DRIFT_FILES="${DRIFT_FILES}.github/dependabot.yml\n"
@@ -282,21 +284,23 @@ jobs:
               README_TPL=$(echo "$README_TPL_B64" | base64 -d)
 
               # Substitute placeholders
-              GENERATED_README=$(echo "$README_TPL" | \
+              # Write generated README.md to temp file (preserves trailing newline)
+              echo "$README_TPL" | \
                 sed "s|__TITLE__|${README_TITLE}|g" | \
                 sed "s|__DESCRIPTION__|${README_DESC}|g" | \
                 sed "s|__REPO_NAME__|${REPO}|g" | \
-                sed "s|__DOCS_URL__|${DOCS_URL}|g")
+                sed "s|__DOCS_URL__|${DOCS_URL}|g" > /tmp/generated_readme.md
+              GENERATED_README=$(cat /tmp/generated_readme.md)
 
-              # Compare with current README.md in target repo
+              # Compare with current README.md in target repo (file-based to preserve trailing newlines)
               CURRENT_README_RESPONSE=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/README.md" 2>/dev/null) || true
               if [ -n "$CURRENT_README_RESPONSE" ]; then
-                CURRENT_README=$(echo "$CURRENT_README_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
+                echo "$CURRENT_README_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d > /tmp/current_readme.md 2>/dev/null || true
               else
-                CURRENT_README=""
+                : > /tmp/current_readme.md
               fi
 
-              if [ "$GENERATED_README" != "$CURRENT_README" ]; then
+              if ! diff -q /tmp/generated_readme.md /tmp/current_readme.md >/dev/null 2>&1; then
                 echo "[DRIFT] README.md needs update"
                 README_DRIFT=true
                 DRIFT_FILES="${DRIFT_FILES}README.md\n"
