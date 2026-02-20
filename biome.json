@@ -24,5 +24,18 @@
   "files": {
     "maxSize": 5242880,
     "includes": ["**", "!packages/*/icons.json"]
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["**/*.astro"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off",
+            "noUnusedImports": "off"
+          }
+        }
+      }
+    }
+  ]
 }
