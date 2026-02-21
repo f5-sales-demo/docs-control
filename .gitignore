@@ -76,10 +76,7 @@ out/
 docs/_data/
 
 # API spec pipeline
-specs/original/
-specs/discovered/diffs/
-specs/discovered/endpoints/
-specs/discovered/schemas/
+specs/
 docs/specifications/api/
 docs/api-reference/
 .version
