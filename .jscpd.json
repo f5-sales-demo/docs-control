@@ -7,6 +7,9 @@
     "**/node_modules/**",
     "**/dist/**",
     "**/build/**",
-    "**/.git/**"
+    "**/.git/**",
+    "**/vendor/**",
+    "**/internal/client/**",
+    "**/templates/**"
   ]
 }
