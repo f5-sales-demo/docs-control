@@ -88,5 +88,10 @@
     "label": "Docs Icons",
     "url": "https://f5xc-salesdemos.github.io/docs-icons/llms-full.txt",
     "description": "NPM icon packages and plugins for the F5 XC documentation build system"
+  },
+  {
+    "label": "Terraform Provider",
+    "url": "https://f5xc-salesdemos.github.io/terraform-provider-f5xc/llms-full.txt",
+    "description": "Terraform provider for F5 Distributed Cloud"
   }
 ]
