@@ -44,7 +44,14 @@
       "allow_fork_syncing": false
     }
   ],
-  "repo_overrides": {},
+  "repo_overrides": {
+    "terraform-provider-f5xc": {
+      "additional_contexts": [],
+      "managed_files_exclude": [
+        "workflows/github-pages-deploy.yml"
+      ]
+    }
+  },
   "topics": [],
   "pages": {
     "enabled": true,

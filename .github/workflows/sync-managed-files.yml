@@ -160,9 +160,19 @@ jobs:
               DRIFT_FILES=""
               DRIFT_COUNT=0
 
+              # Compute repo overrides once before the loop
+              REPO_OVERRIDES=$(echo "$CONFIG" | jq -c ".repo_overrides[\"${REPO}\"] // {}")
+
               for file_obj in $(echo "$MANAGED_FILES" | jq -c '.files[]'); do
                 src=$(echo "$file_obj" | jq -r '.src')
                 dest=$(echo "$file_obj" | jq -r '.dest')
+
+                # Check managed_files_exclude for this repo
+                if echo "$REPO_OVERRIDES" | jq -e --arg s "$src" \
+                    '.managed_files_exclude // [] | index($s) != null' >/dev/null 2>&1; then
+                  echo "[SKIP] ${dest} — excluded via repo_overrides"
+                  continue
+                fi
 
                 # Fetch canonical content from source path
                 CANONICAL_RESPONSE=$(retry 3 gh api "repos/${SOURCE_REPO}/contents/${src}" 2>/dev/null) || true
