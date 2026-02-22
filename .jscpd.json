@@ -1,5 +1,12 @@
 {
   "threshold": 10,
   "reporters": ["console"],
-  "ignore": ["**/.github/workflows/**", "**/workflows/**"]
+  "ignore": [
+    "**/.github/workflows/**",
+    "**/workflows/**",
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.git/**"
+  ]
 }
