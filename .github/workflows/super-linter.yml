@@ -48,3 +48,6 @@ jobs:
           # embedded shellcheck also skips it (.shellcheckrc only works
           # for the direct BASH linter, not actionlint's subprocess)
           SHELLCHECK_OPTS: "-e SC2016"
+          # Explicit config file name — super-linter v8 defaults to
+          # .yamllint.yml but our managed config uses .yamllint.yaml
+          YAML_YAMLLINT_CONFIG_FILE: .yamllint.yaml
