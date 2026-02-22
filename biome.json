@@ -54,9 +54,6 @@
       "includes": ["**/*.ts"],
       "linter": {
         "rules": {
-          "style": {
-            "useNodejsImportProtocol": "off"
-          },
           "suspicious": {
             "noExplicitAny": "off"
           }
