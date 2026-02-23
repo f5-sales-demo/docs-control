@@ -31,6 +31,7 @@ on:
       - '.checkov.yaml'
       - 'zizmor.yaml'
       - '.shellcheckrc'
+      - '.codespellrc'
       - 'README.md.tpl'
 
 permissions:
