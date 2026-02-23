@@ -9,7 +9,7 @@ ecosystem helps when navigating cross-repo dependencies.
 ### Infrastructure repos
 
 | Repo | Role |
-|------|------|
+| ---- | ---- |
 | `docs-control` | Source-of-truth — CI workflows, governance, settings enforcement |
 | `docs-theme` | npm package — Starlight plugin, Astro config, CSS, fonts, layout |
 | `docs-builder` | Docker image — build orchestration, npm deps, Puppeteer PDF |
@@ -589,7 +589,7 @@ dispatch chain but do receive managed files and publish
 docs sites:
 
 | Repo | Role |
-|------|------|
+| ---- | ---- |
 | `terraform-provider-f5xc` | Go Terraform provider for F5 Distributed Cloud |
 | `terraform-provider-mcp` | MCP server exposing Terraform provider schemas |
 | `api-mcp` | MCP server for the F5 XC API |
