@@ -86,6 +86,7 @@ reports/
 projects/
 
 # Tool-specific
+.claude/
 .playwright-mcp/
 .serena/
 .auto-claude/
