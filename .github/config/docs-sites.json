@@ -93,5 +93,10 @@
     "label": "Terraform Provider",
     "url": "https://f5xc-salesdemos.github.io/terraform-provider-f5xc/llms-full.txt",
     "description": "Terraform provider for F5 Distributed Cloud"
+  },
+  {
+    "label": "Dev Container",
+    "url": "https://f5xc-salesdemos.github.io/devcontainer/llms-full.txt",
+    "description": "Isolated development environment with AI coding tools"
   }
 ]

@@ -18,5 +18,6 @@
   "f5xc-salesdemos/csd",
   "f5xc-salesdemos/docs-icons",
   "f5xc-salesdemos/terraform-provider-f5xc",
-  "f5xc-salesdemos/terraform-provider-mcp"
+  "f5xc-salesdemos/terraform-provider-mcp",
+  "f5xc-salesdemos/devcontainer"
 ]
