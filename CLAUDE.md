@@ -1,5 +1,33 @@
 # Claude Code Project Instructions
 
+## Organization Overview
+
+This repository is part of the **f5xc-salesdemos** GitHub
+organization (21 repositories). Understanding the full
+ecosystem helps when navigating cross-repo dependencies.
+
+### Infrastructure repos
+
+| Repo | Role |
+| ---- | ---- |
+| `docs-control` | Source-of-truth — CI workflows, governance, settings enforcement |
+| `docs-theme` | npm package — Starlight plugin, Astro config, CSS, fonts, layout |
+| `docs-builder` | Docker image — build orchestration, npm deps, Puppeteer PDF |
+| `docs-icons` | npm packages — Iconify JSON icon sets, Astro icon components |
+| `terraform-provider-f5xc` | Custom Go Terraform provider for F5 XC |
+| `terraform-provider-mcp` | MCP server exposing Terraform provider schemas |
+| `api-mcp` | MCP server for the F5 XC API |
+
+### Content repos
+
+All content repos follow the same pattern: a `docs/`
+directory with Markdown/MDX content, built by the shared
+Docker image and deployed to GitHub Pages.
+
+`docs` · `administration` · `nginx` · `observability` ·
+`was` · `mcn` · `dns` · `cdn` · `bot-standard` ·
+`bot-advanced` · `ddos` · `waf` · `api-protection` · `csd`
+
 ## Repository Workflow
 
 This repository enforces a strict governance workflow.
@@ -322,9 +350,10 @@ When an HTTP 403 or 429 response is encountered:
 
 The following files are centrally managed by the
 [docs-control](https://github.com/f5xc-salesdemos/docs-control)
-repository and automatically synced to this repository.
-**Do not modify these files here** — local changes
-will be overwritten on the next enforcement run.
+repository and automatically synced to all repos in the
+`f5xc-salesdemos` organization. **Do not modify these
+files here** — local changes will be overwritten on the
+next enforcement run.
 
 To change any of these files, open a PR in
 `f5xc-salesdemos/docs-control` instead.
@@ -354,6 +383,7 @@ To change any of these files, open a PR in
 - `.checkov.yaml`
 - `zizmor.yaml`
 - `.shellcheckrc`
+- `.codespellrc`
 
 ## Planning Before Execution
 
@@ -439,8 +469,8 @@ git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
 
 ## Documentation Pipeline
 
-All repositories publish docs to GitHub Pages using a
-shared pipeline:
+All `f5xc-salesdemos` repositories publish docs to
+GitHub Pages using a shared pipeline:
 
 | Repository | Role | Owns |
 | ---- | ---- | ---- |
@@ -550,6 +580,19 @@ If a theme or icon change does not appear on live
 sites, check each step in this chain for failures —
 do not manually trigger `github-pages-deploy.yml`
 as a workaround.
+
+### Other infrastructure repos
+
+The organization also contains repos with their own
+CI pipelines that are not part of the docs theme/build
+dispatch chain but do receive managed files and publish
+docs sites:
+
+| Repo | Role |
+| ---- | ---- |
+| `terraform-provider-f5xc` | Go Terraform provider for F5 Distributed Cloud |
+| `terraform-provider-mcp` | MCP server exposing Terraform provider schemas |
+| `api-mcp` | MCP server for the F5 XC API |
 
 ## Content Authoring
 
