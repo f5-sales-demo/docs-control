@@ -4,35 +4,9 @@ name: Dispatch Downstream Enforcement
 on:
   push:
     branches: [main]
-    paths:
-      - '.github/config/repo-settings.json'
-      - '.github/config/downstream-repos.json'
-      - '.github/config/docs-sites.json'
-      - 'workflows/**'
-      - '.github/workflows/enforce-repo-settings.yml'
-      - '.github/workflows/sync-managed-files.yml'
-      - '.github/workflows/github-pages-deploy.yml'
-      - '.github/workflows/require-linked-issue.yml'
-      - '.github/workflows/super-linter.yml'
-      - '.github/PULL_REQUEST_TEMPLATE.md'
-      - '.github/ISSUE_TEMPLATE/**'
-      - 'CONTRIBUTING.md'
-      - 'CLAUDE.md'
-      - '.editorconfig'
-      - '.gitignore'
-      - 'LICENSE'
-      - '.pre-commit-config.yaml'
-      - '.yamllint.yaml'
-      - '.markdownlint.json'
-      - 'biome.json'
-      - '.jscpd.json'
-      - '.textlintrc'
-      - '.editorconfig-checker.json'
-      - '.checkov.yaml'
-      - 'zizmor.yaml'
-      - '.shellcheckrc'
-      - '.codespellrc'
-      - 'README.md.tpl'
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
 
 permissions:
   contents: read
