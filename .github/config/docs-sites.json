@@ -108,10 +108,5 @@
     "label": "Marketplace",
     "url": "https://f5xc-salesdemos.github.io/marketplace/llms-full.txt",
     "description": "AI-powered marketplace for F5 Distributed Cloud solutions"
-  },
-  {
-    "label": "Claude Code Proxy",
-    "url": "https://f5xc-salesdemos.github.io/claude-code-proxy/llms-full.txt",
-    "description": "API proxy translating Claude API requests to OpenAI-compatible providers"
   }
 ]
