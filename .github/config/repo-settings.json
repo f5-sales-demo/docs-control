@@ -80,7 +80,9 @@
       { "src": ".checkov.yaml", "dest": ".checkov.yaml" },
       { "src": "zizmor.yaml", "dest": "zizmor.yaml" },
       { "src": ".shellcheckrc", "dest": ".shellcheckrc" },
-      { "src": ".codespellrc", "dest": ".codespellrc" }
+      { "src": ".codespellrc", "dest": ".codespellrc" },
+
+      { "src": ".claude/CLAUDE.md", "dest": ".claude/CLAUDE.md" }
     ]
   }
 }
