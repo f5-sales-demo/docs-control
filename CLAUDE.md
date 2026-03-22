@@ -384,6 +384,7 @@ To change any of these files, open a PR in
 - `zizmor.yaml`
 - `.shellcheckrc`
 - `.codespellrc`
+- `.claude/CLAUDE.md`
 
 ## Planning Before Execution
 
