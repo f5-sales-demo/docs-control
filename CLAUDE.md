@@ -57,7 +57,7 @@ Invoke the relevant skill **before** starting work.
 
 ## GitHub Operations Routing
 
-ALL git and GitHub operations are handled exclusively by the
+ALL Git and GitHub operations are handled exclusively by the
 `f5xc-repo-governance:github-ops` agent. This supersedes the
 `commit-commands` official plugin for all f5xc-salesdemos repos.
 
