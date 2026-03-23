@@ -70,7 +70,7 @@ jobs:
           wait_and_merge() {
             local pr_num="$1"
             local repo_slug="$2"
-            local max_wait=180   # 3 minutes total
+            local max_wait=300   # 5 minutes waiting for checks to appear
             local poll_interval=15
             local elapsed=0
 
@@ -88,27 +88,41 @@ jobs:
                 continue
               fi
 
-              # Checks exist — watch them to completion
-              echo "[INFO] Checks detected — watching for completion..."
-              if gh pr checks "${pr_num}" --repo "${repo_slug}" --watch; then
-                echo "[INFO] CI passed — merging PR #${pr_num}..."
-                local merge_attempts=0
-                while [ "$merge_attempts" -lt 3 ]; do
-                  if gh pr merge "${pr_num}" --repo "${repo_slug}" --squash --delete-branch; then
-                    echo "[OK] Merged sync PR #${pr_num}"
-                    return 0
-                  fi
-                  merge_attempts=$((merge_attempts + 1))
-                  local merge_delay=$((5 * (2 ** (merge_attempts - 1))))
-                  echo "[WARN] Merge attempt ${merge_attempts}/3 failed — retrying in ${merge_delay}s..."
-                  sleep "$merge_delay"
-                done
-                echo "[WARN] Failed to merge PR #${pr_num} after 3 attempts — may need manual merge"
-                return 1
-              else
-                echo "[WARN] CI checks failed on PR #${pr_num} — skipping auto-merge"
-                return 1
-              fi
+              # Checks exist — poll to completion (max 20 iterations × 30s = 10 minutes)
+              echo "[INFO] Checks detected — polling for completion..."
+              local check_iter=0
+              local check_max=20
+              while [ "$check_iter" -lt "$check_max" ]; do
+                sleep 30
+                check_iter=$((check_iter + 1))
+                BUCKET=$(gh pr checks "${pr_num}" --repo "${repo_slug}" \
+                  --json bucket --jq '[.[].bucket] | unique |
+                    if . == ["pass"] then "pass"
+                    elif any(. == "fail") then "fail"
+                    else "pending" end' 2>/dev/null) || BUCKET="pending"
+                echo "[INFO] Check status: ${BUCKET} (iteration ${check_iter}/${check_max})"
+                if [ "$BUCKET" = "pass" ]; then
+                  echo "[INFO] CI passed — merging PR #${pr_num}..."
+                  local merge_attempts=0
+                  while [ "$merge_attempts" -lt 3 ]; do
+                    if gh pr merge "${pr_num}" --repo "${repo_slug}" --squash --delete-branch; then
+                      echo "[OK] Merged sync PR #${pr_num}"
+                      return 0
+                    fi
+                    merge_attempts=$((merge_attempts + 1))
+                    local merge_delay=$((5 * (2 ** (merge_attempts - 1))))
+                    echo "[WARN] Merge attempt ${merge_attempts}/3 failed — retrying in ${merge_delay}s..."
+                    sleep "$merge_delay"
+                  done
+                  echo "[WARN] Failed to merge PR #${pr_num} after 3 attempts — may need manual merge"
+                  return 1
+                elif [ "$BUCKET" = "fail" ]; then
+                  echo "[WARN] CI checks failed on PR #${pr_num} — skipping auto-merge"
+                  return 1
+                fi
+              done
+              echo "[WARN] Timed out waiting for CI on PR #${pr_num} (${check_max} iterations) — skipping auto-merge"
+              return 1
             done
 
             echo "[WARN] Timed out waiting for checks on PR #${pr_num} (${max_wait}s) — skipping auto-merge"
