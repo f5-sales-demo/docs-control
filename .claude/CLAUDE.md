@@ -32,11 +32,11 @@ Skills read product-specific content from these repo-local files:
 
 | File | Purpose | Required By |
 | ---- | ------- | ----------- |
-| `PRODUCT_EXPERTISE.md` | Product capabilities, detection signals, threat coverage, compliance alignment, API reference | All skills |
-| `WALKTHROUGH_CONFIG.md` | Demo app URL, walkthrough order, detection timing | presenter |
-| `SOURCE_INDEX.md` | Research source catalog for demo-researcher agent | demo-executor (Q&A), subject-matter-expert |
-| `READINESS_MATRIX.md` | Required/optional variables, readiness checks (T0–T5), API endpoints | demo-executor (Prepare/Teardown) |
-| `docs/api-automation/` | Phase files with cURL commands and evidence gates | demo-executor (Execute) |
+| `DEMO_PRODUCT_EXPERTISE.md` | Product capabilities, detection signals, threat coverage, compliance alignment, API reference | All skills |
+| `DEMO_WALKTHROUGH_CONFIG.md` | Demo app URL, walkthrough order, detection timing | presenter |
+| `DEMO_SOURCE_INDEX.md` | Research source catalog for demo-researcher agent | demo-executor (Q&A), subject-matter-expert |
+| `DEMO_READINESS_MATRIX.md` | Required/optional variables, readiness checks (T0–T5), API endpoints | demo-executor (Prepare/Teardown) |
+| `docs/demo/` | Phase files with cURL commands and evidence gates | demo-executor (Execute) |
 
 ## Ambiguous Intent
 
