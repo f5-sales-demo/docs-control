@@ -46,3 +46,9 @@ rules:
   # for reusable workflows
   secrets-inherit:
     disable: true
+  # Governance workflows intentionally use
+  # secrets without dedicated environments;
+  # environment-based access control is not
+  # needed for org-internal automation tokens
+  secrets-outside-env:
+    disable: true
