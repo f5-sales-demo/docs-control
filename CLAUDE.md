@@ -38,7 +38,7 @@ Invoke the relevant skill **before** starting work.
 
 | Skill | Activates when... |
 | ----- | ----------------- |
-| `f5xc-repo-governance:workflow-lifecycle` | Starting any development task |
+| `f5xc-github-ops:workflow-lifecycle` | Starting any development task |
 | `f5xc-docs-pipeline:pipeline-navigator` | Changing docs infrastructure config |
 | `f5xc-docs-pipeline:content-author` | Editing docs content (MDX/Markdown) |
 | `f5xc-brand:brand-guardian` | Creating any visual content or assets |
@@ -58,7 +58,7 @@ Invoke the relevant skill **before** starting work.
 ## GitHub Operations Routing
 
 ALL Git and GitHub operations are handled exclusively by the
-`f5xc-repo-governance:github-ops` agent. This supersedes the
+`f5xc-github-ops:github-ops` agent. This supersedes the
 `commit-commands` official plugin for all f5xc-salesdemos repos.
 
 **Never** run these directly in the main session:
@@ -79,7 +79,7 @@ complete. The agent will:
 
 ```
 Agent(
-  subagent_type="f5xc-repo-governance:github-ops",
+  subagent_type="f5xc-github-ops:github-ops",
   prompt="<type>: <description>\n\nFiles to stage:\n- <file-list>\n\nWhy: <motivation>"
 )
 ```
