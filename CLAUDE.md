@@ -46,6 +46,8 @@ Invoke the relevant skill **before** starting work.
 | `superpowers:writing-plans` | Planning implementation work |
 | `superpowers:verification-before-completion` | Verifying work before marking complete |
 | `superpowers:finishing-a-development-branch` | Completing work on a branch |
+| `f5xc-devcontainer:tool-catalog` | Asking which command-line tool to use, how to use a tool, or any task requiring a tool decision |
+| `f5xc-devcontainer:self-awareness` | Asking "who are you", container identity, version, self-diagnosis, health check |
 
 **Activation rules** — invoke the matching skill automatically:
 
@@ -54,6 +56,8 @@ Invoke the relevant skill **before** starting work.
 3. Docs content edit → `content-author`
 4. Visual/brand asset creation → `brand-guardian`
 5. Format-specific creation (Mermaid, PPT) → `visual-content`
+6. Tool question → `tool-catalog`
+7. Identity/self-diagnosis question → `self-awareness`
 
 ## GitHub Operations Routing
 
@@ -86,6 +90,20 @@ Agent(
 
 If the agent returns `PRE_COMMIT_FAILED` or `CI_FAILED`,
 fix the code in the main session and re-delegate.
+
+## Container Awareness
+
+When running inside the f5xc-salesdemos devcontainer, the
+`f5xc-devcontainer` plugin provides:
+
+- **Tool catalog** — 300+ command-line tools indexed by category with usage and auth info
+- **Self-awareness** — live identity introspection via GitHub API
+- **Tool maintenance** — install/remove tools with automated GitHub issues
+- **Drift detection** — compare Dockerfile against tool catalog
+
+All container queries are delegated to plugin agents to preserve
+main context. The plugin activates automatically — no manual
+invocation needed.
 
 ## Project-Specific Overrides
 
