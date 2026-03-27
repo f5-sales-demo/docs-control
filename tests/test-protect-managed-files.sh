@@ -240,7 +240,6 @@ PROTECTED_TEST_CASES=(
   "LICENSE"
   "README.md"
   ".github/dependabot.yml"
-  ".claude/CLAUDE.md"
   ".claude/settings.json"
   ".claude/governance.json"
   ".claude/hooks/protect-managed-files.sh"
@@ -391,11 +390,11 @@ else
   fail "10.2 CLAUDE.md mentions github-ops routing" "not found"
 fi
 
-# Test 10.3: has project rules section
+# Test 10.3: project rules removed (now live in workflow-lifecycle skill)
 if echo "$CLAUDE_CONTENT" | grep -q "Conventional commits"; then
-  pass "10.3 CLAUDE.md has project rules"
+  fail "10.3 project rules removed from CLAUDE.md" "still present (redundant with workflow-lifecycle skill)"
 else
-  fail "10.3 CLAUDE.md has project rules" "not found"
+  pass "10.3 project rules removed (now in workflow-lifecycle skill)"
 fi
 
 # Test 10.4: references CONTRIBUTING.md
@@ -405,12 +404,12 @@ else
   fail "10.4 CLAUDE.md references CONTRIBUTING.md" "not found"
 fi
 
-# Test 10.5: slimmed down (under 50 lines)
+# Test 10.5: slimmed down (under 25 lines)
 LINE_COUNT=$(wc -l <"$CLAUDE_MD")
-if [ "$LINE_COUNT" -le 50 ]; then
-  pass "10.5 CLAUDE.md is concise ($LINE_COUNT lines, <= 50)"
+if [ "$LINE_COUNT" -le 25 ]; then
+  pass "10.5 CLAUDE.md is concise ($LINE_COUNT lines, <= 25)"
 else
-  fail "10.5 CLAUDE.md is concise" "got $LINE_COUNT lines, expected <= 50"
+  fail "10.5 CLAUDE.md is concise" "got $LINE_COUNT lines, expected <= 25"
 fi
 
 # Test 10.6: removed verbose sections
