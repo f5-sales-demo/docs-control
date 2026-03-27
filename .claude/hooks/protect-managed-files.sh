@@ -4,8 +4,10 @@
 # Exit 0 = allow, Exit 2 = block (stderr shown to Claude).
 set -euo pipefail
 
-# ── Guard: exit if no stdin (e.g., linter running script directly) ──
-if [ -t 0 ] && [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
+# ── Guard: exit if no stdin data (e.g., linter running script) ───────
+# read -t 0 checks if stdin has data without consuming it.
+# BASH_EXEC and other linters run scripts without piped input.
+if ! read -t 0 2>/dev/null; then
   exit 0
 fi
 
