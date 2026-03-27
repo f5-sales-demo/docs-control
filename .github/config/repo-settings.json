@@ -82,7 +82,11 @@
       { "src": ".shellcheckrc", "dest": ".shellcheckrc" },
       { "src": ".codespellrc", "dest": ".codespellrc" },
 
-      { "src": ".claude/CLAUDE.md", "dest": ".claude/CLAUDE.md" }
+      { "src": ".claude/CLAUDE.md", "dest": ".claude/CLAUDE.md" },
+
+      { "src": ".claude/governance.json", "dest": ".claude/governance.json" },
+      { "src": ".claude/settings.json", "dest": ".claude/settings.json" },
+      { "src": ".claude/hooks/protect-managed-files.sh", "dest": ".claude/hooks/protect-managed-files.sh" }
     ]
   }
 }
