@@ -4,6 +4,11 @@
 # Exit 0 = allow, Exit 2 = block (stderr shown to Claude).
 set -euo pipefail
 
+# ── Guard: exit if no stdin (e.g., linter running script directly) ──
+if [ -t 0 ] && [ -z "${CLAUDE_PROJECT_DIR:-}" ]; then
+  exit 0
+fi
+
 # ── Self-exclusion: allow edits in docs-control itself ──────────────
 REMOTE_URL=$(git remote get-url origin 2>/dev/null || echo "")
 if echo "$REMOTE_URL" | grep -q "docs-control"; then
