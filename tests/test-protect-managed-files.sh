@@ -8,8 +8,16 @@ PASS=0
 FAIL=0
 TESTS_RUN=0
 
-pass() { PASS=$((PASS + 1)); TESTS_RUN=$((TESTS_RUN + 1)); echo "  PASS: $1"; }
-fail() { FAIL=$((FAIL + 1)); TESTS_RUN=$((TESTS_RUN + 1)); echo "  FAIL: $1 — $2"; }
+pass() {
+  PASS=$((PASS + 1))
+  TESTS_RUN=$((TESTS_RUN + 1))
+  echo "  PASS: $1"
+}
+fail() {
+  FAIL=$((FAIL + 1))
+  TESTS_RUN=$((TESTS_RUN + 1))
+  echo "  FAIL: $1 — $2"
+}
 
 assert_exit_code() {
   local expected="$1" actual="$2" label="$3"
@@ -63,8 +71,8 @@ run_hook() {
   local dir="$1" file_path="$2"
   local exit_code=0
   local output
-  output=$(cd "$dir" && echo "{\"tool_input\":{\"file_path\":\"$file_path\"}}" \
-    | bash .claude/hooks/protect-managed-files.sh 2>&1) || exit_code=$?
+  output=$(cd "$dir" && echo "{\"tool_input\":{\"file_path\":\"$file_path\"}}" |
+    bash .claude/hooks/protect-managed-files.sh 2>&1) || exit_code=$?
   echo "$output"
   return $exit_code
 }
@@ -158,7 +166,7 @@ while IFS= read -r dest; do
   if ! echo "$PROTECTED_FILES" | grep -qxF "$dest"; then
     MISSING_FROM_GOVERNANCE="${MISSING_FROM_GOVERNANCE}  - ${dest}\n"
   fi
-done <<< "$MANAGED_DESTS"
+done <<<"$MANAGED_DESTS"
 
 if [ -z "$MISSING_FROM_GOVERNANCE" ]; then
   pass "3.1 all repo-settings.json dest paths are in governance.json"
@@ -203,8 +211,8 @@ echo "=== Section 4: Hook Self-Exclusion (docs-control) ==="
 # Test 4.1: hook allows edits in docs-control itself
 OUTPUT=""
 EXIT_CODE=0
-OUTPUT=$(cd "$REPO_ROOT" && echo '{"tool_input":{"file_path":"CONTRIBUTING.md"}}' \
-  | bash .claude/hooks/protect-managed-files.sh 2>&1) || EXIT_CODE=$?
+OUTPUT=$(cd "$REPO_ROOT" && echo '{"tool_input":{"file_path":"CONTRIBUTING.md"}}' |
+  bash .claude/hooks/protect-managed-files.sh 2>&1) || EXIT_CODE=$?
 assert_exit_code 0 "$EXIT_CODE" "4.1 self-exclusion: protected file allowed in docs-control"
 
 # Test 4.2: no BLOCKED message in docs-control
@@ -306,15 +314,15 @@ echo "=== Section 8: Edge Cases ==="
 # Test 8.1: empty file_path
 OUTPUT=""
 EXIT_CODE=0
-OUTPUT=$(cd "$DOWNSTREAM" && echo '{"tool_input":{"file_path":""}}' \
-  | bash .claude/hooks/protect-managed-files.sh 2>&1) || EXIT_CODE=$?
+OUTPUT=$(cd "$DOWNSTREAM" && echo '{"tool_input":{"file_path":""}}' |
+  bash .claude/hooks/protect-managed-files.sh 2>&1) || EXIT_CODE=$?
 assert_exit_code 0 "$EXIT_CODE" "8.1 empty file_path: allowed (exit 0)"
 
 # Test 8.2: missing file_path key
 OUTPUT=""
 EXIT_CODE=0
-OUTPUT=$(cd "$DOWNSTREAM" && echo '{"tool_input":{"content":"hello"}}' \
-  | bash .claude/hooks/protect-managed-files.sh 2>&1) || EXIT_CODE=$?
+OUTPUT=$(cd "$DOWNSTREAM" && echo '{"tool_input":{"content":"hello"}}' |
+  bash .claude/hooks/protect-managed-files.sh 2>&1) || EXIT_CODE=$?
 assert_exit_code 0 "$EXIT_CODE" "8.2 missing file_path key: allowed (exit 0)"
 
 # Test 8.3: missing governance.json (graceful fallback)
@@ -340,8 +348,8 @@ assert_exit_code 0 "$EXIT_CODE" "8.5 similar path my-CONTRIBUTING.md: allowed (n
 # Test 8.6: malformed JSON input (should not crash)
 OUTPUT=""
 EXIT_CODE=0
-OUTPUT=$(cd "$DOWNSTREAM" && echo 'not json at all' \
-  | bash .claude/hooks/protect-managed-files.sh 2>&1) || EXIT_CODE=$?
+OUTPUT=$(cd "$DOWNSTREAM" && echo 'not json at all' |
+  bash .claude/hooks/protect-managed-files.sh 2>&1) || EXIT_CODE=$?
 assert_exit_code 0 "$EXIT_CODE" "8.6 malformed JSON input: allowed (exit 0, no crash)"
 
 # ════════════════════════════════════════════════════════════════════
@@ -398,7 +406,7 @@ else
 fi
 
 # Test 10.5: slimmed down (under 50 lines)
-LINE_COUNT=$(wc -l < "$CLAUDE_MD")
+LINE_COUNT=$(wc -l <"$CLAUDE_MD")
 if [ "$LINE_COUNT" -le 50 ]; then
   pass "10.5 CLAUDE.md is concise ($LINE_COUNT lines, <= 50)"
 else

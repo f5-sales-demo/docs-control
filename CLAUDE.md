@@ -9,7 +9,7 @@ open an issue in [docs-control](https://github.com/f5xc-salesdemos/docs-control)
 
 ## GitHub Operations Routing
 
-ALL git and GitHub operations must be delegated to the
+ALL Git and GitHub operations must be delegated to the
 `f5xc-github-ops:github-ops` agent. Never run `git commit`,
 `git push`, `gh pr create`, or `gh issue create` directly.
 
