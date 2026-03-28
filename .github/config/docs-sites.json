@@ -85,6 +85,11 @@
     "description": "OpenAPI spec validation and reconciliation for F5 Distributed Cloud"
   },
   {
+    "label": "API Specs Enriched",
+    "url": "https://f5xc-salesdemos.github.io/api-specs-enriched/llms-full.txt",
+    "description": "Enriched OpenAPI specifications for F5 Distributed Cloud"
+  },
+  {
     "label": "Client-Side Defense",
     "url": "https://f5xc-salesdemos.github.io/csd/llms-full.txt",
     "description": "F5 XC client-side defense"
