@@ -47,8 +47,12 @@ jobs:
           # JS/TS/JSON/JSX/Vue; super-linter cannot run
           # type-aware ESLint (no npm ci / tsconfig).
           VALIDATE_JAVASCRIPT_ES: false
+          VALIDATE_JSON: false
+          VALIDATE_JSONC: false
+          VALIDATE_JSX: false
           VALIDATE_TYPESCRIPT_ES: false
           VALIDATE_TSX: false
+          VALIDATE_VUE: false
           # Disable Stylelint — Biome handles CSS linting
           VALIDATE_CSS: false
           # Disable pre-commit — cannot execute inside super-linter container
