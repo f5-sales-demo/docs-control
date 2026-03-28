@@ -74,7 +74,8 @@ repos:
 
   # ===========================================================================
   # Shell script analysis — config: .shellcheckrc (SC2016 disabled there)
-  # Replaces: shellcheck in super-linter (was passing SHELLCHECK_OPTS="-e SC2016")
+  # Replaces: shellcheck in super-linter
+  # (was passing SHELLCHECK_OPTS="-e SC2016")
   # ===========================================================================
   - repo: local
     hooks:
@@ -187,8 +188,9 @@ repos:
 ci:
   autofix_prs: true
   autoupdate_schedule: weekly
-  # All language: system hooks require tools installed in the runner —
-  # skip them in pre-commit.ci (cloud) since the environment lacks these binaries.
+  # All language: system hooks require tools installed
+  # in the runner — skip them in pre-commit.ci (cloud)
+  # since the environment lacks these binaries.
   # They run locally and in GitHub Actions CI where tools are pre-installed.
   skip:
     - local-hooks
