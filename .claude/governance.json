@@ -29,6 +29,7 @@
     "zizmor.yaml",
     ".shellcheckrc",
     ".codespellrc",
+    ".prettierignore",
     ".trivyignore",
     ".claude/settings.json",
     ".claude/governance.json",
