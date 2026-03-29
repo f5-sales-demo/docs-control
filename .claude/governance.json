@@ -29,6 +29,7 @@
     "zizmor.yaml",
     ".shellcheckrc",
     ".codespellrc",
+    ".trivyignore",
     ".claude/settings.json",
     ".claude/governance.json",
     ".claude/hooks/protect-managed-files.sh"
