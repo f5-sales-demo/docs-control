@@ -101,6 +101,22 @@ cache/
 src/generated/
 out/
 
+# Bun
+*.bun-build
+
+# OpenCode plugin
+.sisyphus/*
+!.sisyphus/rules/
+packages/*/bin/
+test-injection/
+notepad.md
+oauth-success.html
+.omx/
+
+# Lock file preferences (Bun-based repos)
+package-lock.json
+yarn.lock
+
 # Documentation build artifacts
 docs/_data/
 

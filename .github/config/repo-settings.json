@@ -44,7 +44,11 @@
       "allow_fork_syncing": false
     }
   ],
-  "repo_overrides": {},
+  "repo_overrides": {
+    "oh-my-xcsh": {
+      "additional_contexts": ["CI / Tests", "CI / Typecheck", "CI / Build"]
+    }
+  },
   "topics": [],
   "pages": {
     "enabled": true,
