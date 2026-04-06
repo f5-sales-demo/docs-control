@@ -36,6 +36,16 @@
           }
         }
       }
+    },
+    {
+      "includes": ["**/review.html"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noTemplateCurlyInString": "off"
+          }
+        }
+      }
     }
   ]
 }

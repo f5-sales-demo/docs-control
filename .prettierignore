@@ -5,3 +5,6 @@
 **/*.gen.ts
 **/*.gen.js
 **/*.gen.d.ts
+
+# Generated HTML reports (embedded minified JS)
+**/review.html
