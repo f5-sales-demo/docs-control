@@ -123,5 +123,10 @@
     "label": "Oh My XCSh",
     "url": "https://f5xc-salesdemos.github.io/oh-my-xcsh/llms-full.txt",
     "description": "Multi-model agent orchestration plugin for OpenCode"
+  },
+  {
+    "label": "XCSh",
+    "url": "https://f5xc-salesdemos.github.io/xcsh/llms-full.txt",
+    "description": "AI-powered development environment and CLI tool"
   }
 ]
