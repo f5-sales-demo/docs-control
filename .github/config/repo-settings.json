@@ -49,7 +49,7 @@
       "additional_contexts": ["CI / Tests", "CI / Typecheck", "CI / Build"]
     },
     "xcsh": {
-      "additional_contexts": ["typecheck", "unit / unit (linux)", "unit / unit (macos)", "e2e / e2e (linux)"]
+      "additional_contexts": ["typecheck", "unit (linux)", "unit (macos)", "e2e (linux)"]
     }
   },
   "topics": [],
@@ -90,6 +90,8 @@
       { "src": ".codespellrc", "dest": ".codespellrc" },
       { "src": ".prettierignore", "dest": ".prettierignore" },
       { "src": ".trivyignore", "dest": ".trivyignore" },
+      { "src": ".ruff.toml", "dest": ".ruff.toml" },
+      { "src": "ruff.toml", "dest": "ruff.toml" },
 
       { "src": ".claude/governance.json", "dest": ".claude/governance.json" },
       { "src": ".claude/settings.json", "dest": ".claude/settings.json" },
