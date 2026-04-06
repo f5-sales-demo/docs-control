@@ -47,6 +47,9 @@
   "repo_overrides": {
     "oh-my-xcsh": {
       "additional_contexts": ["CI / Tests", "CI / Typecheck", "CI / Build"]
+    },
+    "xcsh": {
+      "additional_contexts": ["typecheck", "unit / unit (linux)", "unit / unit (macos)", "e2e / e2e (linux)"]
     }
   },
   "topics": [],

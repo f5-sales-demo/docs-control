@@ -69,3 +69,5 @@ jobs:
           VALIDATE_GIT_COMMITLINT: false
           # Keep Ruff Format (faster, recommended over Black)
           VALIDATE_PYTHON_BLACK: false
+          # Explicit ruff config file for Python formatting
+          PYTHON_RUFF_FORMAT_CONFIG_FILE: ruff.toml
