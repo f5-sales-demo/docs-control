@@ -31,6 +31,7 @@
     ".codespellrc",
     ".prettierignore",
     ".trivyignore",
+    "ruff.toml",
     ".claude/settings.json",
     ".claude/governance.json",
     ".claude/hooks/protect-managed-files.sh"
