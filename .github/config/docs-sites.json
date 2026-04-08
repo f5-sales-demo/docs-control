@@ -118,5 +118,10 @@
     "label": "Marketplace",
     "url": "https://f5xc-salesdemos.github.io/marketplace/llms-full.txt",
     "description": "AI-powered marketplace for F5 Distributed Cloud solutions"
+  },
+  {
+    "label": "xcsh",
+    "url": "https://f5xc-salesdemos.github.io/xcsh/llms-full.txt",
+    "description": "AI-powered coding agent CLI and LLM tools"
   }
 ]

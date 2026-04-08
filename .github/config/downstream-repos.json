@@ -22,5 +22,6 @@
   "f5xc-salesdemos/terraform-provider-f5xc",
   "f5xc-salesdemos/terraform-provider-mcp",
   "f5xc-salesdemos/devcontainer",
-  "f5xc-salesdemos/marketplace"
+  "f5xc-salesdemos/marketplace",
+  "f5xc-salesdemos/xcsh"
 ]
