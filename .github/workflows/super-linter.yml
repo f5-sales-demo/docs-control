@@ -79,3 +79,6 @@ jobs:
           PYTHON_RUFF_FORMAT_CONFIG_FILE: ruff.toml
           PYTHON_PYLINT_CONFIG_FILE: .python-lint
           PYTHON_MYPY_CONFIG_FILE: .mypy.ini
+          # ── OpenAPI / Spectral ──────────────────────────────
+          # Repos provide their own .spectral.yaml for custom rules.
+          OPENAPI_SPECTRAL_CONFIG_FILE: .spectral.yaml
