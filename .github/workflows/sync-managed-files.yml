@@ -17,9 +17,11 @@ jobs:
 
       - name: Sync managed files
         env:
-          GH_TOKEN: ${{ secrets.repo-sync-token }}
+          GH_TOKEN: ${{ github.token }}
+          SYNC_TOKEN: ${{ secrets.repo-sync-token }}
         run: |
           set -euo pipefail
+          export GH_TOKEN
 
           # ─── Retry helpers ─────────────────────────────────────────────────
           # Retry with exponential backoff (for commands without stdin)
@@ -105,7 +107,7 @@ jobs:
                   echo "[INFO] CI passed — merging PR #${pr_num}..."
                   local merge_attempts=0
                   while [ "$merge_attempts" -lt 3 ]; do
-                    if gh pr merge "${pr_num}" --repo "${repo_slug}" --squash --delete-branch; then
+                    if GH_TOKEN="$SYNC_TOKEN" gh pr merge "${pr_num}" --repo "${repo_slug}" --squash --delete-branch; then
                       echo "[OK] Merged sync PR #${pr_num}"
                       return 0
                     fi
@@ -338,7 +340,7 @@ jobs:
                   # Force-update the PR branch to main's HEAD so it stays rebased
                   MAIN_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/git/ref/heads/main" --jq '.object.sha')
                   BRANCH_UPDATE_JSON=$(jq -n --arg sha "$MAIN_SHA" '{"sha":$sha,"force":true}')
-                  retry_json 3 "$BRANCH_UPDATE_JSON" \
+                  GH_TOKEN="$SYNC_TOKEN" retry_json 3 "$BRANCH_UPDATE_JSON" \
                     "repos/${OWNER}/${REPO}/git/refs/heads/governance/sync-managed-files" --method PATCH >/dev/null
                   echo "[OK] Rebased PR branch onto main HEAD"
 
@@ -361,7 +363,7 @@ jobs:
                             --arg branch "governance/sync-managed-files" \
                         '{"message":$msg,"content":$content,"branch":$branch}')
                     fi
-                    retry_json 3 "$COMMIT_JSON" "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT >/dev/null
+                    GH_TOKEN="$SYNC_TOKEN" retry_json 3 "$COMMIT_JSON" "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT >/dev/null
                     echo "[OK] Updated ${dest_file} on PR branch"
                   done
 
@@ -380,7 +382,7 @@ jobs:
                             --arg branch "governance/sync-managed-files" \
                         '{"message":$msg,"content":$content,"branch":$branch}')
                     fi
-                    retry_json 3 "$DEPBOT_COMMIT" "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT >/dev/null
+                    GH_TOKEN="$SYNC_TOKEN" retry_json 3 "$DEPBOT_COMMIT" "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT >/dev/null
                     echo "[OK] Updated .github/dependabot.yml on PR branch"
                   fi
 
@@ -399,7 +401,7 @@ jobs:
                             --arg branch "governance/sync-managed-files" \
                         '{"message":$msg,"content":$content,"branch":$branch}')
                     fi
-                    retry_json 3 "$README_COMMIT" "repos/${OWNER}/${REPO}/contents/README.md" --method PUT >/dev/null
+                    GH_TOKEN="$SYNC_TOKEN" retry_json 3 "$README_COMMIT" "repos/${OWNER}/${REPO}/contents/README.md" --method PUT >/dev/null
                     echo "[OK] Updated README.md on PR branch"
                   fi
 
@@ -429,9 +431,9 @@ jobs:
                   # Create branch from main HEAD (try create, fall back to update if concurrent run created it)
                   MAIN_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/git/ref/heads/main" --jq '.object.sha')
                   BRANCH_CREATE_JSON=$(jq -n --arg sha "$MAIN_SHA" '{"ref":"refs/heads/governance/sync-managed-files","sha":$sha}')
-                  if ! retry_json 3 "$BRANCH_CREATE_JSON" "repos/${OWNER}/${REPO}/git/refs" --method POST >/dev/null 2>&1; then
+                  if ! GH_TOKEN="$SYNC_TOKEN" retry_json 3 "$BRANCH_CREATE_JSON" "repos/${OWNER}/${REPO}/git/refs" --method POST >/dev/null 2>&1; then
                     BRANCH_UPDATE_JSON=$(jq -n --arg sha "$MAIN_SHA" '{"sha":$sha,"force":true}')
-                    retry_json 3 "$BRANCH_UPDATE_JSON" "repos/${OWNER}/${REPO}/git/refs/heads/governance/sync-managed-files" --method PATCH >/dev/null
+                    GH_TOKEN="$SYNC_TOKEN" retry_json 3 "$BRANCH_UPDATE_JSON" "repos/${OWNER}/${REPO}/git/refs/heads/governance/sync-managed-files" --method PATCH >/dev/null
                   fi
                   echo "[OK] Created or updated branch governance/sync-managed-files"
 
@@ -458,14 +460,14 @@ jobs:
                             --arg sha "$FILE_SHA" \
                             --arg branch "governance/sync-managed-files" \
                         '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
-                      retry_json 3 "$COMMIT_JSON" "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT >/dev/null
+                      GH_TOKEN="$SYNC_TOKEN" retry_json 3 "$COMMIT_JSON" "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT >/dev/null
                     else
                       # Create new file
                       COMMIT_JSON=$(jq -n --arg msg "chore: sync ${dest_file}" \
                             --arg content "$B64" \
                             --arg branch "governance/sync-managed-files" \
                         '{"message":$msg,"content":$content,"branch":$branch}')
-                      retry_json 3 "$COMMIT_JSON" "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT >/dev/null
+                      GH_TOKEN="$SYNC_TOKEN" retry_json 3 "$COMMIT_JSON" "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT >/dev/null
                     fi
                     echo "[OK] Synced ${dest_file}"
                   done
@@ -481,13 +483,13 @@ jobs:
                             --arg sha "$DEPBOT_SHA" \
                             --arg branch "governance/sync-managed-files" \
                         '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
-                      retry_json 3 "$DEPBOT_COMMIT" "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT >/dev/null
+                      GH_TOKEN="$SYNC_TOKEN" retry_json 3 "$DEPBOT_COMMIT" "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT >/dev/null
                     else
                       DEPBOT_COMMIT=$(jq -n --arg msg "chore: create .github/dependabot.yml" \
                             --arg content "$DEPBOT_B64" \
                             --arg branch "governance/sync-managed-files" \
                         '{"message":$msg,"content":$content,"branch":$branch}')
-                      retry_json 3 "$DEPBOT_COMMIT" "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT >/dev/null
+                      GH_TOKEN="$SYNC_TOKEN" retry_json 3 "$DEPBOT_COMMIT" "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT >/dev/null
                     fi
                     echo "[OK] Synced .github/dependabot.yml (dynamic)"
                   fi
@@ -503,13 +505,13 @@ jobs:
                             --arg sha "$README_SHA" \
                             --arg branch "governance/sync-managed-files" \
                         '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
-                      retry_json 3 "$README_COMMIT" "repos/${OWNER}/${REPO}/contents/README.md" --method PUT >/dev/null
+                      GH_TOKEN="$SYNC_TOKEN" retry_json 3 "$README_COMMIT" "repos/${OWNER}/${REPO}/contents/README.md" --method PUT >/dev/null
                     else
                       README_COMMIT=$(jq -n --arg msg "chore: create README.md" \
                             --arg content "$README_B64" \
                             --arg branch "governance/sync-managed-files" \
                         '{"message":$msg,"content":$content,"branch":$branch}')
-                      retry_json 3 "$README_COMMIT" "repos/${OWNER}/${REPO}/contents/README.md" --method PUT >/dev/null
+                      GH_TOKEN="$SYNC_TOKEN" retry_json 3 "$README_COMMIT" "repos/${OWNER}/${REPO}/contents/README.md" --method PUT >/dev/null
                     fi
                     echo "[OK] Synced README.md (dynamic)"
                   fi
@@ -517,7 +519,7 @@ jobs:
                   # Create PR
                   PR_BODY=$(printf 'Closes #%s\n\nSynced managed files from `%s` canonical source:\n\n%s' \
                     "$ISSUE_NUM" "$SOURCE_REPO" "$DRIFT_LIST")
-                  PR_URL=$(gh pr create --repo "${OWNER}/${REPO}" \
+                  GH_TOKEN="$SYNC_TOKEN" PR_URL=$(gh pr create --repo "${OWNER}/${REPO}" \
                     --head governance/sync-managed-files \
                     --title "chore: sync managed files from governance template" \
                     --body "$PR_BODY")
