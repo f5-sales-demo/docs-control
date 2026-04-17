@@ -27,6 +27,15 @@
   },
   "overrides": [
     {
+      "includes": ["dist/**", "build/**", "release/**", "vendor/**"],
+      "formatter": {
+        "enabled": false
+      },
+      "linter": {
+        "enabled": false
+      }
+    },
+    {
       "includes": ["**/*.astro"],
       "linter": {
         "rules": {
