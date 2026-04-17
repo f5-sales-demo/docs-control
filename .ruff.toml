@@ -31,6 +31,32 @@ ignore = [
     "PLR0915",
 ]
 
+[lint.per-file-ignores]
+"tests/**" = [
+    "S101",
+    "SLF001",
+    "ARG001",
+    "ARG002",
+    "ANN",
+    "D",
+    "PLR2004",
+    "TCH",
+]
+"**/conftest.py" = [
+    "ARG001",
+    "ARG002",
+    "ANN",
+    "D",
+]
+"**/__init__.py" = [
+    "F401",
+    "D104",
+]
+"scripts/**" = [
+    "T201",
+    "INP001",
+]
+
 [lint.isort]
 split-on-trailing-comma = true
 combine-as-imports = true
