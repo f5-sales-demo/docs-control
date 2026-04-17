@@ -67,7 +67,14 @@ jobs:
           SAVE_SUPER_LINTER_SUMMARY: true
           # No commitlint config exists in managed repos
           VALIDATE_GIT_COMMITLINT: false
-          # Keep Ruff Format (faster, recommended over Black)
+          # ── Python linters ─────────────────────────────────
+          # Ruff: lint (E/F/I) + format. isort: import order.
+          # Pylint: complexity/design. Mypy: types.
+          # Flake8 + Black disabled (Ruff is a superset).
           VALIDATE_PYTHON_BLACK: false
-          # Explicit ruff config file for Python formatting
+          VALIDATE_PYTHON_FLAKE8: false
+          PYTHON_RUFF_CONFIG_FILE: ruff.toml
           PYTHON_RUFF_FORMAT_CONFIG_FILE: ruff.toml
+          PYTHON_ISORT_CONFIG_FILE: .isort.cfg
+          PYTHON_PYLINT_CONFIG_FILE: .python-lint
+          PYTHON_MYPY_CONFIG_FILE: .mypy.ini
