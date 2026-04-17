@@ -23,7 +23,7 @@
   },
   "files": {
     "maxSize": 5242880,
-    "includes": ["**", "!packages/*/icons.json"]
+    "includes": ["**", "!packages/*/icons.json", "!dist/**", "!build/**", "!release/**", "!vendor/**"]
   },
   "overrides": [
     {

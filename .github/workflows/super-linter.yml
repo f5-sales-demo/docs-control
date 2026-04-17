@@ -29,6 +29,7 @@ jobs:
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINTER_RULES_PATH: "."
+          FILTER_REGEX_EXCLUDE: "(dist/|build/|release/|vendor/)"
           # Disable Prettier — Biome handles formatting for
           # JS/TS/JSON/CSS/HTML/GraphQL/JSX/Vue; yamllint handles
           # YAML; markdownlint handles Markdown.
