@@ -89,6 +89,9 @@
       { "src": ".trivyignore", "dest": ".trivyignore" },
       { "src": ".ruff.toml", "dest": ".ruff.toml" },
       { "src": "ruff.toml", "dest": "ruff.toml" },
+      { "src": ".isort.cfg", "dest": ".isort.cfg" },
+      { "src": ".python-lint", "dest": ".python-lint" },
+      { "src": ".mypy.ini", "dest": ".mypy.ini" },
 
       { "src": ".claude/governance.json", "dest": ".claude/governance.json" },
       { "src": ".claude/settings.json", "dest": ".claude/settings.json" },

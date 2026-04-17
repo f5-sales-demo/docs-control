@@ -27,9 +27,11 @@ jobs:
 
       - name: Enforce repository settings
         env:
-          GH_TOKEN: ${{ secrets.repo-settings-token || secrets.REPO_SETTINGS_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          ADMIN_TOKEN: ${{ secrets.repo-settings-token || secrets.REPO_SETTINGS_TOKEN }}
         run: |
           set -euo pipefail
+          export GH_TOKEN
 
           # ─── Retry helpers ─────────────────────────────────────────────────
           # Retry with exponential backoff (for commands without stdin)
@@ -138,7 +140,7 @@ jobs:
 
           if [ "$REPO_DRIFT" = true ]; then
             echo "[INFO] Patching repository settings..."
-            retry_json 3 "$REPO_PATCH" "repos/${OWNER}/${REPO}" --method PATCH >/dev/null
+            GH_TOKEN="$ADMIN_TOKEN" retry_json 3 "$REPO_PATCH" "repos/${OWNER}/${REPO}" --method PATCH >/dev/null
             echo "[OK] Repository settings updated"
           else
             echo "[OK] Repository settings match — no changes needed"
@@ -165,7 +167,7 @@ jobs:
 
             if [ "$ACTIONS_DRIFT" = true ]; then
               echo "[INFO] Updating Actions workflow permissions..."
-              retry_json 3 "$DESIRED_ACTIONS" "repos/${OWNER}/${REPO}/actions/permissions/workflow" \
+              GH_TOKEN="$ADMIN_TOKEN" retry_json 3 "$DESIRED_ACTIONS" "repos/${OWNER}/${REPO}/actions/permissions/workflow" \
                 --method PUT >/dev/null
               echo "[OK] Actions permissions updated"
             else
@@ -311,7 +313,7 @@ jobs:
                   allow_fork_syncing: $desired.allow_fork_syncing
                 }')
 
-              retry_json 3 "$PUT_PAYLOAD" "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
+              GH_TOKEN="$ADMIN_TOKEN" retry_json 3 "$PUT_PAYLOAD" "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
                 --method PUT >/dev/null
               echo "[OK] Branch protection updated for $BRANCH"
             else
@@ -330,7 +332,7 @@ jobs:
               echo "[WARN] Drift in topics: current=$CURRENT_TOPICS desired=$DESIRED_TOPICS"
               echo "[INFO] Updating topics..."
               TOPICS_JSON=$(jq -n --argjson names "$DESIRED_TOPICS" '{"names": $names}')
-              retry_json 3 "$TOPICS_JSON" "repos/${OWNER}/${REPO}/topics" --method PUT >/dev/null
+              GH_TOKEN="$ADMIN_TOKEN" retry_json 3 "$TOPICS_JSON" "repos/${OWNER}/${REPO}/topics" --method PUT >/dev/null
               echo "[OK] Topics updated"
             else
               echo "[OK] Topics match — no changes needed"
@@ -350,7 +352,7 @@ jobs:
             PAGES_JSON=$(jq -n --arg bt "$DESIRED_BUILD_TYPE" '{"build_type": $bt, "source": {"branch": "main", "path": "/"}}')
             if [ "$PAGES_HTTP_CODE" = "404" ]; then
               echo "[INFO] Enabling GitHub Pages with ${DESIRED_BUILD_TYPE} source..."
-              retry_json 3 "$PAGES_JSON" "repos/${OWNER}/${REPO}/pages" --method POST >/dev/null 2>&1 || true
+              GH_TOKEN="$ADMIN_TOKEN" retry_json 3 "$PAGES_JSON" "repos/${OWNER}/${REPO}/pages" --method POST >/dev/null 2>&1 || true
               echo "[OK] Pages enabled with build_type=${DESIRED_BUILD_TYPE}"
             else
               PAGES_RESPONSE=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages" 2>/dev/null) || true
@@ -358,7 +360,7 @@ jobs:
               if [ "$CURRENT_BUILD_TYPE" != "$DESIRED_BUILD_TYPE" ]; then
                 echo "[WARN] Drift in pages.build_type: current=$CURRENT_BUILD_TYPE desired=$DESIRED_BUILD_TYPE"
                 echo "[INFO] Updating Pages build_type to ${DESIRED_BUILD_TYPE}..."
-                retry_json 3 "$PAGES_JSON" "repos/${OWNER}/${REPO}/pages" --method PUT >/dev/null 2>&1
+                GH_TOKEN="$ADMIN_TOKEN" retry_json 3 "$PAGES_JSON" "repos/${OWNER}/${REPO}/pages" --method PUT >/dev/null 2>&1
                 echo "[OK] Pages build_type updated to ${DESIRED_BUILD_TYPE}"
               else
                 echo "[OK] Pages build_type matches (${CURRENT_BUILD_TYPE}) — no changes needed"

@@ -29,6 +29,7 @@ jobs:
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINTER_RULES_PATH: "."
+          FILTER_REGEX_EXCLUDE: "(dist/|build/|release/|vendor/)"
           # Disable Prettier — Biome handles formatting for
           # JS/TS/JSON/CSS/HTML/GraphQL/JSX/Vue; yamllint handles
           # YAML; markdownlint handles Markdown.
@@ -67,7 +68,17 @@ jobs:
           SAVE_SUPER_LINTER_SUMMARY: true
           # No commitlint config exists in managed repos
           VALIDATE_GIT_COMMITLINT: false
-          # Keep Ruff Format (faster, recommended over Black)
+          # ── Python linters ─────────────────────────────────
+          # Ruff: comprehensive lint + format (extends pyproject.toml).
+          # Pylint: complexity/design checks. Mypy: type checking.
+          # Black, Flake8, isort disabled (Ruff is a superset).
           VALIDATE_PYTHON_BLACK: false
-          # Explicit ruff config file for Python formatting
+          VALIDATE_PYTHON_FLAKE8: false
+          VALIDATE_PYTHON_ISORT: false
+          PYTHON_RUFF_CONFIG_FILE: ruff.toml
           PYTHON_RUFF_FORMAT_CONFIG_FILE: ruff.toml
+          PYTHON_PYLINT_CONFIG_FILE: .python-lint
+          PYTHON_MYPY_CONFIG_FILE: .mypy.ini
+          # ── OpenAPI / Spectral ──────────────────────────────
+          # Repos provide their own .spectral.yaml for custom rules.
+          OPENAPI_SPECTRAL_CONFIG_FILE: .spectral.yaml
