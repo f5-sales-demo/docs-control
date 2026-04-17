@@ -68,13 +68,13 @@ jobs:
           # No commitlint config exists in managed repos
           VALIDATE_GIT_COMMITLINT: false
           # ── Python linters ─────────────────────────────────
-          # Ruff: lint (E/F/I) + format. isort: import order.
-          # Pylint: complexity/design. Mypy: types.
-          # Flake8 + Black disabled (Ruff is a superset).
+          # Ruff: comprehensive lint + format (extends pyproject.toml).
+          # Pylint: complexity/design checks. Mypy: type checking.
+          # Black, Flake8, isort disabled (Ruff is a superset).
           VALIDATE_PYTHON_BLACK: false
           VALIDATE_PYTHON_FLAKE8: false
+          VALIDATE_PYTHON_ISORT: false
           PYTHON_RUFF_CONFIG_FILE: ruff.toml
           PYTHON_RUFF_FORMAT_CONFIG_FILE: ruff.toml
-          PYTHON_ISORT_CONFIG_FILE: .isort.cfg
           PYTHON_PYLINT_CONFIG_FILE: .python-lint
           PYTHON_MYPY_CONFIG_FILE: .mypy.ini
