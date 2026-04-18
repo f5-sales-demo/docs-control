@@ -80,5 +80,13 @@ jobs:
           PYTHON_PYLINT_CONFIG_FILE: .python-lint
           PYTHON_MYPY_CONFIG_FILE: .mypy.ini
           # ── OpenAPI / Spectral ──────────────────────────────
-          # Repos provide their own .spectral.yaml for custom rules.
-          OPENAPI_SPECTRAL_CONFIG_FILE: .spectral.yaml
+          # Disabled — super-linter's Docker container can't resolve
+          # repo-specific .spectral.yaml paths. Handled by the
+          # dedicated Spectral step below (runs natively on runner).
+          VALIDATE_OPENAPI: false
+
+      - name: Spectral OpenAPI lint
+        if: hashFiles('.spectral.yaml', '.spectral.yml') != ''
+        uses: stoplightio/spectral-action@latest
+        with:
+          file_glob: "**/*.json **/*.yaml"
