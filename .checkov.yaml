@@ -11,6 +11,10 @@ skip-path:
   - docs/specifications
   - specs/discovered
   - specs/raw
+  # Install-verification dockerfiles are test harnesses, not production
+  # images — CKV_DOCKER_2 (HEALTHCHECK) and CKV_DOCKER_3 (non-root user)
+  # are not meaningful for ephemeral CI validation containers.
+  - scripts/install-tests
 
 # ── Framework restriction ────────────────────────────────────────────────────
 # Only run frameworks relevant to this org's repos. Eliminates ~35 frameworks
