@@ -176,6 +176,29 @@ sys.exit(0 if cfg.get('rules', {}).get('$rule', {}).get('disable') else 1)
 done
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 6b: .textlintrc terminology excludes cover terms flagged
+#             during the xcsh audit (defaultTerms is too opinionated
+#             for tech prose; without these, xcsh reports 150 errors)
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 6b: .textlintrc terminology excludes ==="
+
+# textlint-rule-terminology v5 matches the exclude list string against
+# term[0] from terms.jsonc (exact, not regex). The strings below are the
+# canonical term-source patterns; changing them here without coordinating
+# with the rule's dictionary would silently break exclusion.
+for term in 'regexp?(s)?' 'Bash' 'Markdown' 'Git' 'API' 'HTML' 'JSON' 'SQLite' \
+            'Unicode' 'ID' 'check[- ]box(es)?' 'key[/ ]?value' 'CLI tool(s)?' \
+            'Visual ?Studio ?Code' 'built ?in(s)?' 'trade ?off(s)?' \
+            'anti[- ]pattern(s)?' 're[- ]export(s|ing|ed)?'; do
+  if jq -e --arg t "$term" '.rules.terminology.exclude | index($t) != null' "$REPO_ROOT/.textlintrc" >/dev/null; then
+    pass "6b.x .textlintrc exclude contains '$term'"
+  else
+    fail "6b.x .textlintrc exclude contains '$term'" "not in exclude list"
+  fi
+done
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 7: per-repo Python config opt-outs (xcsh fork fidelity)
 # ════════════════════════════════════════════════════════════════════
 echo ""
