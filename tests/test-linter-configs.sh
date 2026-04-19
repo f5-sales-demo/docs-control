@@ -376,6 +376,39 @@ for phrase in 'skip_files' 'excluded_required_contexts' 'Fork-fidelity' 'Linter-
 done
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 9: .pre-commit-config.yaml — editorconfig-checker must honor
+#            --files so pre-existing unrelated violations do not block
+#            developer commits
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 9: pre-commit editorconfig-checker scope ==="
+
+# When editorconfig-checker was ported out of super-linter into
+# .pre-commit-config.yaml it was written with pass_filenames: false,
+# causing the hook to receive no file args and scan the entire repo.
+# Any governed repo carrying even one pre-existing violation then
+# blocks every developer commit regardless of what the commit actually
+# touches. pass_filenames must be true (or absent, since pre-commit's
+# default is true) so the hook scrubs only the changed files.
+ECC_PASS=$(python3 -c "
+import sys, yaml
+cfg = yaml.safe_load(open('$REPO_ROOT/.pre-commit-config.yaml'))
+for repo in cfg.get('repos', []):
+    for hook in repo.get('hooks', []):
+        if hook.get('id') == 'editorconfig-checker':
+            print(hook.get('pass_filenames', True))
+            sys.exit(0)
+print('HOOK_MISSING')
+")
+
+if [ "$ECC_PASS" = "True" ]; then
+  pass "9.1 editorconfig-checker hook honors --files (pass_filenames: true)"
+else
+  fail "9.1 editorconfig-checker hook honors --files (pass_filenames: true)" \
+    "expected pass_filenames=True (or absent), got '$ECC_PASS'"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 8: Idempotence (running this script twice yields identical output)
 # ════════════════════════════════════════════════════════════════════
 echo ""
