@@ -176,6 +176,33 @@ sys.exit(0 if cfg.get('rules', {}).get('$rule', {}).get('disable') else 1)
 done
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 5a: .jscpd.json guardrails — threshold + ignore patterns
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 5a: .jscpd.json guardrails ==="
+
+# Threshold is the duplication-percentage above which jscpd exits non-zero.
+# 10% is the negotiated ecosystem default — fork repos (xcsh at 5.25%) and
+# greenfield repos both fit under. Dropping below 5% would fail xcsh; going
+# above 20% makes the rule toothless.
+THRESHOLD=$(jq -r '.threshold // 0' "$REPO_ROOT/.jscpd.json")
+if [ "$THRESHOLD" = "10" ]; then
+  pass "5a.1 .jscpd.json threshold is 10%"
+else
+  fail "5a.1 .jscpd.json threshold is 10%" "got $THRESHOLD"
+fi
+
+# The ignore list must exclude generated / vendored / built output so
+# clones in those directories do not inflate the rate.
+for pat in '**/node_modules/**' '**/dist/**' '**/build/**' '**/vendor/**' '**/.github/workflows/**'; do
+  if jq -e --arg p "$pat" '.ignore | index($p) != null' "$REPO_ROOT/.jscpd.json" >/dev/null; then
+    pass "5a.x .jscpd.json ignore contains '$pat'"
+  else
+    fail "5a.x .jscpd.json ignore contains '$pat'" "not in ignore list"
+  fi
+done
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 5b: .markdownlint.json rule disables match opinionated-rule
 #             audit decisions (tech-docs convention)
 # ════════════════════════════════════════════════════════════════════
