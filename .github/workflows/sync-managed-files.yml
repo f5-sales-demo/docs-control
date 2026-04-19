@@ -8,6 +8,10 @@ on:
         description: 'PAT with contents, issues, and pull-request permissions for file sync'
         required: true
 
+concurrency:
+  group: sync-managed-files-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -22,43 +26,58 @@ jobs:
           set -euo pipefail
 
           # ─── Retry helpers ─────────────────────────────────────────────────
-          # Retry with exponential backoff (for commands without stdin)
-          # Usage: retry <max_attempts> <command> [args...]
+          # Exponential backoff capped at 8 s per attempt to limit retry-storm
+          # amplification. On rate-limit (primary 429 or secondary), sleep
+          # until reset and abort the loop so retries don't deepen the storm.
           retry() {
             local max="$1"; shift
             local attempt=1
             local delay=2
+            local max_delay=8
+            local err_file err_content
+            err_file=$(mktemp)
             while true; do
-              if "$@"; then return 0; fi
+              if "$@" 2>"$err_file"; then
+                cat "$err_file" >&2
+                rm -f "$err_file"
+                return 0
+              fi
+              err_content=$(cat "$err_file")
+              cat "$err_file" >&2
+              : >"$err_file"
+              if echo "$err_content" | grep -qiE '(rate limit|HTTP 429|secondary rate|abuse detection|API rate limit exceeded)'; then
+                local reset now wait_s
+                reset=$(gh api rate_limit --jq '.rate.reset' 2>/dev/null || echo "0")
+                now=$(date +%s)
+                wait_s=$((reset - now + 5))
+                if [ "$wait_s" -gt 0 ] && [ "$wait_s" -lt 1800 ]; then
+                  echo "[WARN] Rate limit hit — sleeping ${wait_s}s until reset, then aborting retry" >&2
+                  sleep "$wait_s"
+                else
+                  echo "[WARN] Secondary rate limit — sleeping 60s, then aborting retry" >&2
+                  sleep 60
+                fi
+                rm -f "$err_file"
+                return 1
+              fi
               if [ "$attempt" -ge "$max" ]; then
                 echo "[ERROR] Failed after ${max} attempts: $*" >&2
+                rm -f "$err_file"
                 return 1
               fi
               echo "[WARN] Attempt ${attempt}/${max} failed — retrying in ${delay}s..." >&2
               sleep "$delay"
               attempt=$((attempt + 1))
               delay=$((delay * 2))
+              [ "$delay" -gt "$max_delay" ] && delay="$max_delay"
             done
           }
 
           # Retry with JSON body (for gh api --input - calls)
-          # Usage: retry_json <max_attempts> <json_string> <gh api args...>
           retry_json() {
             local max="$1"; shift
             local json="$1"; shift
-            local attempt=1
-            local delay=2
-            while true; do
-              if echo "$json" | gh api "$@" --input -; then return 0; fi
-              if [ "$attempt" -ge "$max" ]; then
-                echo "[ERROR] Failed after ${max} attempts: gh api $*" >&2
-                return 1
-              fi
-              echo "[WARN] Attempt ${attempt}/${max} failed — retrying in ${delay}s..." >&2
-              sleep "$delay"
-              attempt=$((attempt + 1))
-              delay=$((delay * 2))
-            done
+            retry "$max" bash -c 'printf "%s" "$0" | gh api "$@" --input -' "$json" "$@"
           }
 
           OWNER="${GITHUB_REPOSITORY%/*}"
@@ -70,8 +89,10 @@ jobs:
           wait_and_merge() {
             local pr_num="$1"
             local repo_slug="$2"
-            local max_wait=300   # 5 minutes waiting for checks to appear
-            local poll_interval=15
+            # Doubled poll intervals to halve the API-call volume against the
+            # same total wait budget (10 min for checks, ~10 min for completion).
+            local max_wait=600   # 10 minutes waiting for checks to appear
+            local poll_interval=30
             local elapsed=0
 
             echo "[INFO] Waiting for CI checks on PR #${pr_num} (timeout: ${max_wait}s)..."
@@ -88,12 +109,12 @@ jobs:
                 continue
               fi
 
-              # Checks exist — poll to completion (max 20 iterations × 30s = 10 minutes)
+              # Checks exist — poll to completion (14 iterations × 45s ≈ 10 minutes)
               echo "[INFO] Checks detected — polling for completion..."
               local check_iter=0
-              local check_max=20
+              local check_max=14
               while [ "$check_iter" -lt "$check_max" ]; do
-                sleep 30
+                sleep 45
                 check_iter=$((check_iter + 1))
                 BUCKET=$(gh pr checks "${pr_num}" --repo "${repo_slug}" \
                   --json bucket --jq '[.[].bucket] | unique |
@@ -104,17 +125,17 @@ jobs:
                 if [ "$BUCKET" = "pass" ]; then
                   echo "[INFO] CI passed — merging PR #${pr_num}..."
                   local merge_attempts=0
-                  while [ "$merge_attempts" -lt 3 ]; do
+                  while [ "$merge_attempts" -lt 2 ]; do
                     if gh pr merge "${pr_num}" --repo "${repo_slug}" --squash --delete-branch; then
                       echo "[OK] Merged sync PR #${pr_num}"
                       return 0
                     fi
                     merge_attempts=$((merge_attempts + 1))
                     local merge_delay=$((5 * (2 ** (merge_attempts - 1))))
-                    echo "[WARN] Merge attempt ${merge_attempts}/3 failed — retrying in ${merge_delay}s..."
+                    echo "[WARN] Merge attempt ${merge_attempts}/2 failed — retrying in ${merge_delay}s..."
                     sleep "$merge_delay"
                   done
-                  echo "[WARN] Failed to merge PR #${pr_num} after 3 attempts — may need manual merge"
+                  echo "[WARN] Failed to merge PR #${pr_num} after 2 attempts — may need manual merge"
                   return 1
                 elif [ "$BUCKET" = "fail" ]; then
                   echo "[WARN] CI checks failed on PR #${pr_num} — skipping auto-merge"
@@ -144,7 +165,7 @@ jobs:
 
           # Fetch central config from docs-control
           echo "[INFO] Fetching config from ${CONFIG_REPO}/${CONFIG_PATH}..."
-          CONFIG_B64=$(retry 5 gh api "repos/${CONFIG_REPO}/contents/${CONFIG_PATH}" --jq '.content')
+          CONFIG_B64=$(retry 3 gh api "repos/${CONFIG_REPO}/contents/${CONFIG_PATH}" --jq '.content')
           CONFIG=$(echo "$CONFIG_B64" | base64 -d)
           if ! echo "$CONFIG" | jq empty 2>/dev/null; then
             echo "[ERROR] Failed to fetch or parse config from ${CONFIG_REPO}" >&2; exit 1
@@ -177,6 +198,29 @@ jobs:
               # Per-repo opt-out list (files this repo maintains independently)
               SKIP_LIST=$(echo "$MANAGED_FILES" | jq -c --arg repo "$REPO" '.skip_files[$repo] // []')
 
+              # Fetch the pre-computed manifest once (1 API call vs 34×2 per-file
+              # content fetches). Manifest is produced by
+              # build-managed-files-manifest.yml in docs-control on every change
+              # to a managed-file source. Downstream side uses local
+              # `git hash-object` to compare against manifest SHAs — no API call
+              # per file. Falls back to per-file fetch if manifest is missing or
+              # an entry isn't listed there yet.
+              MANIFEST_PATH=".github/config/managed-files-manifest.json"
+              MANIFEST_B64=$(retry 3 gh api "repos/${SOURCE_REPO}/contents/${MANIFEST_PATH}" --jq '.content' 2>/dev/null || echo "")
+              MANIFEST="{}"
+              MANIFEST_AVAILABLE=false
+              if [ -n "$MANIFEST_B64" ]; then
+                MANIFEST=$(echo "$MANIFEST_B64" | tr -d '\n' | base64 -d 2>/dev/null || echo "{}")
+                if echo "$MANIFEST" | jq -e '.files' >/dev/null 2>&1; then
+                  MANIFEST_AVAILABLE=true
+                  MANIFEST_COMMIT=$(echo "$MANIFEST" | jq -r '.source_commit // "unknown"')
+                  echo "[INFO] Using manifest from ${SOURCE_REPO}@${MANIFEST_COMMIT} for drift detection"
+                fi
+              fi
+              if [ "$MANIFEST_AVAILABLE" = false ]; then
+                echo "[WARN] No manifest available — falling back to per-file API fetch"
+              fi
+
               for file_obj in $(echo "$MANAGED_FILES" | jq -c '.files[]'); do
                 src=$(echo "$file_obj" | jq -r '.src')
                 dest=$(echo "$file_obj" | jq -r '.dest')
@@ -187,7 +231,32 @@ jobs:
                   continue
                 fi
 
-                # Fetch canonical content from source path
+                # Manifest-based path: compare git blob SHA locally (no API)
+                if [ "$MANIFEST_AVAILABLE" = true ]; then
+                  CANONICAL_SHA=$(echo "$MANIFEST" | jq -r --arg d "$dest" '.files[$d].sha // empty')
+                  if [ -n "$CANONICAL_SHA" ]; then
+                    if [ -f "$dest" ]; then
+                      LOCAL_SHA=$(git hash-object "$dest")
+                      if [ "$LOCAL_SHA" != "$CANONICAL_SHA" ]; then
+                        echo "[DRIFT] Content mismatch: ${dest}"
+                        DRIFT_FILES="${DRIFT_FILES}${dest}\n"
+                        DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                      else
+                        echo "[OK] ${dest}"
+                      fi
+                    else
+                      echo "[DRIFT] Missing downstream: ${dest}"
+                      DRIFT_FILES="${DRIFT_FILES}${dest}\n"
+                      DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                    fi
+                    continue
+                  fi
+                  # Fall through to API path when entry is missing from manifest
+                  # (e.g. a new managed file added but manifest not yet regenerated)
+                  echo "[INFO] ${dest} not in manifest — falling back to API fetch"
+                fi
+
+                # Fallback API path (manifest unavailable or entry missing)
                 CANONICAL_RESPONSE=$(retry 3 gh api "repos/${SOURCE_REPO}/contents/${src}" 2>/dev/null) || true
                 if [ -z "$CANONICAL_RESPONSE" ]; then
                   echo "[WARN] Could not fetch canonical: ${src}"
@@ -195,22 +264,19 @@ jobs:
                 fi
                 CANONICAL_CONTENT=$(echo "$CANONICAL_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
 
-                # Fetch downstream content at dest path (handle 404)
-                DOWNSTREAM_RESPONSE=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/${dest}" 2>/dev/null) || true
-                if [ -z "$DOWNSTREAM_RESPONSE" ]; then
+                if [ -f "$dest" ]; then
+                  DOWNSTREAM_CONTENT=$(cat "$dest")
+                  if [ "$CANONICAL_CONTENT" != "$DOWNSTREAM_CONTENT" ]; then
+                    echo "[DRIFT] Content mismatch: ${dest}"
+                    DRIFT_FILES="${DRIFT_FILES}${dest}\n"
+                    DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                  else
+                    echo "[OK] ${dest}"
+                  fi
+                else
                   echo "[DRIFT] Missing downstream: ${dest}"
                   DRIFT_FILES="${DRIFT_FILES}${dest}\n"
                   DRIFT_COUNT=$((DRIFT_COUNT + 1))
-                  continue
-                fi
-                DOWNSTREAM_CONTENT=$(echo "$DOWNSTREAM_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d 2>/dev/null) || true
-
-                if [ "$CANONICAL_CONTENT" != "$DOWNSTREAM_CONTENT" ]; then
-                  echo "[DRIFT] Content mismatch: ${dest}"
-                  DRIFT_FILES="${DRIFT_FILES}${dest}\n"
-                  DRIFT_COUNT=$((DRIFT_COUNT + 1))
-                else
-                  echo "[OK] ${dest}"
                 fi
               done
 
@@ -219,16 +285,17 @@ jobs:
               echo "--- Dynamic dependabot.yml ---"
               DEPENDABOT_DRIFT=false
 
-              # Detect ecosystems in target repo
+              # Detect ecosystems via local checkout (no API calls needed —
+              # actions/checkout@v6 gave us the full tree).
               HAS_NPM=false; HAS_PIP=false; HAS_DOCKER=false
-              if retry 3 gh api "repos/${OWNER}/${REPO}/contents/package.json" --jq '.sha' >/dev/null 2>&1; then
+              if [ -f package.json ]; then
                 HAS_NPM=true; echo "[INFO] Detected package.json → npm"
               fi
-              if retry 3 gh api "repos/${OWNER}/${REPO}/contents/Dockerfile" --jq '.sha' >/dev/null 2>&1; then
+              if [ -f Dockerfile ]; then
                 HAS_DOCKER=true; echo "[INFO] Detected Dockerfile → docker"
               fi
               for pyfile in requirements.txt pyproject.toml setup.py; do
-                if retry 3 gh api "repos/${OWNER}/${REPO}/contents/${pyfile}" --jq '.sha' >/dev/null 2>&1; then
+                if [ -f "$pyfile" ]; then
                   HAS_PIP=true; echo "[INFO] Detected ${pyfile} → pip"; break
                 fi
               done
@@ -253,10 +320,10 @@ jobs:
               printf '%b' "$DEPBOT" > /tmp/generated_dependabot.yml
               GENERATED_DEPENDABOT=$(cat /tmp/generated_dependabot.yml)
 
-              # Compare with current dependabot.yml in target repo (file-based to preserve trailing newlines)
-              CURRENT_DEPBOT_RESPONSE=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" 2>/dev/null) || true
-              if [ -n "$CURRENT_DEPBOT_RESPONSE" ]; then
-                echo "$CURRENT_DEPBOT_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d > /tmp/current_dependabot.yml 2>/dev/null || true
+              # Compare with current dependabot.yml in target repo (local disk,
+              # no API call — file was checked out by actions/checkout@v6).
+              if [ -f .github/dependabot.yml ]; then
+                cp .github/dependabot.yml /tmp/current_dependabot.yml
               else
                 : > /tmp/current_dependabot.yml
               fi
@@ -315,10 +382,9 @@ jobs:
                 sed "s|__DOCS_URL__|${DOCS_URL}|g" > /tmp/generated_readme.md
               GENERATED_README=$(cat /tmp/generated_readme.md)
 
-              # Compare with current README.md in target repo (file-based to preserve trailing newlines)
-              CURRENT_README_RESPONSE=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/README.md" 2>/dev/null) || true
-              if [ -n "$CURRENT_README_RESPONSE" ]; then
-                echo "$CURRENT_README_RESPONSE" | jq -r '.content' | tr -d '\n' | base64 -d > /tmp/current_readme.md 2>/dev/null || true
+              # Compare with current README.md in target repo (local disk, no API).
+              if [ -f README.md ]; then
+                cp README.md /tmp/current_readme.md
               else
                 : > /tmp/current_readme.md
               fi

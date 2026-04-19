@@ -18,6 +18,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: enforce-repo-settings-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   enforce:
     runs-on: ubuntu-latest
@@ -32,43 +36,58 @@ jobs:
           set -euo pipefail
 
           # ─── Retry helpers ─────────────────────────────────────────────────
-          # Retry with exponential backoff (for commands without stdin)
-          # Usage: retry <max_attempts> <command> [args...]
+          # Exponential backoff capped at 8 s per attempt to limit retry-storm
+          # amplification. On rate-limit (primary 429 or secondary), sleep
+          # until reset and abort the loop so retries don't deepen the storm.
           retry() {
             local max="$1"; shift
             local attempt=1
             local delay=2
+            local max_delay=8
+            local err_file err_content
+            err_file=$(mktemp)
             while true; do
-              if "$@"; then return 0; fi
+              if "$@" 2>"$err_file"; then
+                cat "$err_file" >&2
+                rm -f "$err_file"
+                return 0
+              fi
+              err_content=$(cat "$err_file")
+              cat "$err_file" >&2
+              : >"$err_file"
+              if echo "$err_content" | grep -qiE '(rate limit|HTTP 429|secondary rate|abuse detection|API rate limit exceeded)'; then
+                local reset now wait_s
+                reset=$(gh api rate_limit --jq '.rate.reset' 2>/dev/null || echo "0")
+                now=$(date +%s)
+                wait_s=$((reset - now + 5))
+                if [ "$wait_s" -gt 0 ] && [ "$wait_s" -lt 1800 ]; then
+                  echo "[WARN] Rate limit hit — sleeping ${wait_s}s until reset, then aborting retry" >&2
+                  sleep "$wait_s"
+                else
+                  echo "[WARN] Secondary rate limit — sleeping 60s, then aborting retry" >&2
+                  sleep 60
+                fi
+                rm -f "$err_file"
+                return 1
+              fi
               if [ "$attempt" -ge "$max" ]; then
                 echo "[ERROR] Failed after ${max} attempts: $*" >&2
+                rm -f "$err_file"
                 return 1
               fi
               echo "[WARN] Attempt ${attempt}/${max} failed — retrying in ${delay}s..." >&2
               sleep "$delay"
               attempt=$((attempt + 1))
               delay=$((delay * 2))
+              [ "$delay" -gt "$max_delay" ] && delay="$max_delay"
             done
           }
 
           # Retry with JSON body (for gh api --input - calls)
-          # Usage: retry_json <max_attempts> <json_string> <gh api args...>
           retry_json() {
             local max="$1"; shift
             local json="$1"; shift
-            local attempt=1
-            local delay=2
-            while true; do
-              if echo "$json" | gh api "$@" --input -; then return 0; fi
-              if [ "$attempt" -ge "$max" ]; then
-                echo "[ERROR] Failed after ${max} attempts: gh api $*" >&2
-                return 1
-              fi
-              echo "[WARN] Attempt ${attempt}/${max} failed — retrying in ${delay}s..." >&2
-              sleep "$delay"
-              attempt=$((attempt + 1))
-              delay=$((delay * 2))
-            done
+            retry "$max" bash -c 'printf "%s" "$0" | gh api "$@" --input -' "$json" "$@"
           }
 
           OWNER="${GITHUB_REPOSITORY%/*}"
@@ -91,7 +110,7 @@ jobs:
 
           # Fetch central config from docs-control
           echo "[INFO] Fetching config from ${CONFIG_REPO}/${CONFIG_PATH}..."
-          CONFIG_B64=$(retry 5 gh api "repos/${CONFIG_REPO}/contents/${CONFIG_PATH}" --jq '.content')
+          CONFIG_B64=$(retry 3 gh api "repos/${CONFIG_REPO}/contents/${CONFIG_PATH}" --jq '.content')
           CONFIG=$(echo "$CONFIG_B64" | base64 -d)
           if ! echo "$CONFIG" | jq empty 2>/dev/null; then
             echo "[ERROR] Failed to fetch or parse config from ${CONFIG_REPO}" >&2; exit 1
