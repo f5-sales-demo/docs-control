@@ -1,0 +1,136 @@
+---
+name: Build Managed Files Manifest
+
+# Regenerates .github/config/managed-files-manifest.json whenever a
+# managed-file source changes on main. Downstream repos fetch this
+# manifest ONCE per sync run and compare blob SHAs locally via
+# `git hash-object`, eliminating the 34x2 per-file content fetches that
+# previously hammered docs-control's content endpoints.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/config/repo-settings.json'
+      - '.github/workflows/**'
+      - '.github/ISSUE_TEMPLATE/**'
+      - '.github/PULL_REQUEST_TEMPLATE.md'
+      - '.github/dependabot.yml'
+      - 'workflows/**'
+      - 'CONTRIBUTING.md'
+      - 'CLAUDE.md'
+      - 'README.md.tpl'
+      - 'LICENSE'
+      - '.editorconfig'
+      - '.gitignore'
+      - '.pre-commit-config.yaml'
+      - '.yamllint.yaml'
+      - '.markdownlint.json'
+      - 'biome.json'
+      - '.jscpd.json'
+      - '.textlintrc'
+      - '.editorconfig-checker.json'
+      - '.checkov.yaml'
+      - 'zizmor.yaml'
+      - '.shellcheckrc'
+      - '.codespellrc'
+      - '.prettierignore'
+      - '.trivyignore'
+      - '.ruff.toml'
+      - 'ruff.toml'
+      - '.isort.cfg'
+      - '.python-lint'
+      - '.mypy.ini'
+      - '.claude/governance.json'
+      - '.claude/settings.json'
+      - '.claude/hooks/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-managed-files-manifest
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Build manifest
+        env:
+          SOURCE_COMMIT: ${{ github.sha }}
+          CONFIG_PATH: .github/config/repo-settings.json
+          MANIFEST_PATH: .github/config/managed-files-manifest.json
+        run: |
+          set -euo pipefail
+
+          if [ ! -f "$CONFIG_PATH" ]; then
+            echo "[ERROR] $CONFIG_PATH not found" >&2
+            exit 1
+          fi
+
+          GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+          ENTRIES=$(jq -c '.managed_files.files[]' "$CONFIG_PATH")
+          if [ -z "$ENTRIES" ]; then
+            echo "[ERROR] No managed_files.files[] entries in $CONFIG_PATH" >&2
+            exit 1
+          fi
+
+          FILES_JSON="{}"
+          MISSING=""
+          while IFS= read -r entry; do
+            src=$(echo "$entry" | jq -r '.src')
+            dest=$(echo "$entry" | jq -r '.dest')
+            if [ ! -f "$src" ]; then
+              MISSING="${MISSING}${src}\n"
+              continue
+            fi
+            sha=$(git hash-object "$src")
+            size=$(wc -c <"$src" | tr -d ' ')
+            FILES_JSON=$(echo "$FILES_JSON" | jq \
+              --arg dest "$dest" \
+              --arg src "$src" \
+              --arg sha "$sha" \
+              --argjson size "$size" \
+              '.[$dest] = {src: $src, dest: $dest, sha: $sha, size: $size}')
+          done <<<"$ENTRIES"
+
+          if [ -n "$MISSING" ]; then
+            echo "[ERROR] Managed-file sources missing from checkout:" >&2
+            printf '%b' "$MISSING" | sed 's/^/  - /' >&2
+            exit 1
+          fi
+
+          jq -n \
+            --arg generated_at "$GENERATED_AT" \
+            --arg source_commit "$SOURCE_COMMIT" \
+            --argjson files "$FILES_JSON" \
+            '{generated_at: $generated_at, source_commit: $source_commit, files: $files}' \
+            >"$MANIFEST_PATH"
+
+          echo "[OK] Wrote manifest with $(echo "$FILES_JSON" | jq 'length') entries"
+
+      - name: Commit manifest if changed
+        env:
+          MANIFEST_PATH: .github/config/managed-files-manifest.json
+        run: |
+          set -euo pipefail
+
+          if git diff --quiet -- "$MANIFEST_PATH"; then
+            echo "[OK] Manifest unchanged - nothing to commit"
+            exit 0
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$MANIFEST_PATH"
+          git commit -m "chore(governance): regenerate managed-files-manifest.json"
+          git push origin HEAD:main
+          echo "[OK] Manifest committed and pushed"

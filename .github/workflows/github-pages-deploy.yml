@@ -56,6 +56,10 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: pages-${{ github.repository }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest

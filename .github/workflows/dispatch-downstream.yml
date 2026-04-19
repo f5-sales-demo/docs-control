@@ -45,8 +45,15 @@ jobs:
             done
           }
 
+          # Stagger dispatches with 2-6s jitter to avoid 25 simultaneous
+          # workflow starts hammering docs-control's content endpoints.
           repos=$(jq -r '.[]' .github/config/downstream-repos.json)
+          first=true
           for repo in $repos; do
+            if [ "$first" = false ]; then
+              sleep $((RANDOM % 5 + 2))
+            fi
+            first=false
             echo "Dispatching to $repo..."
             if retry 3 gh workflow run enforce-repo-settings.yml --repo "$repo"; then
               echo "  [OK] $repo"
