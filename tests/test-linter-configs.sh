@@ -113,15 +113,30 @@ CODESPELL_SKIP=$(awk -F= '/^skip[[:space:]]*=/{sub(/^[^=]*=/,""); print}' "$REPO
 
 # Each pattern below is a real noise source we observed when auditing xcsh:
 # vendored/ holds forks like brush-core-vendored (bash parser fork)
+# *-vendored* catches hyphenated vendored crates (brush-core-vendored, etc.)
+# */gen/* catches protobuf/codegen output (packages/*/gen/*.ts)
 # fixtures/ holds test snapshots with intentional misspellings
 # *.min.js is minified vendor JS copied into the tree
 # *.jsonl is session-fixture prose
 # *.b64.js is base64-encoded vendored content
-for pat in 'vendored' 'fixtures' '*.min.js' '*.jsonl' '*.b64.js'; do
+for pat in 'vendored' '*-vendored*' '*/gen/*' 'fixtures' '*.min.js' '*.jsonl' '*.b64.js'; do
   if echo "$CODESPELL_SKIP" | grep -qF "$pat"; then
     pass "5.x .codespellrc skip contains '$pat'"
   else
     fail "5.x .codespellrc skip contains '$pat'" "not in skip list"
+  fi
+done
+
+# Domain-specific words that would otherwise noise-out the audit:
+# Rust identifier fragments from xcsh's pi-natives (ForIn, ser, anc, abd, fo, te, RUNN, Statics)
+# JS camelCase variable names codespell splits (crossReferences, prevEnd, aLine)
+# Legitimate English (invokable) and common test-fixture strings (doesnt, takin, hel, deine)
+# SQL/HTTP abbreviations (doub for DOUBLE, cros for CORS)
+for word in doesnt forin invokable takin deine doub cros defaul ser anc runn; do
+  if grep -qE "(^|[=,])${word}([,]|$)" "$REPO_ROOT/.codespellrc"; then
+    pass "5.x .codespellrc ignore-words-list contains '$word'"
+  else
+    fail "5.x .codespellrc ignore-words-list contains '$word'" "not whitelisted"
   fi
 done
 
