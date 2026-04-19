@@ -274,6 +274,38 @@ for cfg in ruff.toml .ruff.toml .python-lint .mypy.ini; do
 done
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 5c: .checkov.yaml skips the install-test harness dockerfiles
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 5c: .checkov.yaml skip-path covers install-test dockerfiles ==="
+
+CHECKOV_SKIP=$(python3 -c "import yaml; print(' '.join(yaml.safe_load(open('$REPO_ROOT/.checkov.yaml')).get('skip-path',[])))")
+for p in 'scripts/install-tests' 'node_modules' 'vendor'; do
+  if echo "$CHECKOV_SKIP" | grep -qFw "$p"; then
+    pass "5c.x .checkov.yaml skip-path contains '$p'"
+  else
+    fail "5c.x .checkov.yaml skip-path contains '$p'" "not in skip-path"
+  fi
+done
+
+# ════════════════════════════════════════════════════════════════════
+# SECTION 5d: super-linter.yml FILTER_REGEX_EXCLUDE covers tree-sitter
+#             generated / companion C sources (machine-generated or
+#             upstream-style; reformatting creates fork drift)
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 5d: super-linter FILTER_REGEX_EXCLUDE tree-sitter coverage ==="
+
+FILTER_REGEX=$(grep -E '^[[:space:]]*FILTER_REGEX_EXCLUDE:' "$REPO_ROOT/.github/workflows/super-linter.yml" | head -1)
+for pattern in 'tree-sitter-' 'parser|scanner' 'dist/' 'vendor/'; do
+  if echo "$FILTER_REGEX" | grep -qF "$pattern"; then
+    pass "5d.x super-linter FILTER_REGEX_EXCLUDE contains '$pattern'"
+  else
+    fail "5d.x super-linter FILTER_REGEX_EXCLUDE contains '$pattern'" "not in regex"
+  fi
+done
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 7b: Onboarding doc regression net — the key Phase 1+2
 #             concepts must stay documented for future onboarders
 # ════════════════════════════════════════════════════════════════════

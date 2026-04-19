@@ -29,7 +29,11 @@ jobs:
           DEFAULT_BRANCH: main
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINTER_RULES_PATH: "."
-          FILTER_REGEX_EXCLUDE: "(dist/|build/|release/|vendor/)"
+          # tree-sitter-<grammar>/src/{parser,scanner}.c are either machine-
+          # generated (parser.c from `tree-sitter generate`) or hand-written
+          # to upstream tree-sitter conventions that do not match
+          # clang-format's default style; excluding preserves fork fidelity.
+          FILTER_REGEX_EXCLUDE: "(dist/|build/|release/|vendor/|tree-sitter-[^/]+/src/(parser|scanner)\\.(c|h)$)"
           # Disable Prettier — Biome handles formatting for
           # JS/TS/JSON/CSS/HTML/GraphQL/JSX/Vue; yamllint handles
           # YAML; markdownlint handles Markdown.
