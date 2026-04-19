@@ -202,6 +202,33 @@ for new_entry in ".claude/governance.json" ".claude/settings.json" ".claude/hook
   fi
 done
 
+# Test 3.5: skip_files in repo-settings.json matches skip_files in governance.json
+SETTINGS_SKIP=$(jq -c '.managed_files.skip_files // {}' "$REPO_SETTINGS")
+GOV_SKIP=$(jq -c '.skip_files // {}' "$GOVERNANCE_JSON")
+if [ "$SETTINGS_SKIP" = "$GOV_SKIP" ]; then
+  pass "3.5 skip_files matches between repo-settings.json and governance.json"
+else
+  fail "3.5 skip_files matches between repo-settings.json and governance.json" \
+    "settings=$SETTINGS_SKIP governance=$GOV_SKIP"
+fi
+
+# Test 3.6: every skip_files[repo] entry is present in managed_files baseline
+SKIP_ENTRIES=$(jq -r '.managed_files.skip_files // {} | to_entries[] | .value[]' "$REPO_SETTINGS" | sort -u)
+MISSING_FROM_MANAGED=""
+while IFS= read -r entry; do
+  [ -z "$entry" ] && continue
+  if ! echo "$MANAGED_DESTS" | grep -qxF "$entry"; then
+    MISSING_FROM_MANAGED="${MISSING_FROM_MANAGED}  - ${entry}\n"
+  fi
+done <<<"$SKIP_ENTRIES"
+
+if [ -z "$MISSING_FROM_MANAGED" ]; then
+  pass "3.6 all skip_files entries reference real managed_files"
+else
+  fail "3.6 all skip_files entries reference real managed_files" \
+    "missing from managed_files:\n$MISSING_FROM_MANAGED"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 4: Hook Behavior — Self-Exclusion
 # ════════════════════════════════════════════════════════════════════
@@ -253,6 +280,53 @@ for file in "${PROTECTED_TEST_CASES[@]}"; do
   assert_contains "$OUTPUT" "BLOCKED" "5.x message: $file shows BLOCKED"
   assert_contains "$OUTPUT" "docs-control" "5.x message: $file mentions docs-control"
 done
+
+# ════════════════════════════════════════════════════════════════════
+# SECTION 5.5: Hook Behavior — Per-Repo skip_files Opt-Out
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 5.5: Per-Repo skip_files Opt-Out ==="
+
+# Setup a second downstream whose origin points at xcsh (the repo with opt-outs)
+XCSH_DOWN="$TMPDIR_BASE/xcsh-downstream"
+mkdir -p "$XCSH_DOWN/.claude/hooks"
+cp "$HOOK_SCRIPT" "$XCSH_DOWN/.claude/hooks/"
+cp "$GOVERNANCE_JSON" "$XCSH_DOWN/.claude/"
+(
+  cd "$XCSH_DOWN"
+  git init -q
+  git remote add origin https://github.com/f5xc-salesdemos/xcsh.git
+)
+
+# Test 5.5.x: opted-out files are allowed for the opted-out repo
+XCSH_SKIP_FILES=$(jq -r '.skip_files.xcsh[]?' "$GOVERNANCE_JSON" 2>/dev/null || echo "")
+if [ -n "$XCSH_SKIP_FILES" ]; then
+  while IFS= read -r skip_file; do
+    [ -z "$skip_file" ] && continue
+    OUTPUT=""
+    EXIT_CODE=0
+    OUTPUT=$(run_hook "$XCSH_DOWN" "$skip_file") || EXIT_CODE=$?
+    assert_exit_code 0 "$EXIT_CODE" "5.5 opt-out allowed for xcsh: $skip_file"
+    assert_not_contains "$OUTPUT" "BLOCKED" "5.5 opt-out no BLOCKED for xcsh: $skip_file"
+  done <<<"$XCSH_SKIP_FILES"
+else
+  pass "5.5 (skipped: no skip_files.xcsh entries in governance.json)"
+fi
+
+# Test 5.5.N: non-opted-out protected files are STILL blocked for xcsh
+# CLAUDE.md is managed but not in xcsh's skip_files, so it must remain blocked.
+OUTPUT=""
+EXIT_CODE=0
+OUTPUT=$(run_hook "$XCSH_DOWN" "CLAUDE.md") || EXIT_CODE=$?
+assert_exit_code 2 "$EXIT_CODE" "5.5 non-opted-out CLAUDE.md still blocked for xcsh"
+assert_contains "$OUTPUT" "BLOCKED" "5.5 non-opted-out CLAUDE.md shows BLOCKED for xcsh"
+
+# Test 5.5.N+1: a different downstream (waf) is NOT opted out of biome.json
+# The existing $DOWNSTREAM (origin=waf) should still block biome.json.
+OUTPUT=""
+EXIT_CODE=0
+OUTPUT=$(run_hook "$DOWNSTREAM" "biome.json") || EXIT_CODE=$?
+assert_exit_code 2 "$EXIT_CODE" "5.5 waf (not opted-out) still blocks biome.json"
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 6: Hook Behavior — Allowing Non-Protected Files

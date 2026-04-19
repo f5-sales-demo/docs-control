@@ -21,6 +21,7 @@ Add the repository's `owner/repo` string to `.github/config/downstream-repos.jso
 ### 2. Optionally add to docs-sites.json
 
 If the repository will publish documentation, add an entry to `.github/config/docs-sites.json` with:
+
 - `label` -- human-readable site name
 - `url` -- URL to the site's `llms-full.txt` endpoint
 - `description` -- short description used in the generated README
@@ -44,11 +45,13 @@ Add any missing entries to the docs-control `.gitignore` and commit the change b
 
 ### 4. Install caller workflows
 
-Copy the three caller workflow templates from `workflows/` in docs-control into the new repository's `.github/workflows/` directory:
+Copy the five caller workflow templates from `workflows/` in docs-control into the new repository's `.github/workflows/` directory:
 
 - `enforce-repo-settings.yml` -- triggers enforcement and file sync
 - `github-pages-deploy.yml` -- triggers docs build and deploy
 - `require-linked-issue.yml` -- enforces PR-to-issue linking
+- `super-linter.yml` -- runs the super-linter suite on PRs
+- `dependabot-auto-merge.yml` -- auto-merges green dependabot PRs
 
 These files are also synced automatically by the [file sync workflow](./file-sync/), but installing them manually bootstraps the process.
 
@@ -85,6 +88,70 @@ If the repository has a `docs/` directory, confirm the docs site is accessible a
 curl -sf "https://f5xc-salesdemos.github.io/<repo-name>/" \
   && echo "OK" || echo "FAIL"
 ```
+
+## Fork-fidelity: opting out of managed files
+
+Most governed repositories take every managed file as-is, but some
+repositories are active forks whose coding style (indentation, line
+width), license, or CONTRIBUTING content is inherited from an upstream
+project. Overwriting those files would create constant merge conflicts
+against the fork's source. Use the `skip_files` mechanism on
+`.github/config/repo-settings.json` under `managed_files` to exempt
+the repository from sync on specific file paths:
+
+```json
+"managed_files": {
+  "source_repo": "f5xc-salesdemos/docs-control",
+  "skip_files": {
+    "xcsh": [
+      "biome.json",
+      "LICENSE",
+      "CONTRIBUTING.md",
+      "ruff.toml",
+      ".ruff.toml",
+      ".python-lint",
+      ".mypy.ini"
+    ]
+  },
+  "files": [ ... ]
+}
+```
+
+The same `skip_files` map must be mirrored into `.claude/governance.json`
+so the `protect-managed-files.sh` hook allows edits on opted-out paths
+in the downstream repository (otherwise Claude-driven edits to files
+the repo owns would still be blocked). The test suite at
+`tests/test-linter-configs.sh` (Section 7) asserts every `skip_files`
+entry references a real baseline `managed_files` entry.
+
+An opted-out repository typically also ships **its own** version of
+each opted-out config (e.g., xcsh ships a permissive `ruff.toml` and
+`.python-lint`) so the relevant linter still has something to read.
+
+## Deferring required status checks: excluded_required_contexts
+
+When onboarding an existing codebase that is not yet compatible with the
+ecosystem's lint rules, immediately marking `Lint Code Base` (or any other
+reusable-workflow status check) as a required context will block every
+PR until the codebase is cleaned up. Use
+`repo_overrides.<repo>.excluded_required_contexts` in
+`repo-settings.json` to defer specific contexts:
+
+```json
+"repo_overrides": {
+  "xcsh": {
+    "additional_contexts": ["typecheck", "unit (linux)"],
+    "excluded_required_contexts": ["Lint Code Base"]
+  }
+}
+```
+
+`enforce-repo-settings.yml` subtracts `excluded_required_contexts` from
+the base `required_status_checks.contexts` list at enforcement time, so
+the check still runs on PRs (the workflow is installed) but does not
+gate merges. Once the codebase is compatible -- typically after a
+linter-compatibility audit -- remove the entry and the next enforcement
+run promotes the check to required.
 
 ## Setting up docs content
 
@@ -207,6 +274,7 @@ done
 ```
 
 Check for common MDX issues:
+
 - Bare `&lt;` is treated as a JSX tag -- use `&amp;lt;` or wrap in backtick inline code
 - `\{` and `\}` are JSX expressions -- escape them or wrap in backtick inline code
 - Self-close HTML void tags: `&lt;br />`, `&lt;img />`
@@ -281,6 +349,7 @@ The enforcement workflow requires the caller workflows to be installed, but the 
 ### Pages not building
 
 Ensure:
+
 - The repository has a `docs/` directory with at least an `index.mdx` file
 - GitHub Pages is enabled with `build_type: workflow` (enforcement handles this)
 - The `GITHUB_TOKEN` has `pages: write` and `id-token: write` permissions
@@ -290,6 +359,48 @@ Verify Pages config:
 ```bash
 gh api repos/f5xc-salesdemos/<repo-name>/pages --jq '.build_type'
 ```
+
+### Starlight frontmatter titles containing colons
+
+A YAML bare scalar like `title: Porting From pi-mono: A Practical Guide`
+parses as an error because the second `:` is read as a mapping
+separator. Wrap any title containing a `:` in double quotes:
+
+```yaml
+---
+title: "Porting From pi-mono: A Practical Guide"
+sidebar:
+  order: 9
+  label: Porting from pi-mono
+---
+```
+
+Plain titles with no `:` are fine unquoted. The symptom when this is
+missed is a Starlight frontmatter warning at build time and the
+affected page shipping without its sidebar entry.
+
+### Linter-compatibility audit cadence
+
+When a new repository produces a non-trivial volume of super-linter
+findings, work the linters in severity order
+(`zizmor` → `shellcheck` → `yamllint` → Python trio → `codespell` →
+`textlint` → `markdownlint` → `jscpd`) and hold one case-by-case
+decision per rule family:
+
+- If the violation reflects a legitimate convention of the downstream
+  repo (tech-prose terminology, fork-preserved style, valid technical
+  abbreviation), **relax the global config** and land the relaxation
+  with a corresponding assertion in `tests/test-linter-configs.sh`.
+- If the violation is a genuine bug (typo, dead variable, missing YAML
+  document-start, escaped pipe in a markdown table cell), **fix it in
+  the downstream repo**.
+
+Write the assertion first (must go red against the current config),
+then apply the config change until green. Never ship a global
+relaxation without the paired assertion -- future edits will drift
+the config back to a state that re-introduces the noise. The 79
+assertions currently in `test-linter-configs.sh` are the baseline
+regression net.
 
 ### Stale sync branches
 
