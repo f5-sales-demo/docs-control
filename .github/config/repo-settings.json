@@ -30,8 +30,8 @@
       "enforce_admins": true,
       "required_status_checks": {
         "strict": false,
-        "contexts": ["check / Check linked issues"],
-        "self_contexts": ["Check linked issues"]
+        "contexts": ["check / Check linked issues", "lint / Lint Code Base"],
+        "self_contexts": ["Check linked issues", "Lint Code Base"]
       },
       "required_pull_request_reviews": null,
       "restrictions": null,
