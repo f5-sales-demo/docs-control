@@ -141,6 +141,41 @@ for word in doesnt forin invokable takin deine doub cros defaul ser anc runn; do
 done
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 7c: excluded_required_contexts entries must use the fully-
+#             qualified "workflow / job" form that matches the actual
+#             `contexts` list in branch protection
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 7c: excluded_required_contexts uses qualified names ==="
+
+# GitHub reports required status checks as "<workflow>/<job>", e.g.
+# "lint / Lint Code Base" (not "Lint Code Base"). Set subtraction in
+# enforce-repo-settings.yml is exact-match, so bare job names never match
+# the `contexts` array and the exclusion silently no-ops.
+# Every entry in excluded_required_contexts MUST therefore appear in the
+# base `required_status_checks.contexts` list verbatim, OR in
+# `additional_contexts` (the only other source of contexts).
+BASE_CTX=$(jq -c '.branch_protection[0].required_status_checks.contexts // []' "$REPO_SETTINGS")
+MISSING=""
+while IFS= read -r entry; do
+  [ -z "$entry" ] && continue
+  if ! echo "$BASE_CTX" | jq -e --arg e "$entry" 'index($e) != null' >/dev/null; then
+    REPO=$(jq -r --arg e "$entry" '.repo_overrides | to_entries[] | select(.value.excluded_required_contexts // [] | index($e)) | .key' "$REPO_SETTINGS" | head -1)
+    ADDITIONAL=$(jq -c --arg r "$REPO" '.repo_overrides[$r].additional_contexts // []' "$REPO_SETTINGS")
+    if ! echo "$ADDITIONAL" | jq -e --arg e "$entry" 'index($e) != null' >/dev/null; then
+      MISSING="${MISSING}  - ${entry} (in repo_overrides.${REPO})\n"
+    fi
+  fi
+done < <(jq -r '.repo_overrides | to_entries[] | .value.excluded_required_contexts // [] | .[]' "$REPO_SETTINGS")
+
+if [ -z "$MISSING" ]; then
+  pass "7c.1 every excluded_required_contexts entry matches a real context"
+else
+  fail "7c.1 every excluded_required_contexts entry matches a real context" \
+    "unmatched:\n$MISSING"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 5e: super-linter disables validators not applicable to the
 #             ecosystem's language mix (TS/Rust/Python/Markdown/Astro)
 # ════════════════════════════════════════════════════════════════════
