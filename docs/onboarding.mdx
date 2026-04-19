@@ -411,6 +411,33 @@ gh api repos/f5xc-salesdemos/<repo-name>/git/refs/heads/governance/sync-managed-
   --method DELETE
 ```
 
+### Release automation: release PR pattern
+
+Governed repos that auto-publish releases (npm, Homebrew, GitHub Releases)
+must not push directly to `main`. With `enforce_admins: true` plus required
+status checks, any direct push from a CI token is rejected by GitHub with
+`GH006: Protected branch update failed`. The governance-compatible flow --
+the **release PR pattern** -- is two decoupled workflows:
+
+1. **Version-bump PR.** On `fix:` / `feat:` merges to `main`, a job runs
+   the repo's release script, which creates a `release/v<X.Y.Z>` branch,
+   commits `chore: bump version to v<X.Y.Z>`, pushes the branch, opens a
+   PR, and enables auto-merge. The PR name falls under the `release/**`
+   branch exemption already listed in
+   `.github/workflows/require-linked-issue.yml` `exclude-branches`, so no
+   linked-issue friction.
+
+2. **Tag on merge.** A separate workflow fires on `main` pushes whose head
+   commit starts with `chore: bump version to v`, extracts the version,
+   and pushes the git tag. Tag pushes are not subject to branch
+   protection, so this step always succeeds.
+
+The downstream release chain (build, sign, publish) remains triggered by
+the tag push -- no changes needed there. See xcsh's
+`scripts/release.ts` `cmdAutoRelease` and
+`.github/workflows/tag-on-version-bump.yml` for the reference
+implementation.
+
 ## Further reading
 
 - [Content authoring guide](https://f5xc-salesdemos.github.io/docs-builder/content-authors/) from docs-builder for page content and MDX conventions
