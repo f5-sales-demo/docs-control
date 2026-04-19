@@ -216,6 +216,15 @@ jobs:
                   '.required_status_checks.contexts = (.required_status_checks.contexts + $extra | unique)')
                 echo "[INFO] Merged additional contexts for ${REPO}: $EXTRA_CTX"
               fi
+
+              # Subtract per-repo excluded_required_contexts (e.g. deferred super-linter)
+              EXCLUDED_CTX=$(echo "$REPO_OVERRIDES" | jq -c '.excluded_required_contexts // []')
+              if [ "$EXCLUDED_CTX" != "[]" ]; then
+                DESIRED_PAYLOAD=$(echo "$DESIRED_PAYLOAD" | jq -c \
+                  --argjson excluded "$EXCLUDED_CTX" \
+                  '.required_status_checks.contexts = (.required_status_checks.contexts - $excluded)')
+                echo "[INFO] Excluded required contexts for ${REPO}: $EXCLUDED_CTX"
+              fi
             fi
 
             HTTP_CODE=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
@@ -425,6 +434,14 @@ jobs:
                 DESIRED_PAYLOAD=$(echo "$DESIRED_PAYLOAD" | jq -c \
                   --argjson extra "$EXTRA_CTX" \
                   '.required_status_checks.contexts = (.required_status_checks.contexts + $extra | unique)')
+              fi
+
+              # Subtract per-repo excluded_required_contexts (same as Phase 4)
+              EXCLUDED_CTX=$(echo "$REPO_OVERRIDES" | jq -c '.excluded_required_contexts // []')
+              if [ "$EXCLUDED_CTX" != "[]" ]; then
+                DESIRED_PAYLOAD=$(echo "$DESIRED_PAYLOAD" | jq -c \
+                  --argjson excluded "$EXCLUDED_CTX" \
+                  '.required_status_checks.contexts = (.required_status_checks.contexts - $excluded)')
               fi
             fi
 

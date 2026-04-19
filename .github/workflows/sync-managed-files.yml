@@ -174,9 +174,18 @@ jobs:
               DRIFT_FILES=""
               DRIFT_COUNT=0
 
+              # Per-repo opt-out list (files this repo maintains independently)
+              SKIP_LIST=$(echo "$MANAGED_FILES" | jq -c --arg repo "$REPO" '.skip_files[$repo] // []')
+
               for file_obj in $(echo "$MANAGED_FILES" | jq -c '.files[]'); do
                 src=$(echo "$file_obj" | jq -r '.src')
                 dest=$(echo "$file_obj" | jq -r '.dest')
+
+                # Honor per-repo skip_files opt-out
+                if echo "$SKIP_LIST" | jq -e --arg d "$dest" 'index($d) != null' >/dev/null; then
+                  echo "[SKIP] ${dest} — opted out by ${REPO}"
+                  continue
+                fi
 
                 # Fetch canonical content from source path
                 CANONICAL_RESPONSE=$(retry 3 gh api "repos/${SOURCE_REPO}/contents/${src}" 2>/dev/null) || true

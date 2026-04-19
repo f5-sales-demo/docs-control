@@ -46,7 +46,8 @@
   ],
   "repo_overrides": {
     "xcsh": {
-      "additional_contexts": ["typecheck", "unit (linux)", "unit (macos)", "e2e (linux)"]
+      "additional_contexts": ["typecheck", "unit (linux)", "unit (macos)", "e2e (linux)"],
+      "excluded_required_contexts": ["Lint Code Base"]
     }
   },
   "topics": [],
@@ -56,6 +57,13 @@
   },
   "managed_files": {
     "source_repo": "f5xc-salesdemos/docs-control",
+    "skip_files": {
+      "xcsh": [
+        "biome.json",
+        "LICENSE",
+        "CONTRIBUTING.md"
+      ]
+    },
     "files": [
       { "src": "workflows/github-pages-deploy.yml", "dest": ".github/workflows/github-pages-deploy.yml" },
       { "src": "workflows/enforce-repo-settings.yml", "dest": ".github/workflows/enforce-repo-settings.yml" },

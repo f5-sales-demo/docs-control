@@ -1,5 +1,12 @@
 {
   "source_repo": "f5xc-salesdemos/docs-control",
+  "skip_files": {
+    "xcsh": [
+      "biome.json",
+      "LICENSE",
+      "CONTRIBUTING.md"
+    ]
+  },
   "protected_files": [
     ".github/workflows/github-pages-deploy.yml",
     ".github/workflows/enforce-repo-settings.yml",
