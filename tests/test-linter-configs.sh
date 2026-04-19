@@ -242,9 +242,9 @@ echo "=== Section 6b: .textlintrc terminology excludes ==="
 # canonical term-source patterns; changing them here without coordinating
 # with the rule's dictionary would silently break exclusion.
 for term in 'regexp?(s)?' 'Bash' 'Markdown' 'Git' 'API' 'HTML' 'JSON' 'SQLite' \
-            'Unicode' 'ID' 'check[- ]box(es)?' 'key[/ ]?value' 'CLI tool(s)?' \
-            'Visual ?Studio ?Code' 'built ?in(s)?' 'trade ?off(s)?' \
-            'anti[- ]pattern(s)?' 're[- ]export(s|ing|ed)?'; do
+  'Unicode' 'ID' 'check[- ]box(es)?' 'key[/ ]?value' 'CLI tool(s)?' \
+  'Visual ?Studio ?Code' 'built ?in(s)?' 'trade ?off(s)?' \
+  'anti[- ]pattern(s)?' 're[- ]export(s|ing|ed)?'; do
   if jq -e --arg t "$term" '.rules.terminology.exclude | index($t) != null' "$REPO_ROOT/.textlintrc" >/dev/null; then
     pass "6b.x .textlintrc exclude contains '$term'"
   else
