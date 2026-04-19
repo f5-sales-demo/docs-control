@@ -274,6 +274,22 @@ for cfg in ruff.toml .ruff.toml .python-lint .mypy.ini; do
 done
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 7b: Onboarding doc regression net — the key Phase 1+2
+#             concepts must stay documented for future onboarders
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 7b: onboarding.mdx regression net ==="
+
+ONBOARDING="$REPO_ROOT/docs/onboarding.mdx"
+for phrase in 'skip_files' 'excluded_required_contexts' 'Fork-fidelity' 'Linter-compatibility audit cadence' 'frontmatter titles containing colons'; do
+  if grep -qF "$phrase" "$ONBOARDING"; then
+    pass "7b.x onboarding.mdx references '$phrase'"
+  else
+    fail "7b.x onboarding.mdx references '$phrase'" "phrase missing"
+  fi
+done
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 8: Idempotence (running this script twice yields identical output)
 # ════════════════════════════════════════════════════════════════════
 echo ""
