@@ -41,6 +41,7 @@
     ".mypy.ini",
     ".claude/settings.json",
     ".claude/governance.json",
-    ".claude/hooks/protect-managed-files.sh"
+    ".claude/hooks/protect-managed-files.sh",
+    ".claude/hooks/enforce-git-delegation.sh"
   ]
 }

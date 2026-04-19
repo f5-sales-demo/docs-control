@@ -99,7 +99,8 @@
 
       { "src": ".claude/governance.json", "dest": ".claude/governance.json" },
       { "src": ".claude/settings.json", "dest": ".claude/settings.json" },
-      { "src": ".claude/hooks/protect-managed-files.sh", "dest": ".claude/hooks/protect-managed-files.sh" }
+      { "src": ".claude/hooks/protect-managed-files.sh", "dest": ".claude/hooks/protect-managed-files.sh" },
+      { "src": ".claude/hooks/enforce-git-delegation.sh", "dest": ".claude/hooks/enforce-git-delegation.sh" }
     ]
   }
 }
