@@ -125,10 +125,45 @@ for pat in 'vendored' 'fixtures' '*.min.js' '*.jsonl' '*.b64.js'; do
 done
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 6: Idempotence (running this script twice yields identical output)
+# SECTION 6: zizmor.yaml suppressions are complete enough for caller
+#            workflows + typical downstream CI patterns to scan clean
 # ════════════════════════════════════════════════════════════════════
 echo ""
-echo "=== Section 6: Idempotence ==="
+echo "=== Section 6: zizmor suppression coverage ==="
+
+# Rationale: without these suppressions, zizmor reports 100+ findings on a
+# typical downstream repo (e.g., xcsh reports 185 before config, 27 with
+# config). Each rule below represents a deliberate docs-control decision
+# — removing one here would re-introduce noise across every governed repo.
+for rule in \
+  unpinned-uses \
+  artipacked \
+  excessive-permissions \
+  template-injection \
+  cache-poisoning \
+  secrets-inherit \
+  secrets-outside-env \
+  pull-request-target \
+  dangerous-triggers \
+  bot-conditions \
+  dependabot-cooldown; do
+  if python3 -c "
+import sys, yaml
+with open('$REPO_ROOT/zizmor.yaml') as f:
+  cfg = yaml.safe_load(f)
+sys.exit(0 if cfg.get('rules', {}).get('$rule', {}).get('disable') else 1)
+" 2>/dev/null; then
+    pass "6.x zizmor.yaml disables '$rule' (governed-repo noise suppression)"
+  else
+    fail "6.x zizmor.yaml disables '$rule'" "rule not disabled"
+  fi
+done
+
+# ════════════════════════════════════════════════════════════════════
+# SECTION 7: Idempotence (running this script twice yields identical output)
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 7: Idempotence ==="
 # We assert this by making sure no test mutates repo state.
 # If a future assertion generates a temp file, it must clean up.
 TMPS_BEFORE=$(find /tmp -maxdepth 1 -name 'test-linter-configs-*' 2>/dev/null | wc -l)
