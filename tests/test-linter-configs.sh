@@ -141,6 +141,25 @@ for word in doesnt forin invokable takin deine doub cros defaul ser anc runn; do
 done
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 5e: super-linter disables validators not applicable to the
+#             ecosystem's language mix (TS/Rust/Python/Markdown/Astro)
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 5e: super-linter VALIDATE_* disables ==="
+
+SL_YML="$REPO_ROOT/.github/workflows/super-linter.yml"
+# Each entry below is an explicit "not relevant" decision captured with
+# its rationale in the workflow comment. Removing a disable re-introduces
+# a full audit surface for that validator on every governed repo.
+for v in POWERSHELL HTML CPP RUST_2015 DOCKERFILE_HADOLINT BASH_EXEC EDITORCONFIG PROTOBUF; do
+  if grep -qE "^[[:space:]]*VALIDATE_${v}:[[:space:]]+false" "$SL_YML"; then
+    pass "5e.x super-linter disables VALIDATE_${v}"
+  else
+    fail "5e.x super-linter disables VALIDATE_${v}" "not set to false"
+  fi
+done
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 6: zizmor.yaml suppressions are complete enough for caller
 #            workflows + typical downstream CI patterns to scan clean
 # ════════════════════════════════════════════════════════════════════

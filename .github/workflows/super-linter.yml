@@ -88,6 +88,36 @@ jobs:
           # repo-specific .spectral.yaml paths. Handled by the
           # dedicated Spectral step below (runs natively on runner).
           VALIDATE_OPENAPI: false
+          # ── Validators irrelevant to this ecosystem's language mix ──
+          # PowerShell: no .ps1 files in any governed repo.
+          VALIDATE_POWERSHELL: false
+          # Standalone HTML: repos are Astro/Starlight-based; generated
+          # HTML is a build artifact, not source.
+          VALIDATE_HTML: false
+          # CPP (cpplint): overlaps with CLANG_FORMAT; clang-format is
+          # the ecosystem's chosen C/C++ style enforcer and has been
+          # tuned per-repo (e.g., .clang-format-ignore in xcsh).
+          VALIDATE_CPP: false
+          VALIDATE_CPP_EPA: false
+          # Rust 2015 edition checks: governed repos target edition 2021
+          # or 2024; the 2015 validator flags normal modern-edition code.
+          VALIDATE_RUST_2015: false
+          # Dockerfile hadolint: overlaps with CHECKOV for dockerfile
+          # security scanning; running both is redundant noise.
+          VALIDATE_DOCKERFILE_HADOLINT: false
+          # BASH_EXEC (shebang + exec bit): repos carry node-style
+          # shebangs on .ts entrypoints and intentionally lack +x
+          # (invoked via `bun run ...`); this validator flags non-issues.
+          VALIDATE_BASH_EXEC: false
+          # EDITORCONFIG (super-linter's built-in validator): we already
+          # run editorconfig-checker per-repo via the managed config.
+          # The super-linter built-in duplicates that check with stricter
+          # default behaviour that flags legitimate fork indentation.
+          VALIDATE_EDITORCONFIG: false
+          # PROTOBUF: governed repos may carry third-party proto files
+          # (e.g., xcsh's Cursor protobuf imports under packages/ai/src/
+          # providers/cursor/proto/) whose layout is fork-faithful.
+          VALIDATE_PROTOBUF: false
 
       - name: Spectral OpenAPI lint
         if: hashFiles('.spectral.yaml', '.spectral.yml') != ''
