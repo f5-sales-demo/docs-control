@@ -22,6 +22,7 @@ fail() {
 }
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+REPO_SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 1: JSON Parse Validity (all managed JSON lint configs)
@@ -160,10 +161,31 @@ sys.exit(0 if cfg.get('rules', {}).get('$rule', {}).get('disable') else 1)
 done
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 7: Idempotence (running this script twice yields identical output)
+# SECTION 7: per-repo Python config opt-outs (xcsh fork fidelity)
 # ════════════════════════════════════════════════════════════════════
 echo ""
-echo "=== Section 7: Idempotence ==="
+echo "=== Section 7: Python config opt-outs for xcsh ==="
+
+# Rationale: docs-control's ruff.toml / .python-lint / .mypy.ini are
+# deliberately strict (pydocstyle D, pytest PT, tryceratops TRY, errmsg EM,
+# type-checking TC, full select list). Applied to xcsh — an active fork of
+# badlogic/pi-mono — they surface 743+ ruff errors and 73 mypy errors that
+# are not bugs, just stylistic drift from upstream. xcsh therefore ships
+# its own permissive Python configs and must be opted out of sync.
+for cfg in ruff.toml .ruff.toml .python-lint .mypy.ini; do
+  xcsh_skip=$(jq -r --arg c "$cfg" '.managed_files.skip_files.xcsh // [] | .[] | select(. == $c)' "$REPO_SETTINGS")
+  if [ -n "$xcsh_skip" ]; then
+    pass "7.x $cfg is in xcsh skip_files (fork Python linter fidelity)"
+  else
+    fail "7.x $cfg is in xcsh skip_files" "not in skip list"
+  fi
+done
+
+# ════════════════════════════════════════════════════════════════════
+# SECTION 8: Idempotence (running this script twice yields identical output)
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 8: Idempotence ==="
 # We assert this by making sure no test mutates repo state.
 # If a future assertion generates a temp file, it must clean up.
 TMPS_BEFORE=$(find /tmp -maxdepth 1 -name 'test-linter-configs-*' 2>/dev/null | wc -l)
