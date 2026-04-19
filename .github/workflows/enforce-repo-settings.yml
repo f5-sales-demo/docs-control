@@ -35,7 +35,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # ─── Retry helpers ─────────────────────────────────────────────────
+          # --- Retry helpers -------------------------------------------------
           # Exponential backoff capped at 8 s per attempt to limit retry-storm
           # amplification. On rate-limit (primary 429 or secondary), sleep
           # until reset and abort the loop so retries don't deepen the storm.
@@ -61,10 +61,10 @@ jobs:
                 now=$(date +%s)
                 wait_s=$((reset - now + 5))
                 if [ "$wait_s" -gt 0 ] && [ "$wait_s" -lt 1800 ]; then
-                  echo "[WARN] Rate limit hit — sleeping ${wait_s}s until reset, then aborting retry" >&2
+                  echo "[WARN] Rate limit hit -- sleeping ${wait_s}s until reset, then aborting retry" >&2
                   sleep "$wait_s"
                 else
-                  echo "[WARN] Secondary rate limit — sleeping 60s, then aborting retry" >&2
+                  echo "[WARN] Secondary rate limit -- sleeping 60s, then aborting retry" >&2
                   sleep 60
                 fi
                 rm -f "$err_file"
@@ -75,7 +75,7 @@ jobs:
                 rm -f "$err_file"
                 return 1
               fi
-              echo "[WARN] Attempt ${attempt}/${max} failed — retrying in ${delay}s..." >&2
+              echo "[WARN] Attempt ${attempt}/${max} failed -- retrying in ${delay}s..." >&2
               sleep "$delay"
               attempt=$((attempt + 1))
               delay=$((delay * 2))
@@ -95,7 +95,7 @@ jobs:
           CONFIG_REPO="f5xc-salesdemos/docs-control"
           CONFIG_PATH=".github/config/repo-settings.json"
 
-          # ─── Phase 1: Validate ─────────────────────────────────────────────
+          # --- Phase 1: Validate ---------------------------------------------
           echo "=== Phase 1: Validate ==="
 
           if ! command -v jq &>/dev/null; then
@@ -127,15 +127,15 @@ jobs:
 
           echo "[OK] Config validated for ${OWNER}/${REPO}"
 
-          # ─── Self-detection ──────────────────────────────────────────────────
+          # --- Self-detection --------------------------------------------------
           SOURCE_REPO=$(echo "$CONFIG" | jq -r '.managed_files.source_repo // empty')
           IS_SELF=false
-          if [ "$SOURCE_REPO" = "${{ github.repository }}" ]; then
+          if [ "$SOURCE_REPO" = "$GITHUB_REPOSITORY" ]; then
             IS_SELF=true
-            echo "[INFO] Running on source repo — will use self_contexts if present"
+            echo "[INFO] Running on source repo -- will use self_contexts if present"
           fi
 
-          # ─── Phase 2: Apply repo settings ────────────────────────────────────
+          # --- Phase 2: Apply repo settings ------------------------------------
           echo ""
           echo "=== Phase 2: Apply repo settings ==="
 
@@ -160,10 +160,10 @@ jobs:
             retry_json 3 "$REPO_PATCH" "repos/${OWNER}/${REPO}" --method PATCH >/dev/null
             echo "[OK] Repository settings updated"
           else
-            echo "[OK] Repository settings match — no changes needed"
+            echo "[OK] Repository settings match -- no changes needed"
           fi
 
-          # ─── Phase 3: Apply Actions permissions ──────────────────────────────
+          # --- Phase 3: Apply Actions permissions ------------------------------
           echo ""
           echo "=== Phase 3: Apply Actions permissions ==="
 
@@ -188,13 +188,13 @@ jobs:
                 --method PUT >/dev/null
               echo "[OK] Actions permissions updated"
             else
-              echo "[OK] Actions permissions match — no changes needed"
+              echo "[OK] Actions permissions match -- no changes needed"
             fi
           else
             echo "[SKIP] No actions_permissions in config"
           fi
 
-          # ─── Phase 4: Apply branch protection ────────────────────────────────
+          # --- Phase 4: Apply branch protection --------------------------------
           echo ""
           echo "=== Phase 4: Apply branch protection ==="
 
@@ -253,7 +253,7 @@ jobs:
             PROTECTION_DRIFT=false
 
             if [ "$HTTP_CODE" = "404" ] || [ -z "$CURRENT_PROTECTION" ]; then
-              echo "[WARN] No branch protection found — will create"
+              echo "[WARN] No branch protection found -- will create"
               PROTECTION_DRIFT=true
             else
               desired_enforce=$(echo "$DESIRED_PAYLOAD" | jq '.enforce_admins')
@@ -343,11 +343,11 @@ jobs:
                 --method PUT >/dev/null
               echo "[OK] Branch protection updated for $BRANCH"
             else
-              echo "[OK] Branch protection matches — no changes needed"
+              echo "[OK] Branch protection matches -- no changes needed"
             fi
           done
 
-          # ─── Phase 5: Apply topics ────────────────────────────────────────────
+          # --- Phase 5: Apply topics --------------------------------------------
           echo ""
           echo "=== Phase 5: Apply topics ==="
 
@@ -361,13 +361,13 @@ jobs:
               retry_json 3 "$TOPICS_JSON" "repos/${OWNER}/${REPO}/topics" --method PUT >/dev/null
               echo "[OK] Topics updated"
             else
-              echo "[OK] Topics match — no changes needed"
+              echo "[OK] Topics match -- no changes needed"
             fi
           else
             echo "[SKIP] No topics specified"
           fi
 
-          # ─── Phase 6: Apply Pages ─────────────────────────────────────────────
+          # --- Phase 6: Apply Pages ---------------------------------------------
           echo ""
           echo "=== Phase 6: Apply Pages ==="
 
@@ -389,14 +389,14 @@ jobs:
                 retry_json 3 "$PAGES_JSON" "repos/${OWNER}/${REPO}/pages" --method PUT >/dev/null 2>&1
                 echo "[OK] Pages build_type updated to ${DESIRED_BUILD_TYPE}"
               else
-                echo "[OK] Pages build_type matches (${CURRENT_BUILD_TYPE}) — no changes needed"
+                echo "[OK] Pages build_type matches (${CURRENT_BUILD_TYPE}) -- no changes needed"
               fi
             fi
           else
             echo "[SKIP] Pages not enabled in config"
           fi
 
-          # ─── Phase 7: Verify ──────────────────────────────────────────────────
+          # --- Phase 7: Verify --------------------------------------------------
           echo ""
           echo "=== Phase 7: Verify ==="
 
@@ -502,7 +502,7 @@ jobs:
           if [ "$PAGES_ENABLED" = "true" ]; then
             VERIFY_PAGES_CODE=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages" --include 2>/dev/null | head -1 | awk '{print $2}') || true
             if [ "$VERIFY_PAGES_CODE" = "404" ]; then
-              echo "[WARN] Pages not found after apply — repo may lack a deploy workflow"
+              echo "[WARN] Pages not found after apply -- repo may lack a deploy workflow"
             else
               VERIFY_PAGES=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages" 2>/dev/null) || true
               ACTUAL_BUILD_TYPE=$(echo "$VERIFY_PAGES" | jq -r '.build_type // empty')
@@ -515,7 +515,7 @@ jobs:
 
           if [ "$VERIFY_FAILED" = true ]; then
             echo ""
-            echo "[ERROR] Verification failed — settings do not match desired state"
+            echo "[ERROR] Verification failed -- settings do not match desired state"
             exit 1
           fi
 
