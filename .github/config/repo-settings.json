@@ -47,7 +47,7 @@
   "repo_overrides": {
     "xcsh": {
       "additional_contexts": ["typecheck", "unit (linux)", "unit (macos)", "e2e (linux)"],
-      "excluded_required_contexts": ["Lint Code Base"]
+      "excluded_required_contexts": ["lint / Lint Code Base"]
     }
   },
   "topics": [],
