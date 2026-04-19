@@ -25,7 +25,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          # ─── Retry helpers ─────────────────────────────────────────────────
+          # --- Retry helpers -------------------------------------------------
           # Exponential backoff capped at 8 s per attempt to limit retry-storm
           # amplification. On rate-limit (primary 429 or secondary), sleep
           # until reset and abort the loop so retries don't deepen the storm.
@@ -51,10 +51,10 @@ jobs:
                 now=$(date +%s)
                 wait_s=$((reset - now + 5))
                 if [ "$wait_s" -gt 0 ] && [ "$wait_s" -lt 1800 ]; then
-                  echo "[WARN] Rate limit hit — sleeping ${wait_s}s until reset, then aborting retry" >&2
+                  echo "[WARN] Rate limit hit -- sleeping ${wait_s}s until reset, then aborting retry" >&2
                   sleep "$wait_s"
                 else
-                  echo "[WARN] Secondary rate limit — sleeping 60s, then aborting retry" >&2
+                  echo "[WARN] Secondary rate limit -- sleeping 60s, then aborting retry" >&2
                   sleep 60
                 fi
                 rm -f "$err_file"
@@ -65,7 +65,7 @@ jobs:
                 rm -f "$err_file"
                 return 1
               fi
-              echo "[WARN] Attempt ${attempt}/${max} failed — retrying in ${delay}s..." >&2
+              echo "[WARN] Attempt ${attempt}/${max} failed -- retrying in ${delay}s..." >&2
               sleep "$delay"
               attempt=$((attempt + 1))
               delay=$((delay * 2))
@@ -85,7 +85,7 @@ jobs:
           CONFIG_REPO="f5xc-salesdemos/docs-control"
           CONFIG_PATH=".github/config/repo-settings.json"
 
-          # ─── Helper: wait for checks and auto-merge ──────────────────────
+          # --- Helper: wait for checks and auto-merge ----------------------
           wait_and_merge() {
             local pr_num="$1"
             local repo_slug="$2"
@@ -109,8 +109,8 @@ jobs:
                 continue
               fi
 
-              # Checks exist — poll to completion (14 iterations × 45s ≈ 10 minutes)
-              echo "[INFO] Checks detected — polling for completion..."
+              # Checks exist -- poll to completion (14 iterations × 45s ≈ 10 minutes)
+              echo "[INFO] Checks detected -- polling for completion..."
               local check_iter=0
               local check_max=14
               while [ "$check_iter" -lt "$check_max" ]; do
@@ -123,7 +123,7 @@ jobs:
                     else "pending" end' 2>/dev/null) || BUCKET="pending"
                 echo "[INFO] Check status: ${BUCKET} (iteration ${check_iter}/${check_max})"
                 if [ "$BUCKET" = "pass" ]; then
-                  echo "[INFO] CI passed — merging PR #${pr_num}..."
+                  echo "[INFO] CI passed -- merging PR #${pr_num}..."
                   local merge_attempts=0
                   while [ "$merge_attempts" -lt 2 ]; do
                     if gh pr merge "${pr_num}" --repo "${repo_slug}" --squash --delete-branch; then
@@ -132,25 +132,25 @@ jobs:
                     fi
                     merge_attempts=$((merge_attempts + 1))
                     local merge_delay=$((5 * (2 ** (merge_attempts - 1))))
-                    echo "[WARN] Merge attempt ${merge_attempts}/2 failed — retrying in ${merge_delay}s..."
+                    echo "[WARN] Merge attempt ${merge_attempts}/2 failed -- retrying in ${merge_delay}s..."
                     sleep "$merge_delay"
                   done
-                  echo "[WARN] Failed to merge PR #${pr_num} after 2 attempts — may need manual merge"
+                  echo "[WARN] Failed to merge PR #${pr_num} after 2 attempts -- may need manual merge"
                   return 1
                 elif [ "$BUCKET" = "fail" ]; then
-                  echo "[WARN] CI checks failed on PR #${pr_num} — skipping auto-merge"
+                  echo "[WARN] CI checks failed on PR #${pr_num} -- skipping auto-merge"
                   return 1
                 fi
               done
-              echo "[WARN] Timed out waiting for CI on PR #${pr_num} (${check_max} iterations) — skipping auto-merge"
+              echo "[WARN] Timed out waiting for CI on PR #${pr_num} (${check_max} iterations) -- skipping auto-merge"
               return 1
             done
 
-            echo "[WARN] Timed out waiting for checks on PR #${pr_num} (${max_wait}s) — skipping auto-merge"
+            echo "[WARN] Timed out waiting for checks on PR #${pr_num} (${max_wait}s) -- skipping auto-merge"
             return 1
           }
 
-          # ─── Phase 1: Validate ─────────────────────────────────────────────
+          # --- Phase 1: Validate ---------------------------------------------
           echo "=== Phase 1: Validate ==="
 
           if ! command -v jq &>/dev/null; then
@@ -174,7 +174,7 @@ jobs:
 
           echo "[OK] Config validated for ${OWNER}/${REPO}"
 
-          # ─── Phase 2: Sync Managed Files ─────────────────────────────────────
+          # --- Phase 2: Sync Managed Files -------------------------------------
           echo ""
           echo "=== Phase 2: Sync Managed Files ==="
 
@@ -190,7 +190,7 @@ jobs:
 
             # Guard: skip if running in the source repo itself
             if [ "${OWNER}/${REPO}" = "$SOURCE_REPO" ]; then
-              echo "[SKIP] Running in source repo — skipping managed file sync"
+              echo "[SKIP] Running in source repo -- skipping managed file sync"
             else
               DRIFT_FILES=""
               DRIFT_COUNT=0
@@ -202,7 +202,7 @@ jobs:
               # content fetches). Manifest is produced by
               # build-managed-files-manifest.yml in docs-control on every change
               # to a managed-file source. Downstream side uses local
-              # `git hash-object` to compare against manifest SHAs — no API call
+              # `git hash-object` to compare against manifest SHAs -- no API call
               # per file. Falls back to per-file fetch if manifest is missing or
               # an entry isn't listed there yet.
               MANIFEST_PATH=".github/config/managed-files-manifest.json"
@@ -218,7 +218,7 @@ jobs:
                 fi
               fi
               if [ "$MANIFEST_AVAILABLE" = false ]; then
-                echo "[WARN] No manifest available — falling back to per-file API fetch"
+                echo "[WARN] No manifest available -- falling back to per-file API fetch"
               fi
 
               for file_obj in $(echo "$MANAGED_FILES" | jq -c '.files[]'); do
@@ -227,7 +227,7 @@ jobs:
 
                 # Honor per-repo skip_files opt-out
                 if echo "$SKIP_LIST" | jq -e --arg d "$dest" 'index($d) != null' >/dev/null; then
-                  echo "[SKIP] ${dest} — opted out by ${REPO}"
+                  echo "[SKIP] ${dest} -- opted out by ${REPO}"
                   continue
                 fi
 
@@ -253,7 +253,7 @@ jobs:
                   fi
                   # Fall through to API path when entry is missing from manifest
                   # (e.g. a new managed file added but manifest not yet regenerated)
-                  echo "[INFO] ${dest} not in manifest — falling back to API fetch"
+                  echo "[INFO] ${dest} not in manifest -- falling back to API fetch"
                 fi
 
                 # Fallback API path (manifest unavailable or entry missing)
@@ -280,12 +280,12 @@ jobs:
                 fi
               done
 
-              # ─── Dynamic dependabot.yml generation ────────────────────────
+              # --- Dynamic dependabot.yml generation ------------------------
               echo ""
               echo "--- Dynamic dependabot.yml ---"
               DEPENDABOT_DRIFT=false
 
-              # Detect ecosystems via local checkout (no API calls needed —
+              # Detect ecosystems via local checkout (no API calls needed --
               # actions/checkout@v6 gave us the full tree).
               HAS_NPM=false; HAS_PIP=false; HAS_DOCKER=false
               if [ -f package.json ]; then
@@ -321,7 +321,7 @@ jobs:
               GENERATED_DEPENDABOT=$(cat /tmp/generated_dependabot.yml)
 
               # Compare with current dependabot.yml in target repo (local disk,
-              # no API call — file was checked out by actions/checkout@v6).
+              # no API call -- file was checked out by actions/checkout@v6).
               if [ -f .github/dependabot.yml ]; then
                 cp .github/dependabot.yml /tmp/current_dependabot.yml
               else
@@ -337,7 +337,7 @@ jobs:
                 echo "[OK] .github/dependabot.yml"
               fi
 
-              # ─── Dynamic README.md generation ──────────────────────────────
+              # --- Dynamic README.md generation ------------------------------
               echo ""
               echo "--- Dynamic README.md ---"
               README_DRIFT=false
@@ -355,7 +355,7 @@ jobs:
               # Fallback: capitalize repo name for title
               if [ -z "$README_TITLE" ] || [ "$README_TITLE" = "null" ]; then
                 README_TITLE=$(echo "$REPO" | sed 's/-/ /g; s/\b\(.\)/\u\1/g')
-                echo "[INFO] No docs-sites.json match — using capitalized repo name: ${README_TITLE}"
+                echo "[INFO] No docs-sites.json match -- using capitalized repo name: ${README_TITLE}"
               fi
 
               # Fallback: GitHub API repo description
@@ -364,7 +364,7 @@ jobs:
                 if [ -z "$README_DESC" ] || [ "$README_DESC" = "null" ]; then
                   README_DESC=""
                 fi
-                echo "[INFO] No docs-sites.json description — using GitHub API description"
+                echo "[INFO] No docs-sites.json description -- using GitHub API description"
               fi
 
               DOCS_URL="https://f5xc-salesdemos.github.io/${REPO}/"
@@ -408,7 +408,7 @@ jobs:
                   --head "governance/sync-managed-files" \
                   --state open --json number --jq '.[0].number // empty' 2>/dev/null) || true
                 if [ -n "$EXISTING_PR" ]; then
-                  echo "[INFO] Open sync PR #${EXISTING_PR} already exists — updating drifted files"
+                  echo "[INFO] Open sync PR #${EXISTING_PR} already exists -- updating drifted files"
 
                   # Force-update the PR branch to main's HEAD so it stays rebased
                   MAIN_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/git/ref/heads/main" --jq '.object.sha')
@@ -478,7 +478,7 @@ jobs:
                     echo "[OK] Updated README.md on PR branch"
                   fi
 
-                  echo "[INFO] PR branch updated — attempting merge"
+                  echo "[INFO] PR branch updated -- attempting merge"
                   wait_and_merge "${EXISTING_PR}" "${OWNER}/${REPO}" || true
                 else
                   # Close any orphaned sync issues from previous runs
@@ -512,7 +512,7 @@ jobs:
 
                   # Commit each drifted file to the branch
                   for dest_file in $(printf '%b' "$DRIFT_FILES" | sed '/^$/d'); do
-                    # Skip dynamically generated files — committed separately below
+                    # Skip dynamically generated files -- committed separately below
                     if [ "$dest_file" = ".github/dependabot.yml" ] || [ "$dest_file" = "README.md" ]; then
                       continue
                     fi
@@ -599,7 +599,7 @@ jobs:
                   PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
                   echo "[OK] Created sync PR #${PR_NUM}"
 
-                  # ─── Auto-merge governance PR ───────────────────────────
+                  # --- Auto-merge governance PR ---------------------------
                   wait_and_merge "${PR_NUM}" "${OWNER}/${REPO}" || true
 
                   SYNC_PR_CREATED=true
@@ -608,15 +608,15 @@ jobs:
             fi
           fi
 
-          # ─── Phase 3: Verify ──────────────────────────────────────────────────
+          # --- Phase 3: Verify --------------------------------------------------
           echo ""
           echo "=== Phase 3: Verify ==="
 
           if [ -n "$MANAGED_FILES" ] && [ "${OWNER}/${REPO}" != "$SOURCE_REPO" ]; then
             if [ "$SYNC_PR_CREATED" = true ]; then
-              echo "[OK] Sync PR created and merge attempted — check logs above for result"
+              echo "[OK] Sync PR created and merge attempted -- check logs above for result"
             elif [ -n "$EXISTING_PR" ]; then
-              echo "[OK] Existing sync PR #${EXISTING_PR} merge attempted — check logs above for result"
+              echo "[OK] Existing sync PR #${EXISTING_PR} merge attempted -- check logs above for result"
             else
               echo "[OK] Managed files verified"
             fi
