@@ -16,20 +16,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  dispatch:
+  read-config:
     runs-on: ubuntu-latest
+    outputs:
+      repos: ${{ steps.list.outputs.repos }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Dispatch to downstream repos
+      - name: Load downstream list
+        id: list
+        run: |
+          repos=$(jq -c . .github/config/downstream-repos.json)
+          echo "repos=${repos}" >> "$GITHUB_OUTPUT"
+
+  dispatch:
+    needs: read-config
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        repo: ${{ fromJson(needs.read-config.outputs.repos) }}
+    steps:
+      - name: Dispatch to ${{ matrix.repo }}
         env:
           GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
+          TARGET_REPO: ${{ matrix.repo }}
         run: |
-          # Retry with exponential backoff
-          # Usage: retry <max_attempts> <command> [args...]
           retry() {
-            local max="$1"; shift
+            local max="$1"
+            shift
             local attempt=1
             local delay=2
             while true; do
@@ -45,19 +62,11 @@ jobs:
             done
           }
 
-          # Stagger dispatches with 2-6s jitter to avoid 25 simultaneous
-          # workflow starts hammering docs-control's content endpoints.
-          repos=$(jq -r '.[]' .github/config/downstream-repos.json)
-          first=true
-          for repo in $repos; do
-            if [ "$first" = false ]; then
-              sleep $((RANDOM % 5 + 2))
-            fi
-            first=false
-            echo "Dispatching to $repo..."
-            if retry 3 gh workflow run enforce-repo-settings.yml --repo "$repo"; then
-              echo "  [OK] $repo"
-            else
-              echo "  [FAIL] $repo (failed after retries)"
-            fi
-          done
+          echo "Dispatching to ${TARGET_REPO}..."
+          if retry 3 gh workflow run enforce-repo-settings.yml \
+                --repo "${TARGET_REPO}"; then
+            echo "[OK] ${TARGET_REPO}"
+          else
+            echo "[FAIL] ${TARGET_REPO} (failed after retries)"
+            exit 1
+          fi

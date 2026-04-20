@@ -3,6 +3,12 @@ name: Sync Managed Files
 
 on:
   workflow_call:
+    inputs:
+      source_sha:
+        description: 'Commit SHA of the docs-control push that triggered this run.'
+        required: false
+        type: string
+        default: ''
     secrets:
       repo-sync-token:
         description: 'PAT with contents, issues, and pull-request permissions for file sync'
@@ -121,6 +127,13 @@ jobs:
             pages_sha=$(printf '%s' "$rev" | jq -r '.commit // empty')
             [ "$pages_sha" = "$source_sha" ]
           }
+
+          SOURCE_SHA="${{ inputs.source_sha }}"
+          if [ -n "$SOURCE_SHA" ] && ! revision_is_fresh "$SOURCE_SHA"; then
+            echo "[WARN] Pages revision lags source ${SOURCE_SHA:0:8} — this run will fall back to API for governed reads" >&2
+            # Force fallback by making Pages calls error.
+            PAGES_BASE="https://invalid.pages.local"
+          fi
 
           OWNER="${GITHUB_REPOSITORY%/*}"
           REPO="${GITHUB_REPOSITORY#*/}"

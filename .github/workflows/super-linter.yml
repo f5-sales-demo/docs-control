@@ -137,3 +137,4 @@ jobs:
           set -e
           bash tests/test-fetch-governed.sh
           bash tests/test-inlined-helpers-match.sh
+          bash tests/test-dispatch-matrix.sh

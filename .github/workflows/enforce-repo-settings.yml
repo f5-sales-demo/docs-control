@@ -6,7 +6,20 @@ on:
     branches: [main]
     paths:
       - '.github/config/repo-settings.json'
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: 'Commit SHA of the docs-control push that triggered this run. Used for Pages staleness check.'
+        required: false
+        type: string
+        default: ''
   workflow_call:
+    inputs:
+      source_sha:
+        description: 'Commit SHA of the docs-control push that triggered this run. Used for Pages staleness check.'
+        required: false
+        type: string
+        default: ''
     secrets:
       repo-settings-token:
         description: 'PAT with admin permissions for repository settings'
@@ -32,6 +45,7 @@ jobs:
       - name: Enforce repository settings
         env:
           GH_TOKEN: ${{ secrets.repo-settings-token || secrets.REPO_SETTINGS_TOKEN }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           set -euo pipefail
 
