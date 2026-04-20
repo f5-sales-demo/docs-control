@@ -142,6 +142,49 @@ jobs:
           echo "Files generated:"
           find "$OUTPUT_DIR" -type f | head -20
 
+      - name: Stage governance assets for /api/
+        run: |
+          OUTPUT_DIR="${{ runner.temp }}/docs-output"
+          API_DIR="${OUTPUT_DIR}/api"
+          mkdir -p "${API_DIR}/files"
+
+          # Static config & templates
+          for src in \
+              .github/config/repo-settings.json \
+              .github/config/managed-files-manifest.json \
+              .github/config/docs-sites.json \
+              README.md.tpl; do
+            [ -f "$src" ] || continue
+            dest="${API_DIR}/$(basename "$src")"
+            cp "$src" "$dest"
+            echo "Published: /api/$(basename "$src")"
+          done
+
+          # Per-file copies of every path listed in the managed-files manifest
+          MANIFEST=".github/config/managed-files-manifest.json"
+          if [ -f "$MANIFEST" ]; then
+            mapfile -t FILES < <(jq -r '.files | keys[]' "$MANIFEST")
+            for dest in "${FILES[@]}"; do
+              if [ -f "$dest" ]; then
+                target="${API_DIR}/files/${dest}"
+                mkdir -p "$(dirname "$target")"
+                cp "$dest" "$target"
+                echo "Published: /api/files/${dest}"
+              fi
+            done
+          fi
+
+          # Revision marker — lets downstreams detect Pages deploy lag
+          jq -n \
+            --arg commit "${GITHUB_SHA}" \
+            --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{commit:$commit, generated_at:$generated_at}' \
+            > "${API_DIR}/revision.json"
+          echo "Published: /api/revision.json"
+
+          # Nudge Pages to not apply Jekyll to the api/ directory
+          touch "${OUTPUT_DIR}/.nojekyll"
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
         with:

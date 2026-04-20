@@ -90,6 +90,41 @@ jobs:
             retry "$max" bash -c 'printf "%s" "$0" | gh api "$@" --input -' "$json" "$@"
           }
 
+          # --- Pages-first fetch helper (canonical: tests/fixtures/fetch-governed.sh) ---
+          PAGES_BASE="https://f5xc-salesdemos.github.io/docs-control"
+
+          fetch_governed() {
+            local key="$1" fallback="$2" body
+            local url="${PAGES_BASE}/api/${key}"
+
+            body=$(curl -fsSL --retry 2 --retry-delay 2 --max-time 10 "$url" 2>/dev/null || true)
+            if [ -n "$body" ]; then
+              printf '%s' "$body"
+              return 0
+            fi
+
+            echo "[WARN] Pages unavailable for ${key} — falling back to API" >&2
+            body=$(gh api "$fallback" 2>/dev/null || true)
+            if [ -z "$body" ]; then
+              echo "[ERROR] Both Pages and API failed for ${key}" >&2
+              return 1
+            fi
+
+            printf '%s' "$body" | jq -r '.content' | tr -d '\n' | base64 -d
+          }
+
+          revision_is_fresh() {
+            local source_sha="${1:-}" rev pages_sha
+            [ -z "$source_sha" ] && return 1
+
+            rev=$(curl -fsSL --retry 2 --retry-delay 2 --max-time 10 \
+              "${PAGES_BASE}/api/revision.json" 2>/dev/null || true)
+            [ -z "$rev" ] && return 1
+
+            pages_sha=$(printf '%s' "$rev" | jq -r '.commit // empty')
+            [ "$pages_sha" = "$source_sha" ]
+          }
+
           OWNER="${GITHUB_REPOSITORY%/*}"
           REPO="${GITHUB_REPOSITORY#*/}"
           CONFIG_REPO="f5xc-salesdemos/docs-control"
@@ -110,8 +145,7 @@ jobs:
 
           # Fetch central config from docs-control
           echo "[INFO] Fetching config from ${CONFIG_REPO}/${CONFIG_PATH}..."
-          CONFIG_B64=$(retry 3 gh api "repos/${CONFIG_REPO}/contents/${CONFIG_PATH}" --jq '.content')
-          CONFIG=$(echo "$CONFIG_B64" | base64 -d)
+          CONFIG=$(fetch_governed "repo-settings.json" "repos/${CONFIG_REPO}/contents/${CONFIG_PATH}")
           if ! echo "$CONFIG" | jq empty 2>/dev/null; then
             echo "[ERROR] Failed to fetch or parse config from ${CONFIG_REPO}" >&2; exit 1
           fi

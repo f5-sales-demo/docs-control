@@ -124,3 +124,16 @@ jobs:
         uses: stoplightio/spectral-action@latest
         with:
           file_glob: "**/*.json **/*.yaml"
+
+  shell-unit-tests:
+    name: Shell Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run shell unit tests
+        run: |
+          set -e
+          bash tests/test-fetch-governed.sh
+          bash tests/test-inlined-helpers-match.sh
