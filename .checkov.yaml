@@ -11,6 +11,7 @@ skip-path:
   - docs/specifications
   - specs/discovered
   - specs/raw
+  - specs/original
   # Install-verification dockerfiles are test harnesses, not production
   # images — CKV_DOCKER_2 (HEALTHCHECK) and CKV_DOCKER_3 (non-root user)
   # are not meaningful for ephemeral CI validation containers.
