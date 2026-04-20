@@ -27,9 +27,11 @@ _assert_eq() {
 _assert_nonzero() {
   local rc="$1" label="${2:-}"
   if [ "$rc" != "0" ]; then
-    PASS=$((PASS + 1)); echo "  [PASS] ${CURRENT_TEST}${label:+ — }${label:-}"
+    PASS=$((PASS + 1))
+    echo "  [PASS] ${CURRENT_TEST}${label:+ — }${label:-}"
   else
-    FAIL=$((FAIL + 1)); echo "  [FAIL] ${CURRENT_TEST}${label:+ — }${label:-} — expected nonzero rc"
+    FAIL=$((FAIL + 1))
+    echo "  [FAIL] ${CURRENT_TEST}${label:+ — }${label:-} — expected nonzero rc"
   fi
 }
 
@@ -39,7 +41,7 @@ setup_stubs() {
   STUB_DIR=$(mktemp -d)
   export PATH="${STUB_DIR}:${PATH}"
   export FAKE_LOG="${STUB_DIR}/calls.log"
-  : > "$FAKE_LOG"
+  : >"$FAKE_LOG"
 }
 teardown_stubs() {
   PATH="${PATH#"${STUB_DIR}":}"
@@ -48,8 +50,8 @@ teardown_stubs() {
 }
 stub_curl() {
   local mode="$1" body="${2:-}"
-  printf '%s' "$body" > "${STUB_DIR}/curl.body"
-  cat > "${STUB_DIR}/curl" <<EOF
+  printf '%s' "$body" >"${STUB_DIR}/curl.body"
+  cat >"${STUB_DIR}/curl" <<EOF
 #!/usr/bin/env bash
 echo "curl \$*" >> "${FAKE_LOG}"
 case "${mode}" in
@@ -63,8 +65,8 @@ EOF
 }
 stub_gh() {
   local mode="$1" body="${2:-}"
-  printf '%s' "$body" > "${STUB_DIR}/gh.body"
-  cat > "${STUB_DIR}/gh" <<EOF
+  printf '%s' "$body" >"${STUB_DIR}/gh.body"
+  cat >"${STUB_DIR}/gh" <<EOF
 #!/usr/bin/env bash
 echo "gh \$*" >> "${FAKE_LOG}"
 case "${mode}" in
@@ -88,9 +90,11 @@ stub_gh fail
 out=$(fetch_governed repo-settings.json "repos/x/y/contents/.github/config/repo-settings.json")
 _assert_eq '{"hello":"world"}' "$out" "body matches"
 if grep -q "^gh " "$FAKE_LOG"; then
-  FAIL=$((FAIL + 1)); echo "  [FAIL] ${CURRENT_TEST} — gh was called"
+  FAIL=$((FAIL + 1))
+  echo "  [FAIL] ${CURRENT_TEST} — gh was called"
 else
-  PASS=$((PASS + 1)); echo "  [PASS] ${CURRENT_TEST} — gh was NOT called"
+  PASS=$((PASS + 1))
+  echo "  [PASS] ${CURRENT_TEST} — gh was NOT called"
 fi
 teardown_stubs
 
@@ -101,9 +105,11 @@ stub_gh ok '{"content":"aGVsbG8=","encoding":"base64"}'
 out=$(fetch_governed repo-settings.json "repos/x/y/contents/.github/config/repo-settings.json")
 _assert_eq 'hello' "$out" "decoded body"
 if grep -q "^gh " "$FAKE_LOG"; then
-  PASS=$((PASS + 1)); echo "  [PASS] ${CURRENT_TEST} — gh invoked"
+  PASS=$((PASS + 1))
+  echo "  [PASS] ${CURRENT_TEST} — gh invoked"
 else
-  FAIL=$((FAIL + 1)); echo "  [FAIL] ${CURRENT_TEST} — gh not invoked"
+  FAIL=$((FAIL + 1))
+  echo "  [FAIL] ${CURRENT_TEST} — gh not invoked"
 fi
 teardown_stubs
 

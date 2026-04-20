@@ -7,7 +7,11 @@
 
 ## Problem
 
-`dispatch-downstream.yml` fans out to 25 downstream repos on every push to `main` of `docs-control`. Each downstream runs `enforce-repo-settings.yml` + `sync-managed-files.yml`, which together make ~15 API calls in the no-drift case and ~80 API calls per drifted repo. Twenty-five downstreams firing concurrently drain the shared `REPO_SETTINGS_TOKEN` PAT budget (5000/hr) and trigger secondary (write) rate limits.
+`dispatch-downstream.yml` fans out to 25 downstream repos on every push to `main` of `docs-control`.
+Each downstream runs `enforce-repo-settings.yml` + `sync-managed-files.yml`, which together make
+~15 API calls in the no-drift case and ~80 API calls per drifted repo. Twenty-five downstreams
+firing concurrently drain the shared `REPO_SETTINGS_TOKEN` PAT budget (5000/hr) and trigger
+secondary (write) rate limits.
 
 Observed on 2026-04-20 after merging PR #355: the shared PAT showed `5000/5000` consumed with a ~18-minute reset window; the user cancelled the `dispatch` job at 2m 45 s; downstream `enforce-repo-settings` runs that did launch returned HTTP 403 rate-limit errors mid-execution.
 
@@ -43,9 +47,17 @@ First-pass hardening in `03466b6` (retry backoff cap, rate-limit sleep-to-reset,
 
 Downstreams fetch with `curl -fsSL --retry 2 --retry-delay 2 --max-time 10`. HTTPS requests to `github.io` are CDN-served and do **not** consume GitHub API rate-limit budget.
 
-**Staleness guard.** Pages has its own deploy lag (~2–5 min after merge). To avoid serving a stale manifest that makes a downstream decide "no drift" when the canonical content has already moved, downstreams fetch `/api/revision.json` first and compare its `commit` against the SHA that triggered their enforcement run. The SHA is passed from `dispatch-downstream.yml` via `gh workflow run … --field source_sha=<sha>` and read downstream as `${{ inputs.source_sha }}` on the `workflow_dispatch` trigger (requires adding an optional `source_sha` input to `enforce-repo-settings.yml`). If Pages is behind or the input is absent (e.g. a human-triggered manual run), the downstream falls back to API-path reads for that cycle. This is expected to be rare and self-correcting within one minute.
+**Staleness guard.** Pages has its own deploy lag (~2–5 min after merge). To avoid serving a
+stale manifest that makes a downstream decide "no drift" when the canonical content has already
+moved, downstreams fetch `/api/revision.json` first and compare its `commit` against the SHA
+that triggered their enforcement run. The SHA is passed from `dispatch-downstream.yml` via
+`gh workflow run … --field source_sha=<sha>` and read downstream as `${{ inputs.source_sha }}`
+on the `workflow_dispatch` trigger (requires adding an optional `source_sha` input to
+`enforce-repo-settings.yml`). If Pages is behind or the input is absent (e.g. a human-triggered
+manual run), the downstream falls back to API-path reads for that cycle. This is expected to be
+rare and self-correcting within one minute.
 
-**Content encoding.** The GitHub Contents API returns file bodies base64-wrapped inside a JSON envelope. The Pages `/api/` path serves raw file bytes directly (same mime, no envelope). The helper returns the decoded content to the caller either way, so call sites are unchanged; only the helper itself branches on source.
+**Content encoding.** The GitHub Contents API returns file bodies base64-wrapped inside a JSON envelope. The Pages `/api/` path serves raw file bytes directly (same MIME, no envelope). The helper returns the decoded content to the caller either way, so call sites are unchanged; only the helper itself branches on source.
 
 **Error fallback.** Every Pages fetch is wrapped in a helper that, on non-200 or empty/invalid body, falls back to the existing `retry 3 gh api …` path. The fallback is the current storm behavior, but only triggered when Pages is unavailable — net-new pressure vs. status quo is zero.
 
@@ -90,7 +102,11 @@ Passing `source_sha` lets downstreams compare against `/api/revision.json` (see 
 
 ### Interaction between A and B
 
-A reduces *per-downstream* API calls by ~80 % (manifest/config/template reads move to Pages; content fetches for drifted files move to Pages/files/). B reduces *concurrent* downstreams by 5×. Multiplicatively: expected API consumption per push drops from ~2 000 calls concentrated in 30 s to ~400 calls spread over 10 min — well under the 5 000/hr PAT budget and well under secondary-limit burst thresholds.
+A reduces *per-downstream* API calls by ~80 % (manifest/config/template reads move to Pages;
+content fetches for drifted files move to Pages/files/). B reduces *concurrent* downstreams
+by 5×. Multiplicatively: expected API consumption per push drops from ~2 000 calls
+concentrated in 30 s to ~400 calls spread over 10 min — well under the 5 000/hr PAT budget
+and well under secondary-limit burst thresholds.
 
 A works alone (preserves storm pacing but drops volume). B works alone (preserves storm volume but spreads it). Landing both yields a comfortable margin; landing neither is status quo. Land A first, verify PAT usage drops, then land B.
 
@@ -132,7 +148,7 @@ After merge, trigger a dummy change (bump a comment in `repo-settings.json`), ob
 | Pages CDN outage blocks all read paths | Low | Every Pages call has API fallback; worst case is reverting to status-quo storm. |
 | `max-parallel: 5` too conservative, propagation too slow | Low | Tuneable; if acceptable post-rollout, raise to 8 or 10 in a follow-up PR. |
 | Source SHA plumbing fails for `workflow_dispatch` (manual) runs | Low | Absent `source_sha` → force-fallback to API path for that run only. |
-| Helper script not available downstream | Low | `sync-managed-files.yml`'s existing `actions/checkout@v6` checks out the *downstream* repo, not docs-control — so an external helper file wouldn't be reachable. Design decision: inline the helper as a shell function inside each workflow (copied verbatim from a single canonical file in docs-control; kept in sync by the managed-files manifest itself). No cross-repo path resolution needed. |
+| Helper script not available downstream | Low | Downstream `actions/checkout@v6` pulls the downstream repo, not docs-control, so external helpers are unreachable. Inline the helper as a shell function in each consumer workflow; a drift-check test keeps the copies in sync with the canonical source. |
 
 ## Rollout
 

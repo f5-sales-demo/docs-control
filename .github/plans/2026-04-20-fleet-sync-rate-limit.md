@@ -6,7 +6,7 @@
 
 **Architecture:** Two layers landed as two independent PRs. Layer A publishes governance assets to the existing Pages site and teaches consumer workflows to prefer Pages with automatic API fallback. Layer B restructures `dispatch-downstream.yml` into a matrix job with `max-parallel: 5` and plumbs the triggering commit SHA through to downstreams for Pages-staleness verification.
 
-**Tech Stack:** Bash, GitHub Actions YAML, curl, jq, `gh` CLI, BATS-style assertion patterns (inline without bats dep).
+**Tech Stack:** Bash, GitHub Actions YAML, cURL, jq, `gh` CLI, BATS-style assertion patterns (inline without bats dep).
 
 **Spec:** `.github/plans/2026-04-20-fleet-sync-rate-limit-design.md`
 
@@ -529,7 +529,11 @@ With:
 
 For lines 426 and 524 (file-write content fetches — PUT to downstream repo expects base64 in the payload, so we still want base64 here):
 
-Leave lines 426 and 524 on the existing `gh api … .content` path. Rationale: the downstream write call `repos/${OWNER}/${REPO}/contents/${dest_file}` requires base64-encoded content in the request body. The one call it takes to produce that is already within the downstream's own API budget; moving it to Pages (raw bytes) would force a second `base64 -w 0` round-trip for no net savings. Leave a single-line comment noting this.
+Leave lines 426 and 524 on the existing `gh api … .content` path. Rationale: the downstream
+write call `repos/${OWNER}/${REPO}/contents/${dest_file}` requires base64-encoded content in
+the request body. The one call it takes to produce that is already within the downstream's
+own API budget; moving it to Pages (raw bytes) would force a second `base64 -w 0` round-trip
+for no net savings. Leave a single-line comment noting this.
 
 Add above line 426 and line 524:
 

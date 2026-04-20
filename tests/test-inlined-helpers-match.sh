@@ -18,8 +18,8 @@ canonical=$(awk '
 
 FAIL=0
 for wf in \
-    "${REPO_ROOT}/.github/workflows/sync-managed-files.yml" \
-    "${REPO_ROOT}/.github/workflows/enforce-repo-settings.yml"; do
+  "${REPO_ROOT}/.github/workflows/sync-managed-files.yml" \
+  "${REPO_ROOT}/.github/workflows/enforce-repo-settings.yml"; do
   inlined=$(awk '
     /fetch_governed\(\)/,/^[[:space:]]*}[[:space:]]*$/ { print; next }
     /revision_is_fresh\(\)/,/^[[:space:]]*}[[:space:]]*$/ { print }
