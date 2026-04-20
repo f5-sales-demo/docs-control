@@ -133,6 +133,13 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Run shell unit tests
+        # These tests guard docs-control's own fleet-sync machinery. They
+        # live only in docs-control; consumer repos that pin this workflow
+        # via `workflow_call` do not carry the scripts. Skip cleanly there
+        # so the overall job still exits green and satisfies branch-protection
+        # required checks (a skipped JOB is "neutral" and fails required
+        # checks; a skipped STEP is fine).
+        if: hashFiles('tests/test-fetch-governed.sh', 'tests/test-inlined-helpers-match.sh', 'tests/test-dispatch-matrix.sh') != ''
         run: |
           set -e
           bash tests/test-fetch-governed.sh
