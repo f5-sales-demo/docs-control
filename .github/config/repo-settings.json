@@ -58,7 +58,9 @@
   "managed_files": {
     "source_repo": "f5xc-salesdemos/docs-control",
     "skip_files": {
-      "xcsh": ["biome.json", "LICENSE", "CONTRIBUTING.md", "ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini"]
+      "xcsh": ["biome.json", "LICENSE", "CONTRIBUTING.md", "ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini"],
+      "api-specs": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini"],
+      "api-specs-enriched": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini"]
     },
     "files": [
       { "src": "workflows/github-pages-deploy.yml", "dest": ".github/workflows/github-pages-deploy.yml" },
