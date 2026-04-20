@@ -14,7 +14,7 @@ SOURCE="${REPO_ROOT}/tests/fixtures/fetch-governed.sh"
 canonical=$(awk '
   /^fetch_governed\(\)/,/^}$/ { print; next }
   /^revision_is_fresh\(\)/,/^}$/ { print }
-' "$SOURCE" | sed 's/^[[:space:]]*//' | grep -v '^$' | grep -v '^#')
+' "$SOURCE" | sed -e 's/^[[:space:]]*//' -e '/^$/d' -e '/^#/d')
 
 FAIL=0
 for wf in \
@@ -23,7 +23,7 @@ for wf in \
   inlined=$(awk '
     /fetch_governed\(\)/,/^[[:space:]]*}[[:space:]]*$/ { print; next }
     /revision_is_fresh\(\)/,/^[[:space:]]*}[[:space:]]*$/ { print }
-  ' "$wf" | sed 's/^[[:space:]]*//' | grep -v '^$' | grep -v '^#')
+  ' "$wf" | sed -e 's/^[[:space:]]*//' -e '/^$/d' -e '/^#/d')
   if [ "$inlined" = "$canonical" ]; then
     echo "[OK] $(basename "$wf") helper matches canonical"
   else
