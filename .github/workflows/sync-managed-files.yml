@@ -28,6 +28,7 @@ jobs:
       - name: Sync managed files
         env:
           GH_TOKEN: ${{ secrets.repo-sync-token }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           set -euo pipefail
 
@@ -128,8 +129,10 @@ jobs:
             [ "$pages_sha" = "$source_sha" ]
           }
 
-          SOURCE_SHA="${{ inputs.source_sha }}"
-          if [ -n "$SOURCE_SHA" ] && ! revision_is_fresh "$SOURCE_SHA"; then
+          # SOURCE_SHA is set via step env: above; empty when dispatch
+          # doesn't pass --field source_sha (current default until the
+          # downstream shim update propagates to all 25 repos).
+          if [ -n "${SOURCE_SHA:-}" ] && ! revision_is_fresh "$SOURCE_SHA"; then
             echo "[WARN] Pages revision lags source ${SOURCE_SHA:0:8} — this run will fall back to API for governed reads" >&2
             # Force fallback by making Pages calls error.
             PAGES_BASE="https://invalid.pages.local"
