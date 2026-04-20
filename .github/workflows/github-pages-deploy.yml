@@ -3,10 +3,6 @@ name: Build and Deploy Docs
 on:
   push:
     branches: [main]
-    paths:
-      - 'docs/**'
-      - '.github/config/**'
-      - 'workflows/**'
   workflow_call:
     inputs:
       content-path:

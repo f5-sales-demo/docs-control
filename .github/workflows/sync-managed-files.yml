@@ -84,7 +84,7 @@ jobs:
           PAGES_BASE="https://f5xc-salesdemos.github.io/docs-control"
 
           fetch_governed() {
-            local key="$1" fallback="$2" body
+            local key="$1" fallback="$2" body err_file
             local url="${PAGES_BASE}/api/${key}"
 
             body=$(curl -fsSL --retry 2 --retry-delay 2 --max-time 10 "$url" 2>/dev/null || true)
@@ -94,9 +94,16 @@ jobs:
             fi
 
             echo "[WARN] Pages unavailable for ${key} — falling back to API" >&2
-            body=$(gh api "$fallback" 2>/dev/null || true)
+            err_file=$(mktemp)
+            if ! body=$(retry 3 gh api "$fallback" 2>"$err_file"); then
+              echo "[ERROR] gh api failed for ${key}:" >&2
+              cat "$err_file" >&2
+              rm -f "$err_file"
+              return 1
+            fi
+            rm -f "$err_file"
             if [ -z "$body" ]; then
-              echo "[ERROR] Both Pages and API failed for ${key}" >&2
+              echo "[ERROR] gh api returned empty body for ${key}" >&2
               return 1
             fi
 
