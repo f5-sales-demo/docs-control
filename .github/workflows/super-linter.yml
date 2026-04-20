@@ -132,16 +132,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Run shell unit tests
-        # These tests guard docs-control's own fleet-sync machinery. They
-        # live only in docs-control; consumer repos that pin this workflow
-        # via `workflow_call` do not carry the scripts. Skip cleanly there
-        # so the overall job still exits green and satisfies branch-protection
-        # required checks (a skipped JOB is "neutral" and fails required
-        # checks; a skipped STEP is fine).
-        if: hashFiles('tests/test-fetch-governed.sh', 'tests/test-inlined-helpers-match.sh', 'tests/test-dispatch-matrix.sh') != ''
-        run: |
-          set -e
-          bash tests/test-fetch-governed.sh
-          bash tests/test-inlined-helpers-match.sh
-          bash tests/test-dispatch-matrix.sh
+      # These tests guard docs-control's own fleet-sync machinery. They
+      # live only in docs-control; consumer repos that pin this workflow
+      # via `workflow_call` do not carry the scripts. Each step has its
+      # OWN hashFiles guard so partial file presence (e.g. a consumer
+      # that inherited one script via an older governance sync) doesn't
+      # admit the step and fail on the missing sibling. A multi-file
+      # hashFiles('a','b','c') is OR, not AND — hence per-step guards.
+      - name: Run fetch-governed test
+        if: hashFiles('tests/test-fetch-governed.sh') != ''
+        run: bash tests/test-fetch-governed.sh
+
+      - name: Run inlined-helpers-match test
+        if: hashFiles('tests/test-inlined-helpers-match.sh') != ''
+        run: bash tests/test-inlined-helpers-match.sh
+
+      - name: Run dispatch-matrix test
+        if: hashFiles('tests/test-dispatch-matrix.sh') != ''
+        run: bash tests/test-dispatch-matrix.sh
