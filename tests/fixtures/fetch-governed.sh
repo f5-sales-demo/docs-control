@@ -10,7 +10,21 @@
 #   PAGES_BASE   e.g. "https://f5xc-salesdemos.github.io/docs-control"
 #   GH_TOKEN     used by fallback `gh api` path
 #
+# Dependencies:
+#   retry(max_attempts, cmd...)   consumer workflows define a richer
+#                                 retry with rate-limit sleep-to-reset.
+#                                 Fixture provides a minimal pass-through
+#                                 stub below so the file works standalone
+#                                 in unit tests.
+#
 # All functions are safe to source multiple times.
+
+# Minimal retry stub for standalone testing. Workflows define a richer
+# retry that shadows this one; the declare -F guard prevents redefinition.
+declare -F retry >/dev/null 2>&1 || retry() {
+  shift # drop max-attempts
+  "$@"
+}
 
 # fetch_governed <pages-key> <api-fallback-path>
 #   pages-key          : relative path under ${PAGES_BASE}/api/ (e.g. "repo-settings.json")
@@ -19,7 +33,7 @@
 # Prints: raw file content to stdout.
 # Returns: 0 on success (via Pages or API), non-zero if both fail.
 fetch_governed() {
-  local key="$1" fallback="$2" body
+  local key="$1" fallback="$2" body err_file
   local url="${PAGES_BASE}/api/${key}"
 
   body=$(curl -fsSL --retry 2 --retry-delay 2 --max-time 10 "$url" 2>/dev/null || true)
@@ -29,9 +43,16 @@ fetch_governed() {
   fi
 
   echo "[WARN] Pages unavailable for ${key} — falling back to API" >&2
-  body=$(gh api "$fallback" 2>/dev/null || true)
+  err_file=$(mktemp)
+  if ! body=$(retry 3 gh api "$fallback" 2>"$err_file"); then
+    echo "[ERROR] gh api failed for ${key}:" >&2
+    cat "$err_file" >&2
+    rm -f "$err_file"
+    return 1
+  fi
+  rm -f "$err_file"
   if [ -z "$body" ]; then
-    echo "[ERROR] Both Pages and API failed for ${key}" >&2
+    echo "[ERROR] gh api returned empty body for ${key}" >&2
     return 1
   fi
 
