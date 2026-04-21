@@ -27,6 +27,14 @@ jobs:
         uses: super-linter/super-linter@v8
         env:
           DEFAULT_BRANCH: main
+          # Redirect Python tool caches out of $GITHUB_WORKSPACE so
+          # TRIVY's filesystem walker never sees them. TRIVY 0.69.3
+          # lstat()s entries BEFORE consulting skip-dirs, so dangling
+          # .mypy_cache/missing_stubs symlinks crash the scan
+          # regardless of trivy.yaml config. See #379 (follow-up to #378).
+          MYPY_CACHE_DIR: /tmp/mypy_cache
+          RUFF_CACHE_DIR: /tmp/ruff_cache
+          PYTEST_ADDOPTS: --cache-dir=/tmp/pytest_cache
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LINTER_RULES_PATH: "."
           # tree-sitter-<grammar>/src/{parser,scanner}.c are either machine-
