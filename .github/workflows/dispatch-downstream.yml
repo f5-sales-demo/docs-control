@@ -16,57 +16,62 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  read-config:
+  dispatch:
     runs-on: ubuntu-latest
-    outputs:
-      repos: ${{ steps.list.outputs.repos }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Load downstream list
-        id: list
-        run: |
-          repos=$(jq -c . .github/config/downstream-repos.json)
-          echo "repos=${repos}" >> "$GITHUB_OUTPUT"
-
-  dispatch:
-    needs: read-config
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      max-parallel: 5
-      matrix:
-        repo: ${{ fromJson(needs.read-config.outputs.repos) }}
-    steps:
-      - name: Dispatch to ${{ matrix.repo }}
+      - name: Dispatch enforce-repo-settings to all downstream repos
         env:
           GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
-          TARGET_REPO: ${{ matrix.repo }}
+        # Single-runner fan-out: one job instead of a 25-cell matrix.
+        # Parallelism within the job (xargs -P 5) preserves the previous
+        # max-parallel throughput without allocating 25 runners.
         run: |
-          retry() {
-            local max="$1"
-            shift
+          set -euo pipefail
+
+          dispatch_one() {
+            local repo="$1"
             local attempt=1
+            local max=3
             local delay=2
             while true; do
-              if "$@"; then return 0; fi
+              if gh workflow run enforce-repo-settings.yml \
+                  --repo "$repo" >/dev/null 2>&1; then
+                printf '[OK]   %s\n' "$repo"
+                return 0
+              fi
               if [ "$attempt" -ge "$max" ]; then
-                echo "[ERROR] Failed after ${max} attempts: $*" >&2
+                printf '[FAIL] %s\n' "$repo"
                 return 1
               fi
-              echo "[WARN] Attempt ${attempt}/${max} failed — retrying in ${delay}s..." >&2
               sleep "$delay"
               attempt=$((attempt + 1))
               delay=$((delay * 2))
             done
           }
+          export -f dispatch_one
 
-          echo "Dispatching to ${TARGET_REPO}..."
-          if retry 3 gh workflow run enforce-repo-settings.yml \
-                --repo "${TARGET_REPO}"; then
-            echo "[OK] ${TARGET_REPO}"
-          else
-            echo "[FAIL] ${TARGET_REPO} (failed after retries)"
+          mapfile -t REPOS < <(jq -r '.[]' .github/config/downstream-repos.json)
+          echo "Dispatching enforce-repo-settings to ${#REPOS[@]} repos (parallelism 5)..."
+
+          LOG=$(mktemp)
+          # xargs -P returns 123 when any child exited non-zero. That's
+          # expected here (we aggregate failures via LOG below), so disable
+          # pipefail-driven exit for just this pipeline.
+          set +e
+          printf '%s\n' "${REPOS[@]}" \
+            | xargs -I{} -P 5 bash -c 'dispatch_one "$@"' _ {} \
+            | tee "$LOG"
+          set -e
+
+          FAIL_COUNT=$(grep -c '^\[FAIL\]' "$LOG" || true)
+          if [ "${FAIL_COUNT:-0}" -gt 0 ]; then
+            echo ""
+            echo "::error::${FAIL_COUNT} dispatch(es) failed"
             exit 1
           fi
+
+          echo ""
+          echo "All ${#REPOS[@]} dispatches succeeded."
