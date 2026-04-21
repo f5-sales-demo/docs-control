@@ -69,6 +69,10 @@ jobs:
           # Explicit config file name — super-linter v8 defaults to
           # .yamllint.yml but our managed config uses .yamllint.yaml
           YAML_YAMLLINT_CONFIG_FILE: .yamllint.yaml
+          # Point Trivy at our governance config (skip-dirs for
+          # .mypy_cache, .ruff_cache, .pytest_cache so the fs walker
+          # doesn't hit dangling symlinks mid-run). See issue #377.
+          TRIVY_CONFIG_FILE: trivy.yaml
           SAVE_SUPER_LINTER_SUMMARY: true
           # No commitlint config exists in managed repos
           VALIDATE_GIT_COMMITLINT: false

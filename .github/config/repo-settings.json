@@ -93,6 +93,7 @@
       { "src": ".codespellrc", "dest": ".codespellrc" },
       { "src": ".prettierignore", "dest": ".prettierignore" },
       { "src": ".trivyignore", "dest": ".trivyignore" },
+      { "src": "trivy.yaml", "dest": "trivy.yaml" },
       { "src": ".ruff.toml", "dest": ".ruff.toml" },
       { "src": "ruff.toml", "dest": "ruff.toml" },
       { "src": ".isort.cfg", "dest": ".isort.cfg" },
