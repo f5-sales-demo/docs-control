@@ -23,6 +23,20 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Biome runs OUTSIDE the Super-Linter container so we can track Biome
+      # `latest` instead of being gated on Super-Linter's container release
+      # cadence. Authority boundary: setup-biome owns JS/TS/JSON/JSX; the
+      # Super-Linter step below runs everything else with VALIDATE_BIOME_*
+      # disabled. Step order matters: if Biome fails, Super-Linter is skipped
+      # (default fail-fast, no `if: always()`) so developers get a focused log.
+      - name: Setup Biome
+        uses: biomejs/setup-biome@4c91541eaada48f67d7dbd7833600ce162b68f51  # v2.7.1 — Dependabot-managed
+        with:
+          version: latest
+
+      - name: Run Biome
+        run: biome ci .
+
       - name: Run Super-Linter
         uses: super-linter/super-linter@v8
         env:
@@ -36,6 +50,12 @@ jobs:
           RUFF_CACHE_DIR: /tmp/ruff_cache
           PYTEST_ADDOPTS: --cache-dir=/tmp/pytest_cache
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Disable Biome in Super-Linter — handled by the biomejs/setup-biome
+          # step above, which runs Biome `latest` instead of the container's
+          # bundled version. Authority boundary: setup-biome owns JS/TS/JSON/JSX;
+          # Super-Linter retains everything else.
+          VALIDATE_BIOME_FORMAT: false
+          VALIDATE_BIOME_LINT: false
           LINTER_RULES_PATH: "."
           # tree-sitter-<grammar>/src/{parser,scanner}.c are either machine-
           # generated (parser.c from `tree-sitter generate`) or hand-written
