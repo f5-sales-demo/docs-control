@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Structural check on dispatch-downstream.yml: the matrix job must
-# cap parallelism with max-parallel, use env indirection for matrix
-# values, and consume downstream-repos.json.
+# Structural check on dispatch-downstream.yml: a single runner must
+# fan out to every downstream repo, cap parallelism at 5, keep
+# retry-with-backoff, and aggregate per-repo failures.
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -20,11 +20,24 @@ check() {
   fi
 }
 
-check "has read-config job" "grep -q '^  read-config:$' '$WF'"
+# Architecture: one job named `dispatch`, no per-repo matrix fan-out.
 check "has dispatch job" "grep -q '^  dispatch:$' '$WF'"
-check "max-parallel: 5 set" "grep -q '^[[:space:]]*max-parallel:[[:space:]]*5' '$WF'"
-check "matrix from fromJson" "grep -q 'fromJson(needs.read-config.outputs.repos)' '$WF'"
-check "uses env indirection for matrix" "grep -q 'TARGET_REPO:' '$WF'"
+check "no matrix fan-out (single runner)" "! grep -q '^[[:space:]]*matrix:$' '$WF'"
+check "no read-config job (consolidated)" "! grep -q '^  read-config:$' '$WF'"
+
+# Parallelism cap stays at 5, now enforced by xargs inside the runner.
+check "xargs -P 5 for in-runner parallelism" "grep -Eq 'xargs[^|]*-P[[:space:]]+5' '$WF'"
+
+# Retry-with-backoff preserved (2s → 4s → 8s).
+check "retry max=3 attempts" "grep -Eq 'max=3' '$WF'"
+check "backoff delay starts at 2s" "grep -Eq 'delay=2' '$WF'"
+
+# Failure aggregation — step fails iff at least one dispatch failed.
+check "emits [FAIL] markers" "grep -q '\[FAIL\]' '$WF'"
+check "aggregates FAIL_COUNT" "grep -q 'FAIL_COUNT' '$WF'"
+
+# Config still drives the fan-out.
+check "consumes downstream-repos.json" "grep -q 'downstream-repos.json' '$WF'"
 check "config is JSON array" "jq -e 'type == \"array\" and length > 0' '$CONFIG' > /dev/null"
 
 if command -v actionlint >/dev/null 2>&1; then
