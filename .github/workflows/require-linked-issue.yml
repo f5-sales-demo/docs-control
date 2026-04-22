@@ -15,11 +15,71 @@ jobs:
     runs-on: ubuntu-latest
     name: Check linked issues
     steps:
-      - uses: nearform-actions/github-action-check-linked-issues@v1
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
-          exclude-branches: "dependabot/**,release/**,openapi-sync/**,plugin-sync/**,deps/**,sync/**,docs/update-*"
-          custom-message: >-
-            This PR must be linked to a GitHub issue. Use 'Closes #123'
-            in the PR description, or link an issue from the sidebar.
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const EXCLUDE_BRANCHES = "dependabot/**,release/**,openapi-sync/**,plugin-sync/**,deps/**,sync/**,docs/update-*";
+            const MARKER = "<!-- require-linked-issue -->";
+            const MESSAGE = `${MARKER}\nThis PR must be linked to a GitHub issue. Use 'Closes #123' in the PR description, or link an issue from the sidebar.`;
+
+            const pr = context.payload.pull_request;
+            if (!pr) {
+              core.info("No pull_request payload; skipping.");
+              return;
+            }
+
+            const headRef = pr.head.ref;
+            const { owner, repo } = context.repo;
+            const prNumber = pr.number;
+
+            const globToRegex = (glob) => {
+              const escaped = glob
+                .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+                .replace(/\*\*/g, "__DOUBLE_STAR__")
+                .replace(/\*/g, "[^/]*")
+                .replace(/__DOUBLE_STAR__/g, ".*");
+              return new RegExp(`^${escaped}$`);
+            };
+
+            const patterns = EXCLUDE_BRANCHES.split(",").map((p) => globToRegex(p.trim()));
+            if (patterns.some((re) => re.test(headRef))) {
+              core.info(`Head ref '${headRef}' matches exclude list; skipping.`);
+              return;
+            }
+
+            const result = await github.graphql(
+              `query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    closingIssuesReferences(first: 10) { nodes { number } }
+                  }
+                }
+              }`,
+              { owner, repo, number: prNumber }
+            );
+
+            const linked = result.repository.pullRequest.closingIssuesReferences.nodes;
+            if (linked.length > 0) {
+              const refs = linked.map((n) => "#" + n.number).join(", ");
+              core.info(`Found ${linked.length} linked issue(s): ${refs}`);
+              return;
+            }
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+
+            const hasMarker = comments.some((c) => c.body && c.body.includes(MARKER));
+            if (!hasMarker) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: prNumber,
+                body: MESSAGE,
+              });
+            }
+
+            core.setFailed("PR is not linked to an issue. Add 'Closes #N' to the PR description or link an issue from the sidebar.");
