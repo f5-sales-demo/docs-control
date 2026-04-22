@@ -14,13 +14,11 @@
   "f5xc-salesdemos/ddos",
   "f5xc-salesdemos/waf",
   "f5xc-salesdemos/api-protection",
-  "f5xc-salesdemos/api-mcp",
   "f5xc-salesdemos/api-specs",
   "f5xc-salesdemos/api-specs-enriched",
   "f5xc-salesdemos/csd",
   "f5xc-salesdemos/docs-icons",
   "f5xc-salesdemos/terraform-provider-f5xc",
-  "f5xc-salesdemos/terraform-provider-mcp",
   "f5xc-salesdemos/devcontainer",
   "f5xc-salesdemos/marketplace",
   "f5xc-salesdemos/xcsh"
