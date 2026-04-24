@@ -128,8 +128,10 @@ tsconfig.tsbuildinfo
 .direnv/
 /result
 
-# Workspace
+# Workspace (includes git worktree dirs for AI agents and bare-repo workflows)
 .worktrees/
+worktrees/
+.wt/
 .codex/
 playground/
 
