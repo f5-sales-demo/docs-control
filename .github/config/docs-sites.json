@@ -118,5 +118,10 @@
     "label": "CDN Simulator",
     "url": "https://f5xc-salesdemos.github.io/cdn-simulator/llms-full.txt",
     "description": "NGINX-based CDN edge node simulator on Azure for multi-vendor lab environments"
+  },
+  {
+    "label": "Origin Server",
+    "url": "https://f5xc-salesdemos.github.io/origin-server/llms-full.txt",
+    "description": "Ubuntu 24.04 origin server with vulnerable web applications for F5 XC demo environments"
   }
 ]
