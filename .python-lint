@@ -1,6 +1,7 @@
 [MAIN]
 py-version = 3.11
 jobs = 0
+ignore-paths = ^.*\.mdx$
 
 [FORMAT]
 max-line-length = 88

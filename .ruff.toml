@@ -1,5 +1,6 @@
 line-length = 88
 target-version = "py313"
+extend-exclude = ["*.mdx"]
 
 [format]
 quote-style = "double"
