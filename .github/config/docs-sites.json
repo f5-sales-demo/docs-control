@@ -113,5 +113,10 @@
     "label": "XCSh",
     "url": "https://f5xc-salesdemos.github.io/xcsh/llms-full.txt",
     "description": "AI-powered development environment and CLI tool"
+  },
+  {
+    "label": "CDN Simulator",
+    "url": "https://f5xc-salesdemos.github.io/cdn-simulator/llms-full.txt",
+    "description": "NGINX-based CDN edge node simulator on Azure for multi-vendor lab environments"
   }
 ]
