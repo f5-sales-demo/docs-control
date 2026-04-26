@@ -1,0 +1,11 @@
+{
+  "customSets": [
+    {
+      "label": "Workflows",
+      "description": "Enforcement, sync, and dispatch workflow documentation",
+      "paths": ["dispatch*", "file-sync*", "settings-enforcement*"]
+    }
+  ],
+  "promote": ["index*", "architecture*", "onboarding*"],
+  "demote": ["configuration*"]
+}
