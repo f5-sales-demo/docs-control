@@ -19,7 +19,7 @@ on:
       - 'workflows/**'
       - 'CONTRIBUTING.md'
       - 'CLAUDE.md'
-      - 'README.md.tpl'
+      - 'README.md'
       - 'LICENSE'
       - '.editorconfig'
       - '.gitignore'
