@@ -123,5 +123,10 @@
     "label": "Origin Server",
     "url": "https://f5xc-salesdemos.github.io/origin-server/llms-full.txt",
     "description": "Ubuntu 24.04 origin server with vulnerable web applications for F5 XC demo environments"
+  },
+  {
+    "label": "Demo Resources",
+    "url": "https://f5xc-salesdemos.github.io/demo-resources/llms-full.txt",
+    "description": "Catalog of pre-configured Azure VM components for F5 XC demo environments"
   }
 ]

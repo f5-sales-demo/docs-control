@@ -24,5 +24,6 @@
   "f5xc-salesdemos/xcsh",
   "f5xc-salesdemos/cdn-simulator",
   "f5xc-salesdemos/origin-server",
-  "f5xc-salesdemos/traffic-generator"
+  "f5xc-salesdemos/traffic-generator",
+  "f5xc-salesdemos/demo-resources"
 ]
