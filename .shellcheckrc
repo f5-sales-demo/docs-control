@@ -2,3 +2,20 @@
 # All single-quoted $var references in this repo are intentional jq variables,
 # not missed shell expansions.
 disable=SC2016
+
+# Disable SC1091: Not following sourced file.
+# Scripts source relative-path libraries (_lib.sh, _crapi-lib.sh, etc.)
+# that shellcheck cannot resolve in CI.
+disable=SC1091
+
+# Disable SC2034: Variable appears unused.
+# Scripts set variables consumed by sourced library files or trap handlers.
+disable=SC2034
+
+# Disable SC2064: Use single quotes for trap to prevent early expansion.
+# Scripts intentionally expand variables at trap-set time.
+disable=SC2064
+
+# Disable SC2086: Double quote to prevent globbing and word splitting.
+# Pipeline scripts and attack suites intentionally rely on word splitting.
+disable=SC2086
