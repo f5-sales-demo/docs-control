@@ -36,6 +36,12 @@
       }
     },
     {
+      "includes": ["docs/specifications/api/**", "docs/api-reference/**"],
+      "formatter": {
+        "enabled": false
+      }
+    },
+    {
       "includes": ["**/*.astro"],
       "linter": {
         "rules": {
