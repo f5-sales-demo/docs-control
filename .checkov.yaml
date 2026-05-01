@@ -38,6 +38,8 @@ skip-check:
   - CKV_GHA_5    # GitHub Actions — cosign signing not required for this org
   - CKV_GHA_6    # GitHub Actions — cosign SBOM attestation not required
   - "CKV_SECRET_4:.*specifications/api/.*\\.json$"
+  - CKV_SECRET_2    # False positive — test fixtures and example values
+  - CKV_SECRET_6    # False positive — high entropy strings in provider schemas
   - CKV_AZURE_1    # Lab VM — SSH key auth configured via cloud-init
   - CKV_AZURE_9    # Lab NSG — RDP not used, SSH only
   - CKV_AZURE_10   # Lab NSG — SSH open for demo access
