@@ -155,6 +155,12 @@ jobs:
           # (e.g., xcsh's Cursor protobuf imports under packages/ai/src/
           # providers/cursor/proto/) whose layout is fork-faithful.
           VALIDATE_PROTOBUF: false
+          # GO: super-linter runs golangci-lint per-file, but Go's type
+          # checker requires all files in a package. Repos with Go code
+          # run golangci-lint correctly in their own CI jobs.
+          VALIDATE_GO: false
+          VALIDATE_GO_MODULES: false
+          VALIDATE_GO_REVIVE: false
 
       - name: Spectral OpenAPI lint
         if: hashFiles('.spectral.yaml', '.spectral.yml') != ''
