@@ -36,7 +36,7 @@
       }
     },
     {
-      "includes": ["docs/specifications/api/**", "docs/api-reference/**"],
+      "includes": ["docs/specifications/api/**", "docs/api-reference/**", "tools/**"],
       "formatter": {
         "enabled": false
       }
