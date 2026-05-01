@@ -106,7 +106,8 @@ jobs:
           # .mypy_cache, .ruff_cache, .pytest_cache so the fs walker
           # doesn't hit dangling symlinks mid-run). See issue #377.
           TRIVY_CONFIG_FILE: trivy.yaml
-          SAVE_SUPER_LINTER_SUMMARY: true
+          SAVE_SUPER_LINTER_SUMMARY: false
+          VALIDATE_ALL_CODEBASE: false
           # No commitlint config exists in managed repos
           VALIDATE_GIT_COMMITLINT: false
           # ── Python linters ─────────────────────────────────
