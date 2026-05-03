@@ -83,7 +83,6 @@
       { "src": ".github/ISSUE_TEMPLATE/config.yml", "dest": ".github/ISSUE_TEMPLATE/config.yml" },
 
       { "src": "CONTRIBUTING.md", "dest": "CONTRIBUTING.md" },
-      { "src": "README.md", "dest": "README.md" },
       { "src": "CLAUDE.md", "dest": "CLAUDE.md" },
       { "src": ".editorconfig", "dest": ".editorconfig" },
       { "src": ".gitignore", "dest": ".gitignore" },
