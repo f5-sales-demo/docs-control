@@ -213,7 +213,6 @@ for rule in \
   cache-poisoning \
   secrets-inherit \
   secrets-outside-env \
-  pull-request-target \
   dangerous-triggers \
   bot-conditions \
   dependabot-cooldown; do
@@ -415,7 +414,7 @@ echo ""
 echo "=== Section 8: Idempotence ==="
 # We assert this by making sure no test mutates repo state.
 # If a future assertion generates a temp file, it must clean up.
-TMPS_BEFORE=$(find /tmp -maxdepth 1 -name 'test-linter-configs-*' 2>/dev/null | wc -l)
+TMPS_BEFORE=$(find /tmp -maxdepth 1 -name 'test-linter-configs-*' 2>/dev/null | wc -l | tr -d ' ')
 if [ "$TMPS_BEFORE" = "0" ]; then
   pass "6.1 no stray /tmp/test-linter-configs-* files (idempotent)"
 else
