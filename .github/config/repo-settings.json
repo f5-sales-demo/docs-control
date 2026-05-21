@@ -48,6 +48,9 @@
     "xcsh": {
       "additional_contexts": ["check", "test"],
       "excluded_required_contexts": ["lint / Lint Code Base"]
+    },
+    "vscode-f5xc-tools": {
+      "additional_contexts": ["Validate Generation", "Test (ubuntu-latest)", "Build VSIX"]
     }
   },
   "topics": [],
