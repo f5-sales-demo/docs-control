@@ -45,7 +45,13 @@
         "User Name",
         "username",
         "Internet",
-        "internet"
+        "internet",
+        "Javascript",
+        "MAC OS",
+        "OS X",
+        "Sdk",
+        "Client Side",
+        "Code Base"
       ]
     }
   }
