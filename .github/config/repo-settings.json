@@ -154,15 +154,6 @@
       "api-specs": ["governance"],
       "api-specs-enriched": ["governance", "api_enrichment"],
       "apt-repo": ["governance"]
-    },
-    "org_secret_source": {
-      "REPO_SETTINGS_TOKEN": "REPO_SETTINGS_TOKEN",
-      "REPO_SYNC_TOKEN": "REPO_SYNC_TOKEN",
-      "NPM_TOKEN": "NPM_TOKEN",
-      "RELEASE_TOKEN": "RELEASE_TOKEN"
-    },
-    "canonical_env_vars": {
-      "NPM_TOKEN": "NODE_AUTH_TOKEN"
     }
   }
 }
