@@ -118,5 +118,51 @@
       { "src": ".claude/hooks/protect-managed-files.sh", "dest": ".claude/hooks/protect-managed-files.sh" },
       { "src": ".claude/hooks/enforce-git-delegation.sh", "dest": ".claude/hooks/enforce-git-delegation.sh" }
     ]
+  },
+  "secrets_manifest": {
+    "roles": {
+      "governance": ["REPO_SETTINGS_TOKEN", "REPO_SYNC_TOKEN"],
+      "npm_publish": ["NPM_TOKEN", "RELEASE_TOKEN"],
+      "release": ["RELEASE_TOKEN"],
+      "vscode_extension": ["VS_MARKETPLACE_TOKEN", "RELEASE_PAT", "RELEASE_TOKEN"],
+      "terraform_provider": ["GPG_PRIVATE_KEY", "PASSPHRASE", "AUTO_MERGE_TOKEN"],
+      "api_enrichment": [
+        "DOWNSTREAM_DISPATCH_TOKEN",
+        "F5XC_API_TOKEN",
+        "F5XC_API_URL",
+        "F5XC_NAMESPACE",
+        "VERSION_BUMP_PAT"
+      ],
+      "apple_signing": [
+        "APPLE_CERTIFICATE_BASE64",
+        "APPLE_CERTIFICATE_PASSWORD",
+        "APPLE_ID",
+        "APPLE_PASSWORD",
+        "APPLE_TEAM_ID"
+      ]
+    },
+    "repo_roles": {
+      "_default": ["governance"],
+      "docs-icons": ["governance", "npm_publish"],
+      "docs-theme": ["governance", "npm_publish"],
+      "docs-builder": ["governance", "release"],
+      "origin-server": ["governance", "release"],
+      "starlight-llms-txt": ["governance", "npm_publish"],
+      "xcsh": ["governance", "npm_publish", "apple_signing"],
+      "vscode-f5xc-tools": ["governance", "vscode_extension"],
+      "terraform-provider-f5xc": ["governance", "terraform_provider"],
+      "api-specs": ["governance"],
+      "api-specs-enriched": ["governance", "api_enrichment"],
+      "apt-repo": ["governance"]
+    },
+    "org_secret_source": {
+      "REPO_SETTINGS_TOKEN": "REPO_SETTINGS_TOKEN",
+      "REPO_SYNC_TOKEN": "REPO_SYNC_TOKEN",
+      "NPM_TOKEN": "NPM_TOKEN",
+      "RELEASE_TOKEN": "RELEASE_TOKEN"
+    },
+    "canonical_env_vars": {
+      "NPM_TOKEN": "NODE_AUTH_TOKEN"
+    }
   }
 }
