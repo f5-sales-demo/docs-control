@@ -128,5 +128,10 @@
     "label": "Demo Resources",
     "url": "https://f5xc-salesdemos.github.io/demo-resources/llms-full.txt",
     "description": "Catalog of pre-configured Azure VM components for F5 XC demo environments"
+  },
+  {
+    "label": "VS Code Extension",
+    "url": "https://f5xc-salesdemos.github.io/vscode-f5xc-tools/llms-full.txt",
+    "description": "VS Code extension for managing F5 Distributed Cloud resources with IntelliSense and xcsh chat"
   }
 ]
