@@ -27,6 +27,15 @@ on:
       REPO_SETTINGS_TOKEN:
         description: 'Repo-level fallback used by push trigger context'
         required: false
+      ORG_NPM_TOKEN:
+        description: 'Org-level NPM token for auto-provisioning'
+        required: false
+      ORG_RELEASE_TOKEN:
+        description: 'Org-level release token for auto-provisioning'
+        required: false
+      ORG_REPO_SYNC_TOKEN:
+        description: 'Org-level repo sync token for auto-provisioning'
+        required: false
 
 permissions:
   contents: read
@@ -46,6 +55,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.repo-settings-token || secrets.REPO_SETTINGS_TOKEN }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          ORG_REPO_SETTINGS_TOKEN: ${{ secrets.repo-settings-token || secrets.REPO_SETTINGS_TOKEN }}
+          ORG_REPO_SYNC_TOKEN: ${{ secrets.ORG_REPO_SYNC_TOKEN || '' }}
+          ORG_NPM_TOKEN: ${{ secrets.ORG_NPM_TOKEN || '' }}
+          ORG_RELEASE_TOKEN: ${{ secrets.ORG_RELEASE_TOKEN || '' }}
         run: |
           set -euo pipefail
 
@@ -451,9 +464,97 @@ jobs:
             echo "[SKIP] Pages not enabled in config"
           fi
 
-          # --- Phase 7: Verify --------------------------------------------------
+          # --- Phase 7: Enforce secrets -----------------------------------------
           echo ""
-          echo "=== Phase 7: Verify ==="
+          echo "=== Phase 7: Enforce secrets ==="
+
+          SECRETS_MANIFEST=$(echo "$CONFIG" | jq -c '.secrets_manifest // empty')
+
+          if [ -z "$SECRETS_MANIFEST" ] || [ "$SECRETS_MANIFEST" = "null" ]; then
+            echo "[SKIP] No secrets_manifest in config"
+          else
+            # Resolve roles for this repo
+            REPO_ROLES=$(echo "$SECRETS_MANIFEST" | jq -r \
+              --arg repo "$REPO" \
+              'if .repo_roles[$repo] then .repo_roles[$repo][]
+               else .repo_roles["_default"][]
+               end')
+
+            # Build expected secrets set from roles
+            EXPECTED_SECRETS=""
+            for role in $REPO_ROLES; do
+              ROLE_SECRETS=$(echo "$SECRETS_MANIFEST" | jq -r \
+                --arg r "$role" '.roles[$r] // [] | .[]')
+              EXPECTED_SECRETS=$(printf '%s\n%s' "$EXPECTED_SECRETS" "$ROLE_SECRETS")
+            done
+            EXPECTED_SECRETS=$(echo "$EXPECTED_SECRETS" | sort -u | grep -v '^$')
+
+            if [ -z "$EXPECTED_SECRETS" ]; then
+              echo "[SKIP] No secrets expected for ${REPO}"
+            else
+              echo "[INFO] Expected secrets for ${REPO}: $(echo "$EXPECTED_SECRETS" | tr '\n' ', ' | sed 's/,$//')"
+
+              # List current secrets
+              CURRENT_SECRETS=$(retry 3 gh api "repos/${OWNER}/${REPO}/actions/secrets" \
+                --jq '.secrets[].name' 2>/dev/null | sort) || true
+
+              # Detect missing and auto-create where possible
+              CREATED=0
+              MANUAL_NEEDED=0
+              while IFS= read -r secret; do
+                [ -z "$secret" ] && continue
+                if ! echo "$CURRENT_SECRETS" | grep -qxF "$secret"; then
+                  ORG_SOURCE=$(echo "$SECRETS_MANIFEST" | jq -r \
+                    --arg s "$secret" '.org_secret_source[$s] // empty')
+                  if [ -n "$ORG_SOURCE" ]; then
+                    # Map org_secret_source name to the workflow env var
+                    ORG_ENV_VAR=""
+                    case "$ORG_SOURCE" in
+                      REPO_SETTINGS_TOKEN) ORG_ENV_VAR="ORG_REPO_SETTINGS_TOKEN" ;;
+                      REPO_SYNC_TOKEN)     ORG_ENV_VAR="ORG_REPO_SYNC_TOKEN" ;;
+                      NPM_TOKEN)           ORG_ENV_VAR="ORG_NPM_TOKEN" ;;
+                      RELEASE_TOKEN)       ORG_ENV_VAR="ORG_RELEASE_TOKEN" ;;
+                    esac
+                    # Indirect variable expansion: get the value of the env var
+                    ORG_VALUE="${!ORG_ENV_VAR:-}"
+                    if [ -n "$ORG_VALUE" ]; then
+                      echo "[INFO] Creating ${secret} from org source ${ORG_SOURCE}..."
+                      if echo "$ORG_VALUE" | gh secret set "$secret" \
+                        --repo "${OWNER}/${REPO}" 2>/dev/null; then
+                        echo "[OK] Created ${secret}"
+                        CREATED=$((CREATED + 1))
+                      else
+                        echo "[WARN] Failed to create ${secret} -- manual creation required"
+                        MANUAL_NEEDED=$((MANUAL_NEEDED + 1))
+                      fi
+                    else
+                      echo "[WARN] Missing ${secret} -- org value for ${ORG_SOURCE} not available in workflow secrets"
+                      MANUAL_NEEDED=$((MANUAL_NEEDED + 1))
+                    fi
+                  else
+                    echo "[WARN] Missing ${secret} -- no org source, manual creation required"
+                    MANUAL_NEEDED=$((MANUAL_NEEDED + 1))
+                  fi
+                fi
+              done <<< "$EXPECTED_SECRETS"
+
+              # Detect unexpected
+              UNEXPECTED=0
+              while IFS= read -r secret; do
+                [ -z "$secret" ] && continue
+                if ! echo "$EXPECTED_SECRETS" | grep -qxF "$secret"; then
+                  echo "[INFO] Unexpected secret: ${secret} (not in assigned roles)"
+                  UNEXPECTED=$((UNEXPECTED + 1))
+                fi
+              done <<< "$CURRENT_SECRETS"
+
+              echo "[OK] Secrets audit: created=${CREATED}, manual_needed=${MANUAL_NEEDED}, unexpected=${UNEXPECTED}"
+            fi
+          fi
+
+          # --- Phase 8: Verify --------------------------------------------------
+          echo ""
+          echo "=== Phase 8: Verify ==="
 
           VERIFY_FAILED=false
 
