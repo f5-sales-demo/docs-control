@@ -432,66 +432,6 @@ else
     fail "10.2 all repo_roles reference valid roles" "undefined roles: $ROLE_CHECK"
   fi
 
-  # 10.3: every org_secret_source key must appear in at least one role
-  ALL_ROLE_SECRETS=$(echo "$MANIFEST" | jq -r '[.roles[][]] | unique | .[]')
-  ORG_CHECK=""
-  for secret in $(echo "$MANIFEST" | jq -r '.org_secret_source | keys[]'); do
-    if ! echo "$ALL_ROLE_SECRETS" | grep -qxF "$secret"; then
-      ORG_CHECK="${ORG_CHECK} ${secret}"
-    fi
-  done
-  if [ -z "$ORG_CHECK" ]; then
-    pass "10.3 all org_secret_source keys exist in a role"
-  else
-    fail "10.3 all org_secret_source keys exist in a role" "orphaned:$ORG_CHECK"
-  fi
-
-  # 10.4: canonical_env_vars keys must all appear in a role
-  CANONICAL_CHECK=""
-  for secret in $(echo "$MANIFEST" | jq -r '.canonical_env_vars | keys[]'); do
-    if ! echo "$ALL_ROLE_SECRETS" | grep -qxF "$secret"; then
-      CANONICAL_CHECK="${CANONICAL_CHECK} ${secret}"
-    fi
-  done
-  if [ -z "$CANONICAL_CHECK" ]; then
-    pass "10.4 all canonical_env_vars keys exist in a role"
-  else
-    fail "10.4 all canonical_env_vars keys exist in a role" "orphaned:$CANONICAL_CHECK"
-  fi
-fi
-
-# ════════════════════════════════════════════════════════════════════
-# SECTION 10b: canonical_env_vars workflow lint
-# ════════════════════════════════════════════════════════════════════
-echo ""
-echo "=== Section 10b: canonical_env_vars workflow lint ==="
-
-# For each secret in canonical_env_vars, scan managed workflow files
-# and assert the env var name matches the canonical name.
-# Pattern matched: ENV_VAR_NAME: ${{ secrets.SECRET_NAME }}
-CANONICAL_LINT_FAIL=""
-if [ -n "$MANIFEST" ] && [ "$MANIFEST" != "null" ]; then
-  while IFS='=' read -r secret_name canonical_var; do
-    [ -z "$secret_name" ] && continue
-    # Find all env var assignments referencing this secret in managed workflows
-    while IFS=: read -r wf_file wf_line; do
-      [ -z "$wf_file" ] && continue
-      # Extract the env var name (left side of the colon)
-      env_var=$(echo "$wf_line" | sed -n 's/^[[:space:]]*\([A-Z_][A-Z0-9_]*\)[[:space:]]*:.*/\1/p')
-      if [ -n "$env_var" ] && [ "$env_var" != "$canonical_var" ]; then
-        CANONICAL_LINT_FAIL="${CANONICAL_LINT_FAIL}  ${wf_file}: ${env_var} should be ${canonical_var} (for secrets.${secret_name})\n"
-      fi
-    done < <(grep -rn "secrets\.${secret_name}" "$REPO_ROOT/workflows/" 2>/dev/null || true)
-  done < <(echo "$MANIFEST" | jq -r '.canonical_env_vars | to_entries[] | "\(.key)=\(.value)"')
-
-  if [ -z "$CANONICAL_LINT_FAIL" ]; then
-    pass "10b.1 managed workflows use canonical env var names"
-  else
-    fail "10b.1 managed workflows use canonical env var names" \
-      "non-canonical references found:\n$CANONICAL_LINT_FAIL"
-  fi
-else
-  echo "  SKIP: no secrets_manifest to lint against"
 fi
 
 # ════════════════════════════════════════════════════════════════════

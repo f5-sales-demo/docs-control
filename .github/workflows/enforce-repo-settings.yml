@@ -27,15 +27,6 @@ on:
       REPO_SETTINGS_TOKEN:
         description: 'Repo-level fallback used by push trigger context'
         required: false
-      ORG_NPM_TOKEN:
-        description: 'Org-level NPM token for auto-provisioning'
-        required: false
-      ORG_RELEASE_TOKEN:
-        description: 'Org-level release token for auto-provisioning'
-        required: false
-      ORG_REPO_SYNC_TOKEN:
-        description: 'Org-level repo sync token for auto-provisioning'
-        required: false
 
 permissions:
   contents: read
@@ -55,10 +46,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.repo-settings-token || secrets.REPO_SETTINGS_TOKEN }}
           SOURCE_SHA: ${{ inputs.source_sha }}
-          ORG_REPO_SETTINGS_TOKEN: ${{ secrets.repo-settings-token || secrets.REPO_SETTINGS_TOKEN }}
-          ORG_REPO_SYNC_TOKEN: ${{ secrets.ORG_REPO_SYNC_TOKEN || '' }}
-          ORG_NPM_TOKEN: ${{ secrets.ORG_NPM_TOKEN || '' }}
-          ORG_RELEASE_TOKEN: ${{ secrets.ORG_RELEASE_TOKEN || '' }}
         run: |
           set -euo pipefail
 
@@ -498,43 +485,13 @@ jobs:
               CURRENT_SECRETS=$(retry 3 gh api "repos/${OWNER}/${REPO}/actions/secrets" \
                 --jq '.secrets[].name' 2>/dev/null | sort) || true
 
-              # Detect missing and auto-create where possible
-              CREATED=0
-              MANUAL_NEEDED=0
+              # Detect missing
+              MISSING=0
               while IFS= read -r secret; do
                 [ -z "$secret" ] && continue
                 if ! echo "$CURRENT_SECRETS" | grep -qxF "$secret"; then
-                  ORG_SOURCE=$(echo "$SECRETS_MANIFEST" | jq -r \
-                    --arg s "$secret" '.org_secret_source[$s] // empty')
-                  if [ -n "$ORG_SOURCE" ]; then
-                    # Map org_secret_source name to the workflow env var
-                    ORG_ENV_VAR=""
-                    case "$ORG_SOURCE" in
-                      REPO_SETTINGS_TOKEN) ORG_ENV_VAR="ORG_REPO_SETTINGS_TOKEN" ;;
-                      REPO_SYNC_TOKEN)     ORG_ENV_VAR="ORG_REPO_SYNC_TOKEN" ;;
-                      NPM_TOKEN)           ORG_ENV_VAR="ORG_NPM_TOKEN" ;;
-                      RELEASE_TOKEN)       ORG_ENV_VAR="ORG_RELEASE_TOKEN" ;;
-                    esac
-                    # Indirect variable expansion: get the value of the env var
-                    ORG_VALUE="${!ORG_ENV_VAR:-}"
-                    if [ -n "$ORG_VALUE" ]; then
-                      echo "[INFO] Creating ${secret} from org source ${ORG_SOURCE}..."
-                      if echo "$ORG_VALUE" | gh secret set "$secret" \
-                        --repo "${OWNER}/${REPO}" 2>/dev/null; then
-                        echo "[OK] Created ${secret}"
-                        CREATED=$((CREATED + 1))
-                      else
-                        echo "[WARN] Failed to create ${secret} -- manual creation required"
-                        MANUAL_NEEDED=$((MANUAL_NEEDED + 1))
-                      fi
-                    else
-                      echo "[WARN] Missing ${secret} -- org value for ${ORG_SOURCE} not available in workflow secrets"
-                      MANUAL_NEEDED=$((MANUAL_NEEDED + 1))
-                    fi
-                  else
-                    echo "[WARN] Missing ${secret} -- no org source, manual creation required"
-                    MANUAL_NEEDED=$((MANUAL_NEEDED + 1))
-                  fi
+                  echo "[WARN] Missing ${secret}"
+                  MISSING=$((MISSING + 1))
                 fi
               done <<< "$EXPECTED_SECRETS"
 
@@ -548,7 +505,7 @@ jobs:
                 fi
               done <<< "$CURRENT_SECRETS"
 
-              echo "[OK] Secrets audit: created=${CREATED}, manual_needed=${MANUAL_NEEDED}, unexpected=${UNEXPECTED}"
+              echo "[OK] Secrets audit: missing=${MISSING}, unexpected=${UNEXPECTED}"
             fi
           fi
 
