@@ -2,6 +2,7 @@
 
 [![GitHub Pages Deploy](https://github.com/f5xc-salesdemos/__REPO_NAME__/actions/workflows/github-pages-deploy.yml/badge.svg)](https://github.com/f5xc-salesdemos/__REPO_NAME__/actions/workflows/github-pages-deploy.yml)
 [![Repository Settings](https://github.com/f5xc-salesdemos/__REPO_NAME__/actions/workflows/enforce-repo-settings.yml/badge.svg)](https://github.com/f5xc-salesdemos/__REPO_NAME__/actions/workflows/enforce-repo-settings.yml)
+__EXTRA_BADGES__
 [![License](https://img.shields.io/github/license/f5xc-salesdemos/__REPO_NAME__)](LICENSE)
 
 __DESCRIPTION__

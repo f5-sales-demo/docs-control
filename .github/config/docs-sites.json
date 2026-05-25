@@ -2,12 +2,14 @@
   {
     "label": "f5xc Docs Builder",
     "url": "https://f5xc-salesdemos.github.io/docs-builder/llms-full.txt",
-    "description": "Containerized Astro + Starlight documentation build system"
+    "description": "Containerized Astro + Starlight documentation build system",
+    "badges": [{ "name": "Build Image", "workflow": "build-image.yml" }]
   },
   {
     "label": "XC Docs Theme",
     "url": "https://f5xc-salesdemos.github.io/docs-theme/llms-full.txt",
-    "description": "Shared branding and styling for F5 Distributed Cloud documentation sites"
+    "description": "Shared branding and styling for F5 Distributed Cloud documentation sites",
+    "badges": [{ "name": "Release", "workflow": "release.yml" }]
   },
   {
     "label": "F5 XC Docs",
@@ -77,12 +79,17 @@
   {
     "label": "API Specs",
     "url": "https://f5xc-salesdemos.github.io/api-specs/llms-full.txt",
-    "description": "OpenAPI spec validation and reconciliation for F5 Distributed Cloud"
+    "description": "OpenAPI spec validation and reconciliation for F5 Distributed Cloud",
+    "badges": [{ "name": "Validate and Release", "workflow": "validate-and-release.yml" }]
   },
   {
     "label": "API Specs Enriched",
     "url": "https://f5xc-salesdemos.github.io/api-specs-enriched/llms-full.txt",
-    "description": "Enriched OpenAPI specifications for F5 Distributed Cloud"
+    "description": "Enriched OpenAPI specifications for F5 Distributed Cloud",
+    "badges": [
+      { "name": "Tests", "workflow": "tests.yml" },
+      { "name": "Sync and Enrich", "workflow": "sync-and-enrich.yml" }
+    ]
   },
   {
     "label": "Client-Side Defense",
@@ -92,27 +99,35 @@
   {
     "label": "Docs Icons",
     "url": "https://f5xc-salesdemos.github.io/docs-icons/llms-full.txt",
-    "description": "NPM icon packages and plugins for the F5 XC documentation build system"
+    "description": "NPM icon packages and plugins for the F5 XC documentation build system",
+    "badges": [{ "name": "NPM Publish", "workflow": "npm-publish.yml" }]
   },
   {
     "label": "Terraform Provider",
     "url": "https://f5xc-salesdemos.github.io/terraform-provider-f5xc/llms-full.txt",
-    "description": "Terraform provider for F5 Distributed Cloud"
+    "description": "Terraform provider for F5 Distributed Cloud",
+    "badges": [{ "name": "CI", "workflow": "ci.yml" }]
   },
   {
     "label": "Dev Container",
     "url": "https://f5xc-salesdemos.github.io/devcontainer/llms-full.txt",
-    "description": "Isolated development environment with AI coding tools"
+    "description": "Isolated development environment with AI coding tools",
+    "badges": [{ "name": "Docker Publish", "workflow": "docker-publish.yml" }]
   },
   {
     "label": "Marketplace",
     "url": "https://f5xc-salesdemos.github.io/marketplace/llms-full.txt",
-    "description": "AI-powered marketplace for F5 Distributed Cloud solutions"
+    "description": "AI-powered marketplace for F5 Distributed Cloud solutions",
+    "badges": [
+      { "name": "Validate Plugins", "workflow": "validate-plugins.yml" },
+      { "name": "Release Plugins", "workflow": "release-plugins.yml" }
+    ]
   },
   {
     "label": "xcsh",
     "url": "https://f5xc-salesdemos.github.io/xcsh/llms-full.txt",
-    "description": "AI-powered development environment and CLI tool"
+    "description": "AI-powered development environment and CLI tool",
+    "badges": [{ "name": "CI", "workflow": "ci.yml" }]
   },
   {
     "label": "CDN Simulator",
@@ -122,7 +137,8 @@
   {
     "label": "Origin Server",
     "url": "https://f5xc-salesdemos.github.io/origin-server/llms-full.txt",
-    "description": "Ubuntu 24.04 origin server with vulnerable web applications for F5 XC demo environments"
+    "description": "Ubuntu 24.04 origin server with vulnerable web applications for F5 XC demo environments",
+    "badges": [{ "name": "Release", "workflow": "release.yml" }]
   },
   {
     "label": "Demo Resources",
@@ -132,6 +148,7 @@
   {
     "label": "VS Code Extension",
     "url": "https://f5xc-salesdemos.github.io/vscode-f5xc-tools/llms-full.txt",
-    "description": "VS Code extension for managing F5 Distributed Cloud resources with IntelliSense and xcsh chat"
+    "description": "VS Code extension for managing F5 Distributed Cloud resources with IntelliSense and xcsh chat",
+    "badges": [{ "name": "CI", "workflow": "ci.yml" }, { "name": "Release", "workflow": "release.yml" }]
   }
 ]
