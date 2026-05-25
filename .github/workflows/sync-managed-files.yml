@@ -420,6 +420,13 @@ jobs:
 
               DOCS_URL="https://f5xc-salesdemos.github.io/${REPO}/"
 
+              # Extract per-repo extra badges from docs-sites.json
+              README_BADGES=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" --arg o "$OWNER" \
+                '[.[] | select(.url | contains("/" + $r + "/")) | .badges // [] | .[]] |
+                 if length == 0 then empty
+                 else .[] | "[![\(.name)](https://github.com/\($o)/\($r)/actions/workflows/\(.workflow)/badge.svg)](https://github.com/\($o)/\($r)/actions/workflows/\(.workflow))"
+                 end' 2>/dev/null) || true
+
               # Fetch README.md.tpl from docs-control
               README_TPL=$(fetch_governed "README.md.tpl" "repos/${CONFIG_REPO}/contents/README.md.tpl")
 
@@ -430,6 +437,16 @@ jobs:
                 sed "s|__DESCRIPTION__|${README_DESC}|g" | \
                 sed "s|__REPO_NAME__|${REPO}|g" | \
                 sed "s|__DOCS_URL__|${DOCS_URL}|g" > /tmp/generated_readme.md
+
+              # Replace __EXTRA_BADGES__ placeholder — inject per-repo badge lines or remove
+              if [ -n "$README_BADGES" ]; then
+                printf '%s\n' "$README_BADGES" > /tmp/extra_badges.tmp
+                sed -i '/__EXTRA_BADGES__/{r /tmp/extra_badges.tmp
+                d;}' /tmp/generated_readme.md
+              else
+                sed -i '/__EXTRA_BADGES__/d' /tmp/generated_readme.md
+              fi
+
               GENERATED_README=$(cat /tmp/generated_readme.md)
 
               # Compare with current README.md in target repo (local disk, no API).
