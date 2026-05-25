@@ -27,6 +27,15 @@ on:
       REPO_SETTINGS_TOKEN:
         description: 'Repo-level fallback used by push trigger context'
         required: false
+      ORG_NPM_TOKEN:
+        description: 'Legacy org secret — accepted to unblock startup_failure in stale callers'
+        required: false
+      ORG_RELEASE_TOKEN:
+        description: 'Legacy org secret — accepted to unblock startup_failure in stale callers'
+        required: false
+      ORG_REPO_SYNC_TOKEN:
+        description: 'Legacy org secret — accepted to unblock startup_failure in stale callers'
+        required: false
 
 permissions:
   contents: read
