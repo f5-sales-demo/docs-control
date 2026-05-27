@@ -7,6 +7,8 @@ __EXTRA_BADGES__
 
 __DESCRIPTION__
 
+__EXTRA_CONTENT__
+
 ## Documentation
 
 Full documentation is available at **[__DOCS_URL__](__DOCS_URL__)**.
