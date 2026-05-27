@@ -447,6 +447,18 @@ jobs:
                 sed -i '/__EXTRA_BADGES__/d' /tmp/generated_readme.md
               fi
 
+              # Replace __EXTRA_CONTENT__ placeholder — inject per-repo markdown content or remove
+              README_CONTENT=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
+                '.[] | select(.url | contains("/" + $r + "/")) | .readme_content // empty' 2>/dev/null) || true
+
+              if [ -n "$README_CONTENT" ]; then
+                printf '%s\n' "$README_CONTENT" > /tmp/extra_content.tmp
+                sed -i '/__EXTRA_CONTENT__/{r /tmp/extra_content.tmp
+                d;}' /tmp/generated_readme.md
+              else
+                sed -i '/__EXTRA_CONTENT__/d' /tmp/generated_readme.md
+              fi
+
               GENERATED_README=$(cat /tmp/generated_readme.md)
 
               # Compare with current README.md in target repo (local disk, no API).
