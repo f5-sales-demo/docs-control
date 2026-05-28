@@ -13,15 +13,6 @@ __EXTRA_CONTENT__
 
 Full documentation is available at **[__DOCS_URL__](__DOCS_URL__)**.
 
-## Getting Started
-
-```bash
-git clone https://github.com/f5xc-salesdemos/__REPO_NAME__.git
-```
-
-See the [documentation](__DOCS_URL__) for detailed setup
-and usage guides.
-
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow rules,
