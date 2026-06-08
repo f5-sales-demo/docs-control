@@ -457,11 +457,11 @@ else
   fail "10.1 CLAUDE.md references governance.json" "not found"
 fi
 
-# Test 10.2: mentions github-ops delegation
-if echo "$CLAUDE_CONTENT" | grep -q "github-ops"; then
-  pass "10.2 CLAUDE.md mentions github-ops routing"
+# Test 10.2: documents Git Workflow (branch protection + PR-based flow)
+if echo "$CLAUDE_CONTENT" | grep -q "Git Workflow"; then
+  pass "10.2 CLAUDE.md documents Git Workflow"
 else
-  fail "10.2 CLAUDE.md mentions github-ops routing" "not found"
+  fail "10.2 CLAUDE.md documents Git Workflow" "section not found"
 fi
 
 # Test 10.3: project rules removed (now live in workflow-lifecycle skill)
