@@ -148,6 +148,7 @@
       "docs-builder": ["governance", "release"],
       "origin-server": ["governance", "release"],
       "starlight-llms-txt": ["governance", "npm_publish"],
+      "starlight-mega-menu": ["governance", "npm_publish"],
       "xcsh": ["governance", "npm_publish", "apple_signing"],
       "vscode-f5xc-tools": ["governance", "vscode_extension"],
       "terraform-provider-f5xc": ["governance", "terraform_provider"],
