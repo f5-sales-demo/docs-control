@@ -128,11 +128,9 @@ for pat in 'vendored' '*-vendored*' '*/gen/*' 'fixtures' '*.min.js' '*.jsonl' '*
 done
 
 # Domain-specific words that would otherwise noise-out the audit:
-# Rust identifier fragments from xcsh's pi-natives (ForIn, ser, anc, abd, fo, te, RUNN, Statics)
-# JS camelCase variable names codespell splits (crossReferences, prevEnd, aLine)
-# Legitimate English (invokable) and common test-fixture strings (doesnt, takin, hel, deine)
-# SQL/HTTP abbreviations (doub for DOUBLE, cros for CORS)
-for word in doesnt forin invokable takin deine doub cros defaul ser anc runn; do
+# Rust identifier fragments from xcsh (ForIn, ser, anc, Statics)
+# Legitimate English (invokable) and common test-fixture strings (doesnt, takin)
+for word in doesnt forin invokable takin defaul ser anc; do
   if grep -qE "(^|[=,])${word}([,]|$)" "$REPO_ROOT/.codespellrc"; then
     pass "5.x .codespellrc ignore-words-list contains '$word'"
   else
