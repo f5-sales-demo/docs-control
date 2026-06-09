@@ -66,7 +66,7 @@ jobs:
           # generated (parser.c from `tree-sitter generate`) or hand-written
           # to upstream tree-sitter conventions that do not match
           # clang-format's default style; excluding preserves fork fidelity.
-          FILTER_REGEX_EXCLUDE: "(dist/|build/|release/|vendor/|tree-sitter-[^/]+/src/(parser|scanner)\\.(c|h)$|docs/(fr|es|de|ja|pt-br|ko|zh-cn|zh-tw|ar|it|hi|th)/)"
+          FILTER_REGEX_EXCLUDE: "(dist/|build/|release/|vendor/|tree-sitter-[^/]+/src/(parser|scanner)\\.(c|h)$|docs/(fr|es|de|ja|pt-br|ko|zh-cn|zh-tw|ar|it|hi|th)/|src/i18n/.*translations)"
           # Disable Prettier — Biome handles formatting for
           # JS/TS/JSON/CSS/HTML/GraphQL/JSX/Vue; yamllint handles
           # YAML; markdownlint handles Markdown.
