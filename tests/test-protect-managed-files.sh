@@ -245,6 +245,51 @@ assert_exit_code 0 "$EXIT_CODE" "4.1 self-exclusion: protected file allowed in d
 # Test 4.2: no BLOCKED message in docs-control
 assert_not_contains "$OUTPUT" "BLOCKED" "4.2 self-exclusion: no BLOCKED message in docs-control"
 
+# Test 4.3: hook blocks repos with similar names (substring bypass prevention)
+EVIL_DOWN="$TMPDIR_BASE/evil-downstream"
+mkdir -p "$EVIL_DOWN/.claude/hooks"
+cp "$HOOK_SCRIPT" "$EVIL_DOWN/.claude/hooks/"
+cp "$GOVERNANCE_JSON" "$EVIL_DOWN/.claude/"
+(
+  cd "$EVIL_DOWN"
+  git init -q
+  git remote add origin https://github.com/evil/docs-control-fork.git
+)
+OUTPUT=""
+EXIT_CODE=0
+OUTPUT=$(run_hook "$EVIL_DOWN" "CLAUDE.md") || EXIT_CODE=$?
+assert_exit_code 2 "$EXIT_CODE" "4.3 substring bypass: evil/docs-control-fork is NOT self-excluded"
+
+# Test 4.4: hook blocks repos with docs-control as substring prefix
+EVIL_DOWN2="$TMPDIR_BASE/evil-downstream2"
+mkdir -p "$EVIL_DOWN2/.claude/hooks"
+cp "$HOOK_SCRIPT" "$EVIL_DOWN2/.claude/hooks/"
+cp "$GOVERNANCE_JSON" "$EVIL_DOWN2/.claude/"
+(
+  cd "$EVIL_DOWN2"
+  git init -q
+  git remote add origin https://github.com/f5xc-salesdemos/docs-control-utils.git
+)
+OUTPUT=""
+EXIT_CODE=0
+OUTPUT=$(run_hook "$EVIL_DOWN2" "CLAUDE.md") || EXIT_CODE=$?
+assert_exit_code 2 "$EXIT_CODE" "4.4 substring bypass: docs-control-utils is NOT self-excluded"
+
+# Test 4.5: self-exclusion works with SSH remote URL format
+SSH_DOWN="$TMPDIR_BASE/ssh-downstream"
+mkdir -p "$SSH_DOWN/.claude/hooks"
+cp "$HOOK_SCRIPT" "$SSH_DOWN/.claude/hooks/"
+cp "$GOVERNANCE_JSON" "$SSH_DOWN/.claude/"
+(
+  cd "$SSH_DOWN"
+  git init -q
+  git remote add origin git@github.com:f5xc-salesdemos/docs-control.git
+)
+OUTPUT=""
+EXIT_CODE=0
+OUTPUT=$(run_hook "$SSH_DOWN" "CONTRIBUTING.md") || EXIT_CODE=$?
+assert_exit_code 0 "$EXIT_CODE" "4.5 self-exclusion works with SSH remote URL"
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5: Hook Behavior — Blocking Protected Files
 # ════════════════════════════════════════════════════════════════════
