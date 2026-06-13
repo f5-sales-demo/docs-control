@@ -114,6 +114,8 @@
       { "src": ".python-lint", "dest": ".python-lint" },
       { "src": ".mypy.ini", "dest": ".mypy.ini" },
 
+      { "src": "scripts/locale-lint.sh", "dest": "scripts/locale-lint.sh" },
+
       { "src": ".claude/governance.json", "dest": ".claude/governance.json" },
       { "src": ".claude/settings.json", "dest": ".claude/settings.json" },
       { "src": ".claude/hooks/protect-managed-files.sh", "dest": ".claude/hooks/protect-managed-files.sh" }
