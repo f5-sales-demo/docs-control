@@ -5,8 +5,14 @@ set -euo pipefail
 PASS=0
 FAIL=0
 
-pass() { PASS=$((PASS + 1)); echo "  PASS: $1"; }
-fail() { FAIL=$((FAIL + 1)); echo "  FAIL: $1 — $2"; }
+pass() {
+  PASS=$((PASS + 1))
+  echo "  PASS: $1"
+}
+fail() {
+  FAIL=$((FAIL + 1))
+  echo "  FAIL: $1 — $2"
+}
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 LINT_SCRIPT="$SCRIPT_DIR/scripts/locale-lint.sh"
@@ -32,7 +38,7 @@ echo "=== Locale Lint Tests ==="
 
 # Test 1: clean repo passes
 setup_clean_repo
-cat > "$TMPDIR_BASE/repo/src/app.ts" <<'TS'
+cat >"$TMPDIR_BASE/repo/src/app.ts" <<'TS'
 import { VALID_SLUGS } from '@f5xc-salesdemos/i18n-core';
 console.log(VALID_SLUGS);
 TS
@@ -47,7 +53,7 @@ fi
 
 # Test 2: hardcoded slug array is detected
 setup_clean_repo
-cat > "$TMPDIR_BASE/repo/src/bad.ts" <<'TS'
+cat >"$TMPDIR_BASE/repo/src/bad.ts" <<'TS'
 const LOCALES = ['en', 'fr', 'pt-br', 'zh-cn', 'zh-tw', 'ar'];
 TS
 OUTPUT=""
@@ -61,7 +67,7 @@ fi
 
 # Test 3: inline VALID_LOCALE_SLUGS definition is detected
 setup_clean_repo
-cat > "$TMPDIR_BASE/repo/src/bad.ts" <<'TS'
+cat >"$TMPDIR_BASE/repo/src/bad.ts" <<'TS'
 const VALID_LOCALE_SLUGS = new Set(['en', 'fr']);
 TS
 OUTPUT=""
@@ -75,7 +81,7 @@ fi
 
 # Test 4: inline LOCALE_DISPLAY_NAMES definition is detected
 setup_clean_repo
-cat > "$TMPDIR_BASE/repo/src/bad.ts" <<'TS'
+cat >"$TMPDIR_BASE/repo/src/bad.ts" <<'TS'
 const LOCALE_DISPLAY_NAMES: Record<string, string> = {
   en: "English",
   fr: "French",
@@ -92,7 +98,7 @@ fi
 
 # Test 5: inline langToSlug function is detected
 setup_clean_repo
-cat > "$TMPDIR_BASE/repo/src/bad.ts" <<'TS'
+cat >"$TMPDIR_BASE/repo/src/bad.ts" <<'TS'
 function langToSlug(lang: string): string {
   return lang.toLowerCase();
 }
@@ -108,7 +114,7 @@ fi
 
 # Test 6: re-export from i18n-core is allowed
 setup_clean_repo
-cat > "$TMPDIR_BASE/repo/src/good.ts" <<'TS'
+cat >"$TMPDIR_BASE/repo/src/good.ts" <<'TS'
 import { LOCALE_DISPLAY_NAMES } from '@f5xc-salesdemos/i18n-core';
 export { LOCALE_DISPLAY_NAMES };
 TS
@@ -124,7 +130,7 @@ fi
 # Test 7: node_modules are excluded
 setup_clean_repo
 mkdir -p "$TMPDIR_BASE/repo/node_modules/some-pkg"
-cat > "$TMPDIR_BASE/repo/node_modules/some-pkg/index.ts" <<'TS'
+cat >"$TMPDIR_BASE/repo/node_modules/some-pkg/index.ts" <<'TS'
 const VALID_LOCALE_SLUGS = new Set(['en', 'fr']);
 TS
 OUTPUT=""
@@ -138,7 +144,7 @@ fi
 
 # Test 8: test files are excluded
 setup_clean_repo
-cat > "$TMPDIR_BASE/repo/src/locales.test.ts" <<'TS'
+cat >"$TMPDIR_BASE/repo/src/locales.test.ts" <<'TS'
 const VALID_LOCALE_SLUGS = new Set(['en', 'fr']);
 TS
 OUTPUT=""

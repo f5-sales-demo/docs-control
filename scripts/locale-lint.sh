@@ -27,12 +27,12 @@ check_pattern() {
   local pattern="$1"
   local results
   results=$(grep -rn --include='*.ts' --include='*.js' --include='*.tsx' --include='*.jsx' \
-    -E "$pattern" . 2>/dev/null \
-    | grep -vE "($EXCLUDE_DIRS)" \
-    | grep -vE "($EXCLUDE_FILES)" \
-    | grep -vE "from\s+['\"]@f5xc-salesdemos/i18n-core" \
-    | grep -vE "i18n-core/(src|dist)/" \
-    || true)
+    -E "$pattern" . 2>/dev/null |
+    grep -vE "($EXCLUDE_DIRS)" |
+    grep -vE "($EXCLUDE_FILES)" |
+    grep -vE "from\s+['\"]@f5xc-salesdemos/i18n-core" |
+    grep -vE "i18n-core/(src|dist)/" ||
+    true)
 
   if [ -n "$results" ]; then
     echo "$results"
