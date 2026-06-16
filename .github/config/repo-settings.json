@@ -51,6 +51,9 @@
     },
     "vscode-f5xc-tools": {
       "additional_contexts": ["Validate Generation", "Test (ubuntu-latest)", "Build VSIX"]
+    },
+    "console": {
+      "additional_contexts": ["validate / Validate Catalog Schemas"]
     }
   },
   "topics": [],
@@ -74,7 +77,8 @@
       "api-specs": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini"],
       "api-specs-enriched": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini"],
       "vscode-f5xc-tools": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"],
-      "i18n-core": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"]
+      "i18n-core": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"],
+      "console": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"]
     },
     "files": [
       { "src": "workflows/github-pages-deploy.yml", "dest": ".github/workflows/github-pages-deploy.yml" },
