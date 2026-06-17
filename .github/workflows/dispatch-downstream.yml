@@ -1,11 +1,17 @@
 ---
 name: Dispatch Downstream Enforcement
 
+# Runs AFTER "Build Managed Files Manifest" completes, never concurrently
+# with it. The manifest is the source of truth sync reads; triggering on
+# the manifest build's completion (rather than the same push) guarantees
+# the freshly-committed manifest is in place before downstream sync fetches
+# it — eliminating the race where sync read a stale manifest and skipped
+# newly-added managed files. workflow_dispatch is kept as a manual fallback.
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'docs/**'
+  workflow_run:
+    workflows: ["Build Managed Files Manifest"]
+    types: [completed]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,6 +23,11 @@ concurrency:
 jobs:
   dispatch:
     runs-on: ubuntu-latest
+    # Only fan out when the manifest build succeeded (or on manual dispatch).
+    # Skips on manifest-build failure so downstream never syncs a bad manifest.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
