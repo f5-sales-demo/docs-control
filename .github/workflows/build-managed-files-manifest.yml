@@ -48,6 +48,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 concurrency:
   group: build-managed-files-manifest
@@ -117,20 +118,44 @@ jobs:
 
           echo "[OK] Wrote manifest with $(echo "$FILES_JSON" | jq 'length') entries"
 
-      - name: Commit manifest if changed
+      - name: Open or update auto-merged manifest PR if files changed
+        # main is protected (required checks + enforce_admins, no bypass), so a
+        # direct push of the manifest is rejected. Instead route the manifest
+        # through an auto-merging PR on a sync/* branch (excluded from the
+        # require-linked-issue gate). The PR is only opened/updated when the
+        # `files` map actually changes — generated_at/source_commit churn is
+        # ignored — so there is no per-run PR spam. The manifest is excluded
+        # from biome, so the PR's Lint Code Base passes. Falls back to today's
+        # per-file sync behavior if anything here is skipped.
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MANIFEST_PATH: .github/config/managed-files-manifest.json
+          BRANCH: sync/manifest
         run: |
           set -euo pipefail
 
-          if git diff --quiet -- "$MANIFEST_PATH"; then
-            echo "[OK] Manifest unchanged - nothing to commit"
+          # Compare only the files map (ignore volatile generated_at/source_commit).
+          NEW_FILES=$(jq -S '.files' "$MANIFEST_PATH")
+          CURRENT_FILES=$(gh api "repos/${GITHUB_REPOSITORY}/contents/${MANIFEST_PATH}?ref=main" \
+            --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | jq -S '.files' 2>/dev/null || echo '{}')
+
+          if [ "$NEW_FILES" = "$CURRENT_FILES" ]; then
+            echo "[OK] Managed-file set unchanged - no manifest PR needed"
             exit 0
           fi
+          echo "[INFO] Managed-file set changed - opening/updating manifest PR"
 
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
           git add "$MANIFEST_PATH"
           git commit -m "chore(governance): regenerate managed-files-manifest.json"
-          git push origin HEAD:main
-          echo "[OK] Manifest committed and pushed"
+          git push --force origin "$BRANCH"
+
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
+            gh pr create --base main --head "$BRANCH" \
+              --title "chore(governance): regenerate managed-files-manifest.json" \
+              --body "Automated managed-files manifest refresh. Auto-merges once checks pass; sync reads this to take the fast path instead of per-file API fetches."
+          fi
+          gh pr merge "$BRANCH" --squash --auto --delete-branch || true
+          echo "[OK] Manifest PR open with auto-merge enabled"
