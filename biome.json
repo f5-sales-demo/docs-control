@@ -26,7 +26,7 @@
   },
   "overrides": [
     {
-      "includes": ["dist/**", "build/**", "release/**", "vendor/**"],
+      "includes": ["dist/**", "build/**", "release/**", "vendor/**", "docs/snapshots/**"],
       "formatter": {
         "enabled": false
       },
