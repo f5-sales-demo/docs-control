@@ -26,7 +26,7 @@
   },
   "overrides": [
     {
-      "includes": ["dist/**", "build/**", "release/**", "vendor/**", "docs/snapshots/**"],
+      "includes": ["dist/**", "build/**", "release/**", "vendor/**", "docs/snapshots/**", ".github/config/managed-files-manifest.json"],
       "formatter": {
         "enabled": false
       },
