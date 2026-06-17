@@ -1,0 +1,246 @@
+{
+  "generated_at": "2026-06-17T23:42:21Z",
+  "source_commit": "24900f057b3aad069bac9c3d28a538e147575fa4",
+  "files": {
+    ".github/workflows/github-pages-deploy.yml": {
+      "src": "workflows/github-pages-deploy.yml",
+      "dest": ".github/workflows/github-pages-deploy.yml",
+      "sha": "b8c35525bbced0fe6a05e2c031291cbcfedcb891",
+      "size": 351
+    },
+    ".github/workflows/enforce-repo-settings.yml": {
+      "src": "workflows/enforce-repo-settings.yml",
+      "dest": ".github/workflows/enforce-repo-settings.yml",
+      "sha": "50546dae2a6d3e7bc2d78d424a16e7a7ebf72255",
+      "size": 986
+    },
+    ".github/workflows/require-linked-issue.yml": {
+      "src": "workflows/require-linked-issue.yml",
+      "dest": ".github/workflows/require-linked-issue.yml",
+      "sha": "1f36c7c89d191e3a15048b3d6501d2f4d9493288",
+      "size": 399
+    },
+    ".github/workflows/super-linter.yml": {
+      "src": "workflows/super-linter.yml",
+      "dest": ".github/workflows/super-linter.yml",
+      "sha": "8652dc2bd7883b17d1132869e01d03902c0d6e2e",
+      "size": 425
+    },
+    ".github/workflows/translation-audit.yml": {
+      "src": "workflows/translation-audit.yml",
+      "dest": ".github/workflows/translation-audit.yml",
+      "sha": "20fe6dd760f152475f7cde45d2a758f5a4d3d834",
+      "size": 515
+    },
+    ".github/PULL_REQUEST_TEMPLATE.md": {
+      "src": ".github/PULL_REQUEST_TEMPLATE.md",
+      "dest": ".github/PULL_REQUEST_TEMPLATE.md",
+      "sha": "5dc4d9bd144f9b615211c053fad350d6cfae4848",
+      "size": 247
+    },
+    ".github/ISSUE_TEMPLATE/bug_report.md": {
+      "src": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "dest": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "sha": "25d4df9693730ec3fb45eb6d25ca705436d0495b",
+      "size": 666
+    },
+    ".github/ISSUE_TEMPLATE/feature_request.md": {
+      "src": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "dest": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "sha": "03ee6c718464722a524e9fb70489c4ef6502f1df",
+      "size": 557
+    },
+    ".github/ISSUE_TEMPLATE/documentation.md": {
+      "src": ".github/ISSUE_TEMPLATE/documentation.md",
+      "dest": ".github/ISSUE_TEMPLATE/documentation.md",
+      "sha": "db50c506b418db5f3c15832d36b0ea853c2a3310",
+      "size": 536
+    },
+    ".github/ISSUE_TEMPLATE/config.yml": {
+      "src": ".github/ISSUE_TEMPLATE/config.yml",
+      "dest": ".github/ISSUE_TEMPLATE/config.yml",
+      "sha": "5cc3f75c0329abc4613691e543afe40b13b6c86d",
+      "size": 50
+    },
+    "CONTRIBUTING.md": {
+      "src": "CONTRIBUTING.md",
+      "dest": "CONTRIBUTING.md",
+      "sha": "48acd329c65b1ca8e74fac0f43bad8ff413be39d",
+      "size": 3186
+    },
+    "CLAUDE.md": {
+      "src": "CLAUDE.md",
+      "dest": "CLAUDE.md",
+      "sha": "2f4550760f6e6f4638b0e32a353f3ac047389fa6",
+      "size": 618
+    },
+    ".editorconfig": {
+      "src": ".editorconfig",
+      "dest": ".editorconfig",
+      "sha": "4e5d7c09600d24ab79d106e2886b0a203edd5840",
+      "size": 334
+    },
+    ".gitignore": {
+      "src": ".gitignore",
+      "dest": ".gitignore",
+      "sha": "ed1de5959ce781a75d1d594373cdbaf47e4ed502",
+      "size": 2328
+    },
+    "LICENSE": {
+      "src": "LICENSE",
+      "dest": "LICENSE",
+      "sha": "95aea347c042fd2c0d835bb5f754b0d6dd0249ed",
+      "size": 1075
+    },
+    ".pre-commit-config.yaml": {
+      "src": ".pre-commit-config.yaml",
+      "dest": ".pre-commit-config.yaml",
+      "sha": "18a5ceecb195c8b9f5ecee466c4be57e717f9b67",
+      "size": 8478
+    },
+    ".yamllint.yaml": {
+      "src": ".yamllint.yaml",
+      "dest": ".yamllint.yaml",
+      "sha": "7797048acaf20cb2eac6dce7ab0ce02b27cc9a8a",
+      "size": 331
+    },
+    ".markdownlint.json": {
+      "src": ".markdownlint.json",
+      "dest": ".markdownlint.json",
+      "sha": "1b939df3a9f96c37a29a1b575107f977fb91c9de",
+      "size": 165
+    },
+    ".github/workflows/dependabot-auto-merge.yml": {
+      "src": "workflows/dependabot-auto-merge.yml",
+      "dest": ".github/workflows/dependabot-auto-merge.yml",
+      "sha": "b0e2766857c44daade49cdd41ddbb8a40ae24bf6",
+      "size": 278
+    },
+    "biome.json": {
+      "src": "biome.json",
+      "dest": "biome.json",
+      "sha": "6f4d7ab6e7bc9ed8d13a5aa59f3730649f911efa",
+      "size": 1120
+    },
+    ".jscpd.json": {
+      "src": ".jscpd.json",
+      "dest": ".jscpd.json",
+      "sha": "118883cbed7f6cd88c86144a00114e593ec110f3",
+      "size": 414
+    },
+    ".textlintrc": {
+      "src": ".textlintrc",
+      "dest": ".textlintrc",
+      "sha": "bd0daf84ec1331b277c3511d34285cd3f0198b7e",
+      "size": 1186
+    },
+    ".editorconfig-checker.json": {
+      "src": ".editorconfig-checker.json",
+      "dest": ".editorconfig-checker.json",
+      "sha": "77927baee37c7c9acea75cc9af5ae8ef2244d302",
+      "size": 107
+    },
+    ".checkov.yaml": {
+      "src": ".checkov.yaml",
+      "dest": ".checkov.yaml",
+      "sha": "4418b6c128e308dfcfa1910a0388d9fc993d318c",
+      "size": 3357
+    },
+    "zizmor.yaml": {
+      "src": "zizmor.yaml",
+      "dest": "zizmor.yaml",
+      "sha": "09cf3a811c29f125d26f124bbff4633d3eafc744",
+      "size": 1537
+    },
+    ".shellcheckrc": {
+      "src": ".shellcheckrc",
+      "dest": ".shellcheckrc",
+      "sha": "e25dba89f3d2bfc697062159cd39d212c3e2c9f2",
+      "size": 1348
+    },
+    ".codespellrc": {
+      "src": ".codespellrc",
+      "dest": ".codespellrc",
+      "sha": "678f3045d65d3a5cc422e8c239174e7a5e9532ac",
+      "size": 712
+    },
+    ".gitleaks.toml": {
+      "src": ".gitleaks.toml",
+      "dest": ".gitleaks.toml",
+      "sha": "cacca1884f541a3a55fbb5d9d18469e76bc694ee",
+      "size": 100
+    },
+    ".prettierignore": {
+      "src": ".prettierignore",
+      "dest": ".prettierignore",
+      "sha": "41e6b63e0856b6fdcb1bf97b1ba1a55e8490467e",
+      "size": 183
+    },
+    ".trivyignore": {
+      "src": ".trivyignore",
+      "dest": ".trivyignore",
+      "sha": "d158a5719e6325409a2825267a4c93a48cfa4a78",
+      "size": 716
+    },
+    "trivy.yaml": {
+      "src": "trivy.yaml",
+      "dest": "trivy.yaml",
+      "sha": "7316f196adc301669db7bdb130b9db4ddb6ae594",
+      "size": 709
+    },
+    ".ruff.toml": {
+      "src": ".ruff.toml",
+      "dest": ".ruff.toml",
+      "sha": "2d0afe8009130cc27dbfa31f58acd70c044cb963",
+      "size": 1215
+    },
+    "ruff.toml": {
+      "src": "ruff.toml",
+      "dest": "ruff.toml",
+      "sha": "2d0afe8009130cc27dbfa31f58acd70c044cb963",
+      "size": 1215
+    },
+    ".isort.cfg": {
+      "src": ".isort.cfg",
+      "dest": ".isort.cfg",
+      "sha": "7c74842c842147232fce0c8f5d1fa411288ffd9f",
+      "size": 88
+    },
+    ".python-lint": {
+      "src": ".python-lint",
+      "dest": ".python-lint",
+      "sha": "64d9fd274ef74a1d19e5c39005cc66a09927c823",
+      "size": 740
+    },
+    ".mypy.ini": {
+      "src": ".mypy.ini",
+      "dest": ".mypy.ini",
+      "sha": "dcd042c771b42c5fdbc35c06e089f7f784663681",
+      "size": 273
+    },
+    "scripts/locale-lint.sh": {
+      "src": "scripts/locale-lint.sh",
+      "dest": "scripts/locale-lint.sh",
+      "sha": "4a9ee6040bec65a18fa54e7b2a677a27913b68df",
+      "size": 1789
+    },
+    ".claude/governance.json": {
+      "src": ".claude/governance.json",
+      "dest": ".claude/governance.json",
+      "sha": "7a5d95cd7b7b2e5a15d31e2ed59e8ee83fd5f0f1",
+      "size": 1816
+    },
+    ".claude/settings.json": {
+      "src": ".claude/settings.json",
+      "dest": ".claude/settings.json",
+      "sha": "d00e65422b04c19184354d1a9ede9e362b4a2d10",
+      "size": 273
+    },
+    ".claude/hooks/protect-managed-files.sh": {
+      "src": ".claude/hooks/protect-managed-files.sh",
+      "dest": ".claude/hooks/protect-managed-files.sh",
+      "sha": "7d3a4031f5589ee713302ba417d0be9b0be4ca63",
+      "size": 3563
+    }
+  }
+}
