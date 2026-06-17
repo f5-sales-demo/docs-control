@@ -1,0 +1,74 @@
+---
+# Reusable workflow: translation-freshness audit (read-only).
+#
+# Fails a PR when any English doc (docs/en/**/*.md[x]) has a missing or
+# stale translation under docs/<locale>/. "Stale" means the translated
+# file's i18n.sourceHash no longer matches the SHA-256 (first 12 hex) of
+# the current English source.
+#
+# This check performs NO translation (no API calls). Generation happens in
+# pre-commit via `docs-translate --staged`. Repos without docs/en/ pass
+# trivially. Called by the downstream stub .github/workflows/translation-audit.yml
+name: Translation Audit
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: Translation freshness
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - name: Audit translation freshness
+        run: |
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          import fs from 'node:fs';
+          import path from 'node:path';
+
+          const LOCALES = ['fr','es','de','pt-br','ja','ko','zh-cn','zh-tw','ar','it','hi','th'];
+          const enDir = path.join('docs', 'en');
+          if (!fs.existsSync(enDir)) {
+            console.log('No docs/en/ directory — translation audit not applicable.');
+            process.exit(0);
+          }
+          const hash = (c) => createHash('sha256').update(c).digest('hex').slice(0, 12);
+          const collect = (dir, out = []) => {
+            for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+              const f = path.join(dir, e.name);
+              if (e.isDirectory()) collect(f, out);
+              else if (/\.mdx?$/.test(e.name)) out.push(f);
+            }
+            return out;
+          };
+          const sourceHashOf = (raw) => {
+            const m = raw.match(/^\s*sourceHash:\s*["']?([0-9a-f]{12})["']?\s*$/m);
+            return m ? m[1] : null;
+          };
+
+          const issues = [];
+          for (const enFile of collect(enDir)) {
+            const rel = path.relative(enDir, enFile);
+            const enHash = hash(fs.readFileSync(enFile, 'utf-8'));
+            for (const loc of LOCALES) {
+              const lf = path.join('docs', loc, rel);
+              if (!fs.existsSync(lf)) { issues.push(`MISSING  ${loc}/${rel}`); continue; }
+              const sh = sourceHashOf(fs.readFileSync(lf, 'utf-8'));
+              if (sh && sh !== enHash) issues.push(`STALE    ${loc}/${rel} (stored=${sh} current=${enHash})`);
+            }
+          }
+
+          if (issues.length) {
+            console.error(`\n✖ ${issues.length} translation issue(s) — regenerate with \`docs-translate --staged\` (or --force) and commit:\n`);
+            for (const i of issues) console.error('  ' + i);
+            console.error('\nGeneration runs in pre-commit; this gate only verifies freshness.');
+            process.exit(1);
+          }
+          console.log('✓ All translations are present and fresh.');
+          NODE
