@@ -216,6 +216,15 @@ jobs:
                 continue
               fi
 
+              # Restore exactly one trailing newline. The content above is
+              # captured via bash $(...) / $(cat ...), which strips trailing
+              # newlines. biome, yamllint and editorconfig-checker all require
+              # a final newline, so the stripped blob fails Lint Code Base in
+              # every downstream sync PR; the missing newline also makes the
+              # committed blob's SHA never match the source, causing perpetual
+              # drift. Normalizing to a single trailing newline fixes both.
+              content="${content%$'\n'}"$'\n'
+
               tree_items=$(echo "$tree_items" | jq \
                 --arg path "$dest_file" \
                 --arg content "$content" \
