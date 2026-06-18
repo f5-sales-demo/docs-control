@@ -35,20 +35,19 @@ jobs:
       - name: Dispatch enforce-repo-settings to all downstream repos
         env:
           GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
-        # Single-runner fan-out: one job instead of a 25-cell matrix.
-        # Parallelism within the job (xargs -P 5) preserves the previous
-        # max-parallel throughput without allocating 25 runners.
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           set -euo pipefail
 
           dispatch_one() {
             local repo="$1"
+            local sha="$2"
             local attempt=1
             local max=3
             local delay=2
             while true; do
               if gh workflow run enforce-repo-settings.yml \
-                  --repo "$repo" >/dev/null 2>&1; then
+                  --repo "$repo" --field source_sha="$sha" >/dev/null 2>&1; then
                 printf '[OK]   %s\n' "$repo"
                 return 0
               fi
@@ -64,24 +63,47 @@ jobs:
           export -f dispatch_one
 
           mapfile -t REPOS < <(jq -r '.[]' .github/config/downstream-repos.json)
-          echo "Dispatching enforce-repo-settings to ${#REPOS[@]} repos (parallelism 5)..."
+          TOTAL=${#REPOS[@]}
+          BATCH_SIZE=5
+          BATCH_DELAY=45
+          echo "Dispatching enforce-repo-settings to ${TOTAL} repos (batches of ${BATCH_SIZE}, ${BATCH_DELAY}s delay)..."
 
           LOG=$(mktemp)
-          # xargs -P returns 123 when any child exited non-zero. That's
-          # expected here (we aggregate failures via LOG below), so disable
-          # pipefail-driven exit for just this pipeline.
-          set +e
-          printf '%s\n' "${REPOS[@]}" \
-            | xargs -I{} -P 5 bash -c 'dispatch_one "$@"' _ {} \
-            | tee "$LOG"
-          set -e
+          FAIL_COUNT=0
+          batch=0
 
-          FAIL_COUNT=$(grep -c '^\[FAIL\]' "$LOG" || true)
-          if [ "${FAIL_COUNT:-0}" -gt 0 ]; then
+          for ((i = 0; i < TOTAL; i += BATCH_SIZE)); do
+            batch=$((batch + 1))
+            batch_repos=("${REPOS[@]:i:BATCH_SIZE}")
+            echo ""
+            echo "--- Batch ${batch} (repos $((i+1))-$((i+${#batch_repos[@]})) of ${TOTAL}) ---"
+
+            for repo in "${batch_repos[@]}"; do
+              dispatch_one "$repo" "$SOURCE_SHA" >> "$LOG" 2>&1 &
+            done
+            wait
+
+            # Show batch results
+            cat "$LOG"
+
+            # Count failures so far
+            BATCH_FAILS=$(grep -c '^\[FAIL\]' "$LOG" || true)
+            FAIL_COUNT=$((FAIL_COUNT + BATCH_FAILS))
+            : > "$LOG"
+
+            # Delay between batches (skip after last)
+            remaining=$((TOTAL - i - ${#batch_repos[@]}))
+            if [ "$remaining" -gt 0 ]; then
+              echo "[INFO] Waiting ${BATCH_DELAY}s before next batch..."
+              sleep "$BATCH_DELAY"
+            fi
+          done
+
+          if [ "${FAIL_COUNT}" -gt 0 ]; then
             echo ""
             echo "::error::${FAIL_COUNT} dispatch(es) failed"
             exit 1
           fi
 
           echo ""
-          echo "All ${#REPOS[@]} dispatches succeeded."
+          echo "All ${TOTAL} dispatches succeeded."

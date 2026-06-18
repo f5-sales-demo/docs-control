@@ -25,8 +25,8 @@ check "has dispatch job" "grep -q '^  dispatch:$' '$WF'"
 check "no matrix fan-out (single runner)" "! grep -q '^[[:space:]]*matrix:$' '$WF'"
 check "no read-config job (consolidated)" "! grep -q '^  read-config:$' '$WF'"
 
-# Parallelism cap stays at 5, now enforced by xargs inside the runner.
-check "xargs -P 5 for in-runner parallelism" "grep -Eq 'xargs[^|]*-P[[:space:]]+5' '$WF'"
+# Parallelism cap stays at 5 via batched dispatch loop.
+check "BATCH_SIZE=5 for parallelism cap" "grep -q 'BATCH_SIZE=5' '$WF'"
 
 # Retry-with-backoff preserved (2s → 4s → 8s).
 check "retry max=3 attempts" "grep -Eq 'max=3' '$WF'"
