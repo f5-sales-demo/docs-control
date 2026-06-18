@@ -143,69 +143,109 @@ jobs:
           CONFIG_REPO="f5xc-salesdemos/docs-control"
           CONFIG_PATH=".github/config/repo-settings.json"
 
-          # --- Helper: wait for checks and auto-merge ----------------------
-          wait_and_merge() {
+          # --- Helper: enable auto-merge (replaces polling) -----------------
+          auto_merge() {
             local pr_num="$1"
             local repo_slug="$2"
-            # Doubled poll intervals to halve the API-call volume against the
-            # same total wait budget (10 min for checks, ~10 min for completion).
-            local max_wait=600   # 10 minutes waiting for checks to appear
-            local poll_interval=30
+
+            echo "[INFO] Enabling auto-merge for PR #${pr_num}..."
+
+            if gh pr merge "${pr_num}" --repo "${repo_slug}" --auto --squash --delete-branch 2>/dev/null; then
+              echo "[OK] Auto-merge enabled for PR #${pr_num} -- will merge when checks pass"
+              return 0
+            fi
+
+            echo "[WARN] Auto-merge not available for ${repo_slug} -- falling back to poll-and-merge"
             local elapsed=0
+            local max_wait=300
+            local poll_interval=60
 
-            echo "[INFO] Waiting for CI checks on PR #${pr_num} (timeout: ${max_wait}s)..."
-
-            # Poll until checks appear or timeout
             while [ "$elapsed" -lt "$max_wait" ]; do
               sleep "$poll_interval"
               elapsed=$((elapsed + poll_interval))
 
-              # Check if any checks have been reported
-              CHECK_OUTPUT=$(gh pr checks "${pr_num}" --repo "${repo_slug}" 2>&1) || true
-              if echo "$CHECK_OUTPUT" | grep -q "no checks reported"; then
-                echo "[INFO] No checks reported yet (${elapsed}s elapsed)..."
+              BUCKET=$(gh pr checks "${pr_num}" --repo "${repo_slug}" \
+                --json bucket --jq '[.[].bucket] | unique |
+                  if . == ["pass"] then "pass"
+                  elif any(. == "fail") then "fail"
+                  else "pending" end' 2>/dev/null) || BUCKET="pending"
+
+              if [ "$BUCKET" = "pass" ]; then
+                if gh pr merge "${pr_num}" --repo "${repo_slug}" --squash --delete-branch 2>/dev/null; then
+                  echo "[OK] Merged sync PR #${pr_num}"
+                  return 0
+                fi
+                echo "[WARN] Failed to merge PR #${pr_num} -- may need manual merge"
+                return 1
+              elif [ "$BUCKET" = "fail" ]; then
+                echo "[WARN] CI checks failed on PR #${pr_num} -- skipping merge"
+                return 1
+              fi
+            done
+
+            echo "[WARN] Timed out waiting for CI on PR #${pr_num} -- skipping merge"
+            return 1
+          }
+
+          # --- Helper: atomic commit via Git Trees API -------------------------
+          commit_tree() {
+            local branch="$1"
+            local commit_msg="$2"
+            local repo_slug="${OWNER}/${REPO}"
+
+            local ref_sha
+            ref_sha=$(retry 3 gh api "repos/${repo_slug}/git/ref/heads/${branch}" --jq '.object.sha')
+
+            local base_tree
+            base_tree=$(retry 3 gh api "repos/${repo_slug}/git/commits/${ref_sha}" --jq '.tree.sha')
+
+            local tree_items="[]"
+            for dest_file in $(printf '%b' "$DRIFT_FILES" | sed '/^$/d'); do
+              local content=""
+              local key
+              key=$(echo "$dest_file" | tr '/' '__')
+
+              if [ "$dest_file" = ".github/dependabot.yml" ] && [ "$DEPENDABOT_DRIFT" = true ]; then
+                content="$GENERATED_DEPENDABOT"
+              elif [ "$dest_file" = "README.md" ] && [ "$README_DRIFT" = true ]; then
+                content="$GENERATED_README"
+              elif [ -f "/tmp/drift_content/${key}" ]; then
+                content=$(cat "/tmp/drift_content/${key}")
+              else
+                echo "[WARN] No cached content for ${dest_file} -- skipping"
                 continue
               fi
 
-              # Checks exist -- poll to completion (14 iterations × 45s ≈ 10 minutes)
-              echo "[INFO] Checks detected -- polling for completion..."
-              local check_iter=0
-              local check_max=14
-              while [ "$check_iter" -lt "$check_max" ]; do
-                sleep 45
-                check_iter=$((check_iter + 1))
-                BUCKET=$(gh pr checks "${pr_num}" --repo "${repo_slug}" \
-                  --json bucket --jq '[.[].bucket] | unique |
-                    if . == ["pass"] then "pass"
-                    elif any(. == "fail") then "fail"
-                    else "pending" end' 2>/dev/null) || BUCKET="pending"
-                echo "[INFO] Check status: ${BUCKET} (iteration ${check_iter}/${check_max})"
-                if [ "$BUCKET" = "pass" ]; then
-                  echo "[INFO] CI passed -- merging PR #${pr_num}..."
-                  local merge_attempts=0
-                  while [ "$merge_attempts" -lt 2 ]; do
-                    if gh pr merge "${pr_num}" --repo "${repo_slug}" --squash --delete-branch; then
-                      echo "[OK] Merged sync PR #${pr_num}"
-                      return 0
-                    fi
-                    merge_attempts=$((merge_attempts + 1))
-                    local merge_delay=$((5 * (2 ** (merge_attempts - 1))))
-                    echo "[WARN] Merge attempt ${merge_attempts}/2 failed -- retrying in ${merge_delay}s..."
-                    sleep "$merge_delay"
-                  done
-                  echo "[WARN] Failed to merge PR #${pr_num} after 2 attempts -- may need manual merge"
-                  return 1
-                elif [ "$BUCKET" = "fail" ]; then
-                  echo "[WARN] CI checks failed on PR #${pr_num} -- skipping auto-merge"
-                  return 1
-                fi
-              done
-              echo "[WARN] Timed out waiting for CI on PR #${pr_num} (${check_max} iterations) -- skipping auto-merge"
-              return 1
+              tree_items=$(echo "$tree_items" | jq \
+                --arg path "$dest_file" \
+                --arg content "$content" \
+                '. + [{"path": $path, "mode": "100644", "type": "blob", "content": $content}]')
             done
 
-            echo "[WARN] Timed out waiting for checks on PR #${pr_num} (${max_wait}s) -- skipping auto-merge"
-            return 1
+            local item_count
+            item_count=$(echo "$tree_items" | jq 'length')
+            if [ "$item_count" -eq 0 ]; then
+              echo "[SKIP] No files to commit"
+              return 0
+            fi
+
+            local tree_json
+            tree_json=$(jq -n --arg base "$base_tree" --argjson tree "$tree_items" \
+              '{"base_tree": $base, "tree": $tree}')
+            local new_tree_sha
+            new_tree_sha=$(echo "$tree_json" | retry 3 gh api "repos/${repo_slug}/git/trees" --method POST --input - --jq '.sha')
+
+            local commit_json
+            commit_json=$(jq -n --arg msg "$commit_msg" --arg tree "$new_tree_sha" --arg parent "$ref_sha" \
+              '{"message": $msg, "tree": $tree, "parents": [$parent]}')
+            local new_commit_sha
+            new_commit_sha=$(echo "$commit_json" | retry 3 gh api "repos/${repo_slug}/git/commits" --method POST --input - --jq '.sha')
+
+            local ref_update
+            ref_update=$(jq -n --arg sha "$new_commit_sha" '{"sha": $sha}')
+            retry_json 3 "$ref_update" "repos/${repo_slug}/git/refs/heads/${branch}" --method PATCH >/dev/null
+
+            echo "[OK] Atomic commit ${new_commit_sha:0:8} (${item_count} files)"
           }
 
           # --- Phase 1: Validate ---------------------------------------------
@@ -274,6 +314,8 @@ jobs:
                 echo "[WARN] No manifest available -- falling back to per-file API fetch"
               fi
 
+              mkdir -p /tmp/drift_content
+
               for file_obj in $(echo "$MANAGED_FILES" | jq -c '.files[]'); do
                 src=$(echo "$file_obj" | jq -r '.src')
                 dest=$(echo "$file_obj" | jq -r '.dest')
@@ -294,6 +336,10 @@ jobs:
                         echo "[DRIFT] Content mismatch: ${dest}"
                         DRIFT_FILES="${DRIFT_FILES}${dest}\n"
                         DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                        DRIFT_CONTENT=$(fetch_governed "files/${dest}" "repos/${SOURCE_REPO}/contents/${src}" 2>/dev/null) || true
+                        if [ -n "$DRIFT_CONTENT" ]; then
+                          printf '%s' "$DRIFT_CONTENT" > "/tmp/drift_content/$(echo "$dest" | tr '/' '__')"
+                        fi
                       else
                         echo "[OK] ${dest}"
                       fi
@@ -301,6 +347,10 @@ jobs:
                       echo "[DRIFT] Missing downstream: ${dest}"
                       DRIFT_FILES="${DRIFT_FILES}${dest}\n"
                       DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                      DRIFT_CONTENT=$(fetch_governed "files/${dest}" "repos/${SOURCE_REPO}/contents/${src}" 2>/dev/null) || true
+                      if [ -n "$DRIFT_CONTENT" ]; then
+                        printf '%s' "$DRIFT_CONTENT" > "/tmp/drift_content/$(echo "$dest" | tr '/' '__')"
+                      fi
                     fi
                     continue
                   fi
@@ -322,6 +372,7 @@ jobs:
                     echo "[DRIFT] Content mismatch: ${dest}"
                     DRIFT_FILES="${DRIFT_FILES}${dest}\n"
                     DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                    printf '%s' "$CANONICAL_CONTENT" > "/tmp/drift_content/$(echo "$dest" | tr '/' '__')"
                   else
                     echo "[OK] ${dest}"
                   fi
@@ -329,6 +380,7 @@ jobs:
                   echo "[DRIFT] Missing downstream: ${dest}"
                   DRIFT_FILES="${DRIFT_FILES}${dest}\n"
                   DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                  printf '%s' "$CANONICAL_CONTENT" > "/tmp/drift_content/$(echo "$dest" | tr '/' '__')"
                 fi
               done
 
@@ -496,72 +548,11 @@ jobs:
                     "repos/${OWNER}/${REPO}/git/refs/heads/governance/sync-managed-files" --method PATCH >/dev/null
                   echo "[OK] Rebased PR branch onto main HEAD"
 
-                  # Commit each drifted managed file to the existing PR branch
-                  for dest_file in $(printf '%b' "$DRIFT_FILES" | sed '/^$/d'); do
-                    if [ "$dest_file" = ".github/dependabot.yml" ] || [ "$dest_file" = "README.md" ]; then
-                      continue
-                    fi
-                    src_file=$(echo "$MANAGED_FILES" | jq -r --arg d "$dest_file" '.files[] | select(.dest == $d) | .src')
-                    # Base64 content fetched directly -- required by the PUT
-                    # contents API below. Not moved to Pages (would require
-                    # re-encoding; saves one API call per drifted file at most).
-                    B64=$(retry 3 gh api "repos/${SOURCE_REPO}/contents/${src_file}" --jq '.content' | tr -d '\n')
-                    FILE_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/${dest_file}?ref=governance/sync-managed-files" --jq '.sha' 2>/dev/null) || true
-                    if [ -n "$FILE_SHA" ]; then
-                      COMMIT_JSON=$(jq -n --arg msg "chore: sync ${dest_file}" \
-                            --arg content "$B64" --arg sha "$FILE_SHA" \
-                            --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
-                    else
-                      COMMIT_JSON=$(jq -n --arg msg "chore: sync ${dest_file}" \
-                            --arg content "$B64" \
-                            --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"branch":$branch}')
-                    fi
-                    retry_json 3 "$COMMIT_JSON" "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT >/dev/null
-                    echo "[OK] Updated ${dest_file} on PR branch"
-                  done
-
-                  # Commit dynamic dependabot.yml if drifted
-                  if [ "$DEPENDABOT_DRIFT" = true ]; then
-                    DEPBOT_B64=$(printf '%s\n' "$GENERATED_DEPENDABOT" | base64 -w 0)
-                    DEPBOT_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml?ref=governance/sync-managed-files" --jq '.sha' 2>/dev/null) || true
-                    if [ -n "$DEPBOT_SHA" ]; then
-                      DEPBOT_COMMIT=$(jq -n --arg msg "chore: update .github/dependabot.yml" \
-                            --arg content "$DEPBOT_B64" --arg sha "$DEPBOT_SHA" \
-                            --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
-                    else
-                      DEPBOT_COMMIT=$(jq -n --arg msg "chore: create .github/dependabot.yml" \
-                            --arg content "$DEPBOT_B64" \
-                            --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"branch":$branch}')
-                    fi
-                    retry_json 3 "$DEPBOT_COMMIT" "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT >/dev/null
-                    echo "[OK] Updated .github/dependabot.yml on PR branch"
-                  fi
-
-                  # Commit dynamic README.md if drifted
-                  if [ "$README_DRIFT" = true ]; then
-                    README_B64=$(printf '%s\n' "$GENERATED_README" | base64 -w 0)
-                    README_SHA=$(gh api "repos/${OWNER}/${REPO}/contents/README.md?ref=governance/sync-managed-files" --jq '.sha' 2>/dev/null) || true
-                    if [ -n "$README_SHA" ]; then
-                      README_COMMIT=$(jq -n --arg msg "chore: update README.md" \
-                            --arg content "$README_B64" --arg sha "$README_SHA" \
-                            --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
-                    else
-                      README_COMMIT=$(jq -n --arg msg "chore: create README.md" \
-                            --arg content "$README_B64" \
-                            --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"branch":$branch}')
-                    fi
-                    retry_json 3 "$README_COMMIT" "repos/${OWNER}/${REPO}/contents/README.md" --method PUT >/dev/null
-                    echo "[OK] Updated README.md on PR branch"
-                  fi
+                  commit_tree "governance/sync-managed-files" \
+                    "chore: sync managed files from governance template"
 
                   echo "[INFO] PR branch updated -- attempting merge"
-                  wait_and_merge "${EXISTING_PR}" "${OWNER}/${REPO}" || true
+                  auto_merge "${EXISTING_PR}" "${OWNER}/${REPO}" || true
                 else
                   # Close any orphaned sync issues from previous runs
                   STALE_ISSUES=$(gh issue list --repo "${OWNER}/${REPO}" \
@@ -592,87 +583,9 @@ jobs:
                   fi
                   echo "[OK] Created or updated branch governance/sync-managed-files"
 
-                  # Commit each drifted file to the branch
-                  for dest_file in $(printf '%b' "$DRIFT_FILES" | sed '/^$/d'); do
-                    # Skip dynamically generated files -- committed separately below
-                    if [ "$dest_file" = ".github/dependabot.yml" ] || [ "$dest_file" = "README.md" ]; then
-                      continue
-                    fi
+                  commit_tree "governance/sync-managed-files" \
+                    "chore: sync managed files from governance template"
 
-                    # Look up the source path from the manifest
-                    src_file=$(echo "$MANAGED_FILES" | jq -r --arg d "$dest_file" '.files[] | select(.dest == $d) | .src')
-
-                    # Get canonical content as base64
-                    # Base64 content fetched directly -- required by the PUT
-                    # contents API below. Not moved to Pages (would require
-                    # re-encoding; saves one API call per drifted file at most).
-                    B64=$(retry 3 gh api "repos/${SOURCE_REPO}/contents/${src_file}" --jq '.content' | tr -d '\n')
-
-                    # Check if file exists downstream (need SHA for update)
-                    FILE_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/${dest_file}" --jq '.sha' 2>/dev/null) || true
-
-                    if [ -n "$FILE_SHA" ]; then
-                      # Update existing file
-                      COMMIT_JSON=$(jq -n --arg msg "chore: sync ${dest_file}" \
-                            --arg content "$B64" \
-                            --arg sha "$FILE_SHA" \
-                            --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
-                      retry_json 3 "$COMMIT_JSON" "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT >/dev/null
-                    else
-                      # Create new file
-                      COMMIT_JSON=$(jq -n --arg msg "chore: sync ${dest_file}" \
-                            --arg content "$B64" \
-                            --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"branch":$branch}')
-                      retry_json 3 "$COMMIT_JSON" "repos/${OWNER}/${REPO}/contents/${dest_file}" --method PUT >/dev/null
-                    fi
-                    echo "[OK] Synced ${dest_file}"
-                  done
-
-                  # Commit dynamic dependabot.yml if drifted
-                  if [ "$DEPENDABOT_DRIFT" = true ]; then
-                    DEPBOT_B64=$(printf '%s\n' "$GENERATED_DEPENDABOT" | base64 -w 0)
-                    DEPBOT_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --jq '.sha' 2>/dev/null) || true
-
-                    if [ -n "$DEPBOT_SHA" ]; then
-                      DEPBOT_COMMIT=$(jq -n --arg msg "chore: update .github/dependabot.yml" \
-                            --arg content "$DEPBOT_B64" \
-                            --arg sha "$DEPBOT_SHA" \
-                            --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
-                      retry_json 3 "$DEPBOT_COMMIT" "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT >/dev/null
-                    else
-                      DEPBOT_COMMIT=$(jq -n --arg msg "chore: create .github/dependabot.yml" \
-                            --arg content "$DEPBOT_B64" \
-                            --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"branch":$branch}')
-                      retry_json 3 "$DEPBOT_COMMIT" "repos/${OWNER}/${REPO}/contents/.github/dependabot.yml" --method PUT >/dev/null
-                    fi
-                    echo "[OK] Synced .github/dependabot.yml (dynamic)"
-                  fi
-
-                  # Commit dynamic README.md if drifted
-                  if [ "$README_DRIFT" = true ]; then
-                    README_B64=$(printf '%s\n' "$GENERATED_README" | base64 -w 0)
-                    README_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/contents/README.md" --jq '.sha' 2>/dev/null) || true
-
-                    if [ -n "$README_SHA" ]; then
-                      README_COMMIT=$(jq -n --arg msg "chore: update README.md" \
-                            --arg content "$README_B64" \
-                            --arg sha "$README_SHA" \
-                            --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"sha":$sha,"branch":$branch}')
-                      retry_json 3 "$README_COMMIT" "repos/${OWNER}/${REPO}/contents/README.md" --method PUT >/dev/null
-                    else
-                      README_COMMIT=$(jq -n --arg msg "chore: create README.md" \
-                            --arg content "$README_B64" \
-                            --arg branch "governance/sync-managed-files" \
-                        '{"message":$msg,"content":$content,"branch":$branch}')
-                      retry_json 3 "$README_COMMIT" "repos/${OWNER}/${REPO}/contents/README.md" --method PUT >/dev/null
-                    fi
-                    echo "[OK] Synced README.md (dynamic)"
-                  fi
 
                   # Create PR
                   PR_BODY=$(printf 'Closes #%s\n\nSynced managed files from `%s` canonical source:\n\n%s' \
@@ -685,7 +598,7 @@ jobs:
                   echo "[OK] Created sync PR #${PR_NUM}"
 
                   # --- Auto-merge governance PR ---------------------------
-                  wait_and_merge "${PR_NUM}" "${OWNER}/${REPO}" || true
+                  auto_merge "${PR_NUM}" "${OWNER}/${REPO}" || true
 
                   SYNC_PR_CREATED=true
                 fi
