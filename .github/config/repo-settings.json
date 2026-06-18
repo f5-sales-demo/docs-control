@@ -30,7 +30,7 @@
       "enforce_admins": true,
       "required_status_checks": {
         "strict": false,
-        "contexts": ["check / Check linked issues", "lint / Lint Code Base"],
+        "contexts": ["check / Check linked issues", "lint / Lint Code Base", "audit / Translation freshness"],
         "self_contexts": ["Check linked issues", "Lint Code Base"]
       },
       "required_pull_request_reviews": null,
@@ -53,7 +53,10 @@
       "additional_contexts": ["Validate Generation", "Test (ubuntu-latest)", "Build VSIX"]
     },
     "console": {
-      "additional_contexts": ["validate / Validate Catalog Schemas"]
+      "additional_contexts": ["Validate Catalog Schemas"]
+    },
+    "terraform-provider-f5xc": {
+      "excluded_required_contexts": ["audit / Translation freshness"]
     }
   },
   "topics": [],
