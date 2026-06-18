@@ -32,7 +32,8 @@
         "release/**",
         "vendor/**",
         "docs/snapshots/**",
-        ".github/config/managed-files-manifest.json"
+        ".github/config/managed-files-manifest.json",
+        "**/*.svg"
       ],
       "formatter": {
         "enabled": false
