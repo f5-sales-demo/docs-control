@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-18T01:31:59Z",
-  "source_commit": "f12695dbc1e210b77ef5dffd6e8c435bca5fd576",
+  "generated_at": "2026-06-20T17:57:49Z",
+  "source_commit": "82681d288616d109b01082cc8c9c1ea300e85984",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -115,6 +115,12 @@
       "dest": ".github/workflows/dependabot-auto-merge.yml",
       "sha": "b0e2766857c44daade49cdd41ddbb8a40ae24bf6",
       "size": 278
+    },
+    ".github/workflows/auto-merge.yml": {
+      "src": "workflows/auto-merge.yml",
+      "dest": ".github/workflows/auto-merge.yml",
+      "sha": "9212ae152c03afaf36fe25e1b9f83fc5dd25d8e3",
+      "size": 521
     },
     "biome.json": {
       "src": "biome.json",
