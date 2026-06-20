@@ -104,6 +104,7 @@
       { "src": ".yamllint.yaml", "dest": ".yamllint.yaml" },
       { "src": ".markdownlint.json", "dest": ".markdownlint.json" },
       { "src": "workflows/dependabot-auto-merge.yml", "dest": ".github/workflows/dependabot-auto-merge.yml" },
+      { "src": "workflows/auto-merge.yml", "dest": ".github/workflows/auto-merge.yml" },
 
       { "src": "biome.json", "dest": "biome.json" },
       { "src": ".jscpd.json", "dest": ".jscpd.json" },
