@@ -157,5 +157,10 @@
     "url": "https://f5xc-salesdemos.github.io/console/llms-full.txt",
     "description": "Schema-driven inventory of the F5 XC administration console UI — routes, resources, workflows, and browser automation manifests",
     "badges": [{ "name": "Validate Catalog", "workflow": "validate-catalog.yml" }]
+  },
+  {
+    "label": "xcsh Chrome Extension",
+    "url": "https://f5xc-salesdemos.github.io/xcsh-chrome-extension/llms-full.txt",
+    "description": "Chrome extension companion for the xcsh AI-powered F5 Distributed Cloud CLI"
   }
 ]
