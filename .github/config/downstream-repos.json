@@ -32,5 +32,6 @@
   "f5xc-salesdemos/starlight-mega-menu",
   "f5xc-salesdemos/apt-repo",
   "f5xc-salesdemos/i18n-core",
-  "f5xc-salesdemos/console"
+  "f5xc-salesdemos/console",
+  "f5xc-salesdemos/xcsh-chrome-extension"
 ]
