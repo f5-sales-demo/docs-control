@@ -110,7 +110,7 @@ jobs:
           mkdir -p ${{ runner.temp }}/docs-output
           chmod 777 ${{ runner.temp }}/docs-output
 
-          docker run --rm \
+          docker run --rm --pull always \
             --name docs-builder \
             -v ${{ github.workspace }}/${{ inputs.content-path || 'docs' }}:/content/docs:ro \
             ${{ steps.assets.outputs.mounts }} \
