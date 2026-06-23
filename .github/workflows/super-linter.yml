@@ -66,7 +66,16 @@ jobs:
           # generated (parser.c from `tree-sitter generate`) or hand-written
           # to upstream tree-sitter conventions that do not match
           # clang-format's default style; excluding preserves fork fidelity.
-          FILTER_REGEX_EXCLUDE: "(dist/|build/|release/|vendor/|tree-sitter-[^/]+/src/(parser|scanner)\\.(c|h)$|docs/(fr|es|de|ja|pt-br|ko|zh-cn|zh-tw|ar|it|hi|th)/|src/i18n/.*translations)"
+          # catalog/workflows/: declarative console-automation workflows are
+          # legitimately near-identical (one shared UI component → identical
+          # step sequences) and are validated by the repo's own Validate Catalog
+          # Schemas job; excluding them stops JSCPD flagging them as clones. The
+          # repo .jscpd.json declares the same intent via **/workflows/**, but
+          # that ignore is not honored when Super-Linter passes changed files
+          # explicitly (VALIDATE_ALL_CODEBASE:false). Scoped to catalog/workflows/
+          # so .github/workflows/ actionlint is unaffected; no-op for repos
+          # without that path. See issue #560.
+          FILTER_REGEX_EXCLUDE: "(dist/|build/|release/|vendor/|catalog/workflows/|tree-sitter-[^/]+/src/(parser|scanner)\\.(c|h)$|docs/(fr|es|de|ja|pt-br|ko|zh-cn|zh-tw|ar|it|hi|th)/|src/i18n/.*translations)"
           # Disable Prettier — Biome handles formatting for
           # JS/TS/JSON/CSS/HTML/GraphQL/JSX/Vue; yamllint handles
           # YAML; markdownlint handles Markdown.
