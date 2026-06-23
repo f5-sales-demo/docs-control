@@ -102,6 +102,12 @@ jobs:
           # Explicit config file name — super-linter v8 defaults to
           # .yamllint.yml but our managed config uses .yamllint.yaml
           YAML_YAMLLINT_CONFIG_FILE: .yamllint.yaml
+          # Without an explicit config file, Super-Linter's JSCPD uses its
+          # bundled default and IGNORES the repo .jscpd.json (so the ignore /
+          # threshold never apply). Point it at the managed repo config.
+          # Filename only — a full path triggers the doubled-slash
+          # "rules file doesn't exist" bug (super-linter #6734).
+          JSCPD_CONFIG_FILE: .jscpd.json
           # Point Trivy at our governance config (skip-dirs for
           # .mypy_cache, .ruff_cache, .pytest_cache so the fs walker
           # doesn't hit dangling symlinks mid-run). See issue #377.
