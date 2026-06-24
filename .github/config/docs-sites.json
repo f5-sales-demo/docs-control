@@ -104,7 +104,7 @@
   },
   {
     "label": "Terraform Provider",
-    "url": "https://f5xc-salesdemos.github.io/terraform-provider-f5xc/llms-full.txt",
+    "url": "https://f5xc-salesdemos.github.io/terraform-provider-xcsh/llms-full.txt",
     "description": "Terraform provider for F5 Distributed Cloud",
     "badges": [{ "name": "CI", "workflow": "ci.yml" }]
   },
@@ -147,7 +147,7 @@
   },
   {
     "label": "VS Code Extension",
-    "url": "https://f5xc-salesdemos.github.io/vscode-f5xc-tools/llms-full.txt",
+    "url": "https://f5xc-salesdemos.github.io/vscode-xcsh/llms-full.txt",
     "description": "VS Code extension for managing F5 Distributed Cloud resources with IntelliSense and xcsh chat",
     "badges": [{ "name": "CI", "workflow": "ci.yml" }, { "name": "Release", "workflow": "release.yml" }],
     "readme_content": "## Features\n\n- **Resource Management** — Browse, create, edit, and delete F5 Distributed Cloud resources directly from VS Code\n- **Cloud Status** — Real-time global infrastructure health dashboard\n- **AI Chat Assistant** — `@xcsh` chat participant for natural language platform operations\n- **IntelliSense** — JSON schema completions for all F5 XC resource types\n- **Multi-Cloud Integrations** — Works with AWS, Azure, GCP, GitHub, GitLab, Terraform, and Salesforce\n\n## Getting Started\n\n1. Install the extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=RobinMordasiewicz.xcsh)\n2. Install xcsh: `brew install f5xc-salesdemos/tap/xcsh`\n3. Open the Command Palette (`Cmd+Shift+P`) and run **xcsh: Platform Readiness** to check your setup\n4. Add an F5 XC context via **xcsh: Add Context**\n\n## Supported Integrations\n\n| Integration | Install | Authenticate |\n|---|---|---|\n| xcsh | `brew install f5xc-salesdemos/tap/xcsh` | Included with install |\n| AWS CLI | `brew install awscli` | `aws sso login` |\n| Azure CLI | `brew install azure-cli` | `az login` |\n| Google Cloud | `brew install google-cloud-sdk` | `gcloud auth login` |\n| GitHub CLI | `brew install gh` | `gh auth login` |\n| GitLab CLI | `brew install glab` | `glab auth login` |\n| Terraform | `brew install hashicorp/tap/terraform` | N/A |\n| Salesforce CLI | `brew install sf` | `sf org login web` |\n\nRun **xcsh: Platform Readiness** in VS Code to see which integrations are installed and authenticated."
