@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-23T04:18:20Z",
-  "source_commit": "a5670d1386a12e86f8e2ea94795cf60341b3d2ba",
+  "generated_at": "2026-06-24T01:40:40Z",
+  "source_commit": "38a84dc4f17f5a087315fe49217ac4d91992a284",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -233,8 +233,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "7a5d95cd7b7b2e5a15d31e2ed59e8ee83fd5f0f1",
-      "size": 1816
+      "sha": "4fad0498e9bb561db47e3f6a760771605a340067",
+      "size": 1810
     },
     ".claude/settings.json": {
       "src": ".claude/settings.json",
