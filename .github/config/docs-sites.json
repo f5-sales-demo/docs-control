@@ -1,6 +1,6 @@
 [
   {
-    "label": "f5xc Docs Builder",
+    "label": "xcsh Docs Builder",
     "url": "https://f5xc-salesdemos.github.io/docs-builder/llms-full.txt",
     "description": "Containerized Astro + Starlight documentation build system",
     "badges": [{ "name": "Build Image", "workflow": "build-image.yml" }]
