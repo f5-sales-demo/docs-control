@@ -123,8 +123,8 @@ jobs:
           VALIDATE_PYTHON_BLACK: false
           VALIDATE_PYTHON_FLAKE8: false
           VALIDATE_PYTHON_ISORT: false
-          PYTHON_RUFF_CONFIG_FILE: ruff.toml
-          PYTHON_RUFF_FORMAT_CONFIG_FILE: ruff.toml
+          PYTHON_RUFF_CONFIG_FILE: .ruff.toml
+          PYTHON_RUFF_FORMAT_CONFIG_FILE: .ruff.toml
           PYTHON_PYLINT_CONFIG_FILE: .python-lint
           PYTHON_MYPY_CONFIG_FILE: .mypy.ini
           # ── OpenAPI / Spectral ──────────────────────────────
