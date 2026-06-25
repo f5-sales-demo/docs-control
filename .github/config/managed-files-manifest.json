@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-06-24T13:21:01Z",
-  "source_commit": "6f2e99b3856cd25847209adf3a6acea86cde408a",
+  "generated_at": "2026-06-25T12:56:53Z",
+  "source_commit": "a602b891e8fb2e5a33e066e0034676f83591b8b5",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -65,14 +65,14 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "48acd329c65b1ca8e74fac0f43bad8ff413be39d",
-      "size": 3186
+      "sha": "d7931465d9d027eb60fb743af77af23146d920e4",
+      "size": 3057
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "2f4550760f6e6f4638b0e32a353f3ac047389fa6",
-      "size": 618
+      "sha": "83772c98a4d6967daa7c032583bd4d2d614be752",
+      "size": 459
     },
     ".editorconfig": {
       "src": ".editorconfig",
@@ -200,12 +200,6 @@
       "sha": "2d0afe8009130cc27dbfa31f58acd70c044cb963",
       "size": 1215
     },
-    "ruff.toml": {
-      "src": "ruff.toml",
-      "dest": "ruff.toml",
-      "sha": "2d0afe8009130cc27dbfa31f58acd70c044cb963",
-      "size": 1215
-    },
     ".isort.cfg": {
       "src": ".isort.cfg",
       "dest": ".isort.cfg",
@@ -233,8 +227,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "4fad0498e9bb561db47e3f6a760771605a340067",
-      "size": 1810
+      "sha": "df148ae96cbd612ad2cdecc8d98d2b51db38618c",
+      "size": 1722
     },
     ".claude/settings.json": {
       "src": ".claude/settings.json",
