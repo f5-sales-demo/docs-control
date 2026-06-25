@@ -74,18 +74,17 @@
         "biome.json",
         "LICENSE",
         "CONTRIBUTING.md",
-        "ruff.toml",
         ".ruff.toml",
         ".python-lint",
         ".mypy.ini",
         ".github/workflows/super-linter.yml"
       ],
-      "api-specs": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini"],
-      "api-specs-enriched": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini"],
-      "vscode-xcsh": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"],
-      "i18n-core": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"],
-      "console": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"],
-      "xcsh-chrome-extension": ["ruff.toml", ".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"]
+      "api-specs": [".ruff.toml", ".python-lint", ".mypy.ini"],
+      "api-specs-enriched": [".ruff.toml", ".python-lint", ".mypy.ini"],
+      "vscode-xcsh": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"],
+      "i18n-core": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"],
+      "console": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"],
+      "xcsh-chrome-extension": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"]
     },
     "files": [
       { "src": "workflows/github-pages-deploy.yml", "dest": ".github/workflows/github-pages-deploy.yml" },
@@ -123,7 +122,6 @@
       { "src": ".trivyignore", "dest": ".trivyignore" },
       { "src": "trivy.yaml", "dest": "trivy.yaml" },
       { "src": ".ruff.toml", "dest": ".ruff.toml" },
-      { "src": "ruff.toml", "dest": "ruff.toml" },
       { "src": ".isort.cfg", "dest": ".isort.cfg" },
       { "src": ".python-lint", "dest": ".python-lint" },
       { "src": ".mypy.ini", "dest": ".mypy.ini" },
