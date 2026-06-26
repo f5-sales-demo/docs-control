@@ -33,5 +33,6 @@
   "apt-repo",
   "i18n-core",
   "console",
-  "xcsh-chrome-extension"
+  "xcsh-chrome-extension",
+  "marketplace-claude-code"
 ]
