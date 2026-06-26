@@ -417,7 +417,7 @@ jobs:
               DEPBOT="---\nversion: 2\nupdates:\n  # --- GitHub Actions ---\n  - package-ecosystem: \"github-actions\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      actions-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
 
               if [ "$HAS_NPM" = true ]; then
-                DEPBOT="${DEPBOT}\n\n  # --- npm ---\n  - package-ecosystem: \"npm\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      npm-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+                DEPBOT="${DEPBOT}\n\n  # --- npm ---\n  - package-ecosystem: \"npm\"\n    directory: \"/\"\n    schedule:\n      interval: \"daily\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      # First-party @f5xc-salesdemos/* packages: track latest daily, all update types\n      # (auto-merged once CI is green) so internal deps never drift behind.\n      f5xc-internal:\n        patterns:\n          - \"@f5xc-salesdemos/*\"\n        update-types:\n          - \"major\"\n          - \"minor\"\n          - \"patch\"\n      npm-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
               fi
 
               if [ "$HAS_PIP" = true ]; then
