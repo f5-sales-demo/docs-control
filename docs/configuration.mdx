@@ -59,7 +59,7 @@ The central configuration file drives all enforcement, sync, and dispatch behavi
     "build_type": "workflow"
   },
   "managed_files": {
-    "source_repo": "f5xc-salesdemos/docs-control",
+    "source_repo": "f5-sales-demo/docs-control",
     "files": [
       {"src": "workflows/github-pages-deploy.yml", "dest": ".github/workflows/github-pages-deploy.yml"},
       {"src": "workflows/enforce-repo-settings.yml", "dest": ".github/workflows/enforce-repo-settings.yml"},
@@ -90,7 +90,7 @@ Standard GitHub repository settings applied via `PATCH /repos/{owner}/{repo}`. E
 Notable settings:
 - `delete_branch_on_merge: true` -- automatically cleans up merged PR branches
 - `allow_update_branch: true` -- enables the "Update branch" button on PRs
-- `homepage: ""` -- auto-computed at runtime as `https://f5xc-salesdemos.github.io/{repo}/`
+- `homepage: ""` -- auto-computed at runtime as `https://f5-sales-demo.github.io/{repo}/`
 
 ### `actions_permissions`
 
@@ -129,7 +129,7 @@ GitHub Pages configuration:
 ### `managed_files`
 
 Defines the file synchronization manifest:
-- `source_repo` -- the repository that holds canonical versions of managed files (`f5xc-salesdemos/docs-control`)
+- `source_repo` -- the repository that holds canonical versions of managed files (`f5-sales-demo/docs-control`)
 - `files` -- an array of `{src, dest}` objects mapping source paths in docs-control to destination paths in downstream repositories
 
 The [file sync workflow](./file-sync/) iterates this array to detect and correct drift. Files not listed here (like `dependabot.yml` and `README.md`) are generated dynamically rather than synced from static sources.

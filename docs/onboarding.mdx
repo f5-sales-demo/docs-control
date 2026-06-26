@@ -8,9 +8,9 @@ This page covers the procedure to enroll a new repository in the docs-control go
 
 ## Prerequisites
 
-- Org membership in `f5xc-salesdemos`
+- Org membership in `f5-sales-demo`
 - `REPO_SETTINGS_TOKEN` and `REPO_SYNC_TOKEN` secrets configured as organization-level secrets (or added to the new repository individually)
-- Access to the `ghcr.io/f5xc-salesdemos/docs-builder` container image
+- Access to the `ghcr.io/f5-sales-demo/docs-builder` container image
 
 ## Enrollment steps
 
@@ -34,7 +34,7 @@ The enforcement workflow **overwrites** the downstream `.gitignore` entirely. Be
 
 ```bash
 # Fetch the downstream .gitignore
-gh api repos/f5xc-salesdemos/<repo-name>/contents/.gitignore \
+gh api repos/f5-sales-demo/<repo-name>/contents/.gitignore \
   --jq '.content' | base64 -d > /tmp/downstream-gitignore
 
 # Compare with the template
@@ -60,7 +60,7 @@ These files are also synced automatically by the [file sync workflow](./file-syn
 Run the enforcement workflow manually in the new repository:
 
 ```bash
-gh workflow run enforce-repo-settings.yml --repo f5xc-salesdemos/<repo-name>
+gh workflow run enforce-repo-settings.yml --repo f5-sales-demo/<repo-name>
 ```
 
 This applies all [repository settings](./settings-enforcement/), creates any missing governance files, and opens a sync PR if needed.
@@ -70,13 +70,13 @@ This applies all [repository settings](./settings-enforcement/), creates any mis
 Confirm that enforcement succeeded:
 
 ```bash
-gh run list --repo f5xc-salesdemos/<repo-name> --workflow enforce-repo-settings.yml --limit 1
+gh run list --repo f5-sales-demo/<repo-name> --workflow enforce-repo-settings.yml --limit 1
 ```
 
 Check that branch protection, Actions permissions, and Pages are configured correctly:
 
 ```bash
-gh api repos/f5xc-salesdemos/<repo-name>/branches/main/protection \
+gh api repos/f5-sales-demo/<repo-name>/branches/main/protection \
   --jq '.required_status_checks.contexts'
 ```
 
@@ -85,7 +85,7 @@ gh api repos/f5xc-salesdemos/<repo-name>/branches/main/protection \
 If the repository has a `docs/` directory, confirm the docs site is accessible after the first successful deploy:
 
 ```bash
-curl -sf "https://f5xc-salesdemos.github.io/<repo-name>/" \
+curl -sf "https://f5-sales-demo.github.io/<repo-name>/" \
   && echo "OK" || echo "FAIL"
 ```
 
@@ -101,7 +101,7 @@ the repository from sync on specific file paths:
 
 ```json
 "managed_files": {
-  "source_repo": "f5xc-salesdemos/docs-control",
+  "source_repo": "f5-sales-demo/docs-control",
   "skip_files": {
     "xcsh": [
       "biome.json",
@@ -187,7 +187,7 @@ description: One-line description of the page content
 Content here in standard Markdown.
 ```
 
-Sidebar order is controlled by numeric prefixes in filenames (e.g., `01-getting-started.mdx`) or by adding `sidebar: \{ order: N \}` to the frontmatter. See the [content authoring guide](https://f5xc-salesdemos.github.io/docs-builder/content-authors/) for full MDX conventions.
+Sidebar order is controlled by numeric prefixes in filenames (e.g., `01-getting-started.mdx`) or by adding `sidebar: \{ order: N \}` to the frontmatter. See the [content authoring guide](https://f5-sales-demo.github.io/docs-builder/content-authors/) for full MDX conventions.
 
 ## Migrating from MkDocs
 
@@ -325,7 +325,7 @@ For repositories where docs are generated from pipeline artifacts (e.g., validat
 If the repository previously deployed docs via a `gh-pages` branch, it is no longer needed since Pages now uses `build_type: workflow`. Delete it after verifying the new pipeline works:
 
 ```bash
-gh api repos/f5xc-salesdemos/<repo-name>/git/refs/heads/gh-pages --method DELETE
+gh api repos/f5-sales-demo/<repo-name>/git/refs/heads/gh-pages --method DELETE
 ```
 
 ### Clean stale branches
@@ -357,7 +357,7 @@ Ensure:
 Verify Pages config:
 
 ```bash
-gh api repos/f5xc-salesdemos/<repo-name>/pages --jq '.build_type'
+gh api repos/f5-sales-demo/<repo-name>/pages --jq '.build_type'
 ```
 
 ### Starlight frontmatter titles containing colons
@@ -407,7 +407,7 @@ regression net.
 If a `governance/sync-managed-files` branch exists from a previous run, the file sync workflow will attempt to update it. If it's stale, delete it manually:
 
 ```bash
-gh api repos/f5xc-salesdemos/<repo-name>/git/refs/heads/governance/sync-managed-files \
+gh api repos/f5-sales-demo/<repo-name>/git/refs/heads/governance/sync-managed-files \
   --method DELETE
 ```
 
@@ -440,4 +440,4 @@ implementation.
 
 ## Further reading
 
-- [Content authoring guide](https://f5xc-salesdemos.github.io/docs-builder/content-authors/) from docs-builder for page content and MDX conventions
+- [Content authoring guide](https://f5-sales-demo.github.io/docs-builder/content-authors/) from docs-builder for page content and MDX conventions

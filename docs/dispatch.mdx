@@ -22,22 +22,22 @@ The workflow reads the downstream repository list, then calls `gh workflow run e
 
 ```json title=".github/config/downstream-repos.json"
 [
-  "f5xc-salesdemos/docs-builder",
-  "f5xc-salesdemos/docs-theme",
-  "f5xc-salesdemos/docs",
-  "f5xc-salesdemos/administration",
-  "f5xc-salesdemos/nginx",
-  "f5xc-salesdemos/observability",
-  "f5xc-salesdemos/was",
-  "f5xc-salesdemos/mcn",
-  "f5xc-salesdemos/dns",
-  "f5xc-salesdemos/cdn",
-  "f5xc-salesdemos/bot-standard",
-  "f5xc-salesdemos/bot-advanced",
-  "f5xc-salesdemos/ddos",
-  "f5xc-salesdemos/waf",
-  "f5xc-salesdemos/api-protection",
-  "f5xc-salesdemos/csd"
+  "f5-sales-demo/docs-builder",
+  "f5-sales-demo/docs-theme",
+  "f5-sales-demo/docs",
+  "f5-sales-demo/administration",
+  "f5-sales-demo/nginx",
+  "f5-sales-demo/observability",
+  "f5-sales-demo/was",
+  "f5-sales-demo/mcn",
+  "f5-sales-demo/dns",
+  "f5-sales-demo/cdn",
+  "f5-sales-demo/bot-standard",
+  "f5-sales-demo/bot-advanced",
+  "f5-sales-demo/ddos",
+  "f5-sales-demo/waf",
+  "f5-sales-demo/api-protection",
+  "f5-sales-demo/csd"
 ]
 ```
 
@@ -72,12 +72,12 @@ concurrency:
 
 jobs:
   enforce-settings:
-    uses: f5xc-salesdemos/docs-control/.github/workflows/enforce-repo-settings.yml@main
+    uses: f5-sales-demo/docs-control/.github/workflows/enforce-repo-settings.yml@main
     secrets:
       repo-settings-token: $\{{ secrets.REPO_SETTINGS_TOKEN }}
 
   sync-files:
-    uses: f5xc-salesdemos/docs-control/.github/workflows/sync-managed-files.yml@main
+    uses: f5-sales-demo/docs-control/.github/workflows/sync-managed-files.yml@main
     secrets:
       repo-sync-token: $\{{ secrets.REPO_SYNC_TOKEN }}
 ```
@@ -107,7 +107,7 @@ concurrency:
 
 jobs:
   docs:
-    uses: f5xc-salesdemos/docs-control/.github/workflows/github-pages-deploy.yml@main
+    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@main
 ```
 
 ### require-linked-issue.yml
@@ -131,7 +131,7 @@ concurrency:
 
 jobs:
   check:
-    uses: f5xc-salesdemos/docs-control/.github/workflows/require-linked-issue.yml@main
+    uses: f5-sales-demo/docs-control/.github/workflows/require-linked-issue.yml@main
     secrets: inherit
 ```
 
