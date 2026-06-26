@@ -7,7 +7,7 @@
 # inlined copies stay in sync with this file.
 #
 # Environment:
-#   PAGES_BASE   e.g. "https://f5xc-salesdemos.github.io/docs-control"
+#   PAGES_BASE   e.g. "https://f5-sales-demo.github.io/docs-control"
 #   GH_TOKEN     used by fallback `gh api` path
 #
 # Dependencies:
@@ -29,7 +29,7 @@ declare -F retry >/dev/null 2>&1 || retry() {
 # fetch_governed <pages-key> <api-fallback-path>
 #   pages-key          : relative path under ${PAGES_BASE}/api/ (e.g. "repo-settings.json")
 #   api-fallback-path  : argument for `gh api` when Pages is unavailable
-#                        (e.g. "repos/f5xc-salesdemos/docs-control/contents/.github/config/repo-settings.json")
+#                        (e.g. "repos/f5-sales-demo/docs-control/contents/.github/config/repo-settings.json")
 # Prints: raw file content to stdout.
 # Returns: 0 on success (via Pages or API), non-zero if both fail.
 fetch_governed() {

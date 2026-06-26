@@ -88,7 +88,7 @@ jobs:
           }
 
           # --- Pages-first fetch helper (canonical: tests/fixtures/fetch-governed.sh) ---
-          PAGES_BASE="https://f5xc-salesdemos.github.io/docs-control"
+          PAGES_BASE="https://${GITHUB_REPOSITORY_OWNER}.github.io/docs-control"
 
           fetch_governed() {
             local key="$1" fallback="$2" body err_file
@@ -138,9 +138,9 @@ jobs:
             PAGES_BASE="https://invalid.pages.local"
           fi
 
-          OWNER="${GITHUB_REPOSITORY%/*}"
+          OWNER="${GITHUB_REPOSITORY_OWNER}"
           REPO="${GITHUB_REPOSITORY#*/}"
-          CONFIG_REPO="f5xc-salesdemos/docs-control"
+          CONFIG_REPO="${GITHUB_REPOSITORY_OWNER}/docs-control"
           CONFIG_PATH=".github/config/repo-settings.json"
 
           # --- Helper: enable auto-merge (replaces polling) -----------------
@@ -417,7 +417,7 @@ jobs:
               DEPBOT="---\nversion: 2\nupdates:\n  # --- GitHub Actions ---\n  - package-ecosystem: \"github-actions\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      actions-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
 
               if [ "$HAS_NPM" = true ]; then
-                DEPBOT="${DEPBOT}\n\n  # --- npm ---\n  - package-ecosystem: \"npm\"\n    directory: \"/\"\n    schedule:\n      interval: \"daily\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      # First-party @f5xc-salesdemos/* packages: track latest daily, all update types\n      # (auto-merged once CI is green) so internal deps never drift behind.\n      f5xc-internal:\n        patterns:\n          - \"@f5xc-salesdemos/*\"\n        update-types:\n          - \"major\"\n          - \"minor\"\n          - \"patch\"\n      npm-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+                DEPBOT="${DEPBOT}\n\n  # --- npm ---\n  - package-ecosystem: \"npm\"\n    directory: \"/\"\n    schedule:\n      interval: \"daily\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      # First-party @${OWNER}/* packages: track latest daily, all update types\n      # (auto-merged once CI is green) so internal deps never drift behind.\n      f5-internal:\n        patterns:\n          - \"@${OWNER}/*\"\n        update-types:\n          - \"major\"\n          - \"minor\"\n          - \"patch\"\n      npm-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
               fi
 
               if [ "$HAS_PIP" = true ]; then
@@ -479,7 +479,7 @@ jobs:
                 echo "[INFO] No docs-sites.json description -- using GitHub API description"
               fi
 
-              DOCS_URL="https://f5xc-salesdemos.github.io/${REPO}/"
+              DOCS_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${REPO}/"
 
               # Extract per-repo extra badges from docs-sites.json
               README_BADGES=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" --arg o "$OWNER" \
@@ -494,6 +494,7 @@ jobs:
               # Substitute placeholders
               # Write generated README.md to temp file (preserves trailing newline)
               echo "$README_TPL" | \
+                sed "s|__ORG_NAME__|${OWNER}|g" | \
                 sed "s|__TITLE__|${README_TITLE}|g" | \
                 sed "s|__DESCRIPTION__|${README_DESC}|g" | \
                 sed "s|__REPO_NAME__|${REPO}|g" | \

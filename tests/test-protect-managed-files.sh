@@ -63,7 +63,7 @@ setup_downstream() {
   cp "$GOVERNANCE_JSON" "$DOWNSTREAM/.claude/"
   cd "$DOWNSTREAM"
   git init -q
-  git remote add origin https://github.com/f5xc-salesdemos/waf.git
+  git remote add origin https://github.com/f5-sales-demo/waf.git
 }
 
 # Helper: run the hook in a given directory with a given file_path input
@@ -144,7 +144,7 @@ fi
 
 # Test 2.5: governance.json has source_repo field
 SOURCE_REPO=$(jq -r '.source_repo' "$GOVERNANCE_JSON" 2>/dev/null)
-if [ "$SOURCE_REPO" = "f5xc-salesdemos/docs-control" ]; then
+if [ "$SOURCE_REPO" = "f5-sales-demo/docs-control" ]; then
   pass "2.5 governance.json source_repo is correct"
 else
   fail "2.5 governance.json source_repo is correct" "got: $SOURCE_REPO"
@@ -268,7 +268,7 @@ cp "$GOVERNANCE_JSON" "$EVIL_DOWN2/.claude/"
 (
   cd "$EVIL_DOWN2"
   git init -q
-  git remote add origin https://github.com/f5xc-salesdemos/docs-control-utils.git
+  git remote add origin https://github.com/f5-sales-demo/docs-control-utils.git
 )
 OUTPUT=""
 EXIT_CODE=0
@@ -283,7 +283,7 @@ cp "$GOVERNANCE_JSON" "$SSH_DOWN/.claude/"
 (
   cd "$SSH_DOWN"
   git init -q
-  git remote add origin git@github.com:f5xc-salesdemos/docs-control.git
+  git remote add origin git@github.com:f5-sales-demo/docs-control.git
 )
 OUTPUT=""
 EXIT_CODE=0
@@ -340,7 +340,7 @@ cp "$GOVERNANCE_JSON" "$XCSH_DOWN/.claude/"
 (
   cd "$XCSH_DOWN"
   git init -q
-  git remote add origin https://github.com/f5xc-salesdemos/xcsh.git
+  git remote add origin https://github.com/f5-sales-demo/xcsh.git
 )
 
 # Test 5.5.x: opted-out files are allowed for the opted-out repo
@@ -481,8 +481,8 @@ EXIT_CODE=0
 OUTPUT=$(run_hook "$DOWNSTREAM" "CONTRIBUTING.md") || EXIT_CODE=$?
 assert_contains "$OUTPUT" "BLOCKED" "9.1 message starts with BLOCKED"
 assert_contains "$OUTPUT" "CONTRIBUTING.md" "9.2 message includes the file name"
-assert_contains "$OUTPUT" "f5xc-salesdemos/docs-control" "9.3 message includes source repo"
-assert_contains "$OUTPUT" "https://github.com/f5xc-salesdemos/docs-control" "9.4 message includes issue URL"
+assert_contains "$OUTPUT" "f5-sales-demo/docs-control" "9.3 message includes source repo"
+assert_contains "$OUTPUT" "https://github.com/f5-sales-demo/docs-control" "9.4 message includes issue URL"
 assert_contains "$OUTPUT" "governance.json" "9.5 message references governance manifest"
 assert_contains "$OUTPUT" "synced to all downstream repos" "9.6 message explains auto-sync"
 

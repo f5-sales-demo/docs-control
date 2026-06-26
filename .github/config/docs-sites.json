@@ -1,90 +1,90 @@
 [
   {
     "label": "xcsh Docs Builder",
-    "url": "https://f5xc-salesdemos.github.io/docs-builder/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/docs-builder/llms-full.txt",
     "description": "Containerized Astro + Starlight documentation build system",
     "badges": [{ "name": "Build Image", "workflow": "build-image.yml" }]
   },
   {
     "label": "XC Docs Theme",
-    "url": "https://f5xc-salesdemos.github.io/docs-theme/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/docs-theme/llms-full.txt",
     "description": "Shared branding and styling for F5 Distributed Cloud documentation sites",
     "badges": [{ "name": "Release", "workflow": "release.yml" }]
   },
   {
     "label": "F5 XC Docs",
-    "url": "https://f5xc-salesdemos.github.io/docs/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/docs/llms-full.txt",
     "description": "Organization landing page for F5 Distributed Cloud documentation"
   },
   {
     "label": "Administration",
-    "url": "https://f5xc-salesdemos.github.io/administration/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/administration/llms-full.txt",
     "description": "F5 XC administration and tenant management"
   },
   {
     "label": "NGINX",
-    "url": "https://f5xc-salesdemos.github.io/nginx/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/nginx/llms-full.txt",
     "description": "F5 XC NGINX integration and configuration"
   },
   {
     "label": "Observability",
-    "url": "https://f5xc-salesdemos.github.io/observability/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/observability/llms-full.txt",
     "description": "F5 XC observability and monitoring"
   },
   {
     "label": "Web App Scanning",
-    "url": "https://f5xc-salesdemos.github.io/was/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/was/llms-full.txt",
     "description": "F5 XC web application scanning"
   },
   {
     "label": "Multi-Cloud Networking",
-    "url": "https://f5xc-salesdemos.github.io/mcn/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/mcn/llms-full.txt",
     "description": "F5 XC multi-cloud networking"
   },
   {
     "label": "DNS",
-    "url": "https://f5xc-salesdemos.github.io/dns/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/dns/llms-full.txt",
     "description": "F5 XC DNS management"
   },
   {
     "label": "CDN",
-    "url": "https://f5xc-salesdemos.github.io/cdn/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/cdn/llms-full.txt",
     "description": "F5 XC content delivery network"
   },
   {
     "label": "Bot Standard",
-    "url": "https://f5xc-salesdemos.github.io/bot-standard/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/bot-standard/llms-full.txt",
     "description": "F5 XC standard bot defense"
   },
   {
     "label": "Bot Advanced",
-    "url": "https://f5xc-salesdemos.github.io/bot-advanced/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/bot-advanced/llms-full.txt",
     "description": "F5 XC advanced bot defense"
   },
   {
     "label": "DDoS",
-    "url": "https://f5xc-salesdemos.github.io/ddos/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/ddos/llms-full.txt",
     "description": "F5 XC DDoS protection"
   },
   {
     "label": "WAF",
-    "url": "https://f5xc-salesdemos.github.io/waf/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/waf/llms-full.txt",
     "description": "F5 XC web application firewall"
   },
   {
     "label": "API Security",
-    "url": "https://f5xc-salesdemos.github.io/api-protection/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/api-protection/llms-full.txt",
     "description": "F5 XC API security"
   },
   {
     "label": "API Specs",
-    "url": "https://f5xc-salesdemos.github.io/api-specs/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/api-specs/llms-full.txt",
     "description": "OpenAPI spec validation and reconciliation for F5 Distributed Cloud",
     "badges": [{ "name": "Validate and Release", "workflow": "validate-and-release.yml" }]
   },
   {
     "label": "API Specs Enriched",
-    "url": "https://f5xc-salesdemos.github.io/api-specs-enriched/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/api-specs-enriched/llms-full.txt",
     "description": "Enriched OpenAPI specifications for F5 Distributed Cloud",
     "badges": [
       { "name": "Tests", "workflow": "tests.yml" },
@@ -93,30 +93,30 @@
   },
   {
     "label": "Client-Side Defense",
-    "url": "https://f5xc-salesdemos.github.io/csd/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/csd/llms-full.txt",
     "description": "F5 XC client-side defense"
   },
   {
     "label": "Docs Icons",
-    "url": "https://f5xc-salesdemos.github.io/docs-icons/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/docs-icons/llms-full.txt",
     "description": "NPM icon packages and plugins for the F5 XC documentation build system",
     "badges": [{ "name": "NPM Publish", "workflow": "npm-publish.yml" }]
   },
   {
     "label": "Terraform Provider",
-    "url": "https://f5xc-salesdemos.github.io/terraform-provider-xcsh/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/terraform-provider-xcsh/llms-full.txt",
     "description": "Terraform provider for F5 Distributed Cloud",
     "badges": [{ "name": "CI", "workflow": "ci.yml" }]
   },
   {
     "label": "Dev Container",
-    "url": "https://f5xc-salesdemos.github.io/devcontainer/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/devcontainer/llms-full.txt",
     "description": "Isolated development environment with AI coding tools",
     "badges": [{ "name": "Docker Publish", "workflow": "docker-publish.yml" }]
   },
   {
     "label": "Marketplace",
-    "url": "https://f5xc-salesdemos.github.io/marketplace/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/marketplace/llms-full.txt",
     "description": "AI-powered marketplace for F5 Distributed Cloud solutions",
     "badges": [
       { "name": "Validate Plugins", "workflow": "validate-plugins.yml" },
@@ -125,42 +125,42 @@
   },
   {
     "label": "xcsh",
-    "url": "https://f5xc-salesdemos.github.io/xcsh/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/xcsh/llms-full.txt",
     "description": "AI-powered development environment and CLI tool",
     "badges": [{ "name": "CI", "workflow": "ci.yml" }]
   },
   {
     "label": "CDN Simulator",
-    "url": "https://f5xc-salesdemos.github.io/cdn-simulator/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/cdn-simulator/llms-full.txt",
     "description": "NGINX-based CDN edge node simulator on Azure for multi-vendor lab environments"
   },
   {
     "label": "Origin Server",
-    "url": "https://f5xc-salesdemos.github.io/origin-server/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/origin-server/llms-full.txt",
     "description": "Ubuntu 24.04 origin server with vulnerable web applications for F5 XC demo environments",
     "badges": [{ "name": "Release", "workflow": "release.yml" }]
   },
   {
     "label": "Demo Resources",
-    "url": "https://f5xc-salesdemos.github.io/demo-resources/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/demo-resources/llms-full.txt",
     "description": "Catalog of pre-configured Azure VM components for F5 XC demo environments"
   },
   {
     "label": "VS Code Extension",
-    "url": "https://f5xc-salesdemos.github.io/vscode-xcsh/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/vscode-xcsh/llms-full.txt",
     "description": "VS Code extension for managing F5 Distributed Cloud resources with IntelliSense and xcsh chat",
     "badges": [{ "name": "CI", "workflow": "ci.yml" }, { "name": "Release", "workflow": "release.yml" }],
-    "readme_content": "## Features\n\n- **Resource Management** — Browse, create, edit, and delete F5 Distributed Cloud resources directly from VS Code\n- **Cloud Status** — Real-time global infrastructure health dashboard\n- **AI Chat Assistant** — `@xcsh` chat participant for natural language platform operations\n- **IntelliSense** — JSON schema completions for all F5 XC resource types\n- **Multi-Cloud Integrations** — Works with AWS, Azure, GCP, GitHub, GitLab, Terraform, and Salesforce\n\n## Getting Started\n\n1. Install the extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=RobinMordasiewicz.xcsh)\n2. Install xcsh: `brew install f5xc-salesdemos/tap/xcsh`\n3. Open the Command Palette (`Cmd+Shift+P`) and run **xcsh: Platform Readiness** to check your setup\n4. Add an F5 XC context via **xcsh: Add Context**\n\n## Supported Integrations\n\n| Integration | Install | Authenticate |\n|---|---|---|\n| xcsh | `brew install f5xc-salesdemos/tap/xcsh` | Included with install |\n| AWS CLI | `brew install awscli` | `aws sso login` |\n| Azure CLI | `brew install azure-cli` | `az login` |\n| Google Cloud | `brew install google-cloud-sdk` | `gcloud auth login` |\n| GitHub CLI | `brew install gh` | `gh auth login` |\n| GitLab CLI | `brew install glab` | `glab auth login` |\n| Terraform | `brew install hashicorp/tap/terraform` | N/A |\n| Salesforce CLI | `brew install sf` | `sf org login web` |\n\nRun **xcsh: Platform Readiness** in VS Code to see which integrations are installed and authenticated."
+    "readme_content": "## Features\n\n- **Resource Management** — Browse, create, edit, and delete F5 Distributed Cloud resources directly from VS Code\n- **Cloud Status** — Real-time global infrastructure health dashboard\n- **AI Chat Assistant** — `@xcsh` chat participant for natural language platform operations\n- **IntelliSense** — JSON schema completions for all F5 XC resource types\n- **Multi-Cloud Integrations** — Works with AWS, Azure, GCP, GitHub, GitLab, Terraform, and Salesforce\n\n## Getting Started\n\n1. Install the extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=RobinMordasiewicz.xcsh)\n2. Install xcsh: `brew install f5-sales-demo/tap/xcsh`\n3. Open the Command Palette (`Cmd+Shift+P`) and run **xcsh: Platform Readiness** to check your setup\n4. Add an F5 XC context via **xcsh: Add Context**\n\n## Supported Integrations\n\n| Integration | Install | Authenticate |\n|---|---|---|\n| xcsh | `brew install f5-sales-demo/tap/xcsh` | Included with install |\n| AWS CLI | `brew install awscli` | `aws sso login` |\n| Azure CLI | `brew install azure-cli` | `az login` |\n| Google Cloud | `brew install google-cloud-sdk` | `gcloud auth login` |\n| GitHub CLI | `brew install gh` | `gh auth login` |\n| GitLab CLI | `brew install glab` | `glab auth login` |\n| Terraform | `brew install hashicorp/tap/terraform` | N/A |\n| Salesforce CLI | `brew install sf` | `sf org login web` |\n\nRun **xcsh: Platform Readiness** in VS Code to see which integrations are installed and authenticated."
   },
   {
     "label": "Console Catalog",
-    "url": "https://f5xc-salesdemos.github.io/console/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/console/llms-full.txt",
     "description": "Schema-driven inventory of the F5 XC administration console UI — routes, resources, workflows, and browser automation manifests",
     "badges": [{ "name": "Validate Catalog", "workflow": "validate-catalog.yml" }]
   },
   {
     "label": "xcsh Chrome Extension",
-    "url": "https://f5xc-salesdemos.github.io/xcsh-chrome-extension/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/xcsh-chrome-extension/llms-full.txt",
     "description": "Chrome extension companion for the xcsh AI-powered F5 Distributed Cloud CLI"
   }
 ]

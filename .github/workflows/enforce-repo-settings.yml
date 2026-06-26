@@ -105,7 +105,7 @@ jobs:
           }
 
           # --- Pages-first fetch helper (canonical: tests/fixtures/fetch-governed.sh) ---
-          PAGES_BASE="https://f5xc-salesdemos.github.io/docs-control"
+          PAGES_BASE="https://${GITHUB_REPOSITORY_OWNER}.github.io/docs-control"
 
           fetch_governed() {
             local key="$1" fallback="$2" body err_file
@@ -146,9 +146,9 @@ jobs:
             [ "$pages_sha" = "$source_sha" ]
           }
 
-          OWNER="${GITHUB_REPOSITORY%/*}"
+          OWNER="${GITHUB_REPOSITORY_OWNER}"
           REPO="${GITHUB_REPOSITORY#*/}"
-          CONFIG_REPO="f5xc-salesdemos/docs-control"
+          CONFIG_REPO="${GITHUB_REPOSITORY_OWNER}/docs-control"
           CONFIG_PATH=".github/config/repo-settings.json"
 
           # --- Phase 1: Validate ---------------------------------------------
@@ -175,7 +175,7 @@ jobs:
           # Auto-compute homepage if empty
           HOMEPAGE=$(echo "$CONFIG" | jq -r '.repository.homepage // empty')
           if [ -z "$HOMEPAGE" ]; then
-            HOMEPAGE="https://f5xc-salesdemos.github.io/${REPO}/"
+            HOMEPAGE="https://${GITHUB_REPOSITORY_OWNER}.github.io/${REPO}/"
             CONFIG=$(echo "$CONFIG" | jq --arg hp "$HOMEPAGE" '.repository.homepage = $hp')
             echo "[INFO] Auto-computed homepage: $HOMEPAGE"
           fi

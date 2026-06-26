@@ -39,7 +39,7 @@ echo "=== Locale Lint Tests ==="
 # Test 1: clean repo passes
 setup_clean_repo
 cat >"$TMPDIR_BASE/repo/src/app.ts" <<'TS'
-import { VALID_SLUGS } from '@f5xc-salesdemos/i18n-core';
+import { VALID_SLUGS } from '@f5-sales-demo/i18n-core';
 console.log(VALID_SLUGS);
 TS
 OUTPUT=""
@@ -115,7 +115,7 @@ fi
 # Test 6: re-export from i18n-core is allowed
 setup_clean_repo
 cat >"$TMPDIR_BASE/repo/src/good.ts" <<'TS'
-import { LOCALE_DISPLAY_NAMES } from '@f5xc-salesdemos/i18n-core';
+import { LOCALE_DISPLAY_NAMES } from '@f5-sales-demo/i18n-core';
 export { LOCALE_DISPLAY_NAMES };
 TS
 OUTPUT=""
