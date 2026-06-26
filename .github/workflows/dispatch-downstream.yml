@@ -60,7 +60,11 @@ jobs:
           }
           export -f dispatch_one
 
-          mapfile -t REPOS < <(jq -r '.[]' .github/config/downstream-repos.json)
+          mapfile -t REPO_NAMES < <(jq -r '.[]' .github/config/downstream-repos.json)
+          REPOS=()
+          for name in "${REPO_NAMES[@]}"; do
+            REPOS+=("${GITHUB_REPOSITORY_OWNER}/${name}")
+          done
           TOTAL=${#REPOS[@]}
           BATCH_SIZE=5
           BATCH_DELAY=45

@@ -13,7 +13,7 @@ on:
       builder-image:
         description: 'Builder Docker image URI'
         required: false
-        default: 'ghcr.io/f5xc-salesdemos/docs-builder:latest'
+        default: 'ghcr.io/f5-sales-demo/docs-builder:latest'
         type: string
       docs-title:
         description: 'Documentation site title (overrides frontmatter)'
@@ -22,7 +22,7 @@ on:
       docs-site:
         description: 'Documentation site URL'
         required: false
-        default: 'https://f5xc-salesdemos.github.io'
+        default: 'https://f5-sales-demo.github.io'
         type: string
   workflow_dispatch:
     inputs:
@@ -34,7 +34,7 @@ on:
       builder-image:
         description: 'Builder Docker image URI'
         required: false
-        default: 'ghcr.io/f5xc-salesdemos/docs-builder:latest'
+        default: 'ghcr.io/f5-sales-demo/docs-builder:latest'
         type: string
       docs-title:
         description: 'Documentation site title'
@@ -43,7 +43,7 @@ on:
       docs-site:
         description: 'Documentation site URL'
         required: false
-        default: 'https://f5xc-salesdemos.github.io'
+        default: 'https://f5-sales-demo.github.io'
         type: string
 
 permissions:
@@ -117,10 +117,10 @@ jobs:
             -v ${{ runner.temp }}/docs-output:/output \
             -e CONTENT_DIR=/content/docs \
             -e OUTPUT_DIR=/output \
-            -e DOCS_SITE="${{ inputs.docs-site || 'https://f5xc-salesdemos.github.io' }}" \
+            -e DOCS_SITE="${{ inputs.docs-site || format('https://{0}.github.io', github.repository_owner) }}" \
             -e GITHUB_REPOSITORY="${{ github.repository }}" \
             ${{ inputs.docs-title && format('-e DOCS_TITLE="{0}"', inputs.docs-title) || '' }} \
-            ${{ inputs.builder-image || 'ghcr.io/f5xc-salesdemos/docs-builder:latest' }}
+            ${{ inputs.builder-image || format('ghcr.io/{0}/docs-builder:latest', github.repository_owner) }}
 
           echo "✅ Build completed successfully"
           ls -lah ${{ runner.temp }}/docs-output/
