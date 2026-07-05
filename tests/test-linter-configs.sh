@@ -58,35 +58,31 @@ done
 echo ""
 echo "=== Section 3: TOML parse validity ==="
 
-for f in ruff.toml .ruff.toml; do
-  if python3 -c "import sys, tomllib; tomllib.load(open('$REPO_ROOT/$f', 'rb'))" 2>/dev/null; then
-    pass "3.x $f is valid TOML"
-  else
-    fail "3.x $f is valid TOML" "tomllib.load failed"
-  fi
-done
+if python3 -c "import sys, tomllib; tomllib.load(open('$REPO_ROOT/.ruff.toml', 'rb'))" 2>/dev/null; then
+  pass "3.x .ruff.toml is valid TOML"
+else
+  fail "3.x .ruff.toml is valid TOML" "tomllib.load failed"
+fi
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 4: ruff.toml is self-contained (no dead extend references)
+# SECTION 4: .ruff.toml is self-contained (no dead extend references)
 # ════════════════════════════════════════════════════════════════════
 echo ""
-echo "=== Section 4: ruff.toml self-contained ==="
+echo "=== Section 4: .ruff.toml self-contained ==="
 
-# Test 4.1 / 4.2: ruff.toml and .ruff.toml must not reference a non-existent
-# file via `extend`. Both configs get synced downstream verbatim, so a missing
-# target would break lint in every governed repo.
-for cfg in ruff.toml .ruff.toml; do
-  EXTEND_TARGET=$(python3 -c "import tomllib; d=tomllib.load(open('$REPO_ROOT/$cfg','rb')); print(d.get('extend',''))")
-  if [ -z "$EXTEND_TARGET" ]; then
-    pass "4.x $cfg has no extend directive"
-  elif [ -f "$REPO_ROOT/$EXTEND_TARGET" ]; then
-    pass "4.x $cfg extend target '$EXTEND_TARGET' exists"
-  else
-    fail "4.x $cfg extend target '$EXTEND_TARGET' exists" "file not found in repo root"
-  fi
-done
+# Test 4.1: .ruff.toml must not reference a non-existent file via `extend`.
+# It is synced downstream verbatim, so a missing target would break lint in
+# every governed repo.
+EXTEND_TARGET=$(python3 -c "import tomllib; d=tomllib.load(open('$REPO_ROOT/.ruff.toml','rb')); print(d.get('extend',''))")
+if [ -z "$EXTEND_TARGET" ]; then
+  pass "4.x .ruff.toml has no extend directive"
+elif [ -f "$REPO_ROOT/$EXTEND_TARGET" ]; then
+  pass "4.x .ruff.toml extend target '$EXTEND_TARGET' exists"
+else
+  fail "4.x .ruff.toml extend target '$EXTEND_TARGET' exists" "file not found in repo root"
+fi
 
-# Test 4.3: ruff can actually run against ruff.toml end-to-end on an empty
+# Test 4.3: ruff can actually run against .ruff.toml end-to-end on an empty
 # directory. Exercises config load, including all extend chains and lint rule
 # tables. A missing extend target surfaces here as a runtime error (unlike
 # --help which short-circuits before config resolution).
@@ -94,10 +90,10 @@ if command -v ruff >/dev/null 2>&1; then
   EMPTY=$(mktemp -d)
   # shellcheck disable=SC2064  # $EMPTY is set locally above and intentional
   trap "rm -rf '$EMPTY'" EXIT
-  if (cd "$REPO_ROOT" && ruff check --config "$REPO_ROOT/ruff.toml" "$EMPTY" >/dev/null 2>&1); then
-    pass "4.3 ruff check --config ruff.toml runs cleanly end-to-end"
+  if (cd "$REPO_ROOT" && ruff check --config "$REPO_ROOT/.ruff.toml" "$EMPTY" >/dev/null 2>&1); then
+    pass "4.3 ruff check --config .ruff.toml runs cleanly end-to-end"
   else
-    fail "4.3 ruff check --config ruff.toml runs cleanly end-to-end" "ruff exited non-zero on an empty dir"
+    fail "4.3 ruff check --config .ruff.toml runs cleanly end-to-end" "ruff exited non-zero on an empty dir"
   fi
 else
   echo "  SKIP: ruff CLI not installed in this environment"
@@ -309,13 +305,13 @@ done
 echo ""
 echo "=== Section 7: Python config opt-outs for xcsh ==="
 
-# Rationale: docs-control's ruff.toml / .python-lint / .mypy.ini are
+# Rationale: docs-control's .ruff.toml / .python-lint / .mypy.ini are
 # deliberately strict (pydocstyle D, pytest PT, tryceratops TRY, errmsg EM,
 # type-checking TC, full select list). Applied to xcsh — an active fork of
 # badlogic/pi-mono — they surface 743+ ruff errors and 73 mypy errors that
 # are not bugs, just stylistic drift from upstream. xcsh therefore ships
 # its own permissive Python configs and must be opted out of sync.
-for cfg in ruff.toml .ruff.toml .python-lint .mypy.ini; do
+for cfg in .ruff.toml .python-lint .mypy.ini; do
   xcsh_skip=$(jq -r --arg c "$cfg" '.managed_files.skip_files.xcsh // [] | .[] | select(. == $c)' "$REPO_SETTINGS")
   if [ -n "$xcsh_skip" ]; then
     pass "7.x $cfg is in xcsh skip_files (fork Python linter fidelity)"
