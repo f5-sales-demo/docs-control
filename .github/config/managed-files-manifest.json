@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-06T00:19:16Z",
-  "source_commit": "2be7557997deef0f2b972d50ff15c0a9372ee351",
+  "generated_at": "2026-07-06T14:14:36Z",
+  "source_commit": "ad80c2f4854bcf54c2f4bb38fcee84e0f308362b",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -131,8 +131,8 @@
     ".jscpd.json": {
       "src": ".jscpd.json",
       "dest": ".jscpd.json",
-      "sha": "e8304ee91d245c6aa4642c61f7220b13a83a996f",
-      "size": 470
+      "sha": "de30efb15f2d7ecfc9eac3d045495f733ff8b984",
+      "size": 401
     },
     ".textlintrc": {
       "src": ".textlintrc",
