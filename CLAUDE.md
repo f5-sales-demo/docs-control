@@ -24,5 +24,6 @@ Apply where applicable to this repo:
 - **No backward compat** — prerelease code; make clean-break changes, no shims or deprecated interfaces.
 - **DRY** — reuse existing code, patterns, and content before adding new.
 - **Clean branches** — experiment freely, but never commit broken or unneeded (YAGNI) code.
+- **Local vs CI** — `pre-commit` runs a subset; the `Lint Code Base` gate also runs textlint prose/terminology. Reproduce it before pushing.
 
 See `CONTRIBUTING.md` for the full detail.
