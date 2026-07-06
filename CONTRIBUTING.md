@@ -134,3 +134,13 @@ apply what fits.
 - Troubleshoot and experiment freely on a branch.
 - Never commit broken or experimental code, or speculative work that is not needed
   (YAGNI). Keep merged history green.
+
+### Local checks vs CI
+
+- The authoritative lint gate is CI's `Lint Code Base` (Super-Linter). It runs more
+  validators than the local `pre-commit` hooks — notably textlint (`NATURAL_LANGUAGE`)
+  prose and terminology, which `pre-commit` does not run.
+- Passing `pre-commit` locally is necessary but not sufficient. Terminology is enforced
+  (for example `prerelease`, not `pre-release`). Before pushing Markdown or prose,
+  reproduce the full gate — run the Super-Linter image, or textlint with the repo's
+  `.textlintrc` — so CI-only rules do not surprise you.
