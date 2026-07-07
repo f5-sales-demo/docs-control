@@ -8,7 +8,9 @@
       ".ruff.toml",
       ".python-lint",
       ".mypy.ini",
-      ".github/workflows/super-linter.yml"
+      ".github/workflows/super-linter.yml",
+      ".github/workflows/translation-audit.yml",
+      "scripts/locale-lint.sh"
     ],
     "api-specs": [".ruff.toml", ".python-lint", ".mypy.ini"],
     "api-specs-enriched": [".ruff.toml", ".python-lint", ".mypy.ini"],
