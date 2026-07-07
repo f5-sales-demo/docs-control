@@ -57,9 +57,6 @@
     },
     "terraform-provider-xcsh": {
       "excluded_required_contexts": ["audit / Translation freshness"]
-    },
-    "xcsh-chrome-extension": {
-      "excluded_required_contexts": ["lint / Lint Code Base"]
     }
   },
   "topics": [],
