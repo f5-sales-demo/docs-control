@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-07-07T15:56:57Z",
-  "source_commit": "1045e6cd1f62064dc195b341036f83f8ddfbe190",
+  "generated_at": "2026-07-07T18:07:50Z",
+  "source_commit": "f4bf581f1843fc990b9ab7a1bad53ee4be309100",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
       "dest": ".github/workflows/github-pages-deploy.yml",
-      "sha": "d4d9cf94d8b08e9a37def6fa8f7363412d6a91a3",
-      "size": 349
+      "sha": "fc55ba814d142d32f6dca94b20591836b64faed1",
+      "size": 591
     },
     ".github/workflows/enforce-repo-settings.yml": {
       "src": "workflows/enforce-repo-settings.yml",
@@ -83,8 +83,8 @@
     ".gitignore": {
       "src": ".gitignore",
       "dest": ".gitignore",
-      "sha": "0e6909d0d1aff9df88606b20db262f4f813ead5c",
-      "size": 2511
+      "sha": "56d6f2bd57638b75e64839dbb3ee5988dab5c975",
+      "size": 2595
     },
     "LICENSE": {
       "src": "LICENSE",
@@ -167,8 +167,8 @@
     ".codespellrc": {
       "src": ".codespellrc",
       "dest": ".codespellrc",
-      "sha": "678f3045d65d3a5cc422e8c239174e7a5e9532ac",
-      "size": 712
+      "sha": "739ce4b2c918508bad6ecfdc5f84bd4f54ac5d50",
+      "size": 719
     },
     ".gitleaks.toml": {
       "src": ".gitleaks.toml",
@@ -227,8 +227,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "57d84b3bcfa0cd00e2028d746764ca149fb63330",
-      "size": 1801
+      "sha": "8ade48c284f3c1dabc3ee08fc4b865b8671d7330",
+      "size": 1822
     },
     ".claude/settings.json": {
       "src": ".claude/settings.json",
