@@ -455,88 +455,95 @@ jobs:
               echo "--- Dynamic README.md ---"
               README_DRIFT=false
 
-              # Fetch docs-sites.json from docs-control
-              DOCS_SITES_JSON=$(fetch_governed "docs-sites.json" "repos/${CONFIG_REPO}/contents/.github/config/docs-sites.json")
+              # Honor per-repo skip_files opt-out: repos that maintain their own
+              # README (e.g. a marketplace-rendered file) opt out by listing
+              # "README.md" in skip_files. Skip generation entirely for them.
+              if echo "$SKIP_LIST" | jq -e 'index("README.md") != null' >/dev/null; then
+                echo "[SKIP] README.md -- opted out by ${REPO}"
+              else
+                # Fetch docs-sites.json from docs-control
+                DOCS_SITES_JSON=$(fetch_governed "docs-sites.json" "repos/${CONFIG_REPO}/contents/.github/config/docs-sites.json")
 
-              # Look up label and description by matching repo name in URL
-              README_TITLE=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
-                '.[] | select(.url | contains("/" + $r + "/")) | .label' 2>/dev/null) || true
-              README_DESC=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
-                '.[] | select(.url | contains("/" + $r + "/")) | .description' 2>/dev/null) || true
+                # Look up label and description by matching repo name in URL
+                README_TITLE=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
+                  '.[] | select(.url | contains("/" + $r + "/")) | .label' 2>/dev/null) || true
+                README_DESC=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
+                  '.[] | select(.url | contains("/" + $r + "/")) | .description' 2>/dev/null) || true
 
-              # Fallback: capitalize repo name for title
-              if [ -z "$README_TITLE" ] || [ "$README_TITLE" = "null" ]; then
-                README_TITLE=$(echo "$REPO" | sed 's/-/ /g; s/\b\(.\)/\u\1/g')
-                echo "[INFO] No docs-sites.json match -- using capitalized repo name: ${README_TITLE}"
-              fi
-
-              # Fallback: GitHub API repo description
-              if [ -z "$README_DESC" ] || [ "$README_DESC" = "null" ]; then
-                README_DESC=$(gh api "repos/${OWNER}/${REPO}" --jq '.description // ""') || true
-                if [ -z "$README_DESC" ] || [ "$README_DESC" = "null" ]; then
-                  README_DESC=""
+                # Fallback: capitalize repo name for title
+                if [ -z "$README_TITLE" ] || [ "$README_TITLE" = "null" ]; then
+                  README_TITLE=$(echo "$REPO" | sed 's/-/ /g; s/\b\(.\)/\u\1/g')
+                  echo "[INFO] No docs-sites.json match -- using capitalized repo name: ${README_TITLE}"
                 fi
-                echo "[INFO] No docs-sites.json description -- using GitHub API description"
-              fi
 
-              DOCS_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${REPO}/"
+                # Fallback: GitHub API repo description
+                if [ -z "$README_DESC" ] || [ "$README_DESC" = "null" ]; then
+                  README_DESC=$(gh api "repos/${OWNER}/${REPO}" --jq '.description // ""') || true
+                  if [ -z "$README_DESC" ] || [ "$README_DESC" = "null" ]; then
+                    README_DESC=""
+                  fi
+                  echo "[INFO] No docs-sites.json description -- using GitHub API description"
+                fi
 
-              # Extract per-repo extra badges from docs-sites.json
-              README_BADGES=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" --arg o "$OWNER" \
-                '[.[] | select(.url | contains("/" + $r + "/")) | .badges // [] | .[]] |
-                 if length == 0 then empty
-                 else .[] | "[![\(.name)](https://github.com/\($o)/\($r)/actions/workflows/\(.workflow)/badge.svg)](https://github.com/\($o)/\($r)/actions/workflows/\(.workflow))"
-                 end' 2>/dev/null) || true
+                DOCS_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${REPO}/"
 
-              # Fetch README.md.tpl from docs-control
-              README_TPL=$(fetch_governed "README.md.tpl" "repos/${CONFIG_REPO}/contents/README.md.tpl")
+                # Extract per-repo extra badges from docs-sites.json
+                README_BADGES=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" --arg o "$OWNER" \
+                  '[.[] | select(.url | contains("/" + $r + "/")) | .badges // [] | .[]] |
+                   if length == 0 then empty
+                   else .[] | "[![\(.name)](https://github.com/\($o)/\($r)/actions/workflows/\(.workflow)/badge.svg)](https://github.com/\($o)/\($r)/actions/workflows/\(.workflow))"
+                   end' 2>/dev/null) || true
 
-              # Substitute placeholders
-              # Write generated README.md to temp file (preserves trailing newline)
-              echo "$README_TPL" | \
-                sed "s|__ORG_NAME__|${OWNER}|g" | \
-                sed "s|__TITLE__|${README_TITLE}|g" | \
-                sed "s|__DESCRIPTION__|${README_DESC}|g" | \
-                sed "s|__REPO_NAME__|${REPO}|g" | \
-                sed "s|__DOCS_URL__|${DOCS_URL}|g" > /tmp/generated_readme.md
+                # Fetch README.md.tpl from docs-control
+                README_TPL=$(fetch_governed "README.md.tpl" "repos/${CONFIG_REPO}/contents/README.md.tpl")
 
-              # Replace __EXTRA_BADGES__ placeholder — inject per-repo badge lines or remove
-              if [ -n "$README_BADGES" ]; then
-                printf '%s\n' "$README_BADGES" > /tmp/extra_badges.tmp
-                sed -i '/__EXTRA_BADGES__/{r /tmp/extra_badges.tmp
-                d;}' /tmp/generated_readme.md
-              else
-                sed -i '/__EXTRA_BADGES__/d' /tmp/generated_readme.md
-              fi
+                # Substitute placeholders
+                # Write generated README.md to temp file (preserves trailing newline)
+                echo "$README_TPL" | \
+                  sed "s|__ORG_NAME__|${OWNER}|g" | \
+                  sed "s|__TITLE__|${README_TITLE}|g" | \
+                  sed "s|__DESCRIPTION__|${README_DESC}|g" | \
+                  sed "s|__REPO_NAME__|${REPO}|g" | \
+                  sed "s|__DOCS_URL__|${DOCS_URL}|g" > /tmp/generated_readme.md
 
-              # Replace __EXTRA_CONTENT__ placeholder — inject per-repo markdown content or remove
-              README_CONTENT=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
-                '.[] | select(.url | contains("/" + $r + "/")) | .readme_content // empty' 2>/dev/null) || true
+                # Replace __EXTRA_BADGES__ placeholder — inject per-repo badge lines or remove
+                if [ -n "$README_BADGES" ]; then
+                  printf '%s\n' "$README_BADGES" > /tmp/extra_badges.tmp
+                  sed -i '/__EXTRA_BADGES__/{r /tmp/extra_badges.tmp
+                  d;}' /tmp/generated_readme.md
+                else
+                  sed -i '/__EXTRA_BADGES__/d' /tmp/generated_readme.md
+                fi
 
-              if [ -n "$README_CONTENT" ]; then
-                printf '%s\n' "$README_CONTENT" > /tmp/extra_content.tmp
-                sed -i '/__EXTRA_CONTENT__/{r /tmp/extra_content.tmp
-                d;}' /tmp/generated_readme.md
-              else
-                sed -i '/__EXTRA_CONTENT__/d' /tmp/generated_readme.md
-              fi
+                # Replace __EXTRA_CONTENT__ placeholder — inject per-repo markdown content or remove
+                README_CONTENT=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
+                  '.[] | select(.url | contains("/" + $r + "/")) | .readme_content // empty' 2>/dev/null) || true
 
-              GENERATED_README=$(cat /tmp/generated_readme.md)
+                if [ -n "$README_CONTENT" ]; then
+                  printf '%s\n' "$README_CONTENT" > /tmp/extra_content.tmp
+                  sed -i '/__EXTRA_CONTENT__/{r /tmp/extra_content.tmp
+                  d;}' /tmp/generated_readme.md
+                else
+                  sed -i '/__EXTRA_CONTENT__/d' /tmp/generated_readme.md
+                fi
 
-              # Compare with current README.md in target repo (local disk, no API).
-              if [ -f README.md ]; then
-                cp README.md /tmp/current_readme.md
-              else
-                : > /tmp/current_readme.md
-              fi
+                GENERATED_README=$(cat /tmp/generated_readme.md)
 
-              if ! diff -q /tmp/generated_readme.md /tmp/current_readme.md >/dev/null 2>&1; then
-                echo "[DRIFT] README.md needs update"
-                README_DRIFT=true
-                DRIFT_FILES="${DRIFT_FILES}README.md\n"
-                DRIFT_COUNT=$((DRIFT_COUNT + 1))
-              else
-                echo "[OK] README.md"
+                # Compare with current README.md in target repo (local disk, no API).
+                if [ -f README.md ]; then
+                  cp README.md /tmp/current_readme.md
+                else
+                  : > /tmp/current_readme.md
+                fi
+
+                if ! diff -q /tmp/generated_readme.md /tmp/current_readme.md >/dev/null 2>&1; then
+                  echo "[DRIFT] README.md needs update"
+                  README_DRIFT=true
+                  DRIFT_FILES="${DRIFT_FILES}README.md\n"
+                  DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                else
+                  echo "[OK] README.md"
+                fi
               fi
 
               if [ "$DRIFT_COUNT" -eq 0 ]; then
