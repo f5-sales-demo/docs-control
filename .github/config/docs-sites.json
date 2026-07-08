@@ -77,6 +77,11 @@
     "description": "F5 XC API security"
   },
   {
+    "label": "Web App & API Protection",
+    "url": "https://f5-sales-demo.github.io/webapp-api-protection/llms-full.txt",
+    "description": "F5 XC web application and API protection"
+  },
+  {
     "label": "API Specs",
     "url": "https://f5-sales-demo.github.io/api-specs/llms-full.txt",
     "description": "OpenAPI spec validation and reconciliation for F5 Distributed Cloud",
