@@ -1,16 +1,21 @@
 ---
 name: Dispatch Downstream Enforcement
 
-# Runs AFTER "Build Managed Files Manifest" completes, never concurrently
-# with it. The manifest is the source of truth sync reads; triggering on
-# the manifest build's completion (rather than the same push) guarantees
-# the freshly-committed manifest is in place before downstream sync fetches
-# it — eliminating the race where sync read a stale manifest and skipped
-# newly-added managed files. workflow_dispatch is kept as a manual fallback.
+# Fans out downstream enforcement once the regenerated manifest has LANDED on
+# main. The manifest is the source of truth sync reads; because main is
+# protected, "Build Managed Files Manifest" cannot push it directly and routes
+# it through an auto-merging sync/manifest PR. Triggering on that PR's merge
+# (a push to main touching the manifest) — not on the build's completion —
+# guarantees downstream reads the fresh manifest instead of racing the still-open
+# PR and fanning out the stale one (issue #634). repo-settings.json is included
+# so settings-only changes, which leave the manifest untouched, still enforce
+# downstream. workflow_dispatch is kept as a manual fallback.
 on:
-  workflow_run:
-    workflows: ["Build Managed Files Manifest"]
-    types: [completed]
+  push:
+    branches: [main]
+    paths:
+      - '.github/config/managed-files-manifest.json'
+      - '.github/config/repo-settings.json'
   workflow_dispatch:
 
 permissions:
@@ -23,11 +28,9 @@ concurrency:
 jobs:
   dispatch:
     runs-on: ubuntu-latest
-    # Only fan out when the manifest build succeeded (or on manual dispatch).
-    # Skips on manifest-build failure so downstream never syncs a bad manifest.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.workflow_run.conclusion == 'success'
+    # No conclusion guard needed: dispatch now fires only when the manifest has
+    # already landed on main. A bad manifest fails the sync/manifest PR's checks
+    # and never merges, so it can never reach main to trigger this workflow.
     steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0

@@ -40,6 +40,19 @@ check "aggregates FAIL_COUNT" "grep -q 'FAIL_COUNT' '$WF'"
 check "consumes downstream-repos.json" "grep -q 'downstream-repos.json' '$WF'"
 check "config is JSON array" "jq -e 'type == \"array\" and length > 0' '$CONFIG' > /dev/null"
 
+# Trigger: dispatch must run when the regenerated manifest LANDS on main (the
+# auto-merging sync/manifest PR merges), not when the manifest build completes.
+# Triggering on build completion races the PR merge and fans out a stale
+# manifest — see issue #634.
+check "triggers on manifest landing on main" \
+  "grep -q 'managed-files-manifest.json' '$WF'"
+check "triggers on repo-settings.json (settings-only changes)" \
+  "grep -q 'repo-settings.json' '$WF'"
+check "does NOT trigger on build workflow_run (stale-manifest race)" \
+  "! grep -q 'workflow_run:' '$WF'"
+check "keeps manual workflow_dispatch fallback" \
+  "grep -q 'workflow_dispatch:' '$WF'"
+
 if command -v actionlint >/dev/null 2>&1; then
   check "actionlint clean" "actionlint '$WF' >/dev/null 2>&1"
 fi
