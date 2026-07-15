@@ -1,8 +1,6 @@
 {
   "threshold": 10,
-  "reporters": [
-    "console"
-  ],
+  "reporters": ["console"],
   "ignore": [
     "**/*.yaml",
     "**/*.yml",
