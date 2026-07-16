@@ -497,14 +497,25 @@ jobs:
                 # Fetch README.md.tpl from docs-control
                 README_TPL=$(fetch_governed "README.md.tpl" "repos/${CONFIG_REPO}/contents/README.md.tpl")
 
+                # Escape sed replacement-string metacharacters (backslash, &, and the
+                # | delimiter) in substitution values, so a value containing them (e.g.
+                # a title like "Web App & API Protection") renders literally instead of
+                # sed expanding & to the matched placeholder.
+                sed_esc() { printf '%s' "$1" | sed -e 's/[\\&|]/\\&/g'; }
+                ORG_NAME_ESC=$(sed_esc "$OWNER")
+                README_TITLE_ESC=$(sed_esc "$README_TITLE")
+                README_DESC_ESC=$(sed_esc "$README_DESC")
+                REPO_NAME_ESC=$(sed_esc "$REPO")
+                DOCS_URL_ESC=$(sed_esc "$DOCS_URL")
+
                 # Substitute placeholders
                 # Write generated README.md to temp file (preserves trailing newline)
                 echo "$README_TPL" | \
-                  sed "s|__ORG_NAME__|${OWNER}|g" | \
-                  sed "s|__TITLE__|${README_TITLE}|g" | \
-                  sed "s|__DESCRIPTION__|${README_DESC}|g" | \
-                  sed "s|__REPO_NAME__|${REPO}|g" | \
-                  sed "s|__DOCS_URL__|${DOCS_URL}|g" > /tmp/generated_readme.md
+                  sed "s|__ORG_NAME__|${ORG_NAME_ESC}|g" | \
+                  sed "s|__TITLE__|${README_TITLE_ESC}|g" | \
+                  sed "s|__DESCRIPTION__|${README_DESC_ESC}|g" | \
+                  sed "s|__REPO_NAME__|${REPO_NAME_ESC}|g" | \
+                  sed "s|__DOCS_URL__|${DOCS_URL_ESC}|g" > /tmp/generated_readme.md
 
                 # Replace __EXTRA_BADGES__ placeholder — inject per-repo badge lines or remove
                 if [ -n "$README_BADGES" ]; then
