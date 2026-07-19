@@ -178,16 +178,18 @@ apply what fits.
   also true for a PR closed without merging or a manually deleted remote — in which case
   the local branch still holds unmerged commits. So confirm the work actually merged
   before force-deleting; never blind-pipe the `[gone]` list into `git branch -D`.
-- Easiest and safest: run the `/clean_gone` skill where available (it removes `[gone]`
-  branches and their worktrees). Otherwise, first list the `[gone]` branches, confirm
-  each one's PR merged, then delete only the confirmed ones:
+- Use this manual, confirm-then-delete flow: list the `[gone]` branches, confirm each
+  one's PR actually merged, then delete only the confirmed ones. (A `/clean_gone` skill
+  exists, but it force-deletes every `[gone]` branch with no merge check — the exact
+  closed-unmerged hazard above — so do not treat it as safe.)
 
   ```bash
   # 1) list branches whose upstream is gone (literal "[gone]" via %(upstream:track);
   #    do NOT grep `git branch -vv`, which renders it as "[origin/<branch>: gone]")
   git for-each-ref --format '%(refname:short) %(upstream:track)' refs/heads \
     | awk '$2 == "[gone]" {print $1}'
-  # 2) confirm a branch actually merged (returns the merged PR if so)
+  # 2) confirm the branch actually merged — check the returned PR is the right one,
+  #    since --head matches by name and branch names can be reused
   gh pr list --state merged --head <branch>
   # 3) delete the confirmed-merged branch (force flag is required, see above)
   git branch -D <branch>
