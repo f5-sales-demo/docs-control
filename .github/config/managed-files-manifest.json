@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-15T23:54:21Z",
-  "source_commit": "00ece005999eede71e48ec21213c3263823ec18e",
+  "generated_at": "2026-07-19T12:35:47Z",
+  "source_commit": "41510add526955fed1561c3e74ee3acd896ec890",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -35,20 +35,20 @@
     ".github/PULL_REQUEST_TEMPLATE.md": {
       "src": ".github/PULL_REQUEST_TEMPLATE.md",
       "dest": ".github/PULL_REQUEST_TEMPLATE.md",
-      "sha": "5dc4d9bd144f9b615211c053fad350d6cfae4848",
-      "size": 247
+      "sha": "2e152c07e5d16b1c934106f745ace6f7e0dc9f06",
+      "size": 753
     },
     ".github/ISSUE_TEMPLATE/bug_report.md": {
       "src": ".github/ISSUE_TEMPLATE/bug_report.md",
       "dest": ".github/ISSUE_TEMPLATE/bug_report.md",
-      "sha": "25d4df9693730ec3fb45eb6d25ca705436d0495b",
-      "size": 666
+      "sha": "d51d74cc7558236c7f529dd15f6527d1e7cf0ac5",
+      "size": 826
     },
     ".github/ISSUE_TEMPLATE/feature_request.md": {
       "src": ".github/ISSUE_TEMPLATE/feature_request.md",
       "dest": ".github/ISSUE_TEMPLATE/feature_request.md",
-      "sha": "03ee6c718464722a524e9fb70489c4ef6502f1df",
-      "size": 557
+      "sha": "a38b0eacaa10174b24a6495907cd0480f4f29290",
+      "size": 750
     },
     ".github/ISSUE_TEMPLATE/documentation.md": {
       "src": ".github/ISSUE_TEMPLATE/documentation.md",
@@ -65,14 +65,14 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "24f9db602fa1f815309be6971ef7545267f02608",
-      "size": 6763
+      "sha": "644af5fa20905fd6f8e8101350122f36cfdff20a",
+      "size": 7795
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "a758b474a3c0d9caed64473973c408daed8dd513",
-      "size": 1799
+      "sha": "24956540c922c0fe32cb56053068495133f09e91",
+      "size": 1973
     },
     ".editorconfig": {
       "src": ".editorconfig",
