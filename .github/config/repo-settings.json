@@ -59,6 +59,7 @@
       "excluded_required_contexts": ["audit / Translation freshness"]
     },
     "code-review": {
+      "additional_contexts": ["review / claude-review"],
       "excluded_required_contexts": ["audit / Translation freshness"]
     }
   },
@@ -155,11 +156,12 @@
         "APPLE_PASSWORD",
         "APPLE_TEAM_ID"
       ],
-      "claude_review": ["F5_GATEWAY_TOKEN"]
+      "claude_review": ["F5_GATEWAY_TOKEN"],
+      "xcsh": ["XCSH_API_URL", "XCSH_API_TOKEN", "XCSH_USERNAME", "XCSH_CONSOLE_PASSWORD"]
     },
     "repo_roles": {
       "_default": ["governance"],
-      "code-review": ["governance", "claude_review"],
+      "code-review": ["governance", "claude_review", "xcsh"],
       "docs-icons": ["governance", "npm_publish"],
       "docs-theme": ["governance", "npm_publish"],
       "docs-builder": ["governance", "release"],
