@@ -171,22 +171,31 @@ apply what fits.
   copy remains and must be cleaned up, or merged branches accumulate on the workstation.
 - Once your PR is merged and CI is green, return to `main` and prune:
   `git checkout main && git pull && git fetch --prune`.
-- Delete every branch whose upstream is gone. Squash-merges mean these are not ancestors
-  of `main` (so `git branch --merged` misses them); their deleted upstream marks them
-  `[gone]`. The `/clean_gone` skill does this in one step (and removes associated
-  worktrees) where available; otherwise detect and delete them with:
+- Pruning marks any branch whose upstream was deleted as `[gone]`. Squash-merges mean a
+  merged branch is not an ancestor of `main` (so `git branch --merged` misses it) and
+  `git branch -d` refuses it — removing it requires the force flag, `git branch -D`.
+- `[gone]` means only "the remote branch is gone." That is usually a merge, but it is
+  also true for a PR closed without merging or a manually deleted remote — in which case
+  the local branch still holds unmerged commits. So confirm the work actually merged
+  before force-deleting; never blind-pipe the `[gone]` list into `git branch -D`.
+- Easiest and safest: run the `/clean_gone` skill where available (it removes `[gone]`
+  branches and their worktrees). Otherwise, first list the `[gone]` branches, confirm
+  each one's PR merged, then delete only the confirmed ones:
 
   ```bash
+  # 1) list branches whose upstream is gone (literal "[gone]" via %(upstream:track);
+  #    do NOT grep `git branch -vv`, which renders it as "[origin/<branch>: gone]")
   git for-each-ref --format '%(refname:short) %(upstream:track)' refs/heads \
-    | awk '$2 == "[gone]" {print $1}' \
-    | xargs -r git branch -D
+    | awk '$2 == "[gone]" {print $1}'
+  # 2) confirm a branch actually merged (returns the merged PR if so)
+  gh pr list --state merged --head <branch>
+  # 3) delete the confirmed-merged branch (force flag is required, see above)
+  git branch -D <branch>
   ```
 
-- Detect `[gone]` with `%(upstream:track)` as above (it emits a literal `[gone]`); do not
-  grep `git branch -vv`, which renders it as `[origin/<branch>: gone]` and will not match.
-- Safety: delete only `[gone]` branches. Never delete a branch with unmerged commits or
-  uncommitted changes, and never force-delete unmerged work. If unsure, leave the branch
-  and surface it for a human.
+- Safety: a `[gone]` branch may still hold unmerged commits, so never `git branch -D` one
+  whose PR you have not confirmed merged, and never delete a branch with uncommitted
+  changes. When unsure, keep the branch and surface it for a human.
 
 ### Local checks vs CI
 
