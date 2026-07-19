@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-19T12:35:47Z",
-  "source_commit": "41510add526955fed1561c3e74ee3acd896ec890",
+  "generated_at": "2026-07-19T14:02:58Z",
+  "source_commit": "4ac6974b0a67e7f851a8fcc6d1712650b3e9dbb2",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -65,14 +65,14 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "644af5fa20905fd6f8e8101350122f36cfdff20a",
-      "size": 7795
+      "sha": "8fd95d5169c6c01844690f3c614cfacf394de3dd",
+      "size": 9019
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "24956540c922c0fe32cb56053068495133f09e91",
-      "size": 1973
+      "sha": "c1c86464e44646ab7ed5f01157c76f9413151f4e",
+      "size": 2108
     },
     ".editorconfig": {
       "src": ".editorconfig",
