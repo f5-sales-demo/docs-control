@@ -57,6 +57,9 @@
     },
     "terraform-provider-xcsh": {
       "excluded_required_contexts": ["audit / Translation freshness"]
+    },
+    "code-review": {
+      "excluded_required_contexts": ["audit / Translation freshness"]
     }
   },
   "topics": [],
@@ -151,10 +154,12 @@
         "APPLE_ID",
         "APPLE_PASSWORD",
         "APPLE_TEAM_ID"
-      ]
+      ],
+      "claude_review": ["F5_GATEWAY_TOKEN"]
     },
     "repo_roles": {
       "_default": ["governance"],
+      "code-review": ["governance", "claude_review"],
       "docs-icons": ["governance", "npm_publish"],
       "docs-theme": ["governance", "npm_publish"],
       "docs-builder": ["governance", "release"],
