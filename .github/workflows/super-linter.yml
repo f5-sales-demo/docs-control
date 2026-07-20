@@ -204,3 +204,7 @@ jobs:
       - name: Run review-slot semaphore test
         if: hashFiles('tests/test-review-slot.sh') != ''
         run: bash tests/test-review-slot.sh
+
+      - name: Run parse-verdict gate test
+        if: hashFiles('tests/test-parse-verdict.sh') != ''
+        run: bash tests/test-parse-verdict.sh
