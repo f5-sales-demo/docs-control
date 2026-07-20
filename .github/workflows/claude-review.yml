@@ -43,7 +43,7 @@ jobs:
         anthropic-beta: context-1m-2025-08-07
     steps:
       - name: Checkout PR head
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -59,7 +59,7 @@ jobs:
       # (The third-party claude-code-action below IS SHA-pinned — it crosses an org
       # boundary, which a SHA pin correctly closes.)
       - name: Checkout reviewer tooling
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: f5-sales-demo/docs-control
           ref: main
