@@ -200,3 +200,7 @@ jobs:
       - name: Run dispatch-matrix test
         if: hashFiles('tests/test-dispatch-matrix.sh') != ''
         run: bash tests/test-dispatch-matrix.sh
+
+      - name: Run review-slot semaphore test
+        if: hashFiles('tests/test-review-slot.sh') != ''
+        run: bash tests/test-review-slot.sh

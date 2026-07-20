@@ -28,7 +28,11 @@ jobs:
     # HARD GUARD: never let a fork PR reach the self-hosted runner.
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: [self-hosted, macOS, code-review]
-    timeout-minutes: 30
+    # Generous JOB budget so a run that WAITS in the machine-wide slot queue
+    # (review-slot.sh, up to its 3h max-wait) does not die of timeout before it
+    # even starts reviewing. The actual review is bounded separately by the
+    # step-level timeout on the Claude action below. 240 > the slot max-wait (3h).
+    timeout-minutes: 240
     env:
       ANTHROPIC_BASE_URL: ${{ vars.F5_GATEWAY_URL }}
       # Model claude-opus-4-8 with the 1M-token context beta. Bearer auth via the
@@ -63,7 +67,19 @@ jobs:
           persist-credentials: false
           token: ${{ secrets.REPO_SETTINGS_TOKEN }}
 
+      # Machine-wide concurrency cap: block until one of REVIEW_MAX_SLOTS (default
+      # 5) slots is free, then hold it for the review. Every repo runner on this
+      # host shares the same slot dir, so no more than N reviews EXECUTE at once;
+      # the rest queue here. Appends REVIEW_SLOT to $GITHUB_ENV for the release
+      # step. GitHub Free forces repo-level runners, so this out-of-band semaphore
+      # is what enforces a fleet-wide cap (per-repo `concurrency:` cannot).
+      - name: Acquire review slot
+        run: bash .review-tooling/scripts/review-slot.sh acquire
+
       - name: Claude review (agentic, authenticated)
+        # Bound the ACTUAL review independently of the (large) job timeout that
+        # absorbs slot-queue wait. Matches review-slot.sh's 45m stale threshold.
+        timeout-minutes: 30
         uses: anthropics/claude-code-action@af0559ee4f514d1ef21826982bed13f7edc3c35e # v1
         with:
           # Bearer gateways: this satisfies the action's launch check; real auth
@@ -99,3 +115,10 @@ jobs:
 
       - name: Gate on verdict
         run: bash .review-tooling/scripts/parse-verdict.sh verdict.json
+
+      # Free the slot no matter how the job ended (success, gate failure, review
+      # timeout, or cancel-in-progress within the runner's cancel grace period).
+      # If a hard kill skips this, review-slot.sh's 45m stale reclaim frees it.
+      - name: Release review slot
+        if: always()
+        run: bash .review-tooling/scripts/review-slot.sh release
