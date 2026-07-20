@@ -1,0 +1,27 @@
+---
+# Governed caller for the Claude PR reviewer. Synced by docs-control managed-files
+# to opted-in (runner-equipped) repos only; other repos skip it via skip_files.
+# Invokes the shared reusable reviewer in docs-control at @main (fleet convention).
+name: Code Review
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+jobs:
+  review:
+    # Skip fork PRs (they must never reach the self-hosted runner) and automated
+    # bot branches so governance/dependabot PRs are not gated on the laptop runner.
+    # A required check that is skipped via `if:` is treated as passing by branch
+    # protection (same pattern as the require-linked-issue gate).
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !startsWith(github.head_ref, 'governance/') &&
+      !startsWith(github.head_ref, 'sync/') &&
+      !startsWith(github.head_ref, 'dependabot/') &&
+      !startsWith(github.head_ref, 'release/')
+    uses: f5-sales-demo/docs-control/.github/workflows/claude-review.yml@main
+    permissions:
+      contents: read
+      pull-requests: write
+    secrets:
+      F5_GATEWAY_TOKEN: ${{ secrets.F5_GATEWAY_TOKEN }}
+      REPO_SETTINGS_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}

@@ -1,6 +1,6 @@
 ---
 self-hosted-runner:
-  labels: []
+  labels: [code-review]
 
 config-variables: null
 

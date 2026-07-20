@@ -61,6 +61,9 @@
     "code-review": {
       "additional_contexts": ["review / claude-review"],
       "excluded_required_contexts": ["audit / Translation freshness"]
+    },
+    "dns": {
+      "additional_contexts": ["review / claude-review"]
     }
   },
   "topics": [],
@@ -132,7 +135,14 @@
 
       { "src": ".claude/governance.json", "dest": ".claude/governance.json" },
       { "src": ".claude/settings.json", "dest": ".claude/settings.json" },
-      { "src": ".claude/hooks/protect-managed-files.sh", "dest": ".claude/hooks/protect-managed-files.sh" }
+      { "src": ".claude/hooks/protect-managed-files.sh", "dest": ".claude/hooks/protect-managed-files.sh" },
+
+      { "src": "actionlint.yml", "dest": "actionlint.yml" },
+      {
+        "src": "workflows/code-review.yml",
+        "dest": ".github/workflows/code-review.yml",
+        "only_repos": ["code-review", "dns"]
+      }
     ]
   },
   "secrets_manifest": {
@@ -162,6 +172,7 @@
     "repo_roles": {
       "_default": ["governance"],
       "code-review": ["governance", "claude_review", "xcsh"],
+      "dns": ["governance", "claude_review"],
       "docs-icons": ["governance", "npm_publish"],
       "docs-theme": ["governance", "npm_publish"],
       "docs-builder": ["governance", "release"],

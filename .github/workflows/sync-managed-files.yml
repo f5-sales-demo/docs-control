@@ -335,6 +335,16 @@ jobs:
                   continue
                 fi
 
+                # Honor per-file opt-in allowlist. A managed file may carry an
+                # "only_repos" array; if present it is synced ONLY to those repos
+                # (used by the Code Review caller, which belongs only on
+                # runner-equipped repos). Files without only_repos sync to all.
+                ONLY_REPOS=$(echo "$file_obj" | jq -c '.only_repos // empty')
+                if [ -n "$ONLY_REPOS" ] && ! echo "$ONLY_REPOS" | jq -e --arg r "$REPO" 'index($r) != null' >/dev/null; then
+                  echo "[SKIP] ${dest} -- not in only_repos for ${REPO}"
+                  continue
+                fi
+
                 # Manifest-based path: compare git blob SHA locally (no API)
                 if [ "$MANIFEST_AVAILABLE" = true ]; then
                   CANONICAL_SHA=$(echo "$MANIFEST" | jq -r --arg d "$dest" '.files[$d].sha // empty')
