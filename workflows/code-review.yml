@@ -10,8 +10,10 @@ jobs:
   review:
     # Skip fork PRs (they must never reach the self-hosted runner) and automated
     # bot branches so governance/dependabot PRs are not gated on the laptop runner.
-    # A required check that is skipped via `if:` is treated as passing by branch
-    # protection (same pattern as the require-linked-issue gate).
+    # NOTE: skipping this reusable-workflow caller does NOT satisfy a required
+    # `review / claude-review` context — a skipped caller reports `review`, and the
+    # nested `review / claude-review` context is never produced, which deadlocks the
+    # excluded PRs. The review-status-automated job below posts that context instead.
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       !startsWith(github.head_ref, 'governance/') &&
@@ -25,3 +27,30 @@ jobs:
     secrets:
       F5_GATEWAY_TOKEN: ${{ secrets.F5_GATEWAY_TOKEN }}
       REPO_SETTINGS_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
+
+  # Automated branches skip the reviewer above (never touching the self-hosted
+  # runner), so the required `review / claude-review` context would otherwise never
+  # post and the PR would deadlock. Post it as a passing commit status on exactly
+  # those branches (same-repo only, so GITHUB_TOKEN can write and forks are
+  # excluded). Human PRs get the real check from the `review` job instead.
+  review-status-automated:
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      (startsWith(github.head_ref, 'governance/') ||
+       startsWith(github.head_ref, 'sync/') ||
+       startsWith(github.head_ref, 'dependabot/') ||
+       startsWith(github.head_ref, 'release/'))
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+    steps:
+      - name: Post passing review/claude-review status for automated PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh api -X POST "repos/${REPO}/statuses/${SHA}" \
+            -f state=success \
+            -f context='review / claude-review' \
+            -f description='Automated PR: AI review not required'
