@@ -101,9 +101,10 @@ apply what fits.
 - Start non-trivial work from an engineering-level spec: what and why, the interfaces or
   content affected, and acceptance criteria.
 - Break the spec into an explicit task/todo list and work it item by item.
-- Keep the task list current: exactly one item in progress at a time, mark it complete
-  the moment it is genuinely done, and add newly-discovered work as new items rather than
-  silently widening an existing one.
+- Keep the task list current: generally one item in progress at a time (one per worker
+  when work is fanned out across agents), mark it complete the moment it is genuinely
+  done, add newly-discovered work as new items rather than silently widening an existing
+  one, and remove an item that turns out unnecessary with a note — never silently.
 - Mark a task complete only with verifiable evidence of its result — the command run and
   its output, a passing test, or a run link — never on inference or "should work" (see
   "Verify before claiming done").
@@ -111,7 +112,8 @@ apply what fits.
   half-done. If you cannot finish an item, keep it open, mark it blocked, and state
   exactly what blocks it and what is needed — surface it, do not drop it.
 - For long or unattended runs where finishing matters, set a `/goal` completion condition
-  (for example, "every task-list item complete with evidence") so the session keeps
+  (for example, "every task-list item complete with evidence, or explicitly blocked and
+  surfaced") so the session keeps
   working toward it instead of stopping early. The condition must be checkable from what
   you have surfaced in the session, since the evaluator cannot run tools.
 
