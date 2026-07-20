@@ -6,6 +6,16 @@ name: Code Review
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+
+# Per-PR dedup: a new push cancels the superseded in-flight review for the SAME
+# PR, so two reviews of one PR never overlap and a stale commit's review does not
+# hold a machine-wide slot (see review-slot.sh). Concurrency groups are scoped per
+# repository, so this key needs no repo component (PR #5 in two repos never
+# collide). Same idiom as require-linked-issue.yml / super-linter.yml callers.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   review:
     # Real agentic review for HUMAN, same-repo PRs. Skipped for genuine automated
