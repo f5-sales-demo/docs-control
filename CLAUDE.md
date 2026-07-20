@@ -24,7 +24,7 @@ Apply where applicable to this repo:
 - **Root-cause only** — fix problems (including lint and CI failures) at the source; never skip, suppress, inline-disable, or hand-wave them. CI rejects masked issues.
 - **No backward compat** — prerelease code; make clean-break changes, no shims or deprecated interfaces.
 - **DRY** — reuse existing code, patterns, and content before adding new.
-- **Clean branches** — a branch is for trial-and-error; only verified, feature-complete code merges. A PR means "this works", not "does this work?" — never open or merge exploratory code, and drop unneeded (YAGNI) work. Cleanup is part of "done", not a separate ask: once your PR is verified-merged, return to main, delete your merged local branch, and report git hygiene — current branch, uncommitted changes, stale `[gone]` branches — without waiting to be asked (your start-of-session git status is the reminder to check; see CONTRIBUTING.md for safe `[gone]` cleanup).
+- **Clean branches** — only verified, feature-complete code merges; never merge exploratory or unneeded (YAGNI) work. Cleanup is part of "done": once verified-merged, return to main, delete your merged branch, and report git hygiene (branch, uncommitted changes, stale `[gone]` branches) unprompted — see CONTRIBUTING.md for safe `[gone]` cleanup.
 - **Local vs CI** — `pre-commit` runs a subset; the `Lint Code Base` gate also runs textlint prose/terminology. Reproduce it before pushing.
 
 See `CONTRIBUTING.md` for the full detail.
