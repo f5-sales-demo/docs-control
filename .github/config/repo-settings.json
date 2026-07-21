@@ -1,5 +1,5 @@
 {
-  "_comment": "Central repo-settings config — enforced by enforce-repo-settings.yml",
+  "_comment": "Central repo-settings config \u2014 enforced by enforce-repo-settings.yml",
   "_last_verified": "2026-02-16",
   "repository": {
     "private": false,
@@ -46,17 +46,18 @@
   ],
   "repo_overrides": {
     "xcsh": {
-      "additional_contexts": ["check", "test"],
+      "additional_contexts": ["check", "test", "review / claude-review"],
       "excluded_required_contexts": ["lint / Lint Code Base"]
     },
     "vscode-xcsh": {
-      "additional_contexts": ["Validate Generation", "Test (ubuntu-latest)", "Build VSIX"]
+      "additional_contexts": ["Validate Generation", "Test (ubuntu-latest)", "Build VSIX", "review / claude-review"]
     },
     "console": {
-      "additional_contexts": ["Validate Catalog Schemas"]
+      "additional_contexts": ["Validate Catalog Schemas", "review / claude-review"]
     },
     "terraform-provider-xcsh": {
-      "excluded_required_contexts": ["audit / Translation freshness"]
+      "excluded_required_contexts": ["audit / Translation freshness"],
+      "additional_contexts": ["review / claude-review"]
     },
     "code-review": {
       "additional_contexts": ["review / claude-review"],
@@ -66,6 +67,99 @@
       "additional_contexts": ["review / claude-review"]
     },
     "demo-resource-template": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "docs-builder": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "docs-theme": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "docs": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "administration": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "nginx": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "observability": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "was": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "mcn": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "cdn": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "bot-standard": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "bot-advanced": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "ddos": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "waf": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "api-protection": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "webapp-api-protection": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "api-specs": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "api-specs-enriched": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "csd": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "docs-icons": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "devcontainer": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "marketplace": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "cdn-simulator": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "origin-server": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "traffic-generator": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "demo-resources": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "starlight-llms-txt": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "starlight-mega-menu": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "apt-repo": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "i18n-core": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "xcsh-chrome-extension": {
+      "additional_contexts": ["review / claude-review"]
+    },
+    "marketplace-claude-code": {
       "additional_contexts": ["review / claude-review"]
     }
   },
@@ -95,56 +189,173 @@
       "xcsh-chrome-extension": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"]
     },
     "files": [
-      { "src": "workflows/github-pages-deploy.yml", "dest": ".github/workflows/github-pages-deploy.yml" },
-      { "src": "workflows/enforce-repo-settings.yml", "dest": ".github/workflows/enforce-repo-settings.yml" },
-      { "src": "workflows/require-linked-issue.yml", "dest": ".github/workflows/require-linked-issue.yml" },
-      { "src": "workflows/super-linter.yml", "dest": ".github/workflows/super-linter.yml" },
-      { "src": "workflows/translation-audit.yml", "dest": ".github/workflows/translation-audit.yml" },
-      { "src": ".github/PULL_REQUEST_TEMPLATE.md", "dest": ".github/PULL_REQUEST_TEMPLATE.md" },
-      { "src": ".github/ISSUE_TEMPLATE/bug_report.md", "dest": ".github/ISSUE_TEMPLATE/bug_report.md" },
-      { "src": ".github/ISSUE_TEMPLATE/feature_request.md", "dest": ".github/ISSUE_TEMPLATE/feature_request.md" },
-      { "src": ".github/ISSUE_TEMPLATE/documentation.md", "dest": ".github/ISSUE_TEMPLATE/documentation.md" },
-      { "src": ".github/ISSUE_TEMPLATE/config.yml", "dest": ".github/ISSUE_TEMPLATE/config.yml" },
-
-      { "src": "CONTRIBUTING.md", "dest": "CONTRIBUTING.md" },
-      { "src": "CLAUDE.md", "dest": "CLAUDE.md" },
-      { "src": ".editorconfig", "dest": ".editorconfig" },
-      { "src": ".gitignore", "dest": ".gitignore" },
-      { "src": "LICENSE", "dest": "LICENSE" },
-      { "src": ".pre-commit-config.yaml", "dest": ".pre-commit-config.yaml" },
-      { "src": ".yamllint.yaml", "dest": ".yamllint.yaml" },
-      { "src": ".markdownlint.json", "dest": ".markdownlint.json" },
-      { "src": "workflows/dependabot-auto-merge.yml", "dest": ".github/workflows/dependabot-auto-merge.yml" },
-      { "src": "workflows/auto-merge.yml", "dest": ".github/workflows/auto-merge.yml" },
-
-      { "src": "biome.json", "dest": "biome.json" },
-      { "src": ".jscpd.json", "dest": ".jscpd.json" },
-      { "src": ".textlintrc", "dest": ".textlintrc" },
-      { "src": ".editorconfig-checker.json", "dest": ".editorconfig-checker.json" },
-      { "src": ".checkov.yaml", "dest": ".checkov.yaml" },
-      { "src": "zizmor.yaml", "dest": "zizmor.yaml" },
-      { "src": ".shellcheckrc", "dest": ".shellcheckrc" },
-      { "src": ".codespellrc", "dest": ".codespellrc" },
-      { "src": ".gitleaks.toml", "dest": ".gitleaks.toml" },
-      { "src": ".prettierignore", "dest": ".prettierignore" },
-      { "src": ".trivyignore", "dest": ".trivyignore" },
-      { "src": "trivy.yaml", "dest": "trivy.yaml" },
-      { "src": ".ruff.toml", "dest": ".ruff.toml" },
-      { "src": ".isort.cfg", "dest": ".isort.cfg" },
-      { "src": ".python-lint", "dest": ".python-lint" },
-      { "src": ".mypy.ini", "dest": ".mypy.ini" },
-
-      { "src": "scripts/locale-lint.sh", "dest": "scripts/locale-lint.sh" },
-
-      { "src": ".claude/governance.json", "dest": ".claude/governance.json" },
-      { "src": ".claude/settings.json", "dest": ".claude/settings.json" },
-      { "src": ".claude/hooks/protect-managed-files.sh", "dest": ".claude/hooks/protect-managed-files.sh" },
-
-      { "src": "actionlint.yml", "dest": "actionlint.yml" },
+      {
+        "src": "workflows/github-pages-deploy.yml",
+        "dest": ".github/workflows/github-pages-deploy.yml"
+      },
+      {
+        "src": "workflows/enforce-repo-settings.yml",
+        "dest": ".github/workflows/enforce-repo-settings.yml"
+      },
+      {
+        "src": "workflows/require-linked-issue.yml",
+        "dest": ".github/workflows/require-linked-issue.yml"
+      },
+      {
+        "src": "workflows/super-linter.yml",
+        "dest": ".github/workflows/super-linter.yml"
+      },
+      {
+        "src": "workflows/translation-audit.yml",
+        "dest": ".github/workflows/translation-audit.yml"
+      },
+      {
+        "src": ".github/PULL_REQUEST_TEMPLATE.md",
+        "dest": ".github/PULL_REQUEST_TEMPLATE.md"
+      },
+      {
+        "src": ".github/ISSUE_TEMPLATE/bug_report.md",
+        "dest": ".github/ISSUE_TEMPLATE/bug_report.md"
+      },
+      {
+        "src": ".github/ISSUE_TEMPLATE/feature_request.md",
+        "dest": ".github/ISSUE_TEMPLATE/feature_request.md"
+      },
+      {
+        "src": ".github/ISSUE_TEMPLATE/documentation.md",
+        "dest": ".github/ISSUE_TEMPLATE/documentation.md"
+      },
+      {
+        "src": ".github/ISSUE_TEMPLATE/config.yml",
+        "dest": ".github/ISSUE_TEMPLATE/config.yml"
+      },
+      {
+        "src": "CONTRIBUTING.md",
+        "dest": "CONTRIBUTING.md"
+      },
+      {
+        "src": "CLAUDE.md",
+        "dest": "CLAUDE.md"
+      },
+      {
+        "src": ".editorconfig",
+        "dest": ".editorconfig"
+      },
+      {
+        "src": ".gitignore",
+        "dest": ".gitignore"
+      },
+      {
+        "src": "LICENSE",
+        "dest": "LICENSE"
+      },
+      {
+        "src": ".pre-commit-config.yaml",
+        "dest": ".pre-commit-config.yaml"
+      },
+      {
+        "src": ".yamllint.yaml",
+        "dest": ".yamllint.yaml"
+      },
+      {
+        "src": ".markdownlint.json",
+        "dest": ".markdownlint.json"
+      },
+      {
+        "src": "workflows/dependabot-auto-merge.yml",
+        "dest": ".github/workflows/dependabot-auto-merge.yml"
+      },
+      {
+        "src": "workflows/auto-merge.yml",
+        "dest": ".github/workflows/auto-merge.yml"
+      },
+      {
+        "src": "biome.json",
+        "dest": "biome.json"
+      },
+      {
+        "src": ".jscpd.json",
+        "dest": ".jscpd.json"
+      },
+      {
+        "src": ".textlintrc",
+        "dest": ".textlintrc"
+      },
+      {
+        "src": ".editorconfig-checker.json",
+        "dest": ".editorconfig-checker.json"
+      },
+      {
+        "src": ".checkov.yaml",
+        "dest": ".checkov.yaml"
+      },
+      {
+        "src": "zizmor.yaml",
+        "dest": "zizmor.yaml"
+      },
+      {
+        "src": ".shellcheckrc",
+        "dest": ".shellcheckrc"
+      },
+      {
+        "src": ".codespellrc",
+        "dest": ".codespellrc"
+      },
+      {
+        "src": ".gitleaks.toml",
+        "dest": ".gitleaks.toml"
+      },
+      {
+        "src": ".prettierignore",
+        "dest": ".prettierignore"
+      },
+      {
+        "src": ".trivyignore",
+        "dest": ".trivyignore"
+      },
+      {
+        "src": "trivy.yaml",
+        "dest": "trivy.yaml"
+      },
+      {
+        "src": ".ruff.toml",
+        "dest": ".ruff.toml"
+      },
+      {
+        "src": ".isort.cfg",
+        "dest": ".isort.cfg"
+      },
+      {
+        "src": ".python-lint",
+        "dest": ".python-lint"
+      },
+      {
+        "src": ".mypy.ini",
+        "dest": ".mypy.ini"
+      },
+      {
+        "src": "scripts/locale-lint.sh",
+        "dest": "scripts/locale-lint.sh"
+      },
+      {
+        "src": ".claude/governance.json",
+        "dest": ".claude/governance.json"
+      },
+      {
+        "src": ".claude/settings.json",
+        "dest": ".claude/settings.json"
+      },
+      {
+        "src": ".claude/hooks/protect-managed-files.sh",
+        "dest": ".claude/hooks/protect-managed-files.sh"
+      },
+      {
+        "src": "actionlint.yml",
+        "dest": "actionlint.yml"
+      },
       {
         "src": "workflows/code-review.yml",
-        "dest": ".github/workflows/code-review.yml",
-        "only_repos": ["code-review", "dns", "demo-resource-template"]
+        "dest": ".github/workflows/code-review.yml"
       }
     ]
   },
@@ -177,18 +388,41 @@
       "code-review": ["governance", "claude_review", "xcsh"],
       "dns": ["governance", "claude_review"],
       "demo-resource-template": ["governance", "claude_review"],
-      "docs-icons": ["governance", "npm_publish"],
-      "docs-theme": ["governance", "npm_publish"],
-      "docs-builder": ["governance", "release"],
-      "origin-server": ["governance", "release"],
-      "starlight-llms-txt": ["governance", "npm_publish"],
-      "starlight-mega-menu": ["governance", "npm_publish"],
-      "xcsh": ["governance", "npm_publish", "apple_signing"],
-      "vscode-xcsh": ["governance", "vscode_extension"],
-      "terraform-provider-xcsh": ["governance", "terraform_provider"],
-      "api-specs": ["governance"],
-      "api-specs-enriched": ["governance", "api_enrichment"],
-      "apt-repo": ["governance"]
+      "docs-icons": ["governance", "npm_publish", "claude_review"],
+      "docs-theme": ["governance", "npm_publish", "claude_review"],
+      "docs-builder": ["governance", "release", "claude_review"],
+      "origin-server": ["governance", "release", "claude_review"],
+      "starlight-llms-txt": ["governance", "npm_publish", "claude_review"],
+      "starlight-mega-menu": ["governance", "npm_publish", "claude_review"],
+      "xcsh": ["governance", "npm_publish", "apple_signing", "claude_review"],
+      "vscode-xcsh": ["governance", "vscode_extension", "claude_review"],
+      "terraform-provider-xcsh": ["governance", "terraform_provider", "claude_review"],
+      "api-specs": ["governance", "claude_review"],
+      "api-specs-enriched": ["governance", "api_enrichment", "claude_review"],
+      "apt-repo": ["governance", "claude_review"],
+      "docs": ["governance", "claude_review"],
+      "administration": ["governance", "claude_review"],
+      "nginx": ["governance", "claude_review"],
+      "observability": ["governance", "claude_review"],
+      "was": ["governance", "claude_review"],
+      "mcn": ["governance", "claude_review"],
+      "cdn": ["governance", "claude_review"],
+      "bot-standard": ["governance", "claude_review"],
+      "bot-advanced": ["governance", "claude_review"],
+      "ddos": ["governance", "claude_review"],
+      "waf": ["governance", "claude_review"],
+      "api-protection": ["governance", "claude_review"],
+      "webapp-api-protection": ["governance", "claude_review"],
+      "csd": ["governance", "claude_review"],
+      "devcontainer": ["governance", "claude_review"],
+      "marketplace": ["governance", "claude_review"],
+      "cdn-simulator": ["governance", "claude_review"],
+      "traffic-generator": ["governance", "claude_review"],
+      "demo-resources": ["governance", "claude_review"],
+      "i18n-core": ["governance", "claude_review"],
+      "console": ["governance", "claude_review"],
+      "xcsh-chrome-extension": ["governance", "claude_review"],
+      "marketplace-claude-code": ["governance", "claude_review"]
     }
   }
 }
