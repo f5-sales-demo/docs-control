@@ -64,6 +64,9 @@
     },
     "dns": {
       "additional_contexts": ["review / claude-review"]
+    },
+    "demo-resource-template": {
+      "additional_contexts": ["review / claude-review"]
     }
   },
   "topics": [],
@@ -141,7 +144,7 @@
       {
         "src": "workflows/code-review.yml",
         "dest": ".github/workflows/code-review.yml",
-        "only_repos": ["code-review", "dns"]
+        "only_repos": ["code-review", "dns", "demo-resource-template"]
       }
     ]
   },
@@ -173,6 +176,7 @@
       "_default": ["governance"],
       "code-review": ["governance", "claude_review", "xcsh"],
       "dns": ["governance", "claude_review"],
+      "demo-resource-template": ["governance", "claude_review"],
       "docs-icons": ["governance", "npm_publish"],
       "docs-theme": ["governance", "npm_publish"],
       "docs-builder": ["governance", "release"],
