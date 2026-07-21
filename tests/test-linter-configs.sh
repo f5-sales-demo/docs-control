@@ -289,7 +289,6 @@ echo "=== Section 5b: .markdownlint.json opinionated-rule disables ==="
 # Each entry below is a rule docs-control disables based on real audit
 # findings against governed repos. Removing the disable would re-introduce
 # hundreds of noise violations on fork/reference-style docs.
-# MD013  line-length           — long code examples / tables
 # MD029  ordered-list-style    — allow mixed 1. + 1) styles
 # MD033  no-inline-html        — MDX components and HTML embed
 # MD040  code-fence-language   — plain fenced code for pseudo-output is valid
@@ -298,13 +297,23 @@ echo "=== Section 5b: .markdownlint.json opinionated-rule disables ==="
 # MD025  single-title          — multi-H1 is used in reference docs
 # MD024  no-duplicate-heading  — repeated section names in reference docs
 # MD007  ul-indent             — indent preference varies by fork style
-for rule in MD013 MD029 MD033 MD040 MD041 MD060 MD025 MD024 MD007; do
+for rule in MD029 MD033 MD040 MD041 MD060 MD025 MD024 MD007; do
   if jq -e --arg r "$rule" '.[$r] == false' "$REPO_ROOT/.markdownlint.json" >/dev/null; then
     pass "5b.x .markdownlint.json disables $rule"
   else
     fail "5b.x .markdownlint.json disables $rule" "not set to false"
   fi
 done
+
+# MD013 (line-length) is ENFORCED with a generous 400-char cap, not disabled
+# (#682: "enforce MD013 (400) to match CI"). Long code examples and tables fit
+# under 400 while genuinely runaway lines are still flagged — so assert the cap
+# rather than a blanket disable.
+if jq -e '.MD013.line_length == 400' "$REPO_ROOT/.markdownlint.json" >/dev/null; then
+  pass "5b.x .markdownlint.json enforces MD013 line_length 400"
+else
+  fail "5b.x .markdownlint.json enforces MD013 line_length 400" "MD013.line_length != 400"
+fi
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 6b: .textlintrc terminology excludes cover terms flagged
