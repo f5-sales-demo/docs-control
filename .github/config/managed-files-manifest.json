@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-21T14:52:00Z",
-  "source_commit": "02c446fd11d2b94935e913bb2a6543e539e0bcc1",
+  "generated_at": "2026-07-21T17:49:21Z",
+  "source_commit": "9846001a13773f05ef037e617a92c14278bb4940",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -119,8 +119,8 @@
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "955717801361eae87048e5056f302edabd520a30",
-      "size": 519
+      "sha": "4e8e4fb5ffaa70c1b71cd06868518c5c1f545228",
+      "size": 856
     },
     "biome.json": {
       "src": "biome.json",
@@ -155,8 +155,8 @@
     "zizmor.yaml": {
       "src": "zizmor.yaml",
       "dest": "zizmor.yaml",
-      "sha": "09cf3a811c29f125d26f124bbff4633d3eafc744",
-      "size": 1537
+      "sha": "bb75f983d370611e10e1d83123b25e7dfa72fa3e",
+      "size": 1746
     },
     ".shellcheckrc": {
       "src": ".shellcheckrc",
