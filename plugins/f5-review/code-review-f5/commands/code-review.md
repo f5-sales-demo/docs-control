@@ -201,6 +201,6 @@ Notes:
   - Requires the full git SHA (not an abbreviated one, and not a `$(...)` command
     substitution — the comment is rendered directly in Markdown).
   - The repo name must match the repo you are reviewing.
-  - Use a `#` after the file name and an `L[start]-L[end]` line range.
+  - Use a `#` after the filename and an `L[start]-L[end]` line range.
   - Provide at least one line of context before and after the line you are
     commenting on (e.g. to comment on lines 5-6, link to `L4-L7`).
