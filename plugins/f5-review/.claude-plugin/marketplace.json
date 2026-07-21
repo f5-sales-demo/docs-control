@@ -1,0 +1,19 @@
+{
+  "name": "f5-review",
+  "description": "F5 self-hosted PR review marketplace: the F5-extended multi-agent code reviewer.",
+  "owner": {
+    "name": "f5-sales-demo"
+  },
+  "plugins": [
+    {
+      "name": "code-review-f5",
+      "source": "./code-review-f5",
+      "description": "F5-extended multi-agent PR reviewer: upstream code-review orchestration plus authenticated VPN verification, a machine-readable blocking verdict, and the F5 review rubric.",
+      "version": "1.0.0",
+      "author": {
+        "name": "f5-sales-demo"
+      },
+      "category": "productivity"
+    }
+  ]
+}

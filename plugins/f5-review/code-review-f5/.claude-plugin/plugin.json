@@ -1,0 +1,8 @@
+{
+  "name": "code-review-f5",
+  "description": "F5-extended multi-agent PR review. Vendored from anthropics/claude-code code-review plugin (see UPSTREAM.md) and extended with authenticated VPN verification, a machine-readable blocking verdict, and the F5 review rubric.",
+  "version": "1.0.0",
+  "author": {
+    "name": "f5-sales-demo"
+  }
+}
