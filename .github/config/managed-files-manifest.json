@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-20T16:16:24Z",
-  "source_commit": "2cdf8f33124dbdd7a5037be9e427506bf4220bf9",
+  "generated_at": "2026-07-21T00:53:50Z",
+  "source_commit": "2a92eedc63c7a475b31cf8ee2095b2fc443a9e49",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -71,8 +71,8 @@
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "7b41be95bf833600267b804c6a0eca6d2ca5a361",
-      "size": 2353
+      "sha": "01cab547d53b52bf8e9054575de16fac0d17fbc5",
+      "size": 2283
     },
     ".editorconfig": {
       "src": ".editorconfig",
