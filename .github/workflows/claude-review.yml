@@ -110,8 +110,23 @@ jobs:
           # Pin the CLI to control version drift (see code-review runner/README.md).
           path_to_claude_code_executable: /opt/homebrew/bin/claude
 
+      # Gate on the verdict. Enforcing by default (safe). A DARK BAKE toggle lets
+      # us roll out the multi-agent engine fleet-wide without blocking merges while
+      # we watch it: set the org/repo variable REVIEW_ENFORCE=false to observe-only
+      # (reviews still run + post + write verdict.json; a 🔴 warns but does not fail
+      # the check). Unset or REVIEW_ENFORCE=true (the default) = enforce and block.
       - name: Gate on verdict
-        run: bash .review-tooling/scripts/parse-verdict.sh verdict.json
+        env:
+          REVIEW_ENFORCE: ${{ vars.REVIEW_ENFORCE }}
+        run: |
+          if bash .review-tooling/scripts/parse-verdict.sh verdict.json; then
+            exit 0
+          fi
+          if [ "${REVIEW_ENFORCE}" = "false" ]; then
+            echo "::warning::DARK BAKE (REVIEW_ENFORCE=false) — blocking (🔴) finding(s) present but NOT enforced."
+            exit 0
+          fi
+          exit 1
 
       # Free the slot no matter how the job ended (success, gate failure, review
       # timeout, or cancel-in-progress within the runner's cancel grace period).
