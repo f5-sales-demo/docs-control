@@ -475,10 +475,12 @@ else
   # fork-pr-contributor-approval endpoint. Anything else is silently
   # rejected by the API and would leave the fleet on GitHub's default.
   case "$FORK_POLICY" in
-    first_time_contributors_new_to_github | first_time_contributors | all_external_contributors)
-      pass "11.2 approval_policy is a valid enum ($FORK_POLICY)" ;;
-    *)
-      fail "11.2 approval_policy is a valid enum" "got '$FORK_POLICY'" ;;
+  first_time_contributors_new_to_github | first_time_contributors | all_external_contributors)
+    pass "11.2 approval_policy is a valid enum ($FORK_POLICY)"
+    ;;
+  *)
+    fail "11.2 approval_policy is a valid enum" "got '$FORK_POLICY'"
+    ;;
   esac
 fi
 

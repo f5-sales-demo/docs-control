@@ -21,12 +21,12 @@ perm=$(gh api "repos/${repo}/collaborators/${author}/permission" \
 perm="${perm:-none}"
 
 case "$perm" in
-  admin | write)
-    echo "auto-merge: author '${author}' has '${perm}' on '${repo}' → TRUSTED"
-    exit 0
-    ;;
-  *)
-    echo "auto-merge: author '${author}' has '${perm}' on '${repo}' → UNTRUSTED — leaving PR for human review"
-    exit 1
-    ;;
+admin | write)
+  echo "auto-merge: author '${author}' has '${perm}' on '${repo}' → TRUSTED"
+  exit 0
+  ;;
+*)
+  echo "auto-merge: author '${author}' has '${perm}' on '${repo}' → UNTRUSTED — leaving PR for human review"
+  exit 1
+  ;;
 esac
