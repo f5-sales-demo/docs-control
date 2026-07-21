@@ -208,3 +208,7 @@ jobs:
       - name: Run parse-verdict gate test
         if: hashFiles('tests/test-parse-verdict.sh') != ''
         run: bash tests/test-parse-verdict.sh
+
+      - name: Run pr-author-trusted gate test
+        if: hashFiles('tests/test-pr-author-trusted.sh') != ''
+        run: bash tests/test-pr-author-trusted.sh

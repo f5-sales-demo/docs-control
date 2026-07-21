@@ -12,22 +12,41 @@ permissions:
 jobs:
   auto-merge:
     runs-on: ubuntu-latest
-    # Enable auto-merge on any non-draft PR. Branch protection + required status
-    # checks (e.g. "Check linked issues", lint, tests) still gate the actual
-    # merge — this only means "merge when green". Work-in-progress uses draft PRs.
-    # Dependabot PRs are handled by dependabot-auto-merge.yml.
+    # Candidate filter: non-draft, non-dependabot PRs only. Work-in-progress uses
+    # draft PRs; dependabot PRs are handled by dependabot-auto-merge.yml. Whether
+    # auto-merge is ACTUALLY enabled is further gated on author TRUST below
+    # (write/admin permission on the target repo) so external / fork PRs are never
+    # auto-merged — a maintainer must review and merge them. Branch protection +
+    # required status checks still gate the merge itself ("merge when green").
     if: >-
       github.event.pull_request.draft == false &&
       github.actor != 'dependabot[bot]'
     steps:
-      - name: Enable auto-merge
-        run: gh pr merge --auto --squash "$PR_URL"
+      # Trusted governance tooling — docs-control's own protected main, NOT the PR
+      # head. This pull_request_target job must NEVER check out PR-authored code;
+      # it only reads PR metadata and runs our own vetted script.
+      - name: Checkout governance tooling (docs-control@main)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: f5-sales-demo/docs-control
+          ref: main
+          path: .governance
+          persist-credentials: false
+      - name: Enable auto-merge for trusted authors only
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          # Use a PAT (REPO_SYNC_TOKEN) so the eventual merge-push is attributed
-          # to a real user — not github-actions[bot]. This makes the push trigger
-          # downstream workflows (release.yml, github-pages-deploy.yml, CI).
-          # GITHUB_TOKEN merges are blocked by GitHub's recursion prevention.
-          # Fallback to GITHUB_TOKEN for repos without REPO_SYNC_TOKEN (merge
-          # still works, downstream triggers just don't fire).
+          REPO: ${{ github.repository }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          # PAT (REPO_SYNC_TOKEN) so the eventual merge-push is attributed to a
+          # real user — not github-actions[bot] — which lets it trigger downstream
+          # workflows (release.yml, github-pages-deploy.yml, CI); GITHUB_TOKEN
+          # merges are blocked by GitHub's recursion prevention. The same token
+          # reads the author's repo permission for the trust gate. Falls back to
+          # GITHUB_TOKEN for repos without REPO_SYNC_TOKEN.
           GH_TOKEN: ${{ secrets.REPO_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          if bash .governance/scripts/pr-author-trusted.sh "$REPO" "$PR_AUTHOR"; then
+            gh pr merge --auto --squash "$PR_URL"
+          else
+            echo "::notice::Auto-merge NOT enabled — author '$PR_AUTHOR' lacks write/admin on '$REPO'. A maintainer must review and merge."
+          fi
