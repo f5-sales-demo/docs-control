@@ -429,6 +429,30 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 11: fork-PR workflow approval policy
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 11: actions_fork_pr_approval schema validity ==="
+
+FORK_POLICY=$(jq -r '.actions_fork_pr_approval.approval_policy // empty' "$REPO_SETTINGS")
+
+if [ -z "$FORK_POLICY" ]; then
+  fail "11.1 actions_fork_pr_approval.approval_policy exists" "key not found"
+else
+  pass "11.1 actions_fork_pr_approval.approval_policy exists"
+
+  # 11.2: must be one of GitHub's accepted enum values for the
+  # fork-pr-contributor-approval endpoint. Anything else is silently
+  # rejected by the API and would leave the fleet on GitHub's default.
+  case "$FORK_POLICY" in
+    first_time_contributors_new_to_github | first_time_contributors | all_external_contributors)
+      pass "11.2 approval_policy is a valid enum ($FORK_POLICY)" ;;
+    *)
+      fail "11.2 approval_policy is a valid enum" "got '$FORK_POLICY'" ;;
+  esac
+fi
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 8: Idempotence (running this script twice yields identical output)
 # ════════════════════════════════════════════════════════════════════
 echo ""
