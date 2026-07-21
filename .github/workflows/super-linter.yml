@@ -7,16 +7,17 @@ on:
     types: [opened, synchronize, reopened]
   workflow_call:
 
-permissions:
-  contents: read
-  packages: read
-  statuses: write
-  pull-requests: write
-
 jobs:
   lint:
     name: Lint Code Base
     runs-on: ubuntu-latest
+    # Scoped to what the linter needs: read code/packages, write commit statuses
+    # and PR annotations. The shell-unit-tests job below gets contents:read only.
+    permissions:
+      contents: read
+      packages: read
+      statuses: write
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -178,6 +179,8 @@ jobs:
   shell-unit-tests:
     name: Shell Unit Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -202,12 +202,9 @@ echo "=== Section 6: zizmor suppression coverage ==="
 for rule in \
   unpinned-uses \
   artipacked \
-  excessive-permissions \
-  template-injection \
   cache-poisoning \
   secrets-inherit \
   secrets-outside-env \
-  dangerous-triggers \
   bot-conditions \
   dependabot-cooldown; do
   if python3 -c "
@@ -221,6 +218,39 @@ sys.exit(0 if cfg.get('rules', {}).get('$rule', {}).get('disable') else 1)
     fail "6.x zizmor.yaml disables '$rule'" "rule not disabled"
   fi
 done
+
+# Security-relevant audits stay ENABLED fleet-wide (never globally disabled).
+# Intentional instances are handled with justified inline `# zizmor: ignore`
+# comments or root-cause fixes, so new occurrences elsewhere are still caught.
+for rule in \
+  dangerous-triggers \
+  excessive-permissions \
+  template-injection; do
+  if python3 -c "
+import sys, yaml
+with open('$REPO_ROOT/zizmor.yaml') as f:
+  cfg = yaml.safe_load(f)
+sys.exit(1 if cfg.get('rules', {}).get('$rule', {}).get('disable') else 0)
+" 2>/dev/null; then
+    pass "6.x zizmor.yaml keeps '$rule' enabled (security audit active)"
+  else
+    fail "6.x zizmor.yaml keeps '$rule' enabled" "rule is globally disabled"
+  fi
+done
+
+# template-injection is scoped-ignored ONLY for the trusted, push:main-only
+# github-pages-deploy.yml (no untrusted-data path); it stays active elsewhere.
+if python3 -c "
+import sys, yaml
+with open('$REPO_ROOT/zizmor.yaml') as f:
+  cfg = yaml.safe_load(f)
+ig = cfg.get('rules', {}).get('template-injection', {}).get('ignore', [])
+sys.exit(0 if 'github-pages-deploy.yml' in ig else 1)
+" 2>/dev/null; then
+  pass "6.x template-injection scoped-ignores github-pages-deploy.yml only"
+else
+  fail "6.x template-injection scoped-ignores github-pages-deploy.yml" "scoped ignore missing"
+fi
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5a: .jscpd.json guardrails — threshold + ignore patterns

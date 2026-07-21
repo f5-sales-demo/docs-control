@@ -1,7 +1,12 @@
 ---
 name: Auto-Merge
+# Uses `pull_request` (NOT pull_request_target): auto-merge never needs to run
+# privileged in a fork's context. Same-repo PRs (the only ones we auto-merge) run
+# with secrets and a writable token; fork PRs run with no secrets and a read-only
+# token, so the author-trust gate below simply declines them. This keeps the PAT
+# out of any fork-triggered run.
 on:
-  pull_request_target:
+  pull_request:
     types: [opened, reopened, ready_for_review]
   workflow_call:
 
