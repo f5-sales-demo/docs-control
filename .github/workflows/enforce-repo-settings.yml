@@ -249,6 +249,34 @@ jobs:
             echo "[SKIP] No actions_permissions in config"
           fi
 
+          # --- Phase 3b: Apply fork-PR workflow approval -----------------------
+          # Require maintainer approval before Actions workflows (and therefore
+          # the required status checks) run on PRs from the configured
+          # contributor class. With "all_external_contributors" an outside/fork
+          # PR cannot go green -- and so cannot auto-merge -- until a maintainer
+          # approves the run. Defense in depth behind the author-trust gate in
+          # auto-merge.yml.
+          echo ""
+          echo "=== Phase 3b: Apply fork-PR workflow approval ==="
+
+          DESIRED_FORK_APPROVAL=$(echo "$CONFIG" | jq -c '.actions_fork_pr_approval // empty')
+
+          if [ -n "$DESIRED_FORK_APPROVAL" ]; then
+            FORK_APPROVAL_EP="repos/${OWNER}/${REPO}/actions/permissions/fork-pr-contributor-approval"
+            CURRENT_FORK_APPROVAL=$(retry 3 gh api "$FORK_APPROVAL_EP")
+            desired_policy=$(echo "$DESIRED_FORK_APPROVAL" | jq -r '.approval_policy')
+            current_policy=$(echo "$CURRENT_FORK_APPROVAL" | jq -r '.approval_policy // empty')
+            if [ "$desired_policy" != "$current_policy" ]; then
+              echo "[WARN] Drift in fork_pr_approval: current=$current_policy desired=$desired_policy"
+              retry_json 3 "$DESIRED_FORK_APPROVAL" "$FORK_APPROVAL_EP" --method PUT >/dev/null
+              echo "[OK] Fork-PR approval policy updated to $desired_policy"
+            else
+              echo "[OK] Fork-PR approval policy matches ($current_policy) -- no changes needed"
+            fi
+          else
+            echo "[SKIP] No actions_fork_pr_approval in config"
+          fi
+
           # --- Phase 4: Apply branch protection --------------------------------
           echo ""
           echo "=== Phase 4: Apply branch protection ==="
@@ -535,6 +563,16 @@ jobs:
                 VERIFY_FAILED=true
               fi
             done
+          fi
+
+          if [ -n "$DESIRED_FORK_APPROVAL" ]; then
+            VERIFY_FORK=$(retry 3 gh api "repos/${OWNER}/${REPO}/actions/permissions/fork-pr-contributor-approval")
+            desired_policy=$(echo "$DESIRED_FORK_APPROVAL" | jq -r '.approval_policy')
+            actual_policy=$(echo "$VERIFY_FORK" | jq -r '.approval_policy // empty')
+            if [ "$desired_policy" != "$actual_policy" ]; then
+              echo "[FAIL] fork_pr_approval: expected=$desired_policy actual=$actual_policy"
+              VERIFY_FAILED=true
+            fi
           fi
 
           for i in $(seq 0 $((BRANCH_COUNT - 1))); do

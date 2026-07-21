@@ -1,6 +1,7 @@
 ---
 name: Dependabot Auto-Merge
 on:
+  # zizmor: ignore[dangerous-triggers] — Dependabot PRs receive a read-only token on `pull_request`, so pull_request_target is required to approve and merge them. This workflow never checks out or executes PR code (gh/GraphQL metadata only) and is gated to actor == dependabot[bot].
   pull_request_target:
   workflow_call:
 

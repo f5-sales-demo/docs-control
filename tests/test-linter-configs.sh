@@ -202,12 +202,9 @@ echo "=== Section 6: zizmor suppression coverage ==="
 for rule in \
   unpinned-uses \
   artipacked \
-  excessive-permissions \
-  template-injection \
   cache-poisoning \
   secrets-inherit \
   secrets-outside-env \
-  dangerous-triggers \
   bot-conditions \
   dependabot-cooldown; do
   if python3 -c "
@@ -221,6 +218,39 @@ sys.exit(0 if cfg.get('rules', {}).get('$rule', {}).get('disable') else 1)
     fail "6.x zizmor.yaml disables '$rule'" "rule not disabled"
   fi
 done
+
+# Security-relevant audits stay ENABLED fleet-wide (never globally disabled).
+# Intentional instances are handled with justified inline `# zizmor: ignore`
+# comments or root-cause fixes, so new occurrences elsewhere are still caught.
+for rule in \
+  dangerous-triggers \
+  excessive-permissions \
+  template-injection; do
+  if python3 -c "
+import sys, yaml
+with open('$REPO_ROOT/zizmor.yaml') as f:
+  cfg = yaml.safe_load(f)
+sys.exit(1 if cfg.get('rules', {}).get('$rule', {}).get('disable') else 0)
+" 2>/dev/null; then
+    pass "6.x zizmor.yaml keeps '$rule' enabled (security audit active)"
+  else
+    fail "6.x zizmor.yaml keeps '$rule' enabled" "rule is globally disabled"
+  fi
+done
+
+# template-injection is scoped-ignored ONLY for the trusted, push:main-only
+# github-pages-deploy.yml (no untrusted-data path); it stays active elsewhere.
+if python3 -c "
+import sys, yaml
+with open('$REPO_ROOT/zizmor.yaml') as f:
+  cfg = yaml.safe_load(f)
+ig = cfg.get('rules', {}).get('template-injection', {}).get('ignore', [])
+sys.exit(0 if 'github-pages-deploy.yml' in ig else 1)
+" 2>/dev/null; then
+  pass "6.x template-injection scoped-ignores github-pages-deploy.yml only"
+else
+  fail "6.x template-injection scoped-ignores github-pages-deploy.yml" "scoped ignore missing"
+fi
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5a: .jscpd.json guardrails — threshold + ignore patterns
@@ -259,7 +289,6 @@ echo "=== Section 5b: .markdownlint.json opinionated-rule disables ==="
 # Each entry below is a rule docs-control disables based on real audit
 # findings against governed repos. Removing the disable would re-introduce
 # hundreds of noise violations on fork/reference-style docs.
-# MD013  line-length           — long code examples / tables
 # MD029  ordered-list-style    — allow mixed 1. + 1) styles
 # MD033  no-inline-html        — MDX components and HTML embed
 # MD040  code-fence-language   — plain fenced code for pseudo-output is valid
@@ -268,13 +297,23 @@ echo "=== Section 5b: .markdownlint.json opinionated-rule disables ==="
 # MD025  single-title          — multi-H1 is used in reference docs
 # MD024  no-duplicate-heading  — repeated section names in reference docs
 # MD007  ul-indent             — indent preference varies by fork style
-for rule in MD013 MD029 MD033 MD040 MD041 MD060 MD025 MD024 MD007; do
+for rule in MD029 MD033 MD040 MD041 MD060 MD025 MD024 MD007; do
   if jq -e --arg r "$rule" '.[$r] == false' "$REPO_ROOT/.markdownlint.json" >/dev/null; then
     pass "5b.x .markdownlint.json disables $rule"
   else
     fail "5b.x .markdownlint.json disables $rule" "not set to false"
   fi
 done
+
+# MD013 (line-length) is ENFORCED with a generous 400-char cap, not disabled
+# (#682: "enforce MD013 (400) to match CI"). Long code examples and tables fit
+# under 400 while genuinely runaway lines are still flagged — so assert the cap
+# rather than a blanket disable.
+if jq -e '.MD013.line_length == 400' "$REPO_ROOT/.markdownlint.json" >/dev/null; then
+  pass "5b.x .markdownlint.json enforces MD013 line_length 400"
+else
+  fail "5b.x .markdownlint.json enforces MD013 line_length 400" "MD013.line_length != 400"
+fi
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 6b: .textlintrc terminology excludes cover terms flagged
@@ -426,6 +465,32 @@ else
     fail "10.2 all repo_roles reference valid roles" "undefined roles: $ROLE_CHECK"
   fi
 
+fi
+
+# ════════════════════════════════════════════════════════════════════
+# SECTION 11: fork-PR workflow approval policy
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 11: actions_fork_pr_approval schema validity ==="
+
+FORK_POLICY=$(jq -r '.actions_fork_pr_approval.approval_policy // empty' "$REPO_SETTINGS")
+
+if [ -z "$FORK_POLICY" ]; then
+  fail "11.1 actions_fork_pr_approval.approval_policy exists" "key not found"
+else
+  pass "11.1 actions_fork_pr_approval.approval_policy exists"
+
+  # 11.2: must be one of GitHub's accepted enum values for the
+  # fork-pr-contributor-approval endpoint. Anything else is silently
+  # rejected by the API and would leave the fleet on GitHub's default.
+  case "$FORK_POLICY" in
+  first_time_contributors_new_to_github | first_time_contributors | all_external_contributors)
+    pass "11.2 approval_policy is a valid enum ($FORK_POLICY)"
+    ;;
+  *)
+    fail "11.2 approval_policy is a valid enum" "got '$FORK_POLICY'"
+    ;;
+  esac
 fi
 
 # ════════════════════════════════════════════════════════════════════
