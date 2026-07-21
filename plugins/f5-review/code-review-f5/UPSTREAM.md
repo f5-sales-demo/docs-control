@@ -24,9 +24,14 @@ Marked with `F5-EXTENSION` comments in the command so a re-sync diff is obvious:
 - **E3 — F5 rubric**: the highest-priority rules from `REVIEW.md`
   (prompt-injection hardening, secret non-exfiltration, "prove it against the real
   internal APIs" verification requirement, 🔴 merge-blocking severity) are baked in.
-- **E4 — verification subagent**: a 5th parallel review agent runs the reviewed
-  repo's `.code-review/verify.sh` / `terraform plan` / `az` read calls over the
-  VPN and flags a 🔴 when a command that should succeed fails.
+- **E4 — verification subagent**: a 5th parallel review agent runs the allow-listed
+  `terraform init/validate/plan` + read-only `az`/`gh` calls over the VPN and flags
+  a 🔴 when a command that should succeed fails. **Security:** it must NOT execute
+  any script carried in the PR head (e.g. `.code-review/verify.sh`) — that would be
+  arbitrary code execution with the operator's live credentials from untrusted PR
+  content. Trusted execution of a repo's `verify.sh` is a planned workflow pre-step
+  that pins the script to the PR **base** branch; until that lands, Agent 5 only
+  `Read`s verify.sh and runs the pinned allow-listed commands.
 
 ## Model tiers (E1)
 
