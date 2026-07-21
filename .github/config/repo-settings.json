@@ -147,9 +147,6 @@
     "starlight-llms-txt": {
       "additional_contexts": ["review / claude-review"]
     },
-    "starlight-mega-menu": {
-      "additional_contexts": ["review / claude-review"]
-    },
     "apt-repo": {
       "additional_contexts": ["review / claude-review"]
     },
@@ -393,7 +390,7 @@
       "docs-builder": ["governance", "release", "claude_review"],
       "origin-server": ["governance", "release", "claude_review"],
       "starlight-llms-txt": ["governance", "npm_publish", "claude_review"],
-      "starlight-mega-menu": ["governance", "npm_publish", "claude_review"],
+      "starlight-mega-menu": ["governance", "npm_publish"],
       "xcsh": ["governance", "npm_publish", "apple_signing", "claude_review"],
       "vscode-xcsh": ["governance", "vscode_extension", "claude_review"],
       "terraform-provider-xcsh": ["governance", "terraform_provider", "claude_review"],
