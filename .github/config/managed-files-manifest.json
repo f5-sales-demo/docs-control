@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-22T02:07:37Z",
-  "source_commit": "82bd7b64993fa1cc99030fa8e97d1141a72fea64",
+  "generated_at": "2026-07-23T14:51:43Z",
+  "source_commit": "d6b9cbe71c285ea49e0d06a6a28337fef5f14efd",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -71,8 +71,8 @@
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "559fb0fdb7021f5443250405fd72c72841a6b23a",
-      "size": 3865
+      "sha": "5e6208113489692dd6526a04e825969e30b787c6",
+      "size": 4410
     },
     ".editorconfig": {
       "src": ".editorconfig",
@@ -233,8 +233,8 @@
     ".claude/settings.json": {
       "src": ".claude/settings.json",
       "dest": ".claude/settings.json",
-      "sha": "d00e65422b04c19184354d1a9ede9e362b4a2d10",
-      "size": 273
+      "sha": "e5db52230748ae98a577ab3ef9585ad6a8bcde97",
+      "size": 317
     },
     ".claude/hooks/protect-managed-files.sh": {
       "src": ".claude/hooks/protect-managed-files.sh",
