@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-23T16:13:30Z",
-  "source_commit": "fd1d2404e1503c8ad6dc2871a168578ae90b0e90",
+  "generated_at": "2026-07-23T17:39:10Z",
+  "source_commit": "95ec758803c1adfb59a0572b049ac6d706d70d8e",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -227,8 +227,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "55c74b4a23522bd86e845ac28a7a2ebbb422ede9",
-      "size": 1835
+      "sha": "bb0d222394544b38665e720ff26a306cb4540452",
+      "size": 2147
     },
     ".claude/settings.json": {
       "src": ".claude/settings.json",
@@ -239,8 +239,8 @@
     ".claude/hooks/protect-managed-files.sh": {
       "src": ".claude/hooks/protect-managed-files.sh",
       "dest": ".claude/hooks/protect-managed-files.sh",
-      "sha": "7d3a4031f5589ee713302ba417d0be9b0be4ca63",
-      "size": 3563
+      "sha": "c15c0f8484bfbb86402788e305b08af6823082c3",
+      "size": 3882
     },
     "actionlint.yml": {
       "src": "actionlint.yml",
