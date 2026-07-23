@@ -215,3 +215,31 @@ jobs:
       - name: Run pr-author-trusted gate test
         if: hashFiles('tests/test-pr-author-trusted.sh') != ''
         run: bash tests/test-pr-author-trusted.sh
+
+      - name: Run claude-review retry-decision test
+        if: hashFiles('tests/test-claude-review-retry.sh') != ''
+        run: bash tests/test-claude-review-retry.sh
+
+      # Consumer repos: auto-run their OWN tests/test-*.sh so a caller repo (e.g.
+      # code-review) gets shell-unit-test coverage through this reusable workflow
+      # without editing the enumerated list above. Skipped in docs-control itself,
+      # whose machinery tests are deliberately curated and enumerated above — a
+      # glob here would also pick up docs-control-only fixtures/orphans. In a
+      # workflow_call, github.repository is the CALLER's repo, so the gate is exact.
+      - name: Run consumer shell unit tests
+        if: github.repository != 'f5-sales-demo/docs-control'
+        shell: bash
+        run: |
+          shopt -s nullglob
+          tests=(tests/test-*.sh)
+          if [ ${#tests[@]} -eq 0 ]; then
+            echo "No tests/test-*.sh present in ${GITHUB_REPOSITORY}; nothing to run."
+            exit 0
+          fi
+          rc=0
+          for t in "${tests[@]}"; do
+            echo "::group::$t"
+            if bash "$t"; then echo "PASS: $t"; else echo "::error::FAIL: $t"; rc=1; fi
+            echo "::endgroup::"
+          done
+          exit "$rc"
