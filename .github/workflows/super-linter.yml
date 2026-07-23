@@ -220,6 +220,18 @@ jobs:
         if: hashFiles('tests/test-claude-review-retry.sh') != ''
         run: bash tests/test-claude-review-retry.sh
 
+      - name: Run protect-managed-files hook test
+        if: hashFiles('tests/test-protect-managed-files.sh') != ''
+        run: bash tests/test-protect-managed-files.sh
+
+      - name: Run linter-configs test
+        if: hashFiles('tests/test-linter-configs.sh') != ''
+        run: bash tests/test-linter-configs.sh
+
+      - name: Run locale-lint test
+        if: hashFiles('tests/test-locale-lint.sh') != ''
+        run: bash tests/test-locale-lint.sh
+
       # Consumer repos: auto-run their OWN tests/test-*.sh so a caller repo (e.g.
       # code-review) gets shell-unit-test coverage through this reusable workflow
       # without editing the enumerated list above. Skipped in docs-control itself,
