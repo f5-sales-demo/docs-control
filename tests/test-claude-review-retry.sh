@@ -27,23 +27,23 @@ check() {
 decide() { bash "$SCRIPT" decide "$1" "$2" "$3"; }
 
 # --- Safe retry: nothing posted, no verdict ---
-check "no posts, no verdict -> retry"            '[ "$(decide 3 3 0)" = retry ]'
+check "no posts, no verdict -> retry" '[ "$(decide 3 3 0)" = retry ]'
 check "no posts (zero baseline), no verdict -> retry" '[ "$(decide 0 0 0)" = retry ]'
 
 # --- Gate: a complete verdict exists (regardless of comment delta) ---
-check "verdict present -> gate"                  '[ "$(decide 3 3 1)" = gate ]'
+check "verdict present -> gate" '[ "$(decide 3 3 1)" = gate ]'
 check "verdict present even if posts grew -> gate" '[ "$(decide 3 5 1)" = gate ]'
 
 # --- Fail: posted comments but no verdict = partial review, surface it ---
-check "posts grew, no verdict -> fail"           '[ "$(decide 3 5 0)" = fail ]'
+check "posts grew, no verdict -> fail" '[ "$(decide 3 5 0)" = fail ]'
 check "anomalous count drop, no verdict -> fail" '[ "$(decide 5 3 0)" = fail ]'
 
 # --- Robustness: non-numeric / missing args fail safe to 'fail' (never retry) ---
-check "non-numeric current -> fail (safe)"       '[ "$(decide 3 x 0)" = fail ]'
-check "missing verdict flag -> fail (safe)"      '[ "$(bash "$SCRIPT" decide 3 3)" = fail ]'
+check "non-numeric current -> fail (safe)" '[ "$(decide 3 x 0)" = fail ]'
+check "missing verdict flag -> fail (safe)" '[ "$(bash "$SCRIPT" decide 3 3)" = fail ]'
 
 # --- Unknown subcommand exits non-zero ---
-check "unknown subcommand exits non-zero"        '! bash "$SCRIPT" bogus 1 2 3 >/dev/null 2>&1'
+check "unknown subcommand exits non-zero" '! bash "$SCRIPT" bogus 1 2 3 >/dev/null 2>&1'
 
 if [ "$FAIL" -ne 0 ]; then
   echo "FAILED"

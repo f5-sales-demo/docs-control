@@ -49,11 +49,11 @@ main() {
   local sub="${1-}"
   shift || true
   case "$sub" in
-    decide) cmd_decide "$@" ;;
-    *)
-      echo "usage: $0 decide <baseline> <current> <verdict_present 0|1>" >&2
-      return 2
-      ;;
+  decide) cmd_decide "$@" ;;
+  *)
+    echo "usage: $0 decide <baseline> <current> <verdict_present 0|1>" >&2
+    return 2
+    ;;
   esac
 }
 
