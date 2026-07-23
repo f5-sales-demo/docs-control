@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-23T14:51:43Z",
-  "source_commit": "d6b9cbe71c285ea49e0d06a6a28337fef5f14efd",
+  "generated_at": "2026-07-23T16:13:30Z",
+  "source_commit": "fd1d2404e1503c8ad6dc2871a168578ae90b0e90",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -17,8 +17,8 @@
     ".github/workflows/require-linked-issue.yml": {
       "src": "workflows/require-linked-issue.yml",
       "dest": ".github/workflows/require-linked-issue.yml",
-      "sha": "6f79d9db1f974accb787aa459f5d03f6aa30cc92",
-      "size": 397
+      "sha": "5f1a4fc011e690d4cc5086a95d686848fba601d0",
+      "size": 735
     },
     ".github/workflows/super-linter.yml": {
       "src": "workflows/super-linter.yml",
@@ -113,8 +113,8 @@
     ".github/workflows/dependabot-auto-merge.yml": {
       "src": "workflows/dependabot-auto-merge.yml",
       "dest": ".github/workflows/dependabot-auto-merge.yml",
-      "sha": "06323bed177edf31bc1fb21ec49cf85d008664a6",
-      "size": 276
+      "sha": "35e170200a7cbebc3fab0c30191f7e6c80a5b672",
+      "size": 572
     },
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
