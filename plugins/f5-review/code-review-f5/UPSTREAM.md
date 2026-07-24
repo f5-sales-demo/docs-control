@@ -32,6 +32,14 @@ Marked with `F5-EXTENSION` comments in the command so a re-sync diff is obvious:
   content. Trusted execution of a repo's `verify.sh` is a planned workflow pre-step
   that pins the script to the PR **base** branch; until that lands, Agent 5 only
   `Read`s verify.sh and runs the pinned allow-listed commands.
+- **E5 — always-emit-verdict + incremental re-review** (step 1): because the F5
+  reviewer is a merge GATE (the workflow blocks on a missing/empty `verdict.json`),
+  every exit path — including the skip path — MUST write a verdict. Upstream's
+  advisory "Claude has already commented → stop" is removed as a hard stop (it
+  deadlocked the gate on any second push: the re-review stopped, wrote no verdict,
+  and the required check never recovered). Skips now write a non-blocking verdict
+  before stopping, and a re-push re-reviews the current head and emits a fresh
+  verdict (posting only new findings, no duplicates).
 
 ## Model tiers (E1)
 
