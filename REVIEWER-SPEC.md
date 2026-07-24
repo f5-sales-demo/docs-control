@@ -52,11 +52,35 @@ rubric — WS1-PR1b activates it end-to-end.)*
 
 ## Planned work
 
-- **Trusted base-pinned `verify.sh` pre-step (WS2).** A workflow pre-step checks
-  out the PR **base** ref and runs the repo's `.code-review/verify.sh` from base
-  only (never PR head), in a least-privilege sandbox, feeding results to the
-  verification agent. This is the safe closure of E4: it never executes
-  PR-head-carried scripts.
+- **Trusted base-pinned `verify.sh` pre-step (WS2) — SPEC (justified, not yet
+  built).** Consumer confirmed: `f5-sales-demo/dns` ships `.code-review/verify.sh`
+  (terraform `fmt`/`init`/`validate` with a temporary local-backend override — no
+  credentials, self-cleaning) and its docstring already assumes the reviewer runs
+  it; the reusable workflow does **not** run it yet (Agent 5 only `Read`s it). So
+  the feature has real pull. Build it as follows:
+  - **Trust boundary.** The PR head's `.code-review/verify.sh` is UNTRUSTED (a PR
+    could carry a malicious script). The PR **base** copy is trusted (already
+    merged + reviewed). The pre-step must run the base script's *logic* while
+    verifying the head's *code*.
+  - **Mechanism.** Before the Claude step, if the base ref has the file:
+    `git fetch` the base SHA, then `git show <base_sha>:.code-review/verify.sh`
+    and **overwrite the head working copy** at `.code-review/verify.sh` with it
+    (so relative paths like `../terraform` resolve in-tree), then
+    `bash .code-review/verify.sh`. This runs trusted script logic against head
+    code — never the head's script bytes.
+  - **Residual risk (documented).** `terraform init` on head HCL can still fetch a
+    head-declared provider source — the SAME surface Agent 5's allow-listed
+    `terraform init/plan` already has; not widened by this step. Bound with a
+    step timeout; never echo secrets.
+  - **Output → Agent 5.** Capture stdout+exit code to `verify-output.txt`; the
+    verification agent reads that file (not the raw script) and flags a 🔴 only
+    when a should-succeed verification fails because of the PR.
+  - **UAT (must prove).** (1) base `verify.sh` present → it runs and its output is
+    surfaced; (2) a PR that REPLACES `verify.sh` with a malicious payload → the
+    payload's bytes are NEVER executed (base version is used); (3) repo with no
+    `.code-review/verify.sh` → pre-step is a no-op, review proceeds.
+  - **Rollout.** Ship behind the existing dark-bake posture; validate on `dns`
+    first. This is the safe closure of E4.
 - **Deterministic layers (WS3/WS4).** Cross-module dead-code (Knip, Python
   dead-code) and dedicated SAST (Semgrep/CodeQL, SARIF → Code Scanning) run in the
   lint gate; the reviewer covers judgment calls.
