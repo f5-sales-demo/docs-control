@@ -8,7 +8,14 @@ name: Auto-Merge
 on:
   pull_request:
     types: [opened, reopened, ready_for_review]
+  # Declared so callers can pass REPO_SYNC_TOKEN EXPLICITLY instead of
+  # `secrets: inherit` (least privilege — the caller hands over one secret, not
+  # every repository secret). `required: false` preserves the documented
+  # REPO_SYNC_TOKEN || GITHUB_TOKEN fallback for repos without the PAT.
   workflow_call:
+    secrets:
+      REPO_SYNC_TOKEN:
+        required: false
 
 permissions:
   contents: write
