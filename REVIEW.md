@@ -23,6 +23,16 @@ incorrect logic; an authenticated command that FAILS when it should succeed
 secrets in logs/errors; migrations that aren't backward compatible; missing
 integration test for a new API route.
 
+## What 🟠 Medium means (report, do not block)
+
+Reserve 🟠 Medium for genuine correctness, security, or maintainability problems
+that are real and worth fixing but do NOT meet the merge-blocking bar above: a
+likely-but-unproven bug, a narrower error-handling gap, a missing edge-case guard,
+or a real issue you could not fully validate. Medium findings are reported in full
+(they are NOT capped like nits) and are counted in the verdict, but they do not
+block the merge. When in doubt between 🔴 and 🟠, choose 🟠 — only block when the
+break is certain.
+
 ## Nits
 
 Style/naming/refactor suggestions are 🟡 Nit at most. Report at most five nits;
