@@ -146,6 +146,28 @@ jobs:
             [ "$pages_sha" = "$source_sha" ]
           }
 
+          # Gate governed reads on Pages freshness. `fetch_governed` prefers the
+          # Pages-published governance mirror, which lags a docs-control merge by
+          # however long its deploy takes; reading a stale mirror means enforcing
+          # OUTDATED settings (and previously `revision_is_fresh` was defined here
+          # but never called, so this workflow had no staleness guard at all).
+          # Prefer the dispatching push's sha; otherwise use docs-control main HEAD.
+          expected_source_sha="${SOURCE_SHA:-}"
+          if [ -z "$expected_source_sha" ]; then
+            expected_source_sha=$(retry 3 gh api \
+              "repos/${GITHUB_REPOSITORY_OWNER}/docs-control/commits/main" --jq '.sha' 2>/dev/null || echo "")
+          fi
+
+          if [ -z "$expected_source_sha" ]; then
+            echo "[WARN] Could not determine docs-control main HEAD — using API for governed reads" >&2
+            PAGES_BASE="https://invalid.pages.local"
+          elif ! revision_is_fresh "$expected_source_sha"; then
+            echo "[WARN] Pages revision lags source ${expected_source_sha:0:8} — this run will fall back to API for governed reads" >&2
+            PAGES_BASE="https://invalid.pages.local"
+          else
+            echo "[OK] Pages governance mirror is fresh at ${expected_source_sha:0:8}"
+          fi
+
           OWNER="${GITHUB_REPOSITORY_OWNER}"
           REPO="${GITHUB_REPOSITORY#*/}"
           CONFIG_REPO="${GITHUB_REPOSITORY_OWNER}/docs-control"

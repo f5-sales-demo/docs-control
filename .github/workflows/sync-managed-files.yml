@@ -117,6 +117,11 @@ jobs:
             printf '%s' "$body" | jq -r '.content' | tr -d '\n' | base64 -d
           }
 
+          # Freshness of the Pages-published governance mirror. When a source_sha is
+          # supplied (dispatch from a docs-control push) we require an EXACT match.
+          # Otherwise (schedule / manual workflow_dispatch, where source_sha is
+          # empty) we compare Pages' own revision marker against docs-control's live
+          # main HEAD — see expected_source_sha below.
           revision_is_fresh() {
             local source_sha="${1:-}" rev pages_sha
             [ -z "$source_sha" ] && return 1
@@ -129,13 +134,34 @@ jobs:
             [ "$pages_sha" = "$source_sha" ]
           }
 
-          # SOURCE_SHA is set via step env: above; empty when dispatch
-          # doesn't pass --field source_sha (current default until the
-          # downstream shim update propagates to all 25 repos).
-          if [ -n "${SOURCE_SHA:-}" ] && ! revision_is_fresh "$SOURCE_SHA"; then
-            echo "[WARN] Pages revision lags source ${SOURCE_SHA:0:8} — this run will fall back to API for governed reads" >&2
+          # The sha the Pages mirror must have published for governed reads to be
+          # trustworthy. Prefer the dispatching push's sha; when absent, fall back
+          # to docs-control's current main HEAD.
+          #
+          # WHY this must not be conditional on SOURCE_SHA: `fetch_governed` prefers
+          # the Pages mirror, and Pages lags a merge by however long its deploy
+          # takes. Previously the staleness check ran ONLY when SOURCE_SHA was
+          # non-empty, so schedule/manual runs (source_sha empty) silently read a
+          # STALE manifest. Drift detection then compared downstream files against
+          # OLD canonical SHAs, matched them, and reported "[OK] All managed files
+          # match canonical" — so governance changes never propagated and no sync PR
+          # was opened. Observed: a run read a manifest from a 1-day-old commit and
+          # passed four caller templates that had genuinely drifted.
+          expected_source_sha="${SOURCE_SHA:-}"
+          if [ -z "$expected_source_sha" ]; then
+            expected_source_sha=$(retry 3 gh api \
+              "repos/${GITHUB_REPOSITORY_OWNER}/docs-control/commits/main" --jq '.sha' 2>/dev/null || echo "")
+          fi
+
+          if [ -z "$expected_source_sha" ]; then
+            echo "[WARN] Could not determine docs-control main HEAD — using API for governed reads" >&2
+            PAGES_BASE="https://invalid.pages.local"
+          elif ! revision_is_fresh "$expected_source_sha"; then
+            echo "[WARN] Pages revision lags source ${expected_source_sha:0:8} — this run will fall back to API for governed reads" >&2
             # Force fallback by making Pages calls error.
             PAGES_BASE="https://invalid.pages.local"
+          else
+            echo "[OK] Pages governance mirror is fresh at ${expected_source_sha:0:8}"
           fi
 
           OWNER="${GITHUB_REPOSITORY_OWNER}"

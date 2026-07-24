@@ -224,6 +224,10 @@ jobs:
         if: hashFiles('tests/test-reviewer-comment-count.sh') != ''
         run: bash tests/test-reviewer-comment-count.sh
 
+      - name: Run pages-staleness-guard test
+        if: hashFiles('tests/test-pages-staleness-guard.sh') != ''
+        run: bash tests/test-pages-staleness-guard.sh
+
       - name: Run protect-managed-files hook test
         if: hashFiles('tests/test-protect-managed-files.sh') != ''
         run: bash tests/test-protect-managed-files.sh
