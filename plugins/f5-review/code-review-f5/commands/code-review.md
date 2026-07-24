@@ -27,6 +27,12 @@ internal APIs** using the authenticated CLIs on this VPN-connected runner
   when it should succeed (`terraform plan` errors, a real 4xx/5xx indicating a
   bug); secrets in logs/errors; a non-backward-compatible migration; a missing
   integration test for a new API route.
+- **🟠 (Medium — report, does NOT block)** is for genuine correctness/security/
+  maintainability issues that are real and worth fixing but do not meet the 🔴
+  bar: a likely-but-unproven bug, a narrower error-handling gap, a missing
+  edge-case guard, or a real issue you could not fully validate. Medium findings
+  are reported in full (not capped) but do not block. When unsure between 🔴 and
+  🟠, choose 🟠 — only block when the break is certain.
 - Everything else is 🟡 Nit at most; report at most five nits.
 
 **Agent assumptions (applies to all agents and subagents):**
@@ -188,7 +194,9 @@ To do this, follow these steps precisely:
     ```
 
     Map every validated 🔴 to a `high` finding (and set `blocking: true` if any
-    high exists); map 🟡 nits to `low`. The counts must match `findings`.
+    high exists); map 🟠 Medium findings to `medium` and 🟡 nits to `low`. Only
+    `high` blocks; `medium` and `low` are reported and counted but never set
+    `blocking`. The counts must match `findings`.
 
 Use this list when evaluating issues in steps 4 and 5 (these are false positives,
 do NOT flag):
