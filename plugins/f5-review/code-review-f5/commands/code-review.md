@@ -38,16 +38,33 @@ internal APIs** using the authenticated CLIs on this VPN-connected runner
 
 To do this, follow these steps precisely:
 
-1. Launch a haiku agent to check if any of the following are true:
+1. Launch a haiku agent to check if any of the following SKIP conditions are
+   true:
 
    - The pull request is closed
    - The pull request is a draft
    - The pull request does not need code review (e.g. automated PR, trivial
      change that is obviously correct)
-   - Claude has already commented on this PR (check `gh pr view <PR> --comments`
-     for comments left by claude)
 
-   If any condition is true, stop and do not proceed.
+   <!-- F5-EXTENSION E5 (always-emit-verdict + incremental re-review): this
+        reviewer is a MERGE GATE, not an advisory bot, so it MUST ALWAYS write
+        ./verdict.json before exiting on EVERY path. The workflow's "Gate on
+        verdict" step treats a missing/empty verdict as BLOCKING, so a run that
+        stops without a verdict FAILS the required check. Upstream's advisory
+        "already commented -> stop" therefore DEADLOCKS the gate on any second
+        push: the re-review stops, writes no verdict, and the check can never go
+        green again (reproduced: push1 pass -> push2 Gate-on-verdict failure).
+        See REVIEWER-SPEC.md. -->
+   If any SKIP condition is true, write a non-blocking verdict to `./verdict.json`
+   (`{"blocking": false, "severity_counts": {"high": 0, "medium": 0, "low": 0},
+   "findings": []}`) and then stop — do NOT proceed to the remaining steps.
+
+   Do NOT skip merely because Claude has already commented on this PR. A new push
+   (`synchronize`) re-runs this review and MUST re-evaluate the current head and
+   emit a fresh verdict; otherwise the required check deadlocks. When
+   re-reviewing, avoid reposting duplicate comments for issues already flagged
+   and still unaddressed — post only NEW findings for the current diff — but
+   ALWAYS emit the verdict.
 
    Note: Still review Claude generated PRs.
 
