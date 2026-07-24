@@ -220,6 +220,10 @@ jobs:
         if: hashFiles('tests/test-claude-review-retry.sh') != ''
         run: bash tests/test-claude-review-retry.sh
 
+      - name: Run reviewer-comment-count test
+        if: hashFiles('tests/test-reviewer-comment-count.sh') != ''
+        run: bash tests/test-reviewer-comment-count.sh
+
       - name: Run protect-managed-files hook test
         if: hashFiles('tests/test-protect-managed-files.sh') != ''
         run: bash tests/test-protect-managed-files.sh

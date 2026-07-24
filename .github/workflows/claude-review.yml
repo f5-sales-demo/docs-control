@@ -88,9 +88,11 @@ jobs:
           R: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          issue=$(gh api "repos/$R/issues/$PR/comments" --jq 'length' 2>/dev/null || echo 0)
-          rev=$(gh api "repos/$R/pulls/$PR/comments" --jq 'length' 2>/dev/null || echo 0)
-          echo "count=$((issue + rev))" >> "$GITHUB_OUTPUT"
+          ic="$(mktemp)"; pc="$(mktemp)"
+          gh api "repos/$R/issues/$PR/comments" >"$ic" 2>/dev/null || echo '[]' >"$ic"
+          gh api "repos/$R/pulls/$PR/comments" >"$pc" 2>/dev/null || echo '[]' >"$pc"
+          count=$(bash .review-tooling/scripts/reviewer-comment-count.sh "$ic" "$pc")
+          echo "count=$count" >> "$GITHUB_OUTPUT"
 
       # === Claude review — ATTEMPT 1 ===
       # continue-on-error so a transient failure does not end the job before the
@@ -149,9 +151,10 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           BASELINE: ${{ steps.baseline.outputs.count }}
         run: |
-          issue=$(gh api "repos/$R/issues/$PR/comments" --jq 'length' 2>/dev/null || echo 0)
-          rev=$(gh api "repos/$R/pulls/$PR/comments" --jq 'length' 2>/dev/null || echo 0)
-          current=$((issue + rev))
+          ic="$(mktemp)"; pc="$(mktemp)"
+          gh api "repos/$R/issues/$PR/comments" >"$ic" 2>/dev/null || echo '[]' >"$ic"
+          gh api "repos/$R/pulls/$PR/comments" >"$pc" 2>/dev/null || echo '[]' >"$pc"
+          current=$(bash .review-tooling/scripts/reviewer-comment-count.sh "$ic" "$pc")
           verdict_present=0
           [ -s verdict.json ] && verdict_present=1
           decision=$(bash .review-tooling/scripts/review-retry-decision.sh decide "$BASELINE" "$current" "$verdict_present")
