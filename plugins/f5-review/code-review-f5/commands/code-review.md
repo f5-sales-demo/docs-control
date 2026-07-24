@@ -35,6 +35,20 @@ internal APIs** using the authenticated CLIs on this VPN-connected runner
   🟠, choose 🟠 — only block when the break is certain.
 - Everything else is 🟡 Nit at most; report at most five nits.
 
+**Additional review dimensions (report as 🟠 Medium or 🟡 Nit only — never 🔴,
+and only when confident; validate before flagging):**
+
+- **Newly-orphaned code** — flag code this diff makes unreachable or unused (a
+  function/export/file no longer referenced after the change). Confirm it is
+  genuinely unreferenced in the repo before flagging.
+- **Reinvented logic (DRY)** — flag new code that duplicates an existing repo
+  utility/helper instead of reusing it; name the existing symbol and its path.
+- **YAGNI / overengineering** — flag speculative generality (abstraction, config
+  surface, or features built for needs not present in this change or its linked
+  issue). Scope tightly: do NOT flag tests, security/error-handling baselines, or
+  genuine interface boundaries, and a single concrete caller is not "premature".
+  Flag only when the extra machinery materially raises maintenance burden.
+
 **Agent assumptions (applies to all agents and subagents):**
 
 - All tools are functional and will work without error. Do not test tools or

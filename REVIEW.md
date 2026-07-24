@@ -38,6 +38,24 @@ break is certain.
 Style/naming/refactor suggestions are 🟡 Nit at most. Report at most five nits;
 summarize the rest as "plus N similar items".
 
+## Additional review dimensions (🟠 Medium or 🟡 Nit only — never 🔴)
+
+Also look for the following, but only when you are confident (validate first —
+false positives here erode trust). Never let these block the merge:
+
+- **Newly-orphaned code** — code the change makes unreachable or unused (a
+  function, export, or file no longer referenced after this diff). Confirm it is
+  genuinely unreferenced in the repo before flagging.
+- **Reinvented logic (DRY)** — new code that reimplements an existing repo
+  utility or helper instead of reusing it. Name the existing symbol and its path
+  so the author can reuse it.
+- **YAGNI / overengineering** — speculative generality: abstraction, config
+  surface, or features built for needs not present in this change or its linked
+  issue. Scope tightly: do NOT flag tests, security or error-handling baselines,
+  or genuine interface boundaries, and a single concrete caller is not
+  "premature". Flag only when the extra machinery materially raises the
+  maintenance burden; prefer 🟡 unless it clearly does.
+
 ## Do not report
 
 - Anything CI already enforces (lint, formatting, type errors).

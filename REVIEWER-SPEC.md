@@ -60,11 +60,27 @@ rubric — WS1-PR1b activates it end-to-end.)*
 - **Deterministic layers (WS3/WS4).** Cross-module dead-code (Knip, Python
   dead-code) and dedicated SAST (Semgrep/CodeQL, SARIF → Code Scanning) run in the
   lint gate; the reviewer covers judgment calls.
-- **Reviewer dimensions (WS5).** Explicit, correctly-scoped YAGNI/overengineering
-  and reinvented-logic (semantic DRY) dimensions; flag code the diff newly
-  orphans. Capped at 🟠/🟡 to protect the low false-positive rate.
 - **Reliability/ops (WS6).** Org-level runner pool (remove the single-laptop
   single point of failure), findings/override telemetry, model fallback.
+
+Implemented since: **WS5 reviewer dimensions** — correctly-scoped
+YAGNI/overengineering, reinvented-logic (semantic DRY), and newly-orphaned-code
+checks, capped at 🟠/🟡 (see `REVIEW.md`).
+
+## Known residual risks
+
+- **Branch-prefix bypass (accepted, documented).** Genuine automated branches
+  (`governance/`, `sync/`, `release/`, `openapi-sync/`, `plugin-sync/`, `deps/`,
+  `docs/update-`, `auto-*`, `autoresearch/`) skip the real review and get a
+  synthetic passing status, because they are created by human-owned automation
+  PATs (so `github.actor` is a human and cannot be distinguished from a person
+  naming a branch with one of those prefixes). RESIDUAL RISK: a write-access
+  contributor could bypass the required review by using such a prefix. Mitigated
+  today by trusted-write-access + the fork hard-guard. Full closure needs an
+  org-level branch-creation ruleset restricting who may push those prefixes, or a
+  dedicated automation App/bot identity so the bypass keys on actor, not branch
+  name — deferred as an org-admin decision (see caller `workflows/code-review.yml`
+  comments).
 
 See `docs-control/REVIEW.md` for the operative rubric and
 `f5-sales-demo/code-review/docs/REVIEWER-GAP-ANALYSIS.md` for the full
