@@ -125,6 +125,17 @@ To do this, follow these steps precisely:
      head); if such a script exists, `Read` it and review its intent, but do not
      run it. Never print secrets.
 
+     **Toolchain honesty (non-negotiable).** FIRST `Read` `./review-deps.txt` if it
+     exists. It records whether the CLIs this verification depends on are actually
+     usable on this runner. If its verdict is `DEGRADED`, you MUST NOT claim or imply
+     that you verified anything with the affected tools: skip those checks, and state
+     explicitly in the summary comment which capability was unavailable (e.g.
+     "authenticated verification unavailable: terraform not usable on the runner").
+     Never report "Checked … authenticated verification" when it could not run — a
+     silently-skipped check is worse than a reported gap. Do not flag the degraded
+     toolchain as a 🔴 against the PR: it is an environment problem, not a defect in
+     the change.
+
      **Trusted verification results.** If `./verify-output.txt` exists, the
      workflow already ran the repo's `.code-review/verify.sh` **pinned to the PR
      base** (trusted script logic against head code) before this session started.

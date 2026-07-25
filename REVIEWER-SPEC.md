@@ -42,6 +42,14 @@ referenced "the reviewer spec" before this file existed
    both caller and reusable workflow).
 5. **Fail-safe reliability.** Machine-wide slot semaphore; per-PR concurrency
    cancel; a single safe retry only when nothing was posted and no verdict exists.
+6. **Never claim an unverified check.** The authenticated-verification leg depends on
+   the operator's CLIs on the self-hosted runner, which can break without any review
+   failing. A preflight (`scripts/check-review-deps.sh`, run per review into
+   `./review-deps.txt`) records whether each CLI is usable; when DEGRADED the review
+   MUST say which capability was unavailable instead of reporting that it checked it.
+   Deliberately non-blocking — a broken CLI must not deadlock every PR — but never
+   silent. *(Added after a non-executable `terraform` shim was the only terraform on
+   the launchd PATH, so verification silently no-op'd while reviews reported success.)*
 
 ## Severity taxonomy
 

@@ -94,6 +94,29 @@ jobs:
           count=$(bash .review-tooling/scripts/reviewer-comment-count.sh "$ic" "$pc")
           echo "count=$count" >> "$GITHUB_OUTPUT"
 
+      # Dependency preflight. The reviewer's reason to exist is proving a change works
+      # against real internal APIs with the operator's live CLIs — a leg that can break
+      # WITHOUT any review failing, so reviews look complete while silently skipping it
+      # (observed: a non-executable terraform shim was the only terraform on the
+      # launchd PATH, so every call died "Permission denied" for an unknown period).
+      # Deliberately NON-blocking: a broken CLI must not deadlock every PR. Instead the
+      # result is written to ./review-deps.txt, which the reviewer MUST read and, when
+      # degraded, state plainly in its summary rather than implying it verified.
+      - name: Reviewer dependency preflight
+        id: deps
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          set -uo pipefail
+          bash .review-tooling/scripts/check-review-deps.sh --probe > review-deps.txt 2>&1
+          rc=$?
+          cat review-deps.txt
+          echo "deps_ok=${rc}" >> "$GITHUB_OUTPUT"
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning::Reviewer dependencies DEGRADED — authenticated verification is unavailable or partial. See review-deps.txt; the review must not claim it verified with the affected tools."
+          fi
+          exit 0
+
       # Trusted, default-branch-pinned authenticated verification (REVIEWER-SPEC.md WS2).
       # Runs the repo's own `.code-review/verify.sh` so the reviewer can prove the
       # change works against real internal APIs — something no diff-only reviewer
