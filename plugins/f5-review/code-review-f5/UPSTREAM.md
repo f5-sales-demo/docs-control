@@ -29,9 +29,11 @@ Marked with `F5-EXTENSION` comments in the command so a re-sync diff is obvious:
   a 🔴 when a command that should succeed fails. **Security:** it must NOT execute
   any script carried in the PR head (e.g. `.code-review/verify.sh`) — that would be
   arbitrary code execution with the operator's live credentials from untrusted PR
-  content. Trusted execution of a repo's `verify.sh` is a planned workflow pre-step
-  that pins the script to the PR **base** branch; until that lands, Agent 5 only
-  `Read`s verify.sh and runs the pinned allow-listed commands.
+  content. Trusted execution of a repo's `verify.sh` is now a workflow pre-step that
+  pins the script to the PR **base** blob and runs it before the session starts; its
+  exit code + output are handed to Agent 5 via `./verify-output.txt`, which the agent
+  `Read`s as authoritative evidence. Agent 5 still must never execute the PR head's
+  copy of that (or any) script itself.
 - **E5 — always-emit-verdict + incremental re-review** (step 1): because the F5
   reviewer is a merge GATE (the workflow blocks on a missing/empty `verdict.json`),
   every exit path — including the skip path — MUST write a verdict. Upstream's

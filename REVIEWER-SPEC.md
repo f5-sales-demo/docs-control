@@ -52,8 +52,10 @@ rubric — WS1-PR1b activates it end-to-end.)*
 
 ## Planned work
 
-- **Trusted base-pinned `verify.sh` pre-step (WS2) — SPEC (justified, not yet
-  built).** Consumer confirmed: `f5-sales-demo/dns` ships `.code-review/verify.sh`
+- **Trusted base-pinned `verify.sh` pre-step (WS2) — BUILT** (workflow step
+  "Trusted verification (base-pinned verify.sh)" in `claude-review.yml`; results
+  consumed by the review agent via `./verify-output.txt`). Design as specified
+  below. Consumer confirmed: `f5-sales-demo/dns` ships `.code-review/verify.sh`
   (terraform `fmt`/`init`/`validate` with a temporary local-backend override — no
   credentials, self-cleaning) and its docstring already assumes the reviewer runs
   it; the reusable workflow does **not** run it yet (Agent 5 only `Read`s it). So
