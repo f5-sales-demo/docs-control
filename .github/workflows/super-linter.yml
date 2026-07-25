@@ -24,6 +24,34 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Deterministic portability guard, run natively on the runner (Super-Linter
+      # cannot see git object modes from inside its container). Cheap and first, so
+      # a committed absolute symlink or hardcoded home directory fails fast.
+      #
+      # Runs the DEFAULT-BRANCH copy of the script against the HEAD working tree,
+      # per REVIEWER-SPEC.md invariant 3 ("never execute scripts carried in the PR
+      # head") and the trust boundary documented there. Two reasons:
+      #   1. This job holds statuses:write and pull-requests:write, so executing a
+      #      PR's own copy of the script would hand those scopes to PR-authored code.
+      #   2. Gating on the head's copy would let a PR delete the file to skip the
+      #      gate entirely.
+      # The script only reads git metadata and tracked file contents, so trusted
+      # logic over untrusted data is safe. Absent on the default branch, there is
+      # nothing to enforce yet — that is the rollout path, not a bypass.
+      - name: Check repository hygiene
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          script=scripts/check-repo-hygiene.sh
+          branch="${DEFAULT_BRANCH:-main}"
+          git fetch --no-tags --quiet origin "+refs/heads/${branch}:refs/remotes/origin/${branch}"
+          if ! git cat-file -e "origin/${branch}:${script}" 2>/dev/null; then
+            echo "The default branch does not carry ${script} yet; nothing to enforce."
+            exit 0
+          fi
+          git show "origin/${branch}:${script}" | bash -s
+
       # Biome runs OUTSIDE the Super-Linter container so we can track Biome
       # `latest` instead of being gated on Super-Linter's container release
       # cadence. Authority boundary: setup-biome owns JS/TS/JSON/JSX; the
@@ -243,6 +271,10 @@ jobs:
       - name: Run locale-lint test
         if: hashFiles('tests/test-locale-lint.sh') != ''
         run: bash tests/test-locale-lint.sh
+
+      - name: Run check-repo-hygiene test
+        if: hashFiles('tests/test-check-repo-hygiene.sh') != ''
+        run: bash tests/test-check-repo-hygiene.sh
 
       # Consumer repos: auto-run their OWN tests/test-*.sh so a caller repo (e.g.
       # code-review) gets shell-unit-test coverage through this reusable workflow

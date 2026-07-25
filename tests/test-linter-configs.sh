@@ -189,6 +189,43 @@ for v in POWERSHELL HTML CPP RUST_2015 DOCKERFILE_HADOLINT BASH_EXEC EDITORCONFI
 done
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 5f: the repo-hygiene gate never executes PR-head code
+#             (REVIEWER-SPEC.md invariant 3). The Lint Code Base job holds
+#             statuses:write and pull-requests:write, so running a PR's own
+#             copy of the script would hand those scopes to PR-authored code,
+#             and gating on the head's copy would let a PR delete the file to
+#             skip the gate.
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 5f: repo-hygiene gate trust boundary ==="
+
+HYG_STEP=$(awk '/- name: Check repository hygiene/,/^      - name: Setup Biome/' "$SL_YML")
+
+if [ -n "$HYG_STEP" ]; then
+  pass "5f.1 repo-hygiene step is present in the lint job"
+else
+  fail "5f.1 repo-hygiene step is present in the lint job" "step not found"
+fi
+
+if printf '%s' "$HYG_STEP" | grep -qE 'git show "origin/\$\{branch\}:\$\{script\}"'; then
+  pass "5f.2 runs the default-branch copy of the script"
+else
+  fail "5f.2 runs the default-branch copy of the script" "no git show of the default-branch copy"
+fi
+
+if printf '%s' "$HYG_STEP" | grep -qE '^[[:space:]]*run: bash scripts/check-repo-hygiene\.sh[[:space:]]*$'; then
+  fail "5f.3 does not execute the PR head's copy" "step runs the head working-copy script directly"
+else
+  pass "5f.3 does not execute the PR head's copy"
+fi
+
+if printf '%s' "$HYG_STEP" | grep -q "hashFiles('scripts/check-repo-hygiene.sh')"; then
+  fail "5f.4 enforcement cannot be skipped by deleting the file" "step is gated on the head's copy"
+else
+  pass "5f.4 enforcement cannot be skipped by deleting the file"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 6: zizmor.yaml suppressions are complete enough for caller
 #            workflows + typical downstream CI patterns to scan clean
 # ════════════════════════════════════════════════════════════════════
