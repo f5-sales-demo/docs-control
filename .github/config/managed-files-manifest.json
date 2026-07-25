@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-25T03:18:56Z",
-  "source_commit": "84214206fc6d1c94fe43f1157d9d21f057e1cad6",
+  "generated_at": "2026-07-25T04:27:07Z",
+  "source_commit": "e4ddcac1ae955df5c903a56c26067057642008a9",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -227,8 +227,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "dc66637de54f376d2adfebc9e213b490e1e29768",
-      "size": 2184
+      "sha": "8027d05b9e0cf58a389647b6dfcda4a83060680e",
+      "size": 2237
     },
     ".claude/settings.json": {
       "src": ".claude/settings.json",
@@ -253,6 +253,12 @@
       "dest": ".github/workflows/code-review.yml",
       "sha": "319d8e5778ca47ee645f31ee4003d0b3a50df055",
       "size": 5164
+    },
+    ".github/workflows/workflow-security-audit.yml": {
+      "src": "workflows/workflow-security-audit.yml",
+      "dest": ".github/workflows/workflow-security-audit.yml",
+      "sha": "7cf9ebceac6fcff1b606534381fb6bbab6cda6fe",
+      "size": 2469
     },
     ".github/workflows/semgrep.yml": {
       "src": "workflows/semgrep.yml",
