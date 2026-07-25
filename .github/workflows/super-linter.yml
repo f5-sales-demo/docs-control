@@ -289,6 +289,10 @@ jobs:
         if: hashFiles('tests/test-locale-lint.sh') != ''
         run: bash tests/test-locale-lint.sh
 
+      - name: Run fleet pre-flight test
+        if: hashFiles('tests/test-preflight-fleet.sh') != ''
+        run: bash tests/test-preflight-fleet.sh
+
       - name: Run check-repo-hygiene test
         if: hashFiles('tests/test-check-repo-hygiene.sh') != ''
         run: bash tests/test-check-repo-hygiene.sh

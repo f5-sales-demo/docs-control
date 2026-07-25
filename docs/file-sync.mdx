@@ -122,6 +122,41 @@ Each downstream repository receives a generated `README.md` built from two sourc
 
 The workflow matches the repository name against docs-sites.json URLs to find the label and description. It falls back to a capitalized repository name for the title and the GitHub API repository description if no match is found.
 
+## Pre-flight a new governed check
+
+A check added to the `Lint Code Base` gate becomes a **required** check in every
+governed repository the moment it syncs. Measure the blast radius before enforcing
+it, never after:
+
+```bash
+bash scripts/preflight-fleet.sh --check scripts/my-new-check.sh
+```
+
+The tool runs the check against each repository's **live default branch**
+(`origin/HEAD`) in a throwaway worktree, and exits non-zero if any repository would
+break. It is `skip_files`-aware, so a repository that opts out of the script is
+reported as skipped rather than as a phantom failure.
+
+Two checks in this repository needed this answer before they shipped:
+
+| Check | What the pre-flight found |
+| --- | --- |
+| `check-repo-hygiene.sh` home-path scan | would fail 10 of 38 repositories, only 2 findings real — the scan was made opt-in as a result |
+| `locale-lint.sh` | flagged `i18n-core`, the package that owns the data it tells everyone else to import |
+
+Neither was visible from the diff, so no amount of code review would have surfaced
+them.
+
+Read the coverage line, not just the verdict. A repository with no local clone is
+reported as `uncloned` and is **not** counted as clean — a repository nobody
+checked is not a repository known to be fine. Do not read a clean result as
+fleet-wide safety while that count is above zero.
+
+Reading the operator's working tree instead of `origin/HEAD` is the specific trap
+this tool exists to avoid: local clones are routinely stale or dirty, and they
+produce confident, wrong answers. The suite in `tests/test-preflight-fleet.sh`
+asserts both directions of that trap.
+
 ## Drift resolution
 
 When drift is detected in any static or dynamic file, the workflow:
