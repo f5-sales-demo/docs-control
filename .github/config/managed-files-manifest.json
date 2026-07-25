@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-25T13:23:44Z",
-  "source_commit": "dacb917cf54b39403e6438e553c6a3f52655ec21",
+  "generated_at": "2026-07-25T13:43:35Z",
+  "source_commit": "fb35c1a475c382557b344945aabf3f530adba6e8",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -167,8 +167,8 @@
     ".codespellrc": {
       "src": ".codespellrc",
       "dest": ".codespellrc",
-      "sha": "739ce4b2c918508bad6ecfdc5f84bd4f54ac5d50",
-      "size": 719
+      "sha": "75134f592858a989d617c94cb53d4f62978d9cbf",
+      "size": 726
     },
     ".gitleaks.toml": {
       "src": ".gitleaks.toml",
