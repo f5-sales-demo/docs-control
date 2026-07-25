@@ -58,6 +58,43 @@ non-blocking), and `low` (🟡, nit). `high` blocks; counts must match `findings
 *(Note: `medium` was historically present in the schema but never emitted by the
 rubric — WS1-PR1b activates it end-to-end.)*
 
+## Local pre-push layer (Codex second opinion)
+
+A second, **advisory** review layer runs on the engineer's machine before the pull
+request exists. It is not the gate described above and must not be confused with it.
+
+- **Advisory, not a gate.** It emits no `verdict.json`, posts no commit status, and
+  **Invariant 1 does not apply to it** — there is no required check for it to
+  deadlock. It never blocks work; if the tooling is absent it is skipped.
+- **Where it runs.** Locally, at the spec and plan review gates, before a push that
+  opens or updates a pull request, and after each round of fixes. Tooling:
+  `f5-sales-demo/codex-plugin-cc`, skill `verified-code-review`, subcommands
+  `review-doc` and `review-gate`.
+- **Read-only sandbox.** The reviewer runs with the `read-only` sandbox so it cannot
+  modify the tree it is judging. **This does not satisfy Invariant 3.** Read-only
+  prevents writes; it does not prevent command execution, network access, or reading
+  anything the user can read. Invariant 3 governs the CI reviewer, which faces
+  third-party pull-request content; this layer reviews the engineer's own branch
+  before a pull request exists. Do not describe read-only as an untrusted-content
+  boundary.
+- **Severity mapping.** Codex emits four severities against its own schema; they map
+  onto the three tiers above as `critical`/`high` → 🔴, `medium` → 🟠, `low` → 🟡.
+  A missing or unrecognized severity maps to 🔴 (fail-closed), because the plugin's
+  `parseStructuredOutput` performs no schema validation.
+- **Verification is mandatory.** A finding blocks the local loop only when a
+  verification pass CONFIRMED it against the codebase — for code, with a test that
+  fails today; for a document, with a quotation. This is not ceremony: an AI reviewer
+  misattributes findings to files that do not contain them, and a hallucinated
+  blocking finding can never be fixed, so treating it as blocking would prevent the
+  loop from ever terminating.
+- **Bounded.** Three iterations maximum, with no-progress detection when two
+  consecutive rounds produce the same blocking set. On either, the outstanding
+  findings go to a human rather than round four.
+
+The two layers are complementary: the local layer catches issues before the pull
+request exists and costs nothing when it is wrong, while CI remains the gate that
+decides whether a change merges.
+
 ## Planned work
 
 - **Trusted default-branch-pinned `verify.sh` pre-step (WS2) — BUILT** (workflow step
