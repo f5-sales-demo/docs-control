@@ -40,10 +40,17 @@ jobs:
           # packs. A pack for a language a repo does not use simply yields no
           # findings, so one template serves every code-bearing repo.
           # `|| true` keeps the job green regardless of findings (advisory).
+          # Excluded rules (categorically inapplicable — exclude at config level
+          # rather than dismissing the same alert in every repo forever):
+          #   python3x-compatibility-* : flags Python 3.6+ APIs as "too new". Every
+          #     Python package in this fleet declares requires-python >= 3.11, so
+          #     these can only ever be false positives.
           pipx run semgrep scan \
             --config p/default \
             --config p/typescript \
             --config p/golang \
+            --exclude-rule python.lang.compatibility.python36.python36-compatibility-Popen1 \
+            --exclude-rule python.lang.compatibility.python36.python36-compatibility-Popen2 \
             --sarif --output semgrep.sarif || true
 
       - name: Upload SARIF to Code Scanning
