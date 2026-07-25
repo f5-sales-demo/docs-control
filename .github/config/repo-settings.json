@@ -359,6 +359,18 @@
       {
         "src": "workflows/code-review.yml",
         "dest": ".github/workflows/code-review.yml"
+      },
+      {
+        "src": "workflows/semgrep.yml",
+        "dest": ".github/workflows/semgrep.yml",
+        "only_repos": [
+          "vscode-xcsh",
+          "xcsh",
+          "console",
+          "xcsh-chrome-extension",
+          "i18n-core",
+          "terraform-provider-xcsh"
+        ]
       }
     ]
   },
