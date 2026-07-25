@@ -156,6 +156,46 @@ else
   fail "8. test files excluded" "exit $EXIT_CODE"
 fi
 
+# The package that owns these definitions cannot import them from itself. Inside
+# i18n-core the path is ./src/..., with no "i18n-core/" prefix for the existing
+# exclusion to match, so the check flagged its own source of truth.
+setup_clean_repo
+cat >"$TMPDIR_BASE/repo/package.json" <<'JSON'
+{ "name": "@f5-sales-demo/i18n-core", "version": "1.0.0" }
+JSON
+cat >"$TMPDIR_BASE/repo/src/display-names.ts" <<'TS'
+import { LOCALE_REGISTRY } from './registry.js';
+
+export const LOCALE_DISPLAY_NAMES: Readonly<Record<string, string>> = Object.fromEntries(
+  LOCALE_REGISTRY.map((entry) => [entry.slug, entry.labelEn]),
+);
+TS
+OUTPUT=""
+EXIT_CODE=0
+OUTPUT=$(run_lint "$TMPDIR_BASE/repo") || EXIT_CODE=$?
+if [ "$EXIT_CODE" -eq 0 ]; then
+  pass "i18n-core itself passes — its definitions are canonical"
+else
+  fail "i18n-core itself passes" "exit $EXIT_CODE: $OUTPUT"
+fi
+
+# A repo that merely depends on i18n-core is still held to the rule.
+setup_clean_repo
+cat >"$TMPDIR_BASE/repo/package.json" <<'JSON'
+{ "name": "@f5-sales-demo/docs-theme", "dependencies": { "@f5-sales-demo/i18n-core": "^1.0.0" } }
+JSON
+cat >"$TMPDIR_BASE/repo/src/bad.ts" <<'TS'
+export const LOCALE_DISPLAY_NAMES = { en: 'English' };
+TS
+OUTPUT=""
+EXIT_CODE=0
+OUTPUT=$(run_lint "$TMPDIR_BASE/repo") || EXIT_CODE=$?
+if [ "$EXIT_CODE" -ne 0 ]; then
+  pass "a consumer of i18n-core is still checked"
+else
+  fail "a consumer of i18n-core is still checked" "expected non-zero exit"
+fi
+
 echo ""
 echo "════════════════════════════════════════════"
 echo "  Results: $PASS passed, $FAIL failed ($((PASS + FAIL)) total)"
