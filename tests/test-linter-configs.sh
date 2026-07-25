@@ -126,7 +126,10 @@ done
 # Domain-specific words that would otherwise noise-out the audit:
 # Rust identifier fragments from xcsh (ForIn, ser, anc, Statics)
 # Legitimate English (invokable) and common test-fixture strings (doesnt, takin)
-for word in doesnt forin invokable takin defaul ser anc; do
+# Upstream-misspelled F5 Distributed Cloud API identifiers that must reach the
+# wire verbatim (checkin, blocked_sevice) — codespell offers two candidates for
+# "sevice" so --write-changes cannot resolve it and the gate hard-fails
+for word in doesnt forin invokable takin defaul ser anc checkin sevice; do
   if grep -qE "(^|[=,])${word}([,]|$)" "$REPO_ROOT/.codespellrc"; then
     pass "5.x .codespellrc ignore-words-list contains '$word'"
   else
