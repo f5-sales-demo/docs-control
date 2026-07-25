@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-24T23:17:18Z",
-  "source_commit": "2f1bb0c0d7b274fff591ec7b0263f5bc3cbef191",
+  "generated_at": "2026-07-25T02:28:47Z",
+  "source_commit": "48b0f24bc47d6ed6025cf4aa7f7563aa2affd229",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -227,8 +227,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "bb0d222394544b38665e720ff26a306cb4540452",
-      "size": 2147
+      "sha": "dc66637de54f376d2adfebc9e213b490e1e29768",
+      "size": 2184
     },
     ".claude/settings.json": {
       "src": ".claude/settings.json",
@@ -253,6 +253,12 @@
       "dest": ".github/workflows/code-review.yml",
       "sha": "319d8e5778ca47ee645f31ee4003d0b3a50df055",
       "size": 5164
+    },
+    ".github/workflows/semgrep.yml": {
+      "src": "workflows/semgrep.yml",
+      "dest": ".github/workflows/semgrep.yml",
+      "sha": "0beff9da79a4b6e64b30dcf1dc5ae00b3a5121f0",
+      "size": 1901
     }
   }
 }
