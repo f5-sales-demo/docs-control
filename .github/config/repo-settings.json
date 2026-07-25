@@ -361,6 +361,10 @@
         "dest": ".github/workflows/code-review.yml"
       },
       {
+        "src": "workflows/workflow-security-audit.yml",
+        "dest": ".github/workflows/workflow-security-audit.yml"
+      },
+      {
         "src": "workflows/semgrep.yml",
         "dest": ".github/workflows/semgrep.yml",
         "only_repos": [
