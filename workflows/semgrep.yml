@@ -1,0 +1,54 @@
+---
+name: Semgrep
+
+# Dedicated SAST: semantic static analysis for logic/security defects that
+# Biome/tsc/Ruff cannot find (taint flow, injection classes, unsafe APIs).
+#
+# Managed by docs-control and synced ONLY to code-bearing repos — see the
+# managed_files entry with "only_repos" in .github/config/repo-settings.json.
+# Content/demo repos are excluded deliberately: they would produce noise, not signal.
+#
+# ADVISORY BY DESIGN: the scan never fails the build (`|| true`); findings surface in
+# the repository Security tab (Code Scanning) via the SARIF upload. Promote to a
+# required check per repo only AFTER its finding volume has been triaged — gating on
+# an untriaged SAST feed would block every merge on pre-existing findings.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  security-events: write # required to upload SARIF to Code Scanning
+
+concurrency:
+  group: semgrep-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Semgrep scan (advisory)
+        run: |
+          # Registry rulesets: p/default (curated, cross-language) plus language
+          # packs. A pack for a language a repo does not use simply yields no
+          # findings, so one template serves every code-bearing repo.
+          # `|| true` keeps the job green regardless of findings (advisory).
+          pipx run semgrep scan \
+            --config p/default \
+            --config p/typescript \
+            --config p/golang \
+            --sarif --output semgrep.sarif || true
+
+      - name: Upload SARIF to Code Scanning
+        if: always() && hashFiles('semgrep.sarif') != ''
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
