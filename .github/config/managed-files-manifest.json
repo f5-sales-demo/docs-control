@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-25T13:43:35Z",
-  "source_commit": "fb35c1a475c382557b344945aabf3f530adba6e8",
+  "generated_at": "2026-07-25T14:47:30Z",
+  "source_commit": "51c18f53c1ffe75d3160d97d6d0184b65aa885a5",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -95,8 +95,8 @@
     ".pre-commit-config.yaml": {
       "src": ".pre-commit-config.yaml",
       "dest": ".pre-commit-config.yaml",
-      "sha": "c707f674513cb0d3619b6cbfee9b1f948935d6d8",
-      "size": 9572
+      "sha": "155d5801b260e0140dccb956a2206c2dba23272f",
+      "size": 10185
     },
     ".yamllint.yaml": {
       "src": ".yamllint.yaml",
@@ -221,8 +221,8 @@
     "scripts/locale-lint.sh": {
       "src": "scripts/locale-lint.sh",
       "dest": "scripts/locale-lint.sh",
-      "sha": "5a0e66b0b5e05cf9da85f97976b2495081739399",
-      "size": 1783
+      "sha": "1075c67eaa1b7974f08340e5def66b11afe17fe8",
+      "size": 2317
     },
     "scripts/check-repo-hygiene.sh": {
       "src": "scripts/check-repo-hygiene.sh",
