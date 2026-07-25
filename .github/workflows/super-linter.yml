@@ -52,6 +52,23 @@ jobs:
           fi
           git show "origin/${branch}:${script}" | bash -s
 
+      # Same trust boundary as the step above: the default-branch copy of the script
+      # is run against the head working tree, never the head's own copy. Repositories
+      # that opt out of this script via skip_files simply have nothing to enforce.
+      - name: Check for hardcoded locale lists
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          script=scripts/locale-lint.sh
+          branch="${DEFAULT_BRANCH:-main}"
+          git fetch --no-tags --quiet origin "+refs/heads/${branch}:refs/remotes/origin/${branch}"
+          if ! git cat-file -e "origin/${branch}:${script}" 2>/dev/null; then
+            echo "The default branch does not carry ${script}; nothing to enforce."
+            exit 0
+          fi
+          git show "origin/${branch}:${script}" | bash -s
+
       # Biome runs OUTSIDE the Super-Linter container so we can track Biome
       # `latest` instead of being gated on Super-Linter's container release
       # cadence. Authority boundary: setup-biome owns JS/TS/JSON/JSX; the

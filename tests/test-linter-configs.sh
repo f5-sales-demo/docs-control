@@ -202,7 +202,8 @@ done
 echo ""
 echo "=== Section 5f: repo-hygiene gate trust boundary ==="
 
-HYG_STEP=$(awk '/- name: Check repository hygiene/,/^      - name: Setup Biome/' "$SL_YML")
+HYG_STEP=$(awk '/- name: Check repository hygiene/,/- name: Check for hardcoded locale lists/' "$SL_YML")
+LOCALE_STEP=$(awk '/- name: Check for hardcoded locale lists/,/^      - name: Setup Biome/' "$SL_YML")
 
 if [ -n "$HYG_STEP" ]; then
   pass "5f.1 repo-hygiene step is present in the lint job"
@@ -226,6 +227,32 @@ if printf '%s' "$HYG_STEP" | grep -q "hashFiles('scripts/check-repo-hygiene.sh')
   fail "5f.4 enforcement cannot be skipped by deleting the file" "step is gated on the head's copy"
 else
   pass "5f.4 enforcement cannot be skipped by deleting the file"
+fi
+
+# Every governed script the lint job executes must come from the default branch,
+# never from the pull request head, and must not be skippable by deleting the file.
+if [ -n "$LOCALE_STEP" ]; then
+  pass "5f.5 locale-lint step is present in the lint job"
+else
+  fail "5f.5 locale-lint step is present in the lint job" "step not found"
+fi
+
+if printf '%s' "$LOCALE_STEP" | grep -qE 'git show "origin/\$\{branch\}:\$\{script\}"'; then
+  pass "5f.6 locale-lint runs the default-branch copy"
+else
+  fail "5f.6 locale-lint runs the default-branch copy" "no git show of the default-branch copy"
+fi
+
+if printf '%s' "$LOCALE_STEP" | grep -qE '^[[:space:]]*run: bash scripts/locale-lint\.sh[[:space:]]*$'; then
+  fail "5f.7 locale-lint does not execute the head's copy" "step runs the head working-copy script"
+else
+  pass "5f.7 locale-lint does not execute the head's copy"
+fi
+
+if printf '%s' "$LOCALE_STEP" | grep -q "hashFiles('scripts/locale-lint.sh')"; then
+  fail "5f.8 locale-lint enforcement cannot be skipped by deleting the file" "gated on the head's copy"
+else
+  pass "5f.8 locale-lint enforcement cannot be skipped by deleting the file"
 fi
 
 # ════════════════════════════════════════════════════════════════════
