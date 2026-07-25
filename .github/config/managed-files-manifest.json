@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-25T02:28:47Z",
-  "source_commit": "48b0f24bc47d6ed6025cf4aa7f7563aa2affd229",
+  "generated_at": "2026-07-25T03:18:56Z",
+  "source_commit": "84214206fc6d1c94fe43f1157d9d21f057e1cad6",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -71,8 +71,8 @@
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "5e6208113489692dd6526a04e825969e30b787c6",
-      "size": 4410
+      "sha": "f431475fecc81db6bf33ee6836467c9cbff94dbe",
+      "size": 5509
     },
     ".editorconfig": {
       "src": ".editorconfig",
@@ -257,8 +257,8 @@
     ".github/workflows/semgrep.yml": {
       "src": "workflows/semgrep.yml",
       "dest": ".github/workflows/semgrep.yml",
-      "sha": "0beff9da79a4b6e64b30dcf1dc5ae00b3a5121f0",
-      "size": 1901
+      "sha": "1df9435abc52f5fe692e3c6cd242e33f3b574400",
+      "size": 2468
     }
   }
 }
