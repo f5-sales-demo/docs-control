@@ -43,6 +43,8 @@ on:
       - '.mypy.ini'
       - '.claude/governance.json'
       - '.claude/settings.json'
+      - 'scripts/**'
+      - 'tests/**'
       - '.claude/hooks/**'
   workflow_dispatch:
 

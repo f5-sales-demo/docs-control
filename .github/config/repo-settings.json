@@ -341,6 +341,14 @@
         "dest": "scripts/locale-lint.sh"
       },
       {
+        "src": "scripts/check-repo-hygiene.sh",
+        "dest": "scripts/check-repo-hygiene.sh"
+      },
+      {
+        "src": "tests/test-check-repo-hygiene.sh",
+        "dest": "tests/test-check-repo-hygiene.sh"
+      },
+      {
         "src": ".claude/governance.json",
         "dest": ".claude/governance.json"
       },
