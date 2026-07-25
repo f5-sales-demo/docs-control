@@ -94,19 +94,22 @@ jobs:
           count=$(bash .review-tooling/scripts/reviewer-comment-count.sh "$ic" "$pc")
           echo "count=$count" >> "$GITHUB_OUTPUT"
 
-      # Trusted, base-pinned authenticated verification (see REVIEWER-SPEC.md WS2).
+      # Trusted, default-branch-pinned authenticated verification (REVIEWER-SPEC.md WS2).
       # Runs the repo's own `.code-review/verify.sh` so the reviewer can prove the
       # change works against real internal APIs — something no diff-only reviewer
       # can do — WITHOUT ever executing PR-authored script bytes.
       #
       # TRUST BOUNDARY (non-negotiable): the PR HEAD copy of verify.sh is untrusted
       # (a PR could rewrite it to exfiltrate the operator's live az/gh/terraform
-      # credentials on this self-hosted runner). The PR BASE copy is trusted — it is
-      # already merged and reviewed. So we overwrite the head working copy with the
-      # BASE blob and execute that. Trusted script LOGIC against untrusted head CODE.
+      # credentials on this self-hosted runner). The DEFAULT-BRANCH copy is trusted —
+      # that branch is protected and review-required. So we overwrite the head working
+      # copy with the DEFAULT-BRANCH blob and execute that: trusted script LOGIC against
+      # untrusted head CODE. Pinning to the PR *base* would NOT be safe (a PR may target
+      # an unprotected branch the author controls).
       #
-      # No base copy (including a PR that ADDS verify.sh) => no-op: head's version is
-      # never run. Only repos that already carry a merged verify.sh are affected.
+      # No default-branch copy (including a PR that ADDS verify.sh) => no-op: head's
+      # version is never run. Only repos with a merged verify.sh are affected, and only
+      # for PRs that target the default branch.
       #
       # Never fails the job: the result (exit code + output) is handed to the review
       # agent via verify-output.txt, which decides whether the failure is caused by
@@ -114,33 +117,50 @@ jobs:
       # cannot flood the prompt. RESIDUAL RISK (documented, unchanged): `terraform
       # init` on head HCL can fetch a head-declared provider source — the same
       # surface the review agent's own allow-listed terraform commands already have.
-      - name: Trusted verification (base-pinned verify.sh)
+      - name: Trusted verification (default-branch-pinned verify.sh)
         id: verify
         timeout-minutes: 10
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -uo pipefail
           rel=".code-review/verify.sh"
-          # `fetch-depth: 0` normally lands the base commit, but don't rely on it.
-          if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
-            git fetch --no-tags --depth=1 origin "${BASE_SHA}" 2>/dev/null || true
-          fi
-          if ! git cat-file -e "${BASE_SHA}:${rel}" 2>/dev/null; then
-            echo "::notice::No ${rel} on the PR base (or base commit unavailable) — skipping trusted verification."
+
+          # Pin to the DEFAULT branch, not the PR's base branch. The PR base is only
+          # as trustworthy as the branch it points at, and a PR may target ANY branch:
+          # a contributor could push a malicious verify.sh to an unprotected feature
+          # branch, open a PR targeting THAT branch, and have it executed here with the
+          # operator's live credentials. The default branch is protected and
+          # review-required, so it is the only safe pin. Also skip outright when the PR
+          # does not target the default branch, so such a PR gets no verification
+          # rather than the wrong repo's logic.
+          if [ "${BASE_REF}" != "${DEFAULT_BRANCH}" ]; then
+            echo "::notice::PR targets '${BASE_REF}', not the default branch '${DEFAULT_BRANCH}' — skipping trusted verification."
             exit 0
           fi
+
+          git fetch --no-tags --depth=1 origin "${DEFAULT_BRANCH}" 2>/dev/null || true
+          pin="origin/${DEFAULT_BRANCH}"
+          if ! git cat-file -e "${pin}:${rel}" 2>/dev/null; then
+            pin="FETCH_HEAD"
+          fi
+          if ! git cat-file -e "${pin}:${rel}" 2>/dev/null; then
+            echo "::notice::No ${rel} on ${DEFAULT_BRANCH} — skipping trusted verification."
+            exit 0
+          fi
+          pin_sha="$(git rev-parse "${pin}")"
           mkdir -p "$(dirname "$rel")"
-          # Overwrite any head-authored copy with the trusted base blob.
-          git show "${BASE_SHA}:${rel}" > "$rel"
+          # Overwrite any head-authored copy with the trusted default-branch blob.
+          git show "${pin}:${rel}" > "$rel"
           chmod +x "$rel"
-          echo "::notice::Running base-pinned ${rel} from ${BASE_SHA}"
+          echo "::notice::Running ${rel} pinned to ${DEFAULT_BRANCH}@${pin_sha}"
           set +e
           bash "$rel" > /tmp/verify-raw.txt 2>&1
           rc=$?
           set -e
           {
-            echo "# Trusted verification (.code-review/verify.sh, pinned to PR base ${BASE_SHA})"
+            echo "# Trusted verification (.code-review/verify.sh, pinned to ${DEFAULT_BRANCH}@${pin_sha})"
             echo "# exit_code=${rc}"
             echo "# NOTE: this script came from the PR BASE, not the PR head."
             echo "---"
