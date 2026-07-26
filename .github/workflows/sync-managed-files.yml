@@ -41,12 +41,21 @@ jobs:
             local attempt=1
             local delay=2
             local max_delay=8
-            local err_file err_content
+            local err_file err_content out_file
             err_file=$(mktemp)
+            out_file=$(mktemp)
             while true; do
-              if "$@" 2>"$err_file"; then
+              # Buffer stdout per attempt. `gh api` prints its JSON error body to
+              # stdout on failure, and ~23 call sites capture this function's output
+              # into a variable -- several of which drive enforcement decisions. Left
+              # unbuffered, a transient failure followed by a successful retry hands
+              # the caller the error body concatenated with the real value, which is
+              # silently wrong rather than absent (issue #805).
+              : >"$out_file"
+              if "$@" >"$out_file" 2>"$err_file"; then
+                cat "$out_file"
                 cat "$err_file" >&2
-                rm -f "$err_file"
+                rm -f "$err_file" "$out_file"
                 return 0
               fi
               err_content=$(cat "$err_file")
@@ -64,12 +73,12 @@ jobs:
                   echo "[WARN] Secondary rate limit -- sleeping 60s, then aborting retry" >&2
                   sleep 60
                 fi
-                rm -f "$err_file"
+                rm -f "$err_file" "$out_file"
                 return 1
               fi
               if [ "$attempt" -ge "$max" ]; then
                 echo "[ERROR] Failed after ${max} attempts: $*" >&2
-                rm -f "$err_file"
+                rm -f "$err_file" "$out_file"
                 return 1
               fi
               echo "[WARN] Attempt ${attempt}/${max} failed -- retrying in ${delay}s..." >&2
@@ -219,11 +228,23 @@ jobs:
             local commit_msg="$2"
             local repo_slug="${OWNER}/${REPO}"
 
+            # Never interpolate a non-SHA into a URL: that is what turned a transient
+            # 404 into three attempts against an unresolvable request (issue #805).
+            require_sha() {
+              local label="$1" value="$2"
+              if ! printf '%s' "$value" | grep -qE '^[0-9a-f]{40}$'; then
+                echo "[ERROR] ${label} is not a commit SHA: ${value}" >&2
+                return 1
+              fi
+            }
+
             local ref_sha
             ref_sha=$(retry 3 gh api "repos/${repo_slug}/git/ref/heads/${branch}" --jq '.object.sha')
+            require_sha "ref_sha for ${branch}" "$ref_sha" || return 1
 
             local base_tree
             base_tree=$(retry 3 gh api "repos/${repo_slug}/git/commits/${ref_sha}" --jq '.tree.sha')
+            require_sha "base_tree for ${branch}" "$base_tree" || return 1
 
             local tree_items="[]"
             for dest_file in $(printf '%b' "$DRIFT_FILES" | sed '/^$/d'); do
@@ -269,6 +290,7 @@ jobs:
               '{"base_tree": $base, "tree": $tree}')
             local new_tree_sha
             new_tree_sha=$(echo "$tree_json" | retry 3 gh api "repos/${repo_slug}/git/trees" --method POST --input - --jq '.sha')
+            require_sha "new_tree_sha for ${branch}" "$new_tree_sha" || return 1
 
             local commit_json
             commit_json=$(jq -n --arg msg "$commit_msg" --arg tree "$new_tree_sha" --arg parent "$ref_sha" \
