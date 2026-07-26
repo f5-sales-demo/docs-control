@@ -58,12 +58,21 @@ jobs:
             local attempt=1
             local delay=2
             local max_delay=8
-            local err_file err_content
+            local err_file err_content out_file
             err_file=$(mktemp)
+            out_file=$(mktemp)
             while true; do
-              if "$@" 2>"$err_file"; then
+              # Buffer stdout per attempt. `gh api` prints its JSON error body to
+              # stdout on failure, and ~23 call sites capture this function's output
+              # into a variable -- several of which drive enforcement decisions. Left
+              # unbuffered, a transient failure followed by a successful retry hands
+              # the caller the error body concatenated with the real value, which is
+              # silently wrong rather than absent (issue #805).
+              : >"$out_file"
+              if "$@" >"$out_file" 2>"$err_file"; then
+                cat "$out_file"
                 cat "$err_file" >&2
-                rm -f "$err_file"
+                rm -f "$err_file" "$out_file"
                 return 0
               fi
               err_content=$(cat "$err_file")
@@ -81,12 +90,12 @@ jobs:
                   echo "[WARN] Secondary rate limit -- sleeping 60s, then aborting retry" >&2
                   sleep 60
                 fi
-                rm -f "$err_file"
+                rm -f "$err_file" "$out_file"
                 return 1
               fi
               if [ "$attempt" -ge "$max" ]; then
                 echo "[ERROR] Failed after ${max} attempts: $*" >&2
-                rm -f "$err_file"
+                rm -f "$err_file" "$out_file"
                 return 1
               fi
               echo "[WARN] Attempt ${attempt}/${max} failed -- retrying in ${delay}s..." >&2
@@ -102,6 +111,57 @@ jobs:
             local max="$1"; shift
             local json="$1"; shift
             retry "$max" bash -c 'printf "%s" "$0" | gh api "$@" --input -' "$json" "$@"
+          }
+
+          # Probe an endpoint for its HTTP status line.
+          #
+          # This deliberately does NOT use retry(): reading a status code requires
+          # the stdout of a call that FAILS (a 404 is the answer, not an error), and
+          # retry() correctly withholds a failed attempt's stdout (issue #805).
+          #
+          # It still retries the cases worth retrying: no status line at all (the
+          # request never reached GitHub), and transient 5xx/429. A definitive status
+          # -- including 404, which is the answer that drives first-time Pages
+          # creation -- is returned immediately. Returns non-zero with no output when
+          # the status stays unknown, so callers can decline to guess rather than pick
+          # a branch on a blank value.
+          http_status() {
+            local endpoint="$1" response code attempt=1 max=3
+            while [ "$attempt" -le "$max" ]; do
+              response=$(gh api "$endpoint" --include 2>/dev/null || true)
+              code=$(printf '%s\n' "$response" | head -1 | awk '{print $2}')
+              if printf '%s' "$code" | grep -qE '^[0-9]{3}$'; then
+                # A 429 means we are under a rate-limit embargo. Re-requesting a few
+                # seconds later just deepens it, and this probe has no business
+                # sleeping until the reset, so report unknown and let the caller
+                # decline to act this run.
+                if [ "$code" = "429" ]; then
+                  echo "[WARN] HTTP 429 from ${endpoint} -- rate limited, not retrying" >&2
+                  break
+                fi
+                # 5xx is transient, not an answer. Accepting one would read as
+                # "not 404", sending the caller down the update path against a Pages
+                # site that does not exist yet.
+                if printf '%s' "$code" | grep -qE '^5[0-9]{2}$'; then
+                  if [ "$attempt" -lt "$max" ]; then
+                    echo "[WARN] Transient HTTP ${code} from ${endpoint} (attempt ${attempt}/${max}) -- retrying" >&2
+                    sleep 2
+                    attempt=$((attempt + 1))
+                    continue
+                  fi
+                  break
+                fi
+                printf '%s\n' "$code"
+                return 0
+              fi
+              if [ "$attempt" -lt "$max" ]; then
+                echo "[WARN] No HTTP status from ${endpoint} (attempt ${attempt}/${max}) -- retrying" >&2
+                sleep 2
+              fi
+              attempt=$((attempt + 1))
+            done
+            echo "[WARN] Could not determine HTTP status for ${endpoint} after ${max} attempts" >&2
+            return 1
           }
 
           # --- Pages-first fetch helper (canonical: tests/fixtures/fetch-governed.sh) ---
@@ -479,9 +539,11 @@ jobs:
           PAGES_ENABLED=$(echo "$CONFIG" | jq -r '.pages.enabled // false')
           DESIRED_BUILD_TYPE=$(echo "$CONFIG" | jq -r '.pages.build_type // "workflow"')
           if [ "$PAGES_ENABLED" = "true" ]; then
-            PAGES_HTTP_CODE=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages" --include 2>/dev/null | head -1 | awk '{print $2}') || true
+            PAGES_HTTP_CODE=$(http_status "repos/${OWNER}/${REPO}/pages") || true
             PAGES_JSON=$(jq -n --arg bt "$DESIRED_BUILD_TYPE" '{"build_type": $bt, "source": {"branch": "main", "path": "/"}}')
-            if [ "$PAGES_HTTP_CODE" = "404" ]; then
+            if [ -z "$PAGES_HTTP_CODE" ]; then
+              echo "[WARN] Pages status unknown -- skipping Pages phase rather than guessing between create and update"
+            elif [ "$PAGES_HTTP_CODE" = "404" ]; then
               echo "[INFO] Enabling GitHub Pages with ${DESIRED_BUILD_TYPE} source..."
               retry_json 3 "$PAGES_JSON" "repos/${OWNER}/${REPO}/pages" --method POST >/dev/null 2>&1 || true
               echo "[OK] Pages enabled with build_type=${DESIRED_BUILD_TYPE}"
@@ -673,8 +735,11 @@ jobs:
           done
 
           if [ "$PAGES_ENABLED" = "true" ]; then
-            VERIFY_PAGES_CODE=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages" --include 2>/dev/null | head -1 | awk '{print $2}') || true
-            if [ "$VERIFY_PAGES_CODE" = "404" ]; then
+            VERIFY_PAGES_CODE=$(http_status "repos/${OWNER}/${REPO}/pages") || true
+            if [ -z "$VERIFY_PAGES_CODE" ]; then
+              echo "[FAIL] Pages status could not be determined -- state is unverified, not confirmed"
+              VERIFY_FAILED=true
+            elif [ "$VERIFY_PAGES_CODE" = "404" ]; then
               echo "[WARN] Pages not found after apply -- repo may lack a deploy workflow"
             else
               VERIFY_PAGES=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages" 2>/dev/null) || true
