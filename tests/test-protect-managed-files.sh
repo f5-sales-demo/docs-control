@@ -237,6 +237,114 @@ else
     "missing from managed_files:\n$MISSING_FROM_MANAGED"
 fi
 
+# ── repo_classes referential integrity ──────────────────────────────
+# governance.json is the manifest that ships into every downstream repo, so it
+# is where consumers read the repository classification from. These assertions
+# keep that classification honest: every assignment must name a defined class,
+# and every governed repo must have an assignment — otherwise the manifest
+# silently falls behind as the fleet grows and consumers fall back to guessing.
+DOWNSTREAM_REPOS="$REPO_ROOT/.github/config/downstream-repos.json"
+
+# Test 3.7: repo_classes block exists and is well-formed
+if jq -e '.repo_classes | (.classes | type == "object") and (.repos | type == "object") and has("_default")' \
+  "$GOVERNANCE_JSON" >/dev/null 2>&1; then
+  pass "3.7 governance.json defines repo_classes with classes, repos and _default"
+else
+  fail "3.7 governance.json defines repo_classes with classes, repos and _default" \
+    "missing or malformed .repo_classes"
+fi
+
+# Test 3.8: every class referenced in repos[] is defined in classes{}
+UNDEFINED_CLASSES=$(jq -r '
+  .repo_classes as $rc |
+  [$rc.repos | to_entries[] | select((.value as $c | $rc.classes | has($c)) | not) | "\(.key) -> \(.value)"] | .[]
+' "$GOVERNANCE_JSON" 2>/dev/null || echo "PARSE_ERROR")
+if [ -z "$UNDEFINED_CLASSES" ]; then
+  pass "3.8 every repo_classes.repos value names a defined class"
+else
+  fail "3.8 every repo_classes.repos value names a defined class" \
+    "undefined class references: $UNDEFINED_CLASSES"
+fi
+
+# Test 3.9: _default names a defined class (the fail-safe must be real)
+if jq -e '.repo_classes as $rc | $rc.classes | has($rc._default)' "$GOVERNANCE_JSON" >/dev/null 2>&1; then
+  pass "3.9 repo_classes._default names a defined class"
+else
+  fail "3.9 repo_classes._default names a defined class" \
+    "_default=$(jq -r '.repo_classes._default // "<absent>"' "$GOVERNANCE_JSON")"
+fi
+
+# Test 3.9b: the default must stay fail-closed. 3.9 only proves _default names
+# a real class, so flipping it to "content" would keep CI green while silently
+# granting direct authoring authority over every unlisted repository — and this
+# manifest ships fleet-wide, so that drift would be broad and invisible. Pin
+# both the name and the authority it resolves to.
+DEFAULT_CLASS=$(jq -r '.repo_classes._default // ""' "$GOVERNANCE_JSON")
+DEFAULT_AUTHORITY=$(jq -r --arg c "$DEFAULT_CLASS" '.repo_classes.classes[$c].authority // ""' "$GOVERNANCE_JSON")
+if [ "$DEFAULT_CLASS" = "developer" ] && [ "$DEFAULT_AUTHORITY" = "delegate" ]; then
+  pass "3.9b repo_classes._default is fail-closed (developer/delegate)"
+else
+  fail "3.9b repo_classes._default is fail-closed (developer/delegate)" \
+    "got class='$DEFAULT_CLASS' authority='$DEFAULT_AUTHORITY'; an unlisted repo must never inherit authoring authority"
+fi
+
+# Test 3.9c: every class declares a recognized authority. An unrecognized or
+# missing value would leave a consumer to guess, which defeats the point of
+# declaring the classification at all.
+BAD_AUTHORITIES=$(jq -r '
+  .repo_classes.classes | to_entries[]
+  | select((.value.authority // "") | IN("author", "delegate", "governed") | not)
+  | "\(.key)=\(.value.authority // "<absent>")"
+' "$GOVERNANCE_JSON" 2>/dev/null || echo "PARSE_ERROR")
+if [ -z "$BAD_AUTHORITIES" ]; then
+  pass "3.9c every repo_classes class declares a recognized authority"
+else
+  fail "3.9c every repo_classes class declares a recognized authority" \
+    "unrecognized: $BAD_AUTHORITIES"
+fi
+
+# Test 3.10: every governed repo has a class assignment. The governed set is
+# downstream-repos.json plus docs-control itself, which is not in that list
+# because it is the source rather than a sync target.
+UNCLASSIFIED_REPOS=""
+GOVERNED_REPOS=$(
+  {
+    jq -r '.[]' "$DOWNSTREAM_REPOS"
+    echo "docs-control"
+  } | sort -u
+)
+while IFS= read -r repo; do
+  [ -z "$repo" ] && continue
+  if ! jq -e --arg r "$repo" '.repo_classes.repos | has($r)' "$GOVERNANCE_JSON" >/dev/null 2>&1; then
+    UNCLASSIFIED_REPOS="${UNCLASSIFIED_REPOS} ${repo}"
+  fi
+done <<<"$GOVERNED_REPOS"
+
+if [ -z "$UNCLASSIFIED_REPOS" ]; then
+  pass "3.10 every governed repo has a repo_classes assignment"
+else
+  fail "3.10 every governed repo has a repo_classes assignment" \
+    "unclassified:${UNCLASSIFIED_REPOS}"
+fi
+
+# Test 3.11: no assignment for a repo outside the governed set (catches typos,
+# which would otherwise sit in the manifest looking authoritative forever)
+UNKNOWN_ASSIGNMENTS=""
+ASSIGNED_REPOS=$(jq -r '.repo_classes.repos | keys[]' "$GOVERNANCE_JSON" 2>/dev/null || true)
+while IFS= read -r repo; do
+  [ -z "$repo" ] && continue
+  if ! echo "$GOVERNED_REPOS" | grep -qxF "$repo"; then
+    UNKNOWN_ASSIGNMENTS="${UNKNOWN_ASSIGNMENTS} ${repo}"
+  fi
+done <<<"$ASSIGNED_REPOS"
+
+if [ -z "$UNKNOWN_ASSIGNMENTS" ]; then
+  pass "3.11 no repo_classes assignment outside the governed set"
+else
+  fail "3.11 no repo_classes assignment outside the governed set" \
+    "not in downstream-repos.json:${UNKNOWN_ASSIGNMENTS}"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 4: Hook Behavior — Self-Exclusion
 # ════════════════════════════════════════════════════════════════════

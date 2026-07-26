@@ -16,7 +16,9 @@ This page covers the procedure to enroll a new repository in the docs-control go
 
 ### 1. Add to downstream-repos.json
 
-Add the repository's `owner/repo` string to `.github/config/downstream-repos.json` in docs-control. This registers it for dispatch and enforcement.
+Add the repository's bare name -- not `owner/repo` -- to `.github/config/downstream-repos.json` in docs-control. The owner is prepended at dispatch time from `GITHUB_REPOSITORY_OWNER`. This registers it for dispatch and enforcement.
+
+Then assign it a class in `repo_classes.repos` in `.claude/governance.json` (see [Repository classes](#repository-classes-repo_classes) below). This is not optional: the shell unit tests fail if a repository is registered for dispatch without a class assignment.
 
 ### 2. Optionally add to docs-sites.json
 
@@ -152,6 +154,58 @@ the check still runs on PRs (the workflow is installed) but does not
 gate merges. Once the codebase is compatible -- typically after a
 linter-compatibility audit -- remove the entry and the next enforcement
 run promotes the check to required.
+
+## Repository classes: repo_classes
+
+Not every repository in the fleet is the same kind of thing. Some hold demo
+and product content -- documentation, Terraform plans, howtos. Some hold
+compiled code with its own build and test harness. Some hold the fleet
+plumbing itself. Automated agents need to tell these apart before they act,
+so the distinction is declared rather than guessed.
+
+`repo_classes` in `.claude/governance.json` declares it, using the same
+two-level shape as `secrets_manifest` in `repo-settings.json`: a `classes`
+map defining each class, a `repos` map assigning one to every governed
+repository, and a `_default` naming the fail-safe for anything unlisted.
+
+```json
+"repo_classes": {
+  "_default": "developer",
+  "classes": {
+    "content": { "authority": "author", "surfaces": ["docs/", "terraform/"] },
+    "developer": { "authority": "delegate", "delegate_to": "claude-code|codex" },
+    "scaffolding": { "authority": "governed" }
+  },
+  "repos": { "mcn": "content", "xcsh": "developer", "docs-control": "scaffolding" }
+}
+```
+
+The three classes and what they mean for a consumer:
+
+- `content` -- author directly. Documentation, Terraform plans and demo
+  scripts are written here through the normal governed path: linked issue,
+  branch, pull request, auto-merge.
+- `developer` -- do not implement. Feature code belongs in a development
+  environment with the repository's own build and test harness. Contribute
+  verified issues, specifications, reviews and documentation instead.
+- `scaffolding` -- governed path only. Changes here propagate to every
+  repository in the fleet, so they are never made freehand.
+
+`_default` is `developer` deliberately: an unclassified repository is
+treated as the most restrictive case, so forgetting an assignment fails
+closed rather than granting authority by accident.
+
+It lives in `governance.json` rather than `repo-settings.json` because
+`governance.json` is itself a managed file, synced byte-identically into
+every downstream repository. A consumer can therefore read the
+classification offline from any checkout, with no API call. `repo-settings.json`
+is only ever fetched by workflows at run time and never lands in a clone.
+
+Two `jq` assertions in `tests/test-protect-managed-files.sh` keep the manifest
+honest: every assignment must name a defined class, and every entry in
+`downstream-repos.json` must have an assignment. Adding a repository to the
+fleet without classifying it therefore fails CI rather than silently
+inheriting the default.
 
 ## Setting up docs content
 
