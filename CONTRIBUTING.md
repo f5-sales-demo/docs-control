@@ -76,7 +76,8 @@ clean.
 
 ```bash
 git fetch --prune        # if this fails, stop — do not branch from a stale guess
-git switch -c feature/42-add-rate-limiting origin/main
+git switch --no-track -c feature/42-add-rate-limiting origin/main
+git push -u origin HEAD  # on your first push — sets the branch's own upstream
 ```
 
 Branch from `origin/main`, not from local `main`. Local `main` can be *ahead* with unpushed commits,
@@ -84,6 +85,11 @@ which a "not behind" check does not catch, and those commits would silently ride
 Branching from the fetched ref also works when `main` is checked out in another worktree — there,
 `git checkout main` fails outright (`fatal: 'main' is already used by worktree at …`), and a pasted
 `git checkout -b` would quietly branch from whatever you were on instead.
+
+`--no-track` and the `-u` on first push matter together. Without `--no-track`, Git's default
+`branch.autoSetupMerge` makes a branch created from `origin/main` *track* `origin/main`: a bare
+`git pull` would then merge `main` into your feature branch, and the branch would never be marked
+`[gone]` once its own remote branch is deleted — silently defeating the cleanup procedure below.
 
 If you are editing an existing checkout rather than creating a branch, confirm it is current first —
 `git status -sb` should show `## main...origin/main` with no `[behind N]`.
