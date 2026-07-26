@@ -33,7 +33,6 @@ for wf in \
   fi
 done
 
-
 # retry() is duplicated in both consumers with no canonical fixture. It has no
 # single source of truth to compare against, so pin the two copies to each other:
 # a fix applied to one and not the other would otherwise ship silently, and its
