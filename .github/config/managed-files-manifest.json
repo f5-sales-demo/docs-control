@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-26T04:26:14Z",
-  "source_commit": "ebf28e4ad85c0f9ebdc8b5b342f5eacf5a6692e9",
+  "generated_at": "2026-07-26T04:54:22Z",
+  "source_commit": "ba67b6a91bf5c52285c897e6011740a38104cb9a",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -65,14 +65,14 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "3cb0f832495066d20b7602ac027cbf336399a22d",
-      "size": 16969
+      "sha": "c3c35118e464aa94a4338d28e7d74633f7204346",
+      "size": 19049
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "f431475fecc81db6bf33ee6836467c9cbff94dbe",
-      "size": 5509
+      "sha": "5460ec2931e130ca99ab8ffdc0791daa6400daac",
+      "size": 7219
     },
     ".editorconfig": {
       "src": ".editorconfig",
@@ -245,8 +245,8 @@
     ".claude/settings.json": {
       "src": ".claude/settings.json",
       "dest": ".claude/settings.json",
-      "sha": "e5db52230748ae98a577ab3ef9585ad6a8bcde97",
-      "size": 317
+      "sha": "778985bd5722a3dc05f511c1b1cb2ce14c00d2c0",
+      "size": 426
     },
     ".claude/hooks/protect-managed-files.sh": {
       "src": ".claude/hooks/protect-managed-files.sh",
