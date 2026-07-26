@@ -384,15 +384,21 @@ gh api repos/f5-sales-demo/<repo-name>/git/refs/heads/gh-pages --method DELETE
 
 ### Clean stale branches
 
-Remove merged feature branches and old automation branches:
+Prune remote-tracking references for branches deleted on the server:
 
 ```bash
-# Delete local branches already merged to main
-git branch --merged main | grep -v '^\*\|main' | xargs -r git branch -d
-
-# Prune remote tracking references
 git fetch --prune
 ```
+
+To then remove the local branches themselves, follow **"After merge: clean up local branches"** in
+[CONTRIBUTING.md](https://github.com/f5-sales-demo/docs-control/blob/main/CONTRIBUTING.md) — it is
+the authoritative procedure and it is deliberately a confirm-then-delete flow.
+
+Do not use `git branch --merged main` to decide what to delete. Merges here are squash-merges, so a
+merged branch is not an ancestor of `main` and `--merged` silently omits it. Pruning marks those
+branches `[gone]` instead, which is what the CONTRIBUTING.md procedure keys on — and `[gone]` also
+covers a PR closed *without* merging, which is why the deletion step is gated on confirming the
+merge rather than piped straight into `git branch -D`.
 
 ## Troubleshooting
 
