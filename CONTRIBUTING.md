@@ -75,12 +75,18 @@ its base. Do not infer freshness from a clean working tree; a checkout twenty co
 clean.
 
 ```bash
-git checkout main
-git fetch --prune
-git status -sb            # expect "## main...origin/main" with no [behind N]
-git pull --ff-only
-git checkout -b feature/42-add-rate-limiting
+git fetch --prune        # if this fails, stop — do not branch from a stale guess
+git switch -c feature/42-add-rate-limiting origin/main
 ```
+
+Branch from `origin/main`, not from local `main`. Local `main` can be *ahead* with unpushed commits,
+which a "not behind" check does not catch, and those commits would silently ride along into your PR.
+Branching from the fetched ref also works when `main` is checked out in another worktree — there,
+`git checkout main` fails outright (`fatal: 'main' is already used by worktree at …`), and a pasted
+`git checkout -b` would quietly branch from whatever you were on instead.
+
+If you are editing an existing checkout rather than creating a branch, confirm it is current first —
+`git status -sb` should show `## main...origin/main` with no `[behind N]`.
 
 A long-running session goes stale the same way, since nothing re-checks after start. Fetch again
 before branching a second time, and before creating a git worktree — a worktree inherits whatever

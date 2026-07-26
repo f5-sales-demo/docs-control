@@ -15,7 +15,7 @@ A hook blocks direct edits — open an issue in docs-control instead.
 
 ## Workflow
 
-- **Start from current.** Run `git fetch --prune` and confirm you are not behind `origin/<default-branch>` before you plan, branch, or edit. The git status injected at session start is a snapshot with no ahead/behind count — it shows a clean tree on a stale checkout, so it cannot tell you the code is current.
+- **Start from current.** `git fetch --prune` and confirm you are not behind `origin/<default-branch>` before you plan, branch, or edit; create branches from `origin/<default-branch>`, never from local `main`. The git status injected at session start is a snapshot with no ahead/behind count — a stale checkout still reports a clean tree.
 - `main` is protected — never commit or push to it directly.
 - Work on a feature branch and open a pull request.
 - Lifecycle: linked issue → branch → PR → required CI (Lint Code Base, linked-issue check, and — on ecosystem repos — a Claude Code review) → auto-merge when every check is green → remote branch auto-deleted.
