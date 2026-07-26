@@ -285,6 +285,10 @@ jobs:
         if: hashFiles('tests/test-linter-configs.sh') != ''
         run: bash tests/test-linter-configs.sh
 
+      - name: Run review-layer-routing test
+        if: hashFiles('tests/test-review-layer-routing.sh') != ''
+        run: bash tests/test-review-layer-routing.sh
+
       - name: Run locale-lint test
         if: hashFiles('tests/test-locale-lint.sh') != ''
         run: bash tests/test-locale-lint.sh

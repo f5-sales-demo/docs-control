@@ -1,6 +1,10 @@
 ---
 allowed-tools: Bash(gh issue view:*), Bash(gh search:*), Bash(gh issue list:*), Bash(gh pr comment:*), Bash(gh pr diff:*), Bash(gh pr view:*), Bash(gh pr list:*), Bash(git diff:*), Bash(git log:*), Bash(az account show:*), Bash(az group:*), Bash(terraform init:*), Bash(terraform plan:*), Bash(terraform validate:*), mcp__github_inline_comment__create_inline_comment, Read, Write
 description: F5-extended multi-agent code review of a pull request
+# F5-EXTENSION E6: CI-only. The workflow invokes this as a prompt-level slash
+# command, which still works; this only stops an agent from auto-selecting the
+# merge-gate reviewer for local work. See UPSTREAM.md.
+disable-model-invocation: true
 ---
 
 Provide a code review for the given pull request.

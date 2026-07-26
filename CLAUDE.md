@@ -39,8 +39,8 @@ When the `codex` plugin provides the `verified-code-review` skill, use it as a s
 **Never review a spec, a plan, or a local branch with a PR-diff reviewer.** Do not invoke `code-review:code-review`, `code-review-f5:code-review`, `pr-review-toolkit:review-pr`, `/review`, or `/security-review` as your local review step.
 
 - They review a pull-request diff, which is the CI layer's job — and a spec has no diff to review.
-- `code-review-f5` is the CI reviewer's own plugin and runs only on the self-hosted runner. Never invoke it by hand.
-- `.claude/settings.json` denies the model-invocable ones outright, so a wrong choice fails loudly instead of quietly producing the wrong kind of review.
+- Enforced, not just documented: `.claude/settings.json` denies `code-review:code-review` and `pr-review-toolkit:review-pr`, and `code-review-f5:code-review` is marked `disable-model-invocation` in the vendored plugin. A wrong choice fails loudly instead of quietly producing the wrong kind of review.
+- `/review` and `/security-review` are built-in commands that no rule can deny. Not selecting them for local spec, plan, or branch review is on you.
 
 Treat every second-opinion finding as external review feedback under `superpowers:receiving-code-review`: verify each claim against this codebase before acting on it, and push back with technical reasoning when it is wrong. Fix only confirmed findings, each with a test that fails before the fix and passes after.
 
