@@ -274,6 +274,35 @@ else
     "_default=$(jq -r '.repo_classes._default // "<absent>"' "$GOVERNANCE_JSON")"
 fi
 
+# Test 3.9b: the default must stay fail-closed. 3.9 only proves _default names
+# a real class, so flipping it to "content" would keep CI green while silently
+# granting direct authoring authority over every unlisted repository — and this
+# manifest ships fleet-wide, so that drift would be broad and invisible. Pin
+# both the name and the authority it resolves to.
+DEFAULT_CLASS=$(jq -r '.repo_classes._default // ""' "$GOVERNANCE_JSON")
+DEFAULT_AUTHORITY=$(jq -r --arg c "$DEFAULT_CLASS" '.repo_classes.classes[$c].authority // ""' "$GOVERNANCE_JSON")
+if [ "$DEFAULT_CLASS" = "developer" ] && [ "$DEFAULT_AUTHORITY" = "delegate" ]; then
+  pass "3.9b repo_classes._default is fail-closed (developer/delegate)"
+else
+  fail "3.9b repo_classes._default is fail-closed (developer/delegate)" \
+    "got class='$DEFAULT_CLASS' authority='$DEFAULT_AUTHORITY'; an unlisted repo must never inherit authoring authority"
+fi
+
+# Test 3.9c: every class declares a recognized authority. An unrecognized or
+# missing value would leave a consumer to guess, which defeats the point of
+# declaring the classification at all.
+BAD_AUTHORITIES=$(jq -r '
+  .repo_classes.classes | to_entries[]
+  | select((.value.authority // "") | IN("author", "delegate", "governed") | not)
+  | "\(.key)=\(.value.authority // "<absent>")"
+' "$GOVERNANCE_JSON" 2>/dev/null || echo "PARSE_ERROR")
+if [ -z "$BAD_AUTHORITIES" ]; then
+  pass "3.9c every repo_classes class declares a recognized authority"
+else
+  fail "3.9c every repo_classes class declares a recognized authority" \
+    "unrecognized: $BAD_AUTHORITIES"
+fi
+
 # Test 3.10: every governed repo has a class assignment. The governed set is
 # downstream-repos.json plus docs-control itself, which is not in that list
 # because it is the source rather than a sync target.
