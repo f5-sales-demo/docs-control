@@ -43,6 +43,18 @@ Marked with `F5-EXTENSION` comments in the command so a re-sync diff is obvious:
   before stopping, and a re-push re-reviews the current head and emits a fresh
   verdict (posting only new findings, no duplicates).
 
+- **E6 — CI-only invocation**: `disable-model-invocation: true` in the command
+  frontmatter. This reviewer is the merge gate and carries elevated `allowed-tools`
+  (`Write`, `gh pr comment`, `az`, `terraform`). Upstream leaves the command
+  model-invocable, which let a local agent auto-select the gate reviewer for a spec,
+  a plan, or an unpushed branch — the wrong layer, with authenticated side effects
+  outside the controlled workflow. A `permissions.deny` rule cannot express this:
+  verified A/B, `Skill(code-review-f5:code-review)` in `deny` blocks the workflow's
+  own invocation too, because CI passes the command through `prompt:` and the deny
+  rule does not distinguish that from model selection. `disable-model-invocation`
+  does: the prompt-level slash command still expands, while a `Skill` tool call is
+  refused with "cannot be used with Skill tool due to disable-model-invocation".
+
 ## Model tiers (E1)
 
 Upstream fans out to `haiku`/`sonnet`/`opus` subagents. The reusable workflow sets
