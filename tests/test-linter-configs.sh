@@ -584,8 +584,8 @@ GI_TMP=$(mktemp -d /tmp/test-linter-configs-gitignore-XXXXXX)
 git -C "$GI_TMP" init -q
 cp "$REPO_ROOT/.gitignore" "$GI_TMP/.gitignore"
 mkdir -p "$GI_TMP/vendor" "$GI_TMP/src/vendor/chat-ui"
-: > "$GI_TMP/vendor/modules.txt"
-: > "$GI_TMP/src/vendor/chat-ui/index.ts"
+: >"$GI_TMP/vendor/modules.txt"
+: >"$GI_TMP/src/vendor/chat-ui/index.ts"
 
 # A top-level vendor/ tree must still be ignored — that is the rule's purpose.
 if git -C "$GI_TMP" check-ignore -q vendor/modules.txt; then
