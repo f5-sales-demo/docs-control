@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-27T17:20:10Z",
-  "source_commit": "7bd13b976593df7b90f5c19c6c5589d590ca6cf3",
+  "generated_at": "2026-07-27T20:45:24Z",
+  "source_commit": "07b6b8232e8188c682092a9d39e1ab0527af1187",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -245,8 +245,8 @@
     ".claude/settings.json": {
       "src": ".claude/settings.json",
       "dest": ".claude/settings.json",
-      "sha": "778985bd5722a3dc05f511c1b1cb2ce14c00d2c0",
-      "size": 426
+      "sha": "7c72d51246b6ba87c98e9ca23572490e2a964925",
+      "size": 487
     },
     ".claude/hooks/protect-managed-files.sh": {
       "src": ".claude/hooks/protect-managed-files.sh",
