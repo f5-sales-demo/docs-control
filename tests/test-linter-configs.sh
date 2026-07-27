@@ -211,7 +211,7 @@ else
   fail "5f.1 repo-hygiene step is present in the lint job" "step not found"
 fi
 
-if printf '%s' "$HYG_STEP" | grep -qE 'git show "\$\{canonical_sha\}:\$\{script\}"' &&
+if printf '%s' "$HYG_STEP" | grep -qE 'git -C "\$gov_dir" show "\$\{canonical_sha\}:\$\{script\}"' &&
   ! printf '%s' "$HYG_STEP" | grep -qE 'git show "origin/\$\{branch\}:\$\{script\}"'; then
   pass "5f.2 repo-hygiene runs the canonical copy, not this repo's"
 else
@@ -241,7 +241,7 @@ else
   fail "5f.5 locale-lint step is present in the lint job" "step not found"
 fi
 
-if printf '%s' "$LOCALE_STEP" | grep -qE 'git show "\$\{canonical_sha\}:\$\{script\}"' &&
+if printf '%s' "$LOCALE_STEP" | grep -qE 'git -C "\$gov_dir" show "\$\{canonical_sha\}:\$\{script\}"' &&
   ! printf '%s' "$LOCALE_STEP" | grep -qE 'git show "origin/\$\{branch\}:\$\{script\}"'; then
   pass "5f.6 locale-lint runs the canonical copy, not this repo's"
 else
@@ -276,6 +276,24 @@ for pair in "5f.9:HYG:check-repo-hygiene.sh" "5f.10:LOC:locale-lint.sh"; do
   else
     fail "${num} ${name} keeps the default-branch presence gate (skip_files opt-out)" \
       "without it, repos that opted out would start being enforced"
+  fi
+done
+
+# The canonical fetch must not touch this workspace: a --depth=1 fetch into the
+# checkout writes .git/shallow and breaks Super-Linter's GIT_MERGE_BASE calculation,
+# failing the whole job (observed on PR #817).
+for pair in "5f.13:HYG:check-repo-hygiene.sh" "5f.14:LOC:locale-lint.sh"; do
+  num=${pair%%:*}
+  rest=${pair#*:}
+  which=${rest%%:*}
+  name=${rest##*:}
+  if [ "$which" = "HYG" ]; then step="$HYG_STEP"; else step="$LOCALE_STEP"; fi
+  if printf '%s' "$step" | grep -qE 'git -C "\$gov_dir" fetch' &&
+    ! printf '%s' "$step" | grep -qE '^[[:space:]]*git fetch --no-tags --quiet --depth=1'; then
+    pass "${num} ${name} fetches canonical into a throwaway repo, not the workspace"
+  else
+    fail "${num} ${name} fetches canonical into a throwaway repo, not the workspace" \
+      "a --depth=1 fetch into the checkout writes .git/shallow and breaks merge-base"
   fi
 done
 

@@ -245,6 +245,29 @@ exit 0
     fail "accidental removal from canonical fails closed, not open" \
       "exit $rc out=$(printf '%s' "$out" | tr '\n' ' ')"
   fi
+
+  # 7. The workspace must be left pristine. A --depth=1 fetch into the checkout writes
+  #    .git/shallow, which breaks Super-Linter's GIT_MERGE_BASE calculation and fails
+  #    the whole job — caught in CI on PR #817, not locally.
+  d7="${TMPDIR_BASE}/d7"
+  make_downstream "$d7" "$GUARDLESS_SCRIPT" "$GUARDLESS_SCRIPT"
+  run_step "$d7" "$CANON" "$STEP" >/dev/null 2>&1 || true
+  if [ ! -f "${d7}/.git/shallow" ]; then
+    pass "workspace is not made shallow by the canonical fetch"
+  else
+    fail "workspace is not made shallow by the canonical fetch" \
+      ".git/shallow was created — this breaks Super-Linter's merge-base calculation"
+  fi
+  # The fixture's own `git fetch origin` legitimately leaves a FETCH_HEAD, so the
+  # meaningful assertion is that the canonical fetch did not overwrite it.
+  fetch_head_after=$(git -C "$d7" rev-parse --quiet --verify FETCH_HEAD 2>/dev/null || echo "")
+  canonical_head=$(git -C "$CANON" rev-parse HEAD)
+  if [ "$fetch_head_after" != "$canonical_head" ]; then
+    pass "workspace FETCH_HEAD is not clobbered by the canonical fetch"
+  else
+    fail "workspace FETCH_HEAD is not clobbered by the canonical fetch" \
+      "FETCH_HEAD now points at the canonical commit — the fetch landed in the workspace"
+  fi
 fi
 
 # The sibling hygiene step shares the pattern and must get the same treatment, or the

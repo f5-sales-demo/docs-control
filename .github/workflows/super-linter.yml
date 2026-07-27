@@ -61,19 +61,26 @@ jobs:
           # would deliver the fix could never pass the stale gate it replaces — that is
           # what stranded i18n-core (issue #815). Still never the head's copy.
           remote="${GOVERNANCE_REMOTE:-https://github.com/f5-sales-demo/docs-control}"
-          if ! git fetch --no-tags --quiet --depth=1 "$remote" main 2>/dev/null; then
+          # Fetch into a throwaway repository, never this workspace. A --depth=1 fetch
+          # into the checkout writes .git/shallow, which breaks Super-Linter's
+          # GIT_MERGE_BASE calculation and fails the whole job; and it would clobber
+          # FETCH_HEAD for anything else in the workspace.
+          gov_dir=$(mktemp -d)
+          trap 'rm -rf "$gov_dir"' EXIT
+          git init --quiet "$gov_dir"
+          if ! git -C "$gov_dir" fetch --no-tags --quiet --depth=1 "$remote" main 2>/dev/null; then
             echo "::error::cannot reach canonical governance at ${remote} -- refusing to run a stale gate"
             exit 1
           fi
-          canonical_sha=$(git rev-parse FETCH_HEAD)
-          if ! git cat-file -e "${canonical_sha}:${script}" 2>/dev/null; then
+          canonical_sha=$(git -C "$gov_dir" rev-parse FETCH_HEAD)
+          if ! git -C "$gov_dir" cat-file -e "${canonical_sha}:${script}" 2>/dev/null; then
             # Absent from canonical. Distinguish a deliberate retirement from an
             # accident by asking canonical's own manifest, not this repo's copy of the
             # script: the sync only ever adds and updates blobs, never deletes them, so
             # a retired script lingers downstream forever and cannot be used as the
             # signal. Retirement = drop the managed_files entry; the orphaned
             # downstream copy is then simply unmanaged.
-            if git show "${canonical_sha}:.github/config/repo-settings.json" 2>/dev/null |
+            if git -C "$gov_dir" show "${canonical_sha}:.github/config/repo-settings.json" 2>/dev/null |
               jq -e --arg s "$script" '[.managed_files.files[]?.dest] | index($s) == null' >/dev/null 2>&1; then
               echo "${script} has been retired from canonical governance; nothing to enforce."
               exit 0
@@ -84,7 +91,7 @@ jobs:
           # Log the exact commit whose bytes run, so a run is reproducible and any
           # behaviour change is attributable to a specific governance commit.
           echo "Enforcing ${script} from canonical governance @ ${canonical_sha}"
-          git show "${canonical_sha}:${script}" | bash -s
+          git -C "$gov_dir" show "${canonical_sha}:${script}" | bash -s
 
       # Same trust boundary and same canonical source as the step above: never the
       # head's own copy, and never a possibly-stale local copy. Repositories that opt
@@ -107,19 +114,26 @@ jobs:
           # would deliver the fix could never pass the stale gate it replaces — that is
           # what stranded i18n-core (issue #815). Still never the head's copy.
           remote="${GOVERNANCE_REMOTE:-https://github.com/f5-sales-demo/docs-control}"
-          if ! git fetch --no-tags --quiet --depth=1 "$remote" main 2>/dev/null; then
+          # Fetch into a throwaway repository, never this workspace. A --depth=1 fetch
+          # into the checkout writes .git/shallow, which breaks Super-Linter's
+          # GIT_MERGE_BASE calculation and fails the whole job; and it would clobber
+          # FETCH_HEAD for anything else in the workspace.
+          gov_dir=$(mktemp -d)
+          trap 'rm -rf "$gov_dir"' EXIT
+          git init --quiet "$gov_dir"
+          if ! git -C "$gov_dir" fetch --no-tags --quiet --depth=1 "$remote" main 2>/dev/null; then
             echo "::error::cannot reach canonical governance at ${remote} -- refusing to run a stale gate"
             exit 1
           fi
-          canonical_sha=$(git rev-parse FETCH_HEAD)
-          if ! git cat-file -e "${canonical_sha}:${script}" 2>/dev/null; then
+          canonical_sha=$(git -C "$gov_dir" rev-parse FETCH_HEAD)
+          if ! git -C "$gov_dir" cat-file -e "${canonical_sha}:${script}" 2>/dev/null; then
             # Absent from canonical. Distinguish a deliberate retirement from an
             # accident by asking canonical's own manifest, not this repo's copy of the
             # script: the sync only ever adds and updates blobs, never deletes them, so
             # a retired script lingers downstream forever and cannot be used as the
             # signal. Retirement = drop the managed_files entry; the orphaned
             # downstream copy is then simply unmanaged.
-            if git show "${canonical_sha}:.github/config/repo-settings.json" 2>/dev/null |
+            if git -C "$gov_dir" show "${canonical_sha}:.github/config/repo-settings.json" 2>/dev/null |
               jq -e --arg s "$script" '[.managed_files.files[]?.dest] | index($s) == null' >/dev/null 2>&1; then
               echo "${script} has been retired from canonical governance; nothing to enforce."
               exit 0
@@ -130,7 +144,7 @@ jobs:
           # Log the exact commit whose bytes run, so a run is reproducible and any
           # behaviour change is attributable to a specific governance commit.
           echo "Enforcing ${script} from canonical governance @ ${canonical_sha}"
-          git show "${canonical_sha}:${script}" | bash -s
+          git -C "$gov_dir" show "${canonical_sha}:${script}" | bash -s
 
       # Biome runs OUTSIDE the Super-Linter container so we can track Biome
       # `latest` instead of being gated on Super-Linter's container release
