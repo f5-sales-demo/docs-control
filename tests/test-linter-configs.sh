@@ -211,10 +211,12 @@ else
   fail "5f.1 repo-hygiene step is present in the lint job" "step not found"
 fi
 
-if printf '%s' "$HYG_STEP" | grep -qE 'git show "origin/\$\{branch\}:\$\{script\}"'; then
-  pass "5f.2 runs the default-branch copy of the script"
+if printf '%s' "$HYG_STEP" | grep -qE 'git -C "\$gov_dir" show "\$\{canonical_sha\}:\$\{script\}"' &&
+  ! printf '%s' "$HYG_STEP" | grep -qE 'git show "origin/\$\{branch\}:\$\{script\}"'; then
+  pass "5f.2 repo-hygiene runs the canonical copy, not this repo's"
 else
-  fail "5f.2 runs the default-branch copy of the script" "no git show of the default-branch copy"
+  fail "5f.2 repo-hygiene runs the canonical copy, not this repo's" \
+    "a sync target's copy can lag docs-control and deadlock the PR that would fix it (#815)"
 fi
 
 if printf '%s' "$HYG_STEP" | grep -qE '^[[:space:]]*run: bash scripts/check-repo-hygiene\.sh[[:space:]]*$'; then
@@ -229,18 +231,22 @@ else
   pass "5f.4 enforcement cannot be skipped by deleting the file"
 fi
 
-# Every governed script the lint job executes must come from the default branch,
-# never from the pull request head, and must not be skippable by deleting the file.
+# Every governed script the lint job executes must come from CANONICAL governance,
+# never from the pull request head and never from this repo's possibly-stale copy,
+# and must not be skippable by deleting the file. Whether a script applies here is
+# still decided by the default branch carrying it, so skip_files keeps working.
 if [ -n "$LOCALE_STEP" ]; then
   pass "5f.5 locale-lint step is present in the lint job"
 else
   fail "5f.5 locale-lint step is present in the lint job" "step not found"
 fi
 
-if printf '%s' "$LOCALE_STEP" | grep -qE 'git show "origin/\$\{branch\}:\$\{script\}"'; then
-  pass "5f.6 locale-lint runs the default-branch copy"
+if printf '%s' "$LOCALE_STEP" | grep -qE 'git -C "\$gov_dir" show "\$\{canonical_sha\}:\$\{script\}"' &&
+  ! printf '%s' "$LOCALE_STEP" | grep -qE 'git show "origin/\$\{branch\}:\$\{script\}"'; then
+  pass "5f.6 locale-lint runs the canonical copy, not this repo's"
 else
-  fail "5f.6 locale-lint runs the default-branch copy" "no git show of the default-branch copy"
+  fail "5f.6 locale-lint runs the canonical copy, not this repo's" \
+    "a sync target's copy can lag docs-control and deadlock the PR that would fix it (#815)"
 fi
 
 if printf '%s' "$LOCALE_STEP" | grep -qE '^[[:space:]]*run: bash scripts/locale-lint\.sh[[:space:]]*$'; then
@@ -254,6 +260,59 @@ if printf '%s' "$LOCALE_STEP" | grep -q "hashFiles('scripts/locale-lint.sh')"; t
 else
   pass "5f.8 locale-lint enforcement cannot be skipped by deleting the file"
 fi
+
+# The skip_files opt-out is expressed by the repo not carrying the script at all, so
+# the presence check against the default branch must remain. Sourcing canonical
+# unconditionally would start enforcing locale-lint in terraform-provider-xcsh, which
+# deliberately opted out.
+for pair in "5f.9:HYG:check-repo-hygiene.sh" "5f.10:LOC:locale-lint.sh"; do
+  num=${pair%%:*}
+  rest=${pair#*:}
+  which=${rest%%:*}
+  name=${rest##*:}
+  if [ "$which" = "HYG" ]; then step="$HYG_STEP"; else step="$LOCALE_STEP"; fi
+  if printf '%s' "$step" | grep -qE 'git cat-file -e "origin/\$\{branch\}:\$\{script\}"'; then
+    pass "${num} ${name} keeps the default-branch presence gate (skip_files opt-out)"
+  else
+    fail "${num} ${name} keeps the default-branch presence gate (skip_files opt-out)" \
+      "without it, repos that opted out would start being enforced"
+  fi
+done
+
+# The canonical fetch must not touch this workspace: a --depth=1 fetch into the
+# checkout writes .git/shallow and breaks Super-Linter's GIT_MERGE_BASE calculation,
+# failing the whole job (observed on PR #817).
+for pair in "5f.13:HYG:check-repo-hygiene.sh" "5f.14:LOC:locale-lint.sh"; do
+  num=${pair%%:*}
+  rest=${pair#*:}
+  which=${rest%%:*}
+  name=${rest##*:}
+  if [ "$which" = "HYG" ]; then step="$HYG_STEP"; else step="$LOCALE_STEP"; fi
+  if printf '%s' "$step" | grep -qE 'git -C "\$gov_dir" fetch' &&
+    ! printf '%s' "$step" | grep -qE '^[[:space:]]*git fetch --no-tags --quiet --depth=1'; then
+    pass "${num} ${name} fetches canonical into a throwaway repo, not the workspace"
+  else
+    fail "${num} ${name} fetches canonical into a throwaway repo, not the workspace" \
+      "a --depth=1 fetch into the checkout writes .git/shallow and breaks merge-base"
+  fi
+done
+
+# A governed gate that silently stops enforcing when it cannot reach canonical is
+# worse than a red check.
+for pair in "5f.11:HYG:check-repo-hygiene.sh" "5f.12:LOC:locale-lint.sh"; do
+  num=${pair%%:*}
+  rest=${pair#*:}
+  which=${rest%%:*}
+  name=${rest##*:}
+  if [ "$which" = "HYG" ]; then step="$HYG_STEP"; else step="$LOCALE_STEP"; fi
+  if printf '%s' "$step" | grep -q "cannot reach canonical governance" &&
+    printf '%s' "$step" | grep -qE '^[[:space:]]*exit 1$'; then
+    pass "${num} ${name} fails closed when canonical is unreachable"
+  else
+    fail "${num} ${name} fails closed when canonical is unreachable" \
+      "an unreachable remote must not pass or skip the gate"
+  fi
+done
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 6: zizmor.yaml suppressions are complete enough for caller

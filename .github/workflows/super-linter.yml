@@ -28,16 +28,21 @@ jobs:
       # cannot see git object modes from inside its container). Cheap and first, so
       # a committed absolute symlink or hardcoded home directory fails fast.
       #
-      # Runs the DEFAULT-BRANCH copy of the script against the HEAD working tree,
-      # per REVIEWER-SPEC.md invariant 3 ("never execute scripts carried in the PR
-      # head") and the trust boundary documented there. Two reasons:
+      # Runs the CANONICAL copy of the script (docs-control main) against the HEAD
+      # working tree, per REVIEWER-SPEC.md invariant 3 ("never execute scripts carried
+      # in the PR head") and the trust boundary documented there. Two reasons:
       #   1. This job holds statuses:write and pull-requests:write, so executing a
       #      PR's own copy of the script would hand those scopes to PR-authored code.
       #   2. Gating on the head's copy would let a PR delete the file to skip the
       #      gate entirely.
       # The script only reads git metadata and tracked file contents, so trusted
-      # logic over untrusted data is safe. Absent on the default branch, there is
-      # nothing to enforce yet — that is the rollout path, not a bypass.
+      # logic over untrusted data is safe.
+      #
+      # Canonical rather than this repo's default branch: the default branch is a sync
+      # target and can lag docs-control, in which case the pull request carrying the
+      # fix is blocked by the stale copy it would replace (issue #815). Whether the
+      # script applies here is still decided by the default branch carrying it, so the
+      # skip_files opt-out is unchanged; absent there, nothing to enforce.
       - name: Check repository hygiene
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -46,15 +51,59 @@ jobs:
           script=scripts/check-repo-hygiene.sh
           branch="${DEFAULT_BRANCH:-main}"
           git fetch --no-tags --quiet origin "+refs/heads/${branch}:refs/remotes/origin/${branch}"
+          # Opt-out is still "the repo does not carry the script" (skip_files), unchanged.
           if ! git cat-file -e "origin/${branch}:${script}" 2>/dev/null; then
             echo "The default branch does not carry ${script} yet; nothing to enforce."
             exit 0
           fi
-          git show "origin/${branch}:${script}" | bash -s
+          # Execute the CANONICAL bytes, not this repo's copy. A downstream default
+          # branch is a sync target and can lag docs-control, and a pull request that
+          # would deliver the fix could never pass the stale gate it replaces — that is
+          # what stranded i18n-core (issue #815). Still never the head's copy.
+          remote="${GOVERNANCE_REMOTE:-https://github.com/f5-sales-demo/docs-control}"
+          # Fetch into a throwaway repository, never this workspace. A --depth=1 fetch
+          # into the checkout writes .git/shallow, which breaks Super-Linter's
+          # GIT_MERGE_BASE calculation and fails the whole job; and it would clobber
+          # FETCH_HEAD for anything else in the workspace.
+          gov_dir=$(mktemp -d)
+          trap 'rm -rf "$gov_dir"' EXIT
+          git init --quiet "$gov_dir"
+          if ! git -C "$gov_dir" fetch --no-tags --quiet --depth=1 "$remote" main 2>/dev/null; then
+            echo "::error::cannot reach canonical governance at ${remote} -- refusing to run a stale gate"
+            exit 1
+          fi
+          canonical_sha=$(git -C "$gov_dir" rev-parse FETCH_HEAD)
+          if ! git -C "$gov_dir" cat-file -e "${canonical_sha}:${script}" 2>/dev/null; then
+            # Absent from canonical. Distinguish a deliberate retirement from an
+            # accident by asking canonical's own manifest, not this repo's copy of the
+            # script: the sync only ever adds and updates blobs, never deletes them, so
+            # a retired script lingers downstream forever and cannot be used as the
+            # signal. Retirement = drop the managed_files entry; the orphaned
+            # downstream copy is then simply unmanaged.
+            manifest=$(git -C "$gov_dir" show "${canonical_sha}:.github/config/repo-settings.json" 2>/dev/null || true)
+            # Require a well-formed manifest before believing "retired". Absent or
+            # malformed managed_files must not read as an empty list, or a schema
+            # migration or partial merge would silently stand the gate down.
+            if ! printf '%s' "$manifest" | jq -e '.managed_files.files | type == "array"' >/dev/null 2>&1; then
+              echo "::error::cannot read managed_files from canonical governance @ ${canonical_sha} -- refusing to guess whether ${script} was retired"
+              exit 1
+            fi
+            if printf '%s' "$manifest" |
+              jq -e --arg s "$script" '[.managed_files.files[].dest] | index($s) == null' >/dev/null 2>&1; then
+              echo "${script} has been retired from canonical governance; nothing to enforce."
+              exit 0
+            fi
+            echo "::error::${script} is still listed in canonical managed_files but missing from canonical governance @ ${canonical_sha} -- refusing to pass an unenforced gate. Retire it by removing its managed_files entry."
+            exit 1
+          fi
+          # Log the exact commit whose bytes run, so a run is reproducible and any
+          # behaviour change is attributable to a specific governance commit.
+          echo "Enforcing ${script} from canonical governance @ ${canonical_sha}"
+          git -C "$gov_dir" show "${canonical_sha}:${script}" | bash -s
 
-      # Same trust boundary as the step above: the default-branch copy of the script
-      # is run against the head working tree, never the head's own copy. Repositories
-      # that opt out of this script via skip_files simply have nothing to enforce.
+      # Same trust boundary and same canonical source as the step above: never the
+      # head's own copy, and never a possibly-stale local copy. Repositories that opt
+      # out of this script via skip_files simply have nothing to enforce.
       - name: Check for hardcoded locale lists
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -63,11 +112,55 @@ jobs:
           script=scripts/locale-lint.sh
           branch="${DEFAULT_BRANCH:-main}"
           git fetch --no-tags --quiet origin "+refs/heads/${branch}:refs/remotes/origin/${branch}"
+          # Opt-out is still "the repo does not carry the script" (skip_files), unchanged.
           if ! git cat-file -e "origin/${branch}:${script}" 2>/dev/null; then
             echo "The default branch does not carry ${script}; nothing to enforce."
             exit 0
           fi
-          git show "origin/${branch}:${script}" | bash -s
+          # Execute the CANONICAL bytes, not this repo's copy. A downstream default
+          # branch is a sync target and can lag docs-control, and a pull request that
+          # would deliver the fix could never pass the stale gate it replaces — that is
+          # what stranded i18n-core (issue #815). Still never the head's copy.
+          remote="${GOVERNANCE_REMOTE:-https://github.com/f5-sales-demo/docs-control}"
+          # Fetch into a throwaway repository, never this workspace. A --depth=1 fetch
+          # into the checkout writes .git/shallow, which breaks Super-Linter's
+          # GIT_MERGE_BASE calculation and fails the whole job; and it would clobber
+          # FETCH_HEAD for anything else in the workspace.
+          gov_dir=$(mktemp -d)
+          trap 'rm -rf "$gov_dir"' EXIT
+          git init --quiet "$gov_dir"
+          if ! git -C "$gov_dir" fetch --no-tags --quiet --depth=1 "$remote" main 2>/dev/null; then
+            echo "::error::cannot reach canonical governance at ${remote} -- refusing to run a stale gate"
+            exit 1
+          fi
+          canonical_sha=$(git -C "$gov_dir" rev-parse FETCH_HEAD)
+          if ! git -C "$gov_dir" cat-file -e "${canonical_sha}:${script}" 2>/dev/null; then
+            # Absent from canonical. Distinguish a deliberate retirement from an
+            # accident by asking canonical's own manifest, not this repo's copy of the
+            # script: the sync only ever adds and updates blobs, never deletes them, so
+            # a retired script lingers downstream forever and cannot be used as the
+            # signal. Retirement = drop the managed_files entry; the orphaned
+            # downstream copy is then simply unmanaged.
+            manifest=$(git -C "$gov_dir" show "${canonical_sha}:.github/config/repo-settings.json" 2>/dev/null || true)
+            # Require a well-formed manifest before believing "retired". Absent or
+            # malformed managed_files must not read as an empty list, or a schema
+            # migration or partial merge would silently stand the gate down.
+            if ! printf '%s' "$manifest" | jq -e '.managed_files.files | type == "array"' >/dev/null 2>&1; then
+              echo "::error::cannot read managed_files from canonical governance @ ${canonical_sha} -- refusing to guess whether ${script} was retired"
+              exit 1
+            fi
+            if printf '%s' "$manifest" |
+              jq -e --arg s "$script" '[.managed_files.files[].dest] | index($s) == null' >/dev/null 2>&1; then
+              echo "${script} has been retired from canonical governance; nothing to enforce."
+              exit 0
+            fi
+            echo "::error::${script} is still listed in canonical managed_files but missing from canonical governance @ ${canonical_sha} -- refusing to pass an unenforced gate. Retire it by removing its managed_files entry."
+            exit 1
+          fi
+          # Log the exact commit whose bytes run, so a run is reproducible and any
+          # behaviour change is attributable to a specific governance commit.
+          echo "Enforcing ${script} from canonical governance @ ${canonical_sha}"
+          git -C "$gov_dir" show "${canonical_sha}:${script}" | bash -s
 
       # Biome runs OUTSIDE the Super-Linter container so we can track Biome
       # `latest` instead of being gated on Super-Linter's container release
@@ -296,6 +389,10 @@ jobs:
       - name: Run locale-lint test
         if: hashFiles('tests/test-locale-lint.sh') != ''
         run: bash tests/test-locale-lint.sh
+
+      - name: Run governed-script source test
+        if: hashFiles('tests/test-governed-script-source.sh') != ''
+        run: bash tests/test-governed-script-source.sh
 
       - name: Run fleet pre-flight test
         if: hashFiles('tests/test-preflight-fleet.sh') != ''
