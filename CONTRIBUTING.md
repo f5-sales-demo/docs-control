@@ -335,11 +335,20 @@ apply what fits.
 
   ```bash
   git worktree list                       # audit: what exists, where you are, what is locked
+  git -C <path> status --short --ignored  # ignored files are about to be deleted — check first
   # For the worktree your own session is in, use ExitWorktree — it handles the lock.
   # Manually, from the MAIN checkout and only once the owning session has ended:
   git worktree unlock <path>              # Claude Code creates worktrees locked
   git worktree remove <path>
   ```
+
+  Run the `--ignored` check before removing anything. Removal deletes ignored files without
+  warning and without refusing: git does not count them as dirty, so a worktree holding a
+  `.env` reports a clean `git status --porcelain`, and `git worktree remove` exits 0 and
+  takes the file with it. This matters here because CLAUDE.md recommends `.worktreeinclude`
+  to carry exactly those files — `.env`, secrets, local config — into new worktrees. Copy out
+  anything you still need first. `ExitWorktree` removes the directory too, so the same
+  caution applies.
 
   Order matters, and so does where you stand. `git branch -D` refuses while the branch is
   still checked out somewhere (`error: cannot delete branch 'x' used by worktree at …`), so
