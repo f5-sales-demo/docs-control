@@ -266,10 +266,12 @@ apply what fits.
   install, and exercise the published version to confirm the fix is real — not merely
   that the pipeline reported success.
 - Leaving a clean workspace is part of "done": once merge is confirmed and CI is green,
-  return to `main`, delete your merged local branch, and proactively report git hygiene
-  — current branch, uncommitted or unmerged changes, and any stale `[gone]` branches —
-  rather than waiting to be asked. See "After merge: clean up local branches" for the
-  safe confirm-then-delete steps.
+  retire the worktree you worked in, then return to `main`, delete your merged local
+  branch, and proactively report git hygiene — current branch, uncommitted or unmerged
+  changes, stale `[gone]` branches, and leftover worktrees — rather than waiting to be
+  asked. The worktree comes first; the branch cannot be deleted while it is still checked
+  out in one. See "After merge: clean up local branches and worktrees" for the safe
+  confirm-then-delete steps.
 
 ### No papering over problems
 
@@ -332,9 +334,11 @@ apply what fits.
 - If you worked in a worktree, retire it **first** — leave it, then remove it:
 
   ```bash
-  git worktree list                       # audit: what still exists, and where are you?
-  # from the MAIN checkout, not from inside the worktree:
-  git worktree remove <path>              # Claude Code: ExitWorktree
+  git worktree list                       # audit: what exists, where you are, what is locked
+  # For the worktree your own session is in, use ExitWorktree — it handles the lock.
+  # Manually, from the MAIN checkout and only once the owning session has ended:
+  git worktree unlock <path>              # Claude Code creates worktrees locked
+  git worktree remove <path>
   ```
 
   Order matters, and so does where you stand. `git branch -D` refuses while the branch is
@@ -342,6 +346,12 @@ apply what fits.
   the worktree goes first. Removing a worktree while your shell is inside it does succeed,
   but it deletes the directory out from under you and the next command fails with
   `fatal: Unable to read current working directory` — so leave before you remove.
+
+  Claude Code marks its worktrees `locked`, and a locked worktree cannot be removed:
+  `fatal: cannot remove a locked working tree`. Note that plain `--force` does **not**
+  override this — only `unlock` first, or `remove -f -f`. Prefer `unlock`: the double-force
+  also discards uncommitted changes, and a locked worktree usually means a session is still
+  using it. Confirm the owning session has ended before unlocking someone else's.
 - Then, in the main checkout, sync and prune: `git pull --ff-only && git fetch --prune`.
   Do not reach for `git checkout main` from inside a worktree; `main` is checked out in the
   main checkout, so it fails with `fatal: 'main' is already used by worktree at …`.
