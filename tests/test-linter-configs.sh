@@ -566,6 +566,43 @@ fi
 echo ""
 echo "=== Section 8: Idempotence ==="
 # We assert this by making sure no test mutates repo state.
+# ════════════════════════════════════════════════════════════════════
+# SECTION 8: .gitignore's Go vendor rule is root-anchored (#794)
+# ════════════════════════════════════════════════════════════════════
+# The rule exists for Go module vendoring, which always sits at the module
+# root. Unanchored, `vendor/` matches at ANY depth, so it silently swallowed
+# deliberately-committed vendored trees — xcsh-chrome-extension's
+# src/vendor/chat-ui (45 files) and xcsh's
+# packages/coding-agent/src/export/html/vendor. Every re-vendor needed
+# `git add -f`, and a forgotten force flag failed CI somewhere unrelated.
+# Asserted behaviourally via `git check-ignore` rather than by grepping the
+# file, because the pattern's semantics are the thing under test.
+echo ""
+echo "SECTION 8: .gitignore Go vendor rule is root-anchored"
+
+GI_TMP=$(mktemp -d /tmp/test-linter-configs-gitignore-XXXXXX)
+git -C "$GI_TMP" init -q
+cp "$REPO_ROOT/.gitignore" "$GI_TMP/.gitignore"
+mkdir -p "$GI_TMP/vendor" "$GI_TMP/src/vendor/chat-ui"
+: > "$GI_TMP/vendor/modules.txt"
+: > "$GI_TMP/src/vendor/chat-ui/index.ts"
+
+# A top-level vendor/ tree must still be ignored — that is the rule's purpose.
+if git -C "$GI_TMP" check-ignore -q vendor/modules.txt; then
+  pass "8.1 top-level vendor/ is still ignored (Go module vendoring)"
+else
+  fail "8.1 top-level vendor/ is still ignored (Go module vendoring)" "vendor/modules.txt is no longer ignored"
+fi
+
+# A nested vendored tree must NOT be ignored — it is committed deliberately.
+if git -C "$GI_TMP" check-ignore -q src/vendor/chat-ui/index.ts; then
+  fail "8.2 nested src/vendor/ is NOT ignored" "src/vendor/chat-ui/index.ts is ignored; the vendor rule needs a leading slash"
+else
+  pass "8.2 nested src/vendor/ is NOT ignored"
+fi
+
+rm -rf "$GI_TMP"
+
 # If a future assertion generates a temp file, it must clean up.
 TMPS_BEFORE=$(find /tmp -maxdepth 1 -name 'test-linter-configs-*' 2>/dev/null | wc -l | tr -d ' ')
 if [ "$TMPS_BEFORE" = "0" ]; then
