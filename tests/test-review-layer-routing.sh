@@ -117,6 +117,35 @@ for reviewer in "code-review:code-review" "code-review-f5:code-review" \
 done
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 4: unsafe destructive tools denied (issue #825)
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 4: destructive tools the docs forbid are denied, not merely discouraged ==="
+
+# clean_gone runs `git worktree remove --force` and `git branch -D` over every
+# [gone] branch with no merge check. [gone] is also true for a PR closed WITHOUT
+# merging, where the local branch holds the only copy of unmerged commits — so
+# the force-delete can destroy work. CONTRIBUTING.md tells contributors not to
+# use it; this rule makes that enforceable rather than advisory.
+# Verified empirically: without the rule the tool returns "Launching skill:
+# commit-commands:clean_gone"; with it, "Skill execution blocked by permission rules".
+if jq -e '.permissions.deny // [] | index("Skill(commit-commands:clean_gone)")' \
+  "$SETTINGS" >/dev/null 2>&1; then
+  pass "4.1 permissions.deny contains Skill(commit-commands:clean_gone)"
+else
+  fail "4.1 permissions.deny contains Skill(commit-commands:clean_gone)" \
+    "the docs forbid this tool but nothing stops it being invoked"
+fi
+
+# The docs must keep explaining WHY, so the rule is not mistaken for arbitrary.
+if grep -q 'clean_gone' "$REPO_ROOT/CONTRIBUTING.md"; then
+  pass "4.2 CONTRIBUTING.md still documents why clean_gone is unsafe"
+else
+  fail "4.2 CONTRIBUTING.md still documents why clean_gone is unsafe" \
+    "a deny rule with no stated rationale invites someone to remove it"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo "Tests run: $TESTS_RUN | Passed: $PASS | Failed: $FAIL"
