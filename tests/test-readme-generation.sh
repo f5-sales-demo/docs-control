@@ -39,11 +39,11 @@ render() {
   local badges="$1" content="$2" out="$WORK/readme.md"
 
   sed -e 's|__ORG_NAME__|f5-sales-demo|g' \
-      -e 's|__TITLE__|Example Repo|g' \
-      -e 's|__DESCRIPTION__|An example description|g' \
-      -e 's|__REPO_NAME__|example-repo|g' \
-      -e 's|__DOCS_URL__|https://f5-sales-demo.github.io/example-repo/|g' \
-      "$TPL" >"$out"
+    -e 's|__TITLE__|Example Repo|g' \
+    -e 's|__DESCRIPTION__|An example description|g' \
+    -e 's|__REPO_NAME__|example-repo|g' \
+    -e 's|__DOCS_URL__|https://f5-sales-demo.github.io/example-repo/|g' \
+    "$TPL" >"$out"
 
   if [ -n "$badges" ]; then
     printf '%s\n' "$badges" >"$WORK/badges.tmp"
@@ -84,9 +84,9 @@ echo "=== Section 1: generated README has no consecutive blank lines (MD012) ===
 # case is not hypothetical -- it is what every repo in the fleet receives.
 for case_name in "no badges, no content" "badges, no content" "no badges, content"; do
   case "$case_name" in
-    "no badges, no content") out=$(render "" "") ;;
-    "badges, no content") out=$(render "[![B](https://x/b.svg)](https://x/b)" "") ;;
-    "no badges, content") out=$(render "" "## Extra
+  "no badges, no content") out=$(render "" "") ;;
+  "badges, no content") out=$(render "[![B](https://x/b.svg)](https://x/b)" "") ;;
+  "no badges, content") out=$(render "" "## Extra
 Some per-repo prose.") ;;
   esac
 
