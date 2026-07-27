@@ -336,8 +336,9 @@ apply what fits.
   ```bash
   git worktree list                       # audit: what exists, where you are, what is locked
   git -C <path> status --short --ignored  # ignored files are about to be deleted — check first
-  # For the worktree your own session is in, use ExitWorktree — it handles the lock.
-  # Manually, from the MAIN checkout and only once the owning session has ended:
+  # Only if THIS session created it, use ExitWorktree — it handles the lock.
+  # Otherwise (a leftover from an earlier session), from the MAIN checkout,
+  # and only once the owning session has ended:
   git worktree unlock <path>              # Claude Code creates worktrees locked
   git worktree remove <path>
   ```
