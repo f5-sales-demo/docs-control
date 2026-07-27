@@ -54,10 +54,10 @@ The Claude Code review is a **required, merge-gating check** that can block. On 
 ## Worktrees
 
 - For non-trivial coding tasks, work in a git worktree (Claude Code: `EnterWorktree` or `claude --worktree`) to isolate changes from the main checkout and enable parallel sessions.
-- **Know where you are.** Before starting, run `git worktree list` and confirm the current directory belongs to the task at hand. Never begin new work in a worktree left over from a finished one — retire it (`ExitWorktree`, or `git worktree remove`) and create a fresh one. A finished worktree looks unmerged (squash-merge) and its base is stale, so reusing one starts the next task on old code.
+- **Know where you are.** Before starting, run `git worktree list` and confirm the current directory belongs to the task at hand. Never begin new work in a worktree left over from a finished one — retire it (`ExitWorktree`) and start fresh. A finished worktree looks unmerged (squash-merge) and its base is stale. Retiring has a required order and an ignored-file check first — see CONTRIBUTING.md.
 - New worktrees branch from `origin/<default-branch>` (`worktree.baseRef` is set to `fresh` in `.claude/settings.json`). The `.claude/worktrees/` directory is already gitignored.
 - `fresh` means "from the cached remote ref", not "freshly fetched" — it only re-fetches when `FETCH_HEAD` is over 24 hours old. A worktree created after an earlier same-day fetch is born behind whatever merged since, so fetch before you create one.
-- If a repository's build needs gitignored inputs (`.env`, secrets, local config), add a repo-local `.worktreeinclude` listing them so new worktrees carry those files in.
+- If a repository's build needs gitignored inputs (`.env`, secrets, local config), add a repo-local `.worktreeinclude` listing them so new worktrees carry those files in. Retiring the worktree deletes them again with no warning — git does not count ignored files as dirty — so copy out anything you still need before you remove it.
 
 ## Engineering Standards
 
