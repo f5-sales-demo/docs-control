@@ -80,8 +80,16 @@ jobs:
             # a retired script lingers downstream forever and cannot be used as the
             # signal. Retirement = drop the managed_files entry; the orphaned
             # downstream copy is then simply unmanaged.
-            if git -C "$gov_dir" show "${canonical_sha}:.github/config/repo-settings.json" 2>/dev/null |
-              jq -e --arg s "$script" '[.managed_files.files[]?.dest] | index($s) == null' >/dev/null 2>&1; then
+            manifest=$(git -C "$gov_dir" show "${canonical_sha}:.github/config/repo-settings.json" 2>/dev/null || true)
+            # Require a well-formed manifest before believing "retired". Absent or
+            # malformed managed_files must not read as an empty list, or a schema
+            # migration or partial merge would silently stand the gate down.
+            if ! printf '%s' "$manifest" | jq -e '.managed_files.files | type == "array"' >/dev/null 2>&1; then
+              echo "::error::cannot read managed_files from canonical governance @ ${canonical_sha} -- refusing to guess whether ${script} was retired"
+              exit 1
+            fi
+            if printf '%s' "$manifest" |
+              jq -e --arg s "$script" '[.managed_files.files[].dest] | index($s) == null' >/dev/null 2>&1; then
               echo "${script} has been retired from canonical governance; nothing to enforce."
               exit 0
             fi
@@ -133,8 +141,16 @@ jobs:
             # a retired script lingers downstream forever and cannot be used as the
             # signal. Retirement = drop the managed_files entry; the orphaned
             # downstream copy is then simply unmanaged.
-            if git -C "$gov_dir" show "${canonical_sha}:.github/config/repo-settings.json" 2>/dev/null |
-              jq -e --arg s "$script" '[.managed_files.files[]?.dest] | index($s) == null' >/dev/null 2>&1; then
+            manifest=$(git -C "$gov_dir" show "${canonical_sha}:.github/config/repo-settings.json" 2>/dev/null || true)
+            # Require a well-formed manifest before believing "retired". Absent or
+            # malformed managed_files must not read as an empty list, or a schema
+            # migration or partial merge would silently stand the gate down.
+            if ! printf '%s' "$manifest" | jq -e '.managed_files.files | type == "array"' >/dev/null 2>&1; then
+              echo "::error::cannot read managed_files from canonical governance @ ${canonical_sha} -- refusing to guess whether ${script} was retired"
+              exit 1
+            fi
+            if printf '%s' "$manifest" |
+              jq -e --arg s "$script" '[.managed_files.files[].dest] | index($s) == null' >/dev/null 2>&1; then
               echo "${script} has been retired from canonical governance; nothing to enforce."
               exit 0
             fi

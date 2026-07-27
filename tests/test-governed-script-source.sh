@@ -85,7 +85,9 @@ make_canonical() {
       chmod +x scripts/locale-lint.sh
     fi
     mkdir -p .github/config
-    if [ "$manifest" = "retired" ]; then
+    if [ "$manifest" = "nomanifest" ]; then
+      : # deliberately no repo-settings.json
+    elif [ "$manifest" = "retired" ]; then
       echo '{"managed_files":{"files":[{"src":"other.sh","dest":"other.sh"}]}}' \
         >.github/config/repo-settings.json
     else
@@ -163,6 +165,10 @@ else
   # or rename, not a retirement.
   CANON_ACCIDENT="${TMPDIR_BASE}/canonical-accident"
   make_canonical "$CANON_ACCIDENT" "" "listed"
+
+  # Script gone AND no manifest to consult: an anomaly, not a retirement.
+  CANON_NOMANIFEST="${TMPDIR_BASE}/canonical-nomanifest"
+  make_canonical "$CANON_NOMANIFEST" "" "nomanifest"
 
   # 1. THE DEADLOCK. Canonical carries the guard; the downstream default branch does
   #    not. The old behaviour ran the stale guardless copy and failed, blocking the
@@ -243,6 +249,19 @@ exit 0
     pass "accidental removal from canonical fails closed, not open"
   else
     fail "accidental removal from canonical fails closed, not open" \
+      "exit $rc out=$(printf '%s' "$out" | tr '\n' ' ')"
+  fi
+
+  # 6b. An unreadable or malformed manifest must not read as an empty file list, or a
+  #     schema migration would silently stand the gate down fleet-wide.
+  d6b="${TMPDIR_BASE}/d6b"
+  make_downstream "$d6b" "$GUARDLESS_SCRIPT" "$GUARDLESS_SCRIPT"
+  rc=0
+  out=$(run_step "$d6b" "$CANON_NOMANIFEST" "$STEP") || rc=$?
+  if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q "cannot read managed_files"; then
+    pass "unreadable canonical manifest fails closed, not open"
+  else
+    fail "unreadable canonical manifest fails closed, not open" \
       "exit $rc out=$(printf '%s' "$out" | tr '\n' ' ')"
   fi
 
