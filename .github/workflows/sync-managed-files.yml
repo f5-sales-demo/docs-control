@@ -596,6 +596,16 @@ jobs:
                   sed -i '/__EXTRA_CONTENT__/d' /tmp/generated_readme.md
                 fi
 
+                # Collapse runs of blank lines left behind by deleting an optional
+                # placeholder. __EXTRA_CONTENT__ sits on its own line between two blank
+                # lines in the template, so removing it leaves those two adjacent --
+                # markdownlint MD012. No site in docs-sites.json defines readme_content,
+                # so that path is taken for every repo in the fleet, and README.md is
+                # protected, so no consumer can fix it locally. Squeezing here fixes the
+                # existing case and any optional placeholder added later.
+                cat -s /tmp/generated_readme.md > /tmp/generated_readme.squeezed
+                mv /tmp/generated_readme.squeezed /tmp/generated_readme.md
+
                 GENERATED_README=$(cat /tmp/generated_readme.md)
 
                 # Compare with current README.md in target repo (local disk, no API).
