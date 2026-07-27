@@ -318,16 +318,33 @@ apply what fits.
   a session can find its own in-flight work:
   - `gh pr list --search "head:s-<slug>"` — this session's PRs
   - `git branch --list "s-<slug>/*"` — this session's local branches
-- Composes with the after-merge `[gone]` cleanup below: cleanup is naturally scoped per session,
-  and retiring the merged branch also removes its worktree.
+- Composes with the after-merge `[gone]` cleanup below: cleanup is naturally scoped per session.
+  Retiring the branch does **not** remove its worktree — that is a separate, explicit step, and it
+  is the one that gets skipped. Skipped worktrees are how a later session ends up starting new work
+  inside a finished one.
 - Advisory only — a local-workstation concern CI cannot enforce.
 
-#### After merge: clean up local branches
+#### After merge: clean up local branches and worktrees
 
 - The server deletes the remote branch on merge (`delete_branch_on_merge`); the local
   copy remains and must be cleaned up, or merged branches accumulate on the workstation.
-- Once your PR is merged and CI is green, return to `main` and prune:
-  `git checkout main && git pull && git fetch --prune`.
+  A worktree you worked in remains too, and nothing removes it for you.
+- If you worked in a worktree, retire it **first** — leave it, then remove it:
+
+  ```bash
+  git worktree list                       # audit: what still exists, and where are you?
+  # from the MAIN checkout, not from inside the worktree:
+  git worktree remove <path>              # Claude Code: ExitWorktree
+  ```
+
+  Order matters, and so does where you stand. `git branch -D` refuses while the branch is
+  still checked out somewhere (`error: cannot delete branch 'x' used by worktree at …`), so
+  the worktree goes first. Removing a worktree while your shell is inside it does succeed,
+  but it deletes the directory out from under you and the next command fails with
+  `fatal: Unable to read current working directory` — so leave before you remove.
+- Then, in the main checkout, sync and prune: `git pull --ff-only && git fetch --prune`.
+  Do not reach for `git checkout main` from inside a worktree; `main` is checked out in the
+  main checkout, so it fails with `fatal: 'main' is already used by worktree at …`.
 - Pruning marks any branch whose upstream was deleted as `[gone]`. Squash-merges mean a
   merged branch is not an ancestor of `main` (so `git branch --merged` misses it) and
   `git branch -d` refuses it — removing it requires the force flag, `git branch -D`.
