@@ -114,8 +114,20 @@ way; it does not extend that courtesy to ignored ones. `git stash push --all` do
 `pop` then fails with `.env already exists, no checkout` once the path is tracked. The stash is
 retained, but recovering from it is not the obvious command: `--all` stores untracked and ignored
 files in the stash commit's **third parent**, so `git checkout stash@{0} -- <path>` fails with
-`did not match any file(s) known to git`. Use `git show 'stash@{0}^3:<path>' > <path>` instead. The
-reliable move is to copy out any ignored file you care about before you sync. This is the same blind spot as the worktree
+`did not match any file(s) known to git`. Read it out of the third parent instead, to a scratch file
+**outside** the repository:
+
+```bash
+git show 'stash@{0}^3:.env' > /tmp/recovered.env   # never redirect onto the path itself
+```
+
+Two reasons for the scratch file. Redirecting onto the original path would write your ignored local
+copy over the version upstream now tracks, turning a secret into a tracked modification somebody can
+commit by accident. And the shell truncates the target *before* `git show` runs, so a wrong ref or
+path empties the file even when the command fails — `git show` exits 128 and the destination is left
+at 0 bytes. Recover to the side, then merge by hand.
+
+The reliable move is to copy out any ignored file you care about before you sync. This is the same blind spot as the worktree
 warning under Worktrees: git's safety checks do not see ignored files.
 
 **Never sync by overwriting the working tree.** `git checkout <ref> -- .` looks like a refresh and is
