@@ -386,6 +386,10 @@ jobs:
         if: hashFiles('tests/test-readme-generation.sh') != ''
         run: bash tests/test-readme-generation.sh
 
+      - name: Run sync-managed-files test
+        if: hashFiles('tests/test-sync-managed-files.sh') != ''
+        run: bash tests/test-sync-managed-files.sh
+
       - name: Run review-layer-routing test
         if: hashFiles('tests/test-review-layer-routing.sh') != ''
         run: bash tests/test-review-layer-routing.sh
