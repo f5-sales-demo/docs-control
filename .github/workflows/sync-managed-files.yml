@@ -226,6 +226,12 @@ jobs:
           commit_tree() {
             local branch="$1"
             local commit_msg="$2"
+            # Optional base commit. When given, the new commit is parented on it and the
+            # branch ref is force-moved -- which rebases the branch and adds the drift in a
+            # SINGLE ref update. Doing those as two calls empties the PR in between: the
+            # branch briefly equals main, so it has zero commits ahead of base and GitHub
+            # closes it and disables auto-merge (#836).
+            local base_override="${3:-}"
             local repo_slug="${OWNER}/${REPO}"
 
             # Never interpolate a non-SHA into a URL: that is what turned a transient
@@ -238,8 +244,13 @@ jobs:
               fi
             }
 
-            local ref_sha
-            ref_sha=$(retry 3 gh api "repos/${repo_slug}/git/ref/heads/${branch}" --jq '.object.sha')
+            local ref_sha force_update="false"
+            if [ -n "$base_override" ]; then
+              ref_sha="$base_override"
+              force_update="true"
+            else
+              ref_sha=$(retry 3 gh api "repos/${repo_slug}/git/ref/heads/${branch}" --jq '.object.sha')
+            fi
             require_sha "ref_sha for ${branch}" "$ref_sha" || return 1
 
             local base_tree
@@ -299,7 +310,8 @@ jobs:
             new_commit_sha=$(echo "$commit_json" | retry 3 gh api "repos/${repo_slug}/git/commits" --method POST --input - --jq '.sha')
 
             local ref_update
-            ref_update=$(jq -n --arg sha "$new_commit_sha" '{"sha": $sha}')
+            ref_update=$(jq -n --arg sha "$new_commit_sha" --argjson force "$force_update" \
+              '{"sha": $sha, "force": $force}')
             retry_json 3 "$ref_update" "repos/${repo_slug}/git/refs/heads/${branch}" --method PATCH >/dev/null
 
             echo "[OK] Atomic commit ${new_commit_sha:0:8} (${item_count} files)"
@@ -637,15 +649,18 @@ jobs:
                 if [ -n "$EXISTING_PR" ]; then
                   echo "[INFO] Open sync PR #${EXISTING_PR} already exists -- updating drifted files"
 
-                  # Force-update the PR branch to main's HEAD so it stays rebased
+                  # Rebase onto main AND add the drift in one ref update, by handing
+                  # commit_tree main's SHA as the base. Two calls -- reset the branch to
+                  # main, then commit -- leave the branch equal to main in between, so the
+                  # PR has zero commits ahead of base and GitHub closes it and disables
+                  # auto-merge. The content returns on the next call but the PR does not
+                  # reopen, stranding the change on an unmerged branch (#836).
                   MAIN_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/git/ref/heads/main" --jq '.object.sha')
-                  BRANCH_UPDATE_JSON=$(jq -n --arg sha "$MAIN_SHA" '{"sha":$sha,"force":true}')
-                  retry_json 3 "$BRANCH_UPDATE_JSON" \
-                    "repos/${OWNER}/${REPO}/git/refs/heads/governance/sync-managed-files" --method PATCH >/dev/null
-                  echo "[OK] Rebased PR branch onto main HEAD"
 
                   commit_tree "governance/sync-managed-files" \
-                    "chore: sync managed files from governance template"
+                    "chore: sync managed files from governance template" \
+                    "$MAIN_SHA"
+                  echo "[OK] Rebased onto main and committed drift in one update"
 
                   echo "[INFO] PR branch updated -- attempting merge"
                   auto_merge "${EXISTING_PR}" "${OWNER}/${REPO}" || true
