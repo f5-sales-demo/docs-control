@@ -49,121 +49,20 @@
   ],
   "repo_overrides": {
     "xcsh": {
-      "additional_contexts": ["check", "test", "review / claude-review"],
+      "additional_contexts": ["check", "test"],
       "excluded_required_contexts": ["lint / Lint Code Base"]
     },
     "vscode-xcsh": {
-      "additional_contexts": ["Validate Generation", "Test (ubuntu-latest)", "Build VSIX", "review / claude-review"]
+      "additional_contexts": ["Validate Generation", "Test (ubuntu-latest)", "Build VSIX"]
     },
     "console": {
-      "additional_contexts": ["Validate Catalog Schemas", "review / claude-review"]
+      "additional_contexts": ["Validate Catalog Schemas"]
     },
     "terraform-provider-xcsh": {
-      "excluded_required_contexts": ["audit / Translation freshness"],
-      "additional_contexts": ["review / claude-review"]
-    },
-    "code-review": {
-      "additional_contexts": ["review / claude-review"],
       "excluded_required_contexts": ["audit / Translation freshness"]
     },
-    "dns": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "demo-resource-template": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "docs-builder": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "docs-theme": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "docs": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "administration": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "nginx": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "observability": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "was": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "mcn": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "cdn": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "bot-standard": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "bot-advanced": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "ddos": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "waf": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "api-protection": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "webapp-api-protection": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "api-specs": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "api-specs-enriched": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "csd": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "docs-icons": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "devcontainer": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "marketplace": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "cdn-simulator": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "origin-server": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "traffic-generator": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "demo-resources": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "starlight-llms-txt": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "starlight-mega-menu": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "apt-repo": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "i18n-core": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "xcsh-chrome-extension": {
-      "additional_contexts": ["review / claude-review"]
-    },
-    "marketplace-claude-code": {
-      "additional_contexts": ["review / claude-review"]
+    "code-review": {
+      "excluded_required_contexts": ["audit / Translation freshness"]
     }
   },
   "topics": [],
