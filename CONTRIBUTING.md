@@ -97,7 +97,8 @@ If you are editing an existing checkout rather than creating a branch, confirm i
 If it *does* show `[behind N]` and you have work in progress, park the work rather than discarding it:
 
 ```bash
-git stash push -u        # -u also stashes untracked files
+git status --short --ignored   # ignored files are NOT protected — see below
+git stash push -u              # -u covers untracked files, but NOT ignored ones
 git pull --ff-only
 git stash pop
 ```
@@ -106,11 +107,27 @@ git stash pop
 exits non-zero and **keeps the stash entry**, so resolve the conflict and drop the stash afterwards —
 nothing is lost by trying.
 
+Ignored files are the exception, and they are not protected anywhere in this flow. `-u` does not
+stash them, and if upstream starts tracking a path you hold as ignored — `.env` is the obvious case —
+`git pull` overwrites it **silently and exits 0**. Git refuses to clobber an *untracked* file that
+way; it does not extend that courtesy to ignored ones. `git stash push --all` does capture them, but
+`pop` then fails with `.env already exists, no checkout` once the path is tracked (the stash is
+retained, so `git checkout stash@{0} -- <path>` still gets the content back). The reliable move is to
+copy out any ignored file you care about before you sync. This is the same blind spot as the worktree
+warning under Worktrees: git's safety checks do not see ignored files.
+
 **Never sync by overwriting the working tree.** `git checkout <ref> -- .` looks like a refresh and is
 not one: it overwrites tracked files with the other ref's content, stages the result, and leaves
-files that exist only in your branch behind — a mixed state that is neither commit. The work it
-overwrites is **unrecoverable**. Git writes no reflog entry for it and keeps no object, so unlike a
-mistaken `git branch -D` there is nothing to restore from. `git reset --hard` has the same effect on
+files that exist only in your branch behind — a mixed state that is neither commit. Git writes no
+reflog entry for what it overwrote, so unlike a mistaken `git branch -D` there is no ref to restore.
+
+How much is lost depends on whether the work was staged, and the difference is worth knowing before
+you give up on it. Content you had `git add`ed still exists as a blob and stays recoverable until
+garbage collection — `git fsck --lost-found` lists it, and `git cat-file -p <blob>` prints it. Content
+you never staged was never written to the object store at all, and that is genuinely gone. So if you
+do clobber something, check `git fsck --lost-found` before concluding the work is lost.
+
+`git reset --hard` has the same effect on
 uncommitted changes (commits it moves past *are* reflog-recoverable; uncommitted edits are not), and
 `git clean -fd` deletes untracked files and directories — add `-x` and it takes ignored files too,
 including the `.env` and local config described under Worktrees.
