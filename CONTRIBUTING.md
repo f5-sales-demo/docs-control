@@ -94,6 +94,27 @@ Branching from the fetched ref also works when `main` is checked out in another 
 If you are editing an existing checkout rather than creating a branch, confirm it is current first —
 `git status -sb` should show `## main...origin/main` with no `[behind N]`.
 
+If it *does* show `[behind N]` and you have work in progress, park the work rather than discarding it:
+
+```bash
+git stash push -u        # -u also stashes untracked files
+git pull --ff-only
+git stash pop
+```
+
+`git stash pop` can hit a conflict when the pull touched the same file you edited. That is safe: pop
+exits non-zero and **keeps the stash entry**, so resolve the conflict and drop the stash afterwards —
+nothing is lost by trying.
+
+**Never sync by overwriting the working tree.** `git checkout <ref> -- .` looks like a refresh and is
+not one: it overwrites tracked files with the other ref's content, stages the result, and leaves
+files that exist only in your branch behind — a mixed state that is neither commit. The work it
+overwrites is **unrecoverable**. Git writes no reflog entry for it and keeps no object, so unlike a
+mistaken `git branch -D` there is nothing to restore from. `git reset --hard` has the same effect on
+uncommitted changes (commits it moves past *are* reflog-recoverable; uncommitted edits are not), and
+`git clean -fd` deletes untracked files and directories — add `-x` and it takes ignored files too,
+including the `.env` and local config described under Worktrees.
+
 A long-running session goes stale the same way, since nothing re-checks after start. Fetch again
 before branching a second time, and before creating a git worktree — a worktree inherits whatever
 the cached remote ref says, so it can be born behind (see CLAUDE.md).
