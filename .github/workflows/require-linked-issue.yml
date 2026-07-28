@@ -19,7 +19,14 @@ jobs:
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const EXCLUDE_BRANCHES = "dependabot/**,release/**,openapi-sync/**,plugin-sync/**,deps/**,sync/**,docs/update-*";
+            // Bot-authored branches whose content is derived from changes that
+            // already passed this gate. `changeset-release/**` is the Changesets
+            // release PR: a version bump plus a changelog assembled from
+            // changeset files that arrived through ordinary issue-linked PRs, so
+            // there is no new authored change for an issue to describe. Without
+            // the exemption it fails a required check and can only be merged by
+            // an administrator overriding branch protection.
+            const EXCLUDE_BRANCHES = "dependabot/**,release/**,changeset-release/**,openapi-sync/**,plugin-sync/**,deps/**,sync/**,docs/update-*";
             const MARKER = "<!-- require-linked-issue -->";
             const MESSAGE = `${MARKER}\nThis PR must be linked to a GitHub issue. Use 'Closes #123' in the PR description, or link an issue from the sidebar.`;
 
