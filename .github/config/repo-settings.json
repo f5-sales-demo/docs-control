@@ -48,6 +48,9 @@
     }
   ],
   "repo_overrides": {
+    "marketplace": {
+      "additional_contexts": ["Run plugin test suites"]
+    },
     "xcsh": {
       "additional_contexts": ["check", "test"],
       "excluded_required_contexts": ["lint / Lint Code Base"]
