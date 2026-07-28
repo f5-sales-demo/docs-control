@@ -111,9 +111,11 @@ Ignored files are the exception, and they are not protected anywhere in this flo
 stash them, and if upstream starts tracking a path you hold as ignored — `.env` is the obvious case —
 `git pull` overwrites it **silently and exits 0**. Git refuses to clobber an *untracked* file that
 way; it does not extend that courtesy to ignored ones. `git stash push --all` does capture them, but
-`pop` then fails with `.env already exists, no checkout` once the path is tracked (the stash is
-retained, so `git checkout stash@{0} -- <path>` still gets the content back). The reliable move is to
-copy out any ignored file you care about before you sync. This is the same blind spot as the worktree
+`pop` then fails with `.env already exists, no checkout` once the path is tracked. The stash is
+retained, but recovering from it is not the obvious command: `--all` stores untracked and ignored
+files in the stash commit's **third parent**, so `git checkout stash@{0} -- <path>` fails with
+`did not match any file(s) known to git`. Use `git show 'stash@{0}^3:<path>' > <path>` instead. The
+reliable move is to copy out any ignored file you care about before you sync. This is the same blind spot as the worktree
 warning under Worktrees: git's safety checks do not see ignored files.
 
 **Never sync by overwriting the working tree.** `git checkout <ref> -- .` looks like a refresh and is
