@@ -1,5 +1,44 @@
 # Reviewer spec (target-state design)
 
+> ## ⚠️ Status: SUSPENDED
+>
+> The reviewer is **not running and not required** anywhere in the fleet.
+>
+> **Why.** The self-hosted runner could not reliably reach model inference or the VPN. Because
+> `review / claude-review` was a required context in 38 repos, each failure blocked a pull
+> request, and reviews serialised on one laptop — a merge backlog caused by infrastructure
+> rather than by code quality.
+>
+> **What was done**, in this order, which matters:
+>
+> 1. docs-control#833 removed `review / claude-review` from `additional_contexts` in all 38
+>    repos, so no branch protection requires it.
+> 2. docs-control#838 gated both jobs in `workflows/code-review.yml` on
+>    `vars.REVIEWER_ENABLED == 'true'`, which is unset — so nothing dispatches to the runner.
+>
+> Everything else is untouched: this spec, `claude-review.yml`, the reviewer plugin, the
+> runners (still registered and idle) and the `claude_review` secret roles. Restoring needs no
+> re-sync and no secret rotation.
+>
+> ### Restoring the reviewer
+>
+> **Order is the inverse of the suspension, and it is not optional.**
+>
+> 1. Set the org variable `REVIEWER_ENABLED=true`. Both jobs resume immediately; no PR or sync
+>    is needed. (The org is on the free plan, but the repos are public, so org-level Actions
+>    variables are available.)
+> 2. Confirm a **real review completes end to end** on one repo — a posted verdict and a
+>    `review / claude-review` status, not merely a green workflow.
+> 3. **Only then** re-add `"review / claude-review"` to `repo_overrides.<repo>.additional_contexts`
+>    and let `dispatch-downstream` propagate it.
+>
+> Doing 3 before 1 makes the context required while nothing produces it, which deadlocks every
+> open pull request in the fleet permanently.
+>
+> The invariants below describe the reviewer as designed and still apply once it is enabled.
+> Invariant 1 in particular is why the ordering matters: a missing verdict is treated as
+> blocking, so an absent reviewer is indistinguishable from a rejecting one.
+
 Canonical design for the fleet's agentic PR reviewer. It complements `REVIEW.md`
 (the highest-priority review rubric baked into the plugin command) by documenting
 the reviewer's **architecture, invariants, and planned work**. Earlier code
