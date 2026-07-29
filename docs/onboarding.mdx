@@ -207,6 +207,23 @@ honest: every assignment must name a defined class, and every entry in
 fleet without classifying it therefore fails CI rather than silently
 inheriting the default.
 
+### Who reads it
+
+Two consumers outside this repository, so a misclassification is visible in
+more than one place:
+
+- **xcsh** resolves `xcsh://fleet` from it -- the current repository's class,
+  and the roster of which repositories the assistant authors in versus
+  delegates. It reads the local synced copy first and only falls back to the
+  GitHub API, so the classification works offline from any checkout.
+- **`clone-all-repos.sh`** in `f5-sales-demo/.github` scopes a clone by class
+  (`--content`, `--code`, `--infrastructure`), so a developer can check out only
+  the repositories they actually work in. A misclassification therefore also
+  changes what lands on someone's disk.
+
+Both treat an unlisted repository as `_default`, matching the fail-closed rule
+above.
+
 ## Setting up docs content
 
 Every repository that publishes documentation needs a `docs/` directory with at least an `index.mdx` file containing YAML frontmatter.
