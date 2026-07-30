@@ -54,42 +54,54 @@ REQUIRED=$(jq -r --arg c "$CONTEXT" '
   | index($c) != null
 ' "$REPO_SETTINGS")
 
-# Is the audit intentionally suspended? Read the declared intent, not the
-# presence of a condition.
+# GATED is the functional question: can this job decline to report?
 #
-# The obvious test — "does the job carry an `if: vars.X == 'true'`" — is wrong,
-# and wrong in the direction that breaks restoration. That condition is still
-# present when translations are switched back on; only the variable's value
-# changes, and a static test cannot see it. Treating any conditioned job as
-# gated off would fail the moment someone follows the restore procedure, which
-# legitimately ends with the context required AND the condition present.
+# The condition is what actually withholds the status. Because restoration deletes
+# the `if:` outright rather than flipping the variable (see "Restoring translations"
+# in CONTRIBUTING.md), its presence is a reliable signal — and it is the only signal
+# that catches the dangerous case where someone removes the explanatory comment but
+# leaves the condition behind. A repository the variable is not visible to then
+# emits no status at all, and a required context would wait on it forever.
 #
-# The `SUSPENDED:` marker states intent in the repository, changes in the same
-# commit as the condition, and is the convention already used in
-# workflows/code-review.yml. Restoring translations removes both together.
+# Keying on the comment alone was wrong for exactly that reason.
+if grep -qE "^\s*if:\s*vars\.TRANSLATIONS_ENABLED" "$AUDIT_STUB"; then
+  GATED=true
+else
+  GATED=false
+fi
+
+# The marker is documentation of intent. It must agree with the condition, or the
+# next reader is told one thing while CI does another.
 if grep -q 'SUSPENDED:' "$AUDIT_STUB"; then
-  SUSPENDED=true
+  MARKED=true
 else
-  SUSPENDED=false
+  MARKED=false
 fi
 
-if [ "$REQUIRED" = "true" ] && [ "$SUSPENDED" = "true" ]; then
-  fail "1.1 a suspended audit is never a required context" \
-    "'$CONTEXT' is required while the audit is marked SUSPENDED — it will never report and every PR deadlocks"
+if [ "$REQUIRED" = "true" ] && [ "$GATED" = "true" ]; then
+  fail "1.1 a conditionally-skipped audit is never a required context" \
+    "'$CONTEXT' is required while the job can skip itself — repos without the variable emit no status and their PRs deadlock"
 else
-  pass "1.1 a suspended audit is never a required context (required=$REQUIRED suspended=$SUSPENDED)"
+  pass "1.1 a conditionally-skipped audit is never a required context (required=$REQUIRED gated=$GATED)"
 fi
 
-# Both safe states are legitimate. Name which one we are in, so CI output says
-# suspended or active without a reader opening two files.
-if [ "$SUSPENDED" = "true" ] && [ "$REQUIRED" = "false" ]; then
-  pass "1.2 suspended state is coherent: audit off, context not required"
-elif [ "$SUSPENDED" = "false" ] && [ "$REQUIRED" = "true" ]; then
-  pass "1.2 restored state is coherent: audit active, context required"
+if [ "$GATED" = "$MARKED" ]; then
+  pass "1.2 the SUSPENDED marker agrees with the actual gate (gated=$GATED marked=$MARKED)"
 else
-  # Audit active but gating nothing: wasteful rather than dangerous, and it is the
+  fail "1.2 the SUSPENDED marker agrees with the actual gate" \
+    "gated=$GATED but marked=$MARKED — the comment and the condition disagree, so one of them is lying"
+fi
+
+# Name the state, so CI output says suspended or restored without a reader
+# opening two files.
+if [ "$GATED" = "true" ] && [ "$REQUIRED" = "false" ]; then
+  pass "1.3 suspended state is coherent: audit can skip, context not required"
+elif [ "$GATED" = "false" ] && [ "$REQUIRED" = "true" ]; then
+  pass "1.3 restored state is coherent: audit unconditional, context required"
+else
+  # Unconditional but gating nothing: wasteful rather than dangerous, and it is the
   # transient state between the two halves of a restore.
-  pass "1.2 audit active but not required — safe, advisory only (mid-restore)"
+  pass "1.3 audit unconditional but not required — safe, advisory only (mid-restore)"
 fi
 
 # ════════════════════════════════════════════════════════════════════

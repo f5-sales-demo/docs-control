@@ -349,6 +349,23 @@ reviewer left behind.
    UN-GATING`, `skipped`, `failure` — means that repository will not emit the check, and re-adding the
    context would deadlock it.
 
+   `NO RUN SINCE UN-GATING` is the expected result for most repositories, not a fault. The audit
+   triggers only on `pull_request` `opened`, `synchronize`, and `reopened`; **merging** the sync pull
+   request fires nothing afterwards, so a repository with no later pull-request activity will report it
+   indefinitely. Do not wave that through — provoke a run instead:
+
+   ```bash
+   # for any repo reading NO RUN SINCE UN-GATING
+   gh api "repos/f5-sales-demo/$r/contents/docs/en" >/dev/null 2>&1 || continue  # no docs/en: audit passes trivially, nothing to prove
+   git clone --depth 1 "https://github.com/f5-sales-demo/$r" /tmp/probe-$r
+   cd /tmp/probe-$r && git switch -c "chore/audit-probe" \
+     && printf '\n' >> README.md && git commit -aqm "chore: probe translation audit" \
+     && git push -q -u origin HEAD && gh pr create --fill --base main
+   ```
+
+   Close the probe pull request once the audit reports. Skipping this step is how an operator ends up
+   re-adding the required context on the strength of repositories that were never actually exercised.
+
 5. **Only then** re-add `audit / Translation freshness` to
    `branch_protection[0].required_status_checks.contexts` — **and re-add
    `excluded_required_contexts: ["audit / Translation freshness"]` to the `terraform-provider-xcsh`
