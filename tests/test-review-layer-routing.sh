@@ -159,6 +159,19 @@ echo "=== Section 3b: CLAUDE.md attributes each enforcement mechanism correctly 
 # order. A line-based content check cannot catch it, because every name sits on
 # the same line. Ban the construct instead: name each tool where its mechanism
 # is stated.
+# The local layer is optional tooling. CLAUDE.md must say so itself rather than
+# delegating it to CONTRIBUTING.md: `.claude/governance.json` skip_files excludes
+# CONTRIBUTING.md from xcsh, whose own copy contains none of this content, so a
+# pointer there resolves to nothing in that repo. An unconditional "use the
+# skill" can stall work, or push an agent toward a prohibited PR-diff reviewer.
+LOCAL_LINE=$(grep -F 'codex:verified-code-review' "$CLAUDE_MD" | head -1)
+if printf '%s' "$LOCAL_LINE" | grep -qiE 'when (it is )?(installed|available|present)|skip|absent|not installed'; then
+  pass "3b.0 CLAUDE.md itself says the local layer is skipped when the tooling is absent"
+else
+  fail "3b.0 CLAUDE.md itself says the local layer is skipped when the tooling is absent" \
+    "reads as unconditional; CONTRIBUTING.md is not synced to xcsh so the caveat must live here"
+fi
+
 ORDINALS='the first two|the first one|the second one|the third|the former|the latter|the first three'
 if grep -nEi "$ORDINALS" "$CLAUDE_MD" >/dev/null 2>&1; then
   fail "3b.1 CLAUDE.md states mechanisms without ordinal references" \
