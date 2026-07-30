@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-30T17:55:19Z",
-  "source_commit": "f0d2d9184d12f48f3f755d940b9b55b222ca5b29",
+  "generated_at": "2026-07-30T20:23:25Z",
+  "source_commit": "5d72c9ee9ceb836ab5a55fff7b9c25f02f9f73a3",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -29,8 +29,8 @@
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
       "dest": ".github/workflows/translation-audit.yml",
-      "sha": "55acc7fb2fb6ca8bfcf7da5440c1481fe4cbf0d4",
-      "size": 513
+      "sha": "154507926ae5e3a2c84651601822b8d615b46de7",
+      "size": 1760
     },
     ".github/PULL_REQUEST_TEMPLATE.md": {
       "src": ".github/PULL_REQUEST_TEMPLATE.md",
@@ -65,8 +65,8 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "ac10e66f062c535f2564662a3f4f5522e0609523",
-      "size": 28521
+      "sha": "5d25a41ca05db14adbce0a2d67d0dd04b3e15e33",
+      "size": 37142
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
@@ -95,8 +95,8 @@
     ".pre-commit-config.yaml": {
       "src": ".pre-commit-config.yaml",
       "dest": ".pre-commit-config.yaml",
-      "sha": "155d5801b260e0140dccb956a2206c2dba23272f",
-      "size": 10185
+      "sha": "ead16bf111f7daed6e022de66d0cbdb86fa0543c",
+      "size": 11054
     },
     ".yamllint.yaml": {
       "src": ".yamllint.yaml",
