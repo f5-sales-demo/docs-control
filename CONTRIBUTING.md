@@ -300,18 +300,28 @@ reviewer left behind.
    variable scoped to a subset leaves the rest with a job that silently never runs.
 2. Regenerate everything with `docs-translate --force` and commit. Expect roughly 4,320 files across
    the fleet.
-3. **Remove the `SUSPENDED:` comment blocks** from `workflows/translation-audit.yml` and the
-   `docs-translate` hook in `.pre-commit-config.yaml`, and let that sync downstream.
-   `tests/test-translation-suspension.sh` keys section 1 on those markers, so leaving them in place
-   fails the guard the moment the context comes back.
+3. **Un-gate both, and let that sync downstream.** In `workflows/translation-audit.yml`, delete the
+   `if: vars.TRANSLATIONS_ENABLED == 'true'` line *and* the `SUSPENDED:` comment block, returning the
+   job to unconditional. In `.pre-commit-config.yaml`, remove the `TRANSLATIONS_ENABLED` branch from
+   the `docs-translate` hook.
+
+   Delete the `if:`, do not merely set the variable. Leaving the condition in place makes organisation
+   variable visibility permanently load-bearing for CI: any repository the variable is not visible to
+   silently skips the job, and once the context is required again its pull requests wait forever for a
+   check that is never emitted. An unconditional job removes that whole class of failure — after this,
+   `TRANSLATIONS_ENABLED` governs only local generation, which fails visibly and cheaply.
+
+   `tests/test-translation-suspension.sh` keys section 1 on the `SUSPENDED:` marker, so leaving it in
+   place fails the guard the moment the context comes back.
 4. Confirm the audit actually reports on **every governed repository that receives the workflow**, not
    on one pull request. Three traps here, all of them load-bearing:
 
    - **One green PR proves one repo.** During the suspension a five-repository spot check came back
      clean while **9 of 38** still had the old branch protection, because enforcement fans out in
      batches of five. Re-adding the context on that evidence would have deadlocked nine repositories.
-   - **An old run proves nothing.** The last conclusion may predate the variable being set. Only count
-     runs created *after* you set it.
+   - **An old run proves nothing.** The last conclusion may predate the un-gating in step 3, or come
+     from a repository still running the gated workflow. Confirm the synced file no longer contains the
+     `if:` before trusting a run, and only count runs created after that.
    - **Some repos never receive this workflow at all.** Anything listed under `skip_files` for
      `translation-audit.yml` does not have the file — `terraform-provider-xcsh` skips it, and the path
      returns 404 there. Demanding a report from those repos is impossible, and it is exactly why they
@@ -319,22 +329,25 @@ reviewer left behind.
      *permanent* deadlock, not a transient one.
 
    ```bash
-   SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)   # capture BEFORE setting the variable
-   # ... set the variable, then:
+   SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)   # capture AFTER step 3 has synced
    SKIP=$(jq -r '.skip_files | to_entries[]
                  | select(any(.value[]; test("translation-audit"))) | .key' .claude/governance.json)
    while IFS= read -r r; do
-     grep -qxF "$r" <<<"$SKIP" && { printf '%-24s skipped (no workflow)\n' "$r"; continue; }
+     grep -qxF "$r" <<<"$SKIP" && { printf '%-24s n/a (no workflow)\n' "$r"; continue; }
+     # the synced file must be un-gated, or a green run proves nothing
+     gated=$(gh api "repos/f5-sales-demo/$r/contents/.github/workflows/translation-audit.yml" \
+               -q .content 2>/dev/null | base64 -d 2>/dev/null | grep -c 'TRANSLATIONS_ENABLED')
+     [ "${gated:-1}" -ne 0 ] && { printf '%-24s STILL GATED — wait for sync\n' "$r"; continue; }
      gh run list -R "f5-sales-demo/$r" --workflow=translation-audit.yml \
        --created ">$SINCE" --limit 1 --json conclusion \
-       -q '.[0].conclusion // "NO RUN SINCE VARIABLE WAS SET"' \
+       -q '.[0].conclusion // "NO RUN SINCE UN-GATING"' \
        | xargs printf '%-24s %s\n' "$r"
    done < <(jq -r '.[]' .github/config/downstream-repos.json)
    ```
 
-   Every non-skipped repository must show `success`. A `skipped` conclusion means the job's `if:`
-   evaluated false there — the variable is not visible to that repository, and re-adding the context
-   would deadlock it.
+   Every non-skipped repository must read `success`. Anything else — `STILL GATED`, `NO RUN SINCE
+   UN-GATING`, `skipped`, `failure` — means that repository will not emit the check, and re-adding the
+   context would deadlock it.
 
 5. **Only then** re-add `audit / Translation freshness` to
    `branch_protection[0].required_status_checks.contexts` — **and re-add

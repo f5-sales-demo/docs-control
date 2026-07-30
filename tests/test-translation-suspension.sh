@@ -154,7 +154,17 @@ fi
 # Section 1 keys on the SUSPENDED marker, so restoring must remove it. A
 # procedure that flips the variable and the context but leaves the marker in place
 # would fail 1.1 immediately after a correct restore.
-if grep -qi 'SUSPENDED' "$CONTRIBUTING" && grep -qiE 'remove the .?SUSPENDED|delete the .?SUSPENDED' "$CONTRIBUTING"; then
+# Match the marker token exactly, case-sensitively, and flattened.
+#
+# Three earlier attempts got this wrong, in both directions. Requiring the verb
+# adjacent to the marker missed correct prose. Widening to a sentence broke on the
+# period inside `vars.TRANSLATIONS_ENABLED`. Widening further with -i made it
+# vacuous, because the document says "suspended" nine times in ordinary prose and
+# something always matched. `SUSPENDED:` with its colon is the literal marker and
+# appears only where the procedure discusses it, so it is the discriminating token.
+# Flattening is still needed: the verb and the marker wrap onto different lines and
+# grep is line-based.
+if tr '\n' ' ' <"$CONTRIBUTING" | grep -qE '(remove|delete|Remove|Delete).{0,200}SUSPENDED:'; then
   pass "3.3 restore procedure removes the SUSPENDED markers that section 1 keys on"
 else
   fail "3.3 restore procedure removes the SUSPENDED markers that section 1 keys on" \
