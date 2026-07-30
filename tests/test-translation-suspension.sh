@@ -54,31 +54,42 @@ REQUIRED=$(jq -r --arg c "$CONTEXT" '
   | index($c) != null
 ' "$REPO_SETTINGS")
 
-# Is the stub's audit job gated behind a variable?
-if grep -qE '^\s*if:\s*vars\.[A-Z_]+ == .true.' "$AUDIT_STUB"; then
-  GATED=true
+# Is the audit intentionally suspended? Read the declared intent, not the
+# presence of a condition.
+#
+# The obvious test — "does the job carry an `if: vars.X == 'true'`" — is wrong,
+# and wrong in the direction that breaks restoration. That condition is still
+# present when translations are switched back on; only the variable's value
+# changes, and a static test cannot see it. Treating any conditioned job as
+# gated off would fail the moment someone follows the restore procedure, which
+# legitimately ends with the context required AND the condition present.
+#
+# The `SUSPENDED:` marker states intent in the repository, changes in the same
+# commit as the condition, and is the convention already used in
+# workflows/code-review.yml. Restoring translations removes both together.
+if grep -q 'SUSPENDED:' "$AUDIT_STUB"; then
+  SUSPENDED=true
 else
-  GATED=false
+  SUSPENDED=false
 fi
 
-if [ "$REQUIRED" = "true" ] && [ "$GATED" = "true" ]; then
-  fail "1.1 required context and gated-off workflow do not coexist" \
-    "'$CONTEXT' is a required check but its job is gated off — it will never report and every PR deadlocks"
+if [ "$REQUIRED" = "true" ] && [ "$SUSPENDED" = "true" ]; then
+  fail "1.1 a suspended audit is never a required context" \
+    "'$CONTEXT' is required while the audit is marked SUSPENDED — it will never report and every PR deadlocks"
 else
-  pass "1.1 required context and gated-off workflow do not coexist (required=$REQUIRED gated=$GATED)"
+  pass "1.1 a suspended audit is never a required context (required=$REQUIRED suspended=$SUSPENDED)"
 fi
 
-# The safe states are both acceptable, but say which one we are in, so a reader
-# of CI output can tell suspended from active without opening two files.
-if [ "$GATED" = "true" ] && [ "$REQUIRED" = "false" ]; then
-  pass "1.2 suspended state is coherent: workflow gated off, context not required"
-elif [ "$GATED" = "false" ] && [ "$REQUIRED" = "true" ]; then
-  pass "1.2 active state is coherent: workflow runs, context required"
-elif [ "$GATED" = "false" ] && [ "$REQUIRED" = "false" ]; then
-  # Wasteful rather than dangerous: the audit runs and reports but gates nothing.
-  pass "1.2 workflow runs but gates nothing — safe, though the audit is advisory only"
+# Both safe states are legitimate. Name which one we are in, so CI output says
+# suspended or active without a reader opening two files.
+if [ "$SUSPENDED" = "true" ] && [ "$REQUIRED" = "false" ]; then
+  pass "1.2 suspended state is coherent: audit off, context not required"
+elif [ "$SUSPENDED" = "false" ] && [ "$REQUIRED" = "true" ]; then
+  pass "1.2 restored state is coherent: audit active, context required"
 else
-  fail "1.2 suspension state is coherent" "unreachable combination: required=$REQUIRED gated=$GATED"
+  # Audit active but gating nothing: wasteful rather than dangerous, and it is the
+  # transient state between the two halves of a restore.
+  pass "1.2 audit active but not required — safe, advisory only (mid-restore)"
 fi
 
 # ════════════════════════════════════════════════════════════════════
