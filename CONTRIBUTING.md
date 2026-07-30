@@ -296,18 +296,39 @@ reviewer left behind.
    Setting just the organisation variable is the trap: the `--force` run in step 2 works, because you
    run it directly, and then every later English edit silently skips generation. Nothing complains
    until the audit is required again, at which point pull requests fail fleet-wide.
+   Make sure the organisation variable is visible to **all** governed repositories. An organisation
+   variable scoped to a subset leaves the rest with a job that silently never runs.
 2. Regenerate everything with `docs-translate --force` and commit. Expect roughly 4,320 files across
    the fleet.
-3. Confirm `audit / Translation freshness` reports green on a real pull request.
-4. **Only then** re-add `audit / Translation freshness` to
+3. **Remove the `SUSPENDED:` comment blocks** from `workflows/translation-audit.yml` and the
+   `docs-translate` hook in `.pre-commit-config.yaml`, and let that sync downstream.
+   `tests/test-translation-suspension.sh` keys section 1 on those markers, so leaving them in place
+   fails the guard the moment the context comes back.
+4. Confirm the audit actually reports on **every governed repository**, not on one pull request. One
+   green PR proves one repo. During the suspension a five-repository spot check came back clean while
+   **9 of 38** still had the old branch protection, because enforcement fans out in batches of five —
+   re-adding the context on that evidence would have deadlocked nine repositories.
+
+   ```bash
+   # every governed repo must show a translation-audit run on a recent PR
+   while IFS= read -r r; do
+     n=$(gh run list -R "f5-sales-demo/$r" --workflow=translation-audit.yml \
+           --limit 1 --json conclusion -q '.[0].conclusion // "none"')
+     printf '%-24s %s\n' "$r" "$n"
+   done < <(jq -r '.[]' .github/config/downstream-repos.json)
+   ```
+
+5. **Only then** re-add `audit / Translation freshness` to
    `branch_protection[0].required_status_checks.contexts` — **and re-add
    `excluded_required_contexts: ["audit / Translation freshness"]` to the `terraform-provider-xcsh`
    and `code-review` overrides**, which were removed with the base context because an exclusion that
    matches no required context silently no-ops. Without them those two repositories would gain a
    check they were deliberately exempt from.
 
-Re-adding the required context before step 3 makes a check that never reports mandatory, which blocks
-every pull request until an administrator intervenes.
+Re-adding the required context before step 4 makes a check that never reports mandatory, which blocks
+every pull request until an administrator intervenes. The guard test cannot catch this for you: it
+reads files, and no static check can see whether an organisation variable is set in every repository.
+Step 4 is the only thing standing between a restore and a fleet-wide outage.
 
 ## Branch Protection Rules
 

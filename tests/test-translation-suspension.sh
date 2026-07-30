@@ -151,6 +151,27 @@ else
     "the org variable reaches Actions only; the pre-commit hook reads the local environment"
 fi
 
+# Section 1 keys on the SUSPENDED marker, so restoring must remove it. A
+# procedure that flips the variable and the context but leaves the marker in place
+# would fail 1.1 immediately after a correct restore.
+if grep -qi 'SUSPENDED' "$CONTRIBUTING" && grep -qiE 'remove the .?SUSPENDED|delete the .?SUSPENDED' "$CONTRIBUTING"; then
+  pass "3.3 restore procedure removes the SUSPENDED markers that section 1 keys on"
+else
+  fail "3.3 restore procedure removes the SUSPENDED markers that section 1 keys on" \
+    "leaving the marker in place fails 1.1 straight after a correct restore"
+fi
+
+# One green pull request does not prove the audit reports everywhere. During #867
+# a five-repo spot check came back clean while 9 of 38 repos were still stale,
+# because enforcement fans out in batches. Re-adding the context on that evidence
+# deadlocks whichever repos have not caught up.
+if grep -qiE 'all 38|every governed repo|all governed repo' "$CONTRIBUTING"; then
+  pass "3.4 restore procedure requires fleet-wide confirmation, not a single PR"
+else
+  fail "3.4 restore procedure requires fleet-wide confirmation, not a single PR" \
+    "a sample can be green while repos lag; the context must not be re-added on that evidence"
+fi
+
 # The ordering rule is the load-bearing part of the procedure. Assert the two
 # substantive facts rather than one exact phrase: that re-adding the context is
 # explicitly sequenced last, and that the consequence of getting it wrong is
@@ -158,9 +179,9 @@ fi
 # the rule three different ways.
 if grep -qiE 'only then|order matters' "$CONTRIBUTING" &&
   grep -qi 'deadlock' "$CONTRIBUTING"; then
-  pass "3.3 restore procedure sequences the context last and names the deadlock consequence"
+  pass "3.5 restore procedure sequences the context last and names the deadlock consequence"
 else
-  fail "3.3 restore procedure sequences the context last and names the deadlock consequence" \
+  fail "3.5 restore procedure sequences the context last and names the deadlock consequence" \
     "re-adding the required context before the check can pass deadlocks every open PR"
 fi
 
