@@ -394,6 +394,10 @@ jobs:
         if: hashFiles('tests/test-review-layer-routing.sh') != ''
         run: bash tests/test-review-layer-routing.sh
 
+      - name: Run translation-suspension test
+        if: hashFiles('tests/test-translation-suspension.sh') != ''
+        run: bash tests/test-translation-suspension.sh
+
       - name: Run locale-lint test
         if: hashFiles('tests/test-locale-lint.sh') != ''
         run: bash tests/test-locale-lint.sh
