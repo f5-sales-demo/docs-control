@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-30T20:23:25Z",
-  "source_commit": "5d72c9ee9ceb836ab5a55fff7b9c25f02f9f73a3",
+  "generated_at": "2026-07-30T21:41:15Z",
+  "source_commit": "d79fad4395c0de5806e9d4e431368069b6604eda",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -65,14 +65,20 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "5d25a41ca05db14adbce0a2d67d0dd04b3e15e33",
-      "size": 37142
+      "sha": "32efee7efe0f69306a79eb6f12ced3b3b120a808",
+      "size": 37813
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "7b014b79366f1082ffc16dbb0f80ee6d3d46b314",
-      "size": 7446
+      "sha": "e9cb53db5f247c3705a5666a0939e9c80d434437",
+      "size": 7823
+    },
+    "STYLE_GUIDE.md": {
+      "src": "STYLE_GUIDE.md",
+      "dest": "STYLE_GUIDE.md",
+      "sha": "9962e1aa5881713e58fca88769f1b366ae6eda84",
+      "size": 15432
     },
     ".editorconfig": {
       "src": ".editorconfig",
@@ -239,8 +245,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "2ece05e3dd01ac2b3988b7c9b2c8393e31aa4d08",
-      "size": 4697
+      "sha": "7fb97607677d59584f7281086ada33c3126409b8",
+      "size": 4719
     },
     ".claude/settings.json": {
       "src": ".claude/settings.json",
