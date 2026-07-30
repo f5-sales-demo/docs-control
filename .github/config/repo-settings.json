@@ -136,6 +136,10 @@
         "dest": "CLAUDE.md"
       },
       {
+        "src": "STYLE_GUIDE.md",
+        "dest": "STYLE_GUIDE.md"
+      },
+      {
         "src": ".editorconfig",
         "dest": ".editorconfig"
       },
