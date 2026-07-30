@@ -146,6 +146,32 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 5: CLAUDE.md stays small enough to be read (issue #855)
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 5: CLAUDE.md stays within its size budget ==="
+
+# CLAUDE.md loads at the start of every session and again in every subagent's
+# own context. Anthropic's Claude Code best practices: "Bloated CLAUDE.md files
+# cause Claude to ignore your actual instructions" and "If Claude keeps doing
+# something you don't want despite having a rule against it, the file is
+# probably too long and the rule is getting lost."
+#
+# This file grew 7x in three weeks (1,449 bytes on 2026-07-05 to 10,121 on
+# 2026-07-27) one well-intentioned rule at a time, and no single PR looked
+# unreasonable. The budget makes the next increment a conscious decision: to add
+# something, prune something. Raising this number is not the fix.
+CLAUDE_MD_MAX_BYTES=8500
+CLAUDE_MD_BYTES=$(wc -c <"$CLAUDE_MD" | tr -d ' ')
+
+if [ "$CLAUDE_MD_BYTES" -le "$CLAUDE_MD_MAX_BYTES" ]; then
+  pass "5.1 CLAUDE.md is ${CLAUDE_MD_BYTES}B, within the ${CLAUDE_MD_MAX_BYTES}B budget"
+else
+  fail "5.1 CLAUDE.md is within its ${CLAUDE_MD_MAX_BYTES}B budget" \
+    "it is ${CLAUDE_MD_BYTES}B — prune before adding; bloat makes Claude ignore the rules that matter"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 echo ""
 echo "════════════════════════════════════════════════════════════════"
 echo "Tests run: $TESTS_RUN | Passed: $PASS | Failed: $FAIL"
