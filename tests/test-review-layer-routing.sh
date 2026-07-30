@@ -227,28 +227,30 @@ echo "=== Section 4b: no governed repo receives CLAUDE.md but skips CONTRIBUTING
 # guidance into CLAUDE.md — which fights the size budget in Section 5. xcsh was
 # exactly this case until its repo-specific content moved to DEVELOPING.md
 # (f5-sales-demo/xcsh#2605) and this opt-out was removed.
-# Checking skip_files alone is not enough. sync-managed-files.yml decides
-# delivery from three inputs: presence in the manifest, an optional per-file
-# only_repos allowlist (workflow lines ~399-404), and the per-repo skip_files
-# opt-out. Dropping CONTRIBUTING.md from the manifest, or restricting it with
-# only_repos, would deploy CLAUDE.md without its dependency while a skip_files
-# check stayed green. Model the same three rules the sync applies.
+# Checking skip_files alone is not enough. sync-managed-files.yml iterates
+# repo-settings.json's managed_files.files[] and drops a file for a repo when
+# either skip_files lists it or the entry carries an only_repos allowlist that
+# excludes the repo (workflow lines ~387-405). Model those exact two rules
+# against that exact source.
+#
+# Deliberately NOT read from managed-files-manifest.json: that artifact keeps
+# only src/dest/sha/size and discards only_repos, so a real allowlist added in
+# repo-settings.json would be invisible there and this check would pass while
+# the sync skipped the file.
 GOVERNANCE="$REPO_ROOT/.claude/governance.json"
 REPO_SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
-MANIFEST_FILE="$REPO_ROOT/.github/config/managed-files-manifest.json"
 DOWNSTREAM="$REPO_ROOT/.github/config/downstream-repos.json"
 
 OFFENDERS=$(
   jq -n -r \
-    --slurpfile manifest "$MANIFEST_FILE" \
     --slurpfile settings "$REPO_SETTINGS" \
     --slurpfile repos "$DOWNSTREAM" '
-    ($manifest[0].files // {})                  as $files    |
-    ($settings[0].managed_files.skip_files // {}) as $skips   |
-    ($repos[0])                                 as $all      |
-    # receives(repo, file): in manifest, allowed by only_repos, not skipped
+    ($settings[0].managed_files.files // [])      as $files |
+    ($settings[0].managed_files.skip_files // {}) as $skips |
+    ($repos[0])                                   as $all   |
+    # receives(repo, dest): routed to this repo by the same rules the sync applies
     def receives($repo; $name):
-      ($files[$name] // null) as $entry |
+      ([$files[] | select(.dest == $name)] | first) as $entry |
       if $entry == null then false
       elif ($entry.only_repos // null) != null and (($entry.only_repos | index($repo)) == null) then false
       elif (($skips[$repo] // []) | index($name)) != null then false
