@@ -33,7 +33,7 @@
       "enforce_admins": true,
       "required_status_checks": {
         "strict": false,
-        "contexts": ["check / Check linked issues", "lint / Lint Code Base", "audit / Translation freshness"],
+        "contexts": ["check / Check linked issues", "lint / Lint Code Base"],
         "self_contexts": ["Check linked issues", "Lint Code Base"]
       },
       "required_pull_request_reviews": null,
@@ -60,12 +60,6 @@
     },
     "console": {
       "additional_contexts": ["Validate Catalog Schemas"]
-    },
-    "terraform-provider-xcsh": {
-      "excluded_required_contexts": ["audit / Translation freshness"]
-    },
-    "code-review": {
-      "excluded_required_contexts": ["audit / Translation freshness"]
     }
   },
   "topics": [],
