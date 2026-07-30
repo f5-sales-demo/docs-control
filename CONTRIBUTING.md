@@ -251,6 +251,49 @@ problems while they are still cheap to fix — in a spec or a plan, before any c
 The two layers are complementary: the local layer catches issues before the pull request exists and
 costs nothing when it is wrong, while CI remains the gate that decides whether a change merges.
 
+## Translations (suspended)
+
+> **Suspended during development.** Translation generation calls a model API once per locale per
+> changed English file — twelve calls for every edit under `docs/en/`. That cost is not justified
+> while the documentation is still churning, so generation is off and the freshness audit no longer
+> gates merges. Translations will be regenerated as a deliberate effort before go-live.
+
+How the three parts fit together, because only one of them costs anything:
+
+| Part | Where | Cost |
+| ---- | ----- | ---- |
+| Generation | the `docs-translate` pre-commit hook, on `docs/en/**/*.md[x]` | the entire spend |
+| Freshness audit | `.github/workflows/translation-audit.yml` — compares each translation's `i18n.sourceHash` against the SHA-256 of its English source | none; it performs no translation |
+| Required context | `audit / Translation freshness` in branch protection | none; it made the audit blocking |
+
+What this means for you now:
+
+- **Existing translations under `docs/<locale>/` stay in place and will drift out of date.** That is
+  expected. Do not regenerate them individually, and do not treat the drift as a defect to fix.
+- Editing `docs/en/` no longer requires a matching translation update.
+- Both the generation hook and the audit are gated on the `TRANSLATIONS_ENABLED` variable. Unset means
+  off, so nothing spends money by accident.
+
+### Restoring translations
+
+Order matters, and getting it wrong deadlocks every open pull request — the same trap the suspended
+reviewer left behind.
+
+1. Set the `TRANSLATIONS_ENABLED` organisation variable to `true`, and export `ANTHROPIC_API_KEY`
+   locally. This re-enables both the generation hook and the audit workflow.
+2. Regenerate everything with `docs-translate --force` and commit. Expect roughly 4,320 files across
+   the fleet.
+3. Confirm `audit / Translation freshness` reports green on a real pull request.
+4. **Only then** re-add `audit / Translation freshness` to
+   `branch_protection[0].required_status_checks.contexts` — **and re-add
+   `excluded_required_contexts: ["audit / Translation freshness"]` to the `terraform-provider-xcsh`
+   and `code-review` overrides**, which were removed with the base context because an exclusion that
+   matches no required context silently no-ops. Without them those two repositories would gain a
+   check they were deliberately exempt from.
+
+Re-adding the required context before step 3 makes a check that never reports mandatory, which blocks
+every pull request until an administrator intervenes.
+
 ## Branch Protection Rules
 
 The `main` branch is protected. The following rules are enforced:
