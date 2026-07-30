@@ -216,6 +216,70 @@ $(jq -r '.permissions.deny // [] | .[]' "$SETTINGS" |
 EOF
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 4b: CLAUDE.md's cross-references must resolve everywhere (issue #859)
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 4b: no governed repo receives CLAUDE.md but skips CONTRIBUTING.md ==="
+
+# CLAUDE.md is synced to every governed repo and points into CONTRIBUTING.md for
+# detail it deliberately does not carry. A repo that receives one but skips the
+# other gets dangling pointers, and the only safe response is to inline the
+# guidance into CLAUDE.md — which fights the size budget in Section 5. xcsh was
+# exactly this case until its repo-specific content moved to DEVELOPING.md
+# (f5-sales-demo/xcsh#2605) and this opt-out was removed.
+# Checking skip_files alone is not enough. sync-managed-files.yml iterates
+# repo-settings.json's managed_files.files[] and drops a file for a repo when
+# either skip_files lists it or the entry carries an only_repos allowlist that
+# excludes the repo (workflow lines ~387-405). Model those exact two rules
+# against that exact source.
+#
+# Deliberately NOT read from managed-files-manifest.json: that artifact keeps
+# only src/dest/sha/size and discards only_repos, so a real allowlist added in
+# repo-settings.json would be invisible there and this check would pass while
+# the sync skipped the file.
+GOVERNANCE="$REPO_ROOT/.claude/governance.json"
+REPO_SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
+DOWNSTREAM="$REPO_ROOT/.github/config/downstream-repos.json"
+
+OFFENDERS=$(
+  jq -n -r \
+    --slurpfile settings "$REPO_SETTINGS" \
+    --slurpfile repos "$DOWNSTREAM" '
+    ($settings[0].managed_files.files // [])      as $files |
+    ($settings[0].managed_files.skip_files // {}) as $skips |
+    ($repos[0])                                   as $all   |
+    # receives(repo, dest): routed to this repo by the same rules the sync applies
+    def receives($repo; $name):
+      ([$files[] | select(.dest == $name)] | first) as $entry |
+      if $entry == null then false
+      elif ($entry.only_repos // null) != null and (($entry.only_repos | index($repo)) == null) then false
+      elif (($skips[$repo] // []) | index($name)) != null then false
+      else true end;
+    $all
+    | map(select(receives(.; "CLAUDE.md") and (receives(.; "CONTRIBUTING.md") | not)))
+    | .[]
+  ' 2>/dev/null | tr '\n' ' '
+)
+
+if [ -z "${OFFENDERS// /}" ]; then
+  pass "4b.1 every repo receiving CLAUDE.md also receives CONTRIBUTING.md"
+else
+  fail "4b.1 every repo receiving CLAUDE.md also receives CONTRIBUTING.md" \
+    "CLAUDE.md points into CONTRIBUTING.md; these repos get one without the other: ${OFFENDERS}"
+fi
+
+# governance.json is the copy the sync and preflight read, so the two skip lists
+# must not drift apart.
+if diff -q \
+  <(jq -S '.skip_files' "$GOVERNANCE") \
+  <(jq -S '.managed_files.skip_files' "$REPO_SETTINGS") >/dev/null 2>&1; then
+  pass "4b.2 governance.json and repo-settings.json skip lists agree"
+else
+  fail "4b.2 governance.json and repo-settings.json skip lists agree" \
+    "the two copies of skip_files have drifted; sync and preflight would disagree"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 5: CLAUDE.md stays small enough to be read (issue #855)
 # ════════════════════════════════════════════════════════════════════
 echo ""

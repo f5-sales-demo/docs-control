@@ -79,7 +79,6 @@
       "xcsh": [
         "biome.json",
         "LICENSE",
-        "CONTRIBUTING.md",
         ".ruff.toml",
         ".python-lint",
         ".mypy.ini",
