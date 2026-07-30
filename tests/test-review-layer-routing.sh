@@ -227,27 +227,55 @@ echo "=== Section 4b: no governed repo receives CLAUDE.md but skips CONTRIBUTING
 # guidance into CLAUDE.md — which fights the size budget in Section 5. xcsh was
 # exactly this case until its repo-specific content moved to DEVELOPING.md
 # (f5-sales-demo/xcsh#2605) and this opt-out was removed.
+# Checking skip_files alone is not enough. sync-managed-files.yml decides
+# delivery from three inputs: presence in the manifest, an optional per-file
+# only_repos allowlist (workflow lines ~399-404), and the per-repo skip_files
+# opt-out. Dropping CONTRIBUTING.md from the manifest, or restricting it with
+# only_repos, would deploy CLAUDE.md without its dependency while a skip_files
+# check stayed green. Model the same three rules the sync applies.
 GOVERNANCE="$REPO_ROOT/.claude/governance.json"
 REPO_SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
+MANIFEST_FILE="$REPO_ROOT/.github/config/managed-files-manifest.json"
+DOWNSTREAM="$REPO_ROOT/.github/config/downstream-repos.json"
 
-for cfg_desc in "governance.json:$GOVERNANCE:.skip_files" \
-  "repo-settings.json:$REPO_SETTINGS:.managed_files.skip_files"; do
-  cfg_name="${cfg_desc%%:*}"
-  rest="${cfg_desc#*:}"
-  cfg_path="${rest%%:*}"
-  cfg_query="${rest#*:}"
+OFFENDERS=$(
+  jq -n -r \
+    --slurpfile manifest "$MANIFEST_FILE" \
+    --slurpfile settings "$REPO_SETTINGS" \
+    --slurpfile repos "$DOWNSTREAM" '
+    ($manifest[0].files // {})                  as $files    |
+    ($settings[0].managed_files.skip_files // {}) as $skips   |
+    ($repos[0])                                 as $all      |
+    # receives(repo, file): in manifest, allowed by only_repos, not skipped
+    def receives($repo; $name):
+      ($files[$name] // null) as $entry |
+      if $entry == null then false
+      elif ($entry.only_repos // null) != null and (($entry.only_repos | index($repo)) == null) then false
+      elif (($skips[$repo] // []) | index($name)) != null then false
+      else true end;
+    $all
+    | map(select(receives(.; "CLAUDE.md") and (receives(.; "CONTRIBUTING.md") | not)))
+    | .[]
+  ' 2>/dev/null | tr '\n' ' '
+)
 
-  offenders=$(jq -r --arg q "$cfg_query" \
-    "${cfg_query} // {} | to_entries | map(select(.value | index(\"CONTRIBUTING.md\"))) | .[].key" \
-    "$cfg_path" 2>/dev/null | tr '\n' ' ')
+if [ -z "${OFFENDERS// /}" ]; then
+  pass "4b.1 every repo receiving CLAUDE.md also receives CONTRIBUTING.md"
+else
+  fail "4b.1 every repo receiving CLAUDE.md also receives CONTRIBUTING.md" \
+    "CLAUDE.md points into CONTRIBUTING.md; these repos get one without the other: ${OFFENDERS}"
+fi
 
-  if [ -z "${offenders// /}" ]; then
-    pass "4b.1 $cfg_name has no CONTRIBUTING.md opt-out"
-  else
-    fail "4b.1 $cfg_name has no CONTRIBUTING.md opt-out" \
-      "these repos get CLAUDE.md but not the file it points into: ${offenders}"
-  fi
-done
+# governance.json is the copy the sync and preflight read, so the two skip lists
+# must not drift apart.
+if diff -q \
+  <(jq -S '.skip_files' "$GOVERNANCE") \
+  <(jq -S '.managed_files.skip_files' "$REPO_SETTINGS") >/dev/null 2>&1; then
+  pass "4b.2 governance.json and repo-settings.json skip lists agree"
+else
+  fail "4b.2 governance.json and repo-settings.json skip lists agree" \
+    "the two copies of skip_files have drifted; sync and preflight would disagree"
+fi
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5: CLAUDE.md stays small enough to be read (issue #855)
