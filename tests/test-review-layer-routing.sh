@@ -167,17 +167,40 @@ else
   pass "3b.1 CLAUDE.md states mechanisms without ordinal references"
 fi
 
-# The mechanism claims must still be present and correctly paired, checked
-# against the real configuration rather than against the prose's own ordering.
-for denied in "code-review:code-review" "pr-review-toolkit:review-pr"; do
-  if jq -e --arg s "Skill($denied)" '.permissions.deny // [] | index($s)' "$SETTINGS" >/dev/null 2>&1 &&
-    grep -qF "$denied" "$CLAUDE_MD"; then
-    pass "3b.2 $denied is denied in settings and named in CLAUDE.md"
+# Banning ordinals alone is not enough: the mechanisms could be inverted in
+# plain prose and still pass. Check the pairing itself. The sentence states two
+# mechanisms in separate semicolon-delimited clauses, so read each clause and
+# require that it names the tools that mechanism actually covers — and none of
+# the tools it does not.
+MECH_LINE=$(grep 'disable-model-invocation' "$CLAUDE_MD" | head -1)
+DENY_CLAUSE=$(printf '%s' "$MECH_LINE" | tr ';' '\n' | grep -i 'denies' | head -1)
+DMI_CLAUSE=$(printf '%s' "$MECH_LINE" | tr ';' '\n' | grep -F 'disable-model-invocation' | head -1)
+
+# The flagged tool belongs to the disable-model-invocation clause, never the deny one.
+DMI_TOOL="code-review-f5:code-review"
+if printf '%s' "$DMI_CLAUSE" | grep -qF "$DMI_TOOL" &&
+  ! printf '%s' "$DENY_CLAUSE" | grep -qF "$DMI_TOOL"; then
+  pass "3b.2 $DMI_TOOL is paired with disable-model-invocation, not with the deny rules"
+else
+  fail "3b.2 $DMI_TOOL is paired with disable-model-invocation, not with the deny rules" \
+    "the mechanisms are inverted: it is flagged in the vendored plugin, not denied in settings"
+fi
+
+# Every reviewer genuinely in the deny list belongs to the deny clause, and must
+# not be described as using the flag instead.
+while IFS= read -r denied; do
+  case "$denied" in *:*) : ;; *) continue ;; esac
+  if printf '%s' "$DENY_CLAUSE" | grep -qF "$denied" &&
+    ! printf '%s' "$DMI_CLAUSE" | grep -qF "$denied"; then
+    pass "3b.3 $denied is paired with the settings.json deny rules"
   else
-    fail "3b.2 $denied is denied in settings and named in CLAUDE.md" \
-      "the deny rule and the documentation disagree"
+    fail "3b.3 $denied is paired with the settings.json deny rules" \
+      "settings.json denies it, but CLAUDE.md attributes it to another mechanism"
   fi
-done
+done <<EOF
+$(jq -r '.permissions.deny // [] | .[]' "$SETTINGS" |
+  sed -n 's/^Skill(\(.*review.*\))$/\1/p')
+EOF
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5: CLAUDE.md stays small enough to be read (issue #855)
