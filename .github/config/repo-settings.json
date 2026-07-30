@@ -60,6 +60,24 @@
     },
     "console": {
       "additional_contexts": ["Validate Catalog Schemas"]
+    },
+    "terraform-provider-xcsh": {
+      "additional_contexts": [
+        "Build and Test / Build and Test",
+        "Build and Test / Lint",
+        "Mock Tests (Parallel)",
+        "Test Summary",
+        "Validate Docs Generation",
+        "Validate Mock Fixtures",
+        "Validate Shell Scripts",
+        "Validate Terraform Examples"
+      ]
+    },
+    "mcn": {
+      "additional_contexts": ["lint / Shell Unit Tests"]
+    },
+    "api-specs-enriched": {
+      "additional_contexts": ["Run pytest suite"]
     }
   },
   "topics": [],

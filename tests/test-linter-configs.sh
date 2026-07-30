@@ -173,6 +173,53 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 7d: additional_contexts must name checks that ALWAYS run
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 7d: additional_contexts name unconditional checks ==="
+
+# A required context that never reports does not fail — it blocks forever, with
+# "Expected — Waiting for status to be reported". So a job carrying a condition
+# that can skip must NOT be required until the condition is moved inside the job
+# and it always reports.
+#
+# These two were audited for #862 and deliberately left out. Each is a real check
+# that has already caught a real defect, and each needs its workflow changed first:
+#
+#   Constitution Check (terraform-provider-xcsh)
+#     if: github.event_name == 'pull_request' &&
+#         !startsWith(github.head_ref, 'auto-generate/') &&
+#         !startsWith(github.head_ref, 'auto-regenerate/') &&
+#         github.head_ref != 'docs/auto-update' && github.head_ref != 'openapi-update'
+#     Skips on the bot branches that legitimately commit generated files —
+#     precisely the branches it must not block.
+#
+#   Contract-diff gate (api-specs-enriched)
+#     if: ${{ !startsWith(github.head_ref, 'release/') }}
+#     Skips on release branches.
+#
+# Requiring either today would deadlock those PRs. Remove the name from this list
+# only together with the workflow change that makes the job always report.
+SKIPPABLE="Constitution Check
+Contract-diff gate"
+WRONGLY_REQUIRED=""
+while IFS= read -r name; do
+  [ -z "$name" ] && continue
+  if jq -e --arg n "$name" \
+      '[.repo_overrides[] | .additional_contexts // [] | .[]] | index($n) != null' \
+      "$REPO_SETTINGS" >/dev/null; then
+    WRONGLY_REQUIRED="${WRONGLY_REQUIRED}  - ${name}\n"
+  fi
+done < <(printf '%s\n' "$SKIPPABLE")
+
+if [ -z "$WRONGLY_REQUIRED" ]; then
+  pass "7d.1 no additional_contexts entry names a job that can skip"
+else
+  fail "7d.1 no additional_contexts entry names a job that can skip" \
+    "these jobs carry a branch condition and would block forever:\n$WRONGLY_REQUIRED"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 5e: super-linter disables validators not applicable to the
 #             ecosystem's language mix (TS/Rust/Python/Markdown/Astro)
 # ════════════════════════════════════════════════════════════════════
