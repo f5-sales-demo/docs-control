@@ -126,6 +126,20 @@ for repo in terraform-provider-xcsh code-review; do
   fi
 done
 
+# TRANSLATIONS_ENABLED is one name for two independent switches, and conflating
+# them silently half-restores the system. The organisation variable reaches only
+# the Actions `vars` context, so it enables the audit workflow; the pre-commit
+# hook reads the developer's local process environment, which no organisation
+# variable sets. A procedure that mentions only the variable leaves generation off
+# — the first `--force` run works, then every later English edit silently skips
+# translation, and the failure surfaces only once the audit is required again.
+if grep -q 'export TRANSLATIONS_ENABLED' "$CONTRIBUTING"; then
+  pass "3.2 restore procedure sets TRANSLATIONS_ENABLED locally, not just as an org variable"
+else
+  fail "3.2 restore procedure sets TRANSLATIONS_ENABLED locally, not just as an org variable" \
+    "the org variable reaches Actions only; the pre-commit hook reads the local environment"
+fi
+
 # The ordering rule is the load-bearing part of the procedure. Assert the two
 # substantive facts rather than one exact phrase: that re-adding the context is
 # explicitly sequenced last, and that the consequence of getting it wrong is
@@ -133,9 +147,9 @@ done
 # the rule three different ways.
 if grep -qiE 'only then|order matters' "$CONTRIBUTING" &&
   grep -qi 'deadlock' "$CONTRIBUTING"; then
-  pass "3.2 restore procedure sequences the context last and names the deadlock consequence"
+  pass "3.3 restore procedure sequences the context last and names the deadlock consequence"
 else
-  fail "3.2 restore procedure sequences the context last and names the deadlock consequence" \
+  fail "3.3 restore procedure sequences the context last and names the deadlock consequence" \
     "re-adding the required context before the check can pass deadlocks every open PR"
 fi
 

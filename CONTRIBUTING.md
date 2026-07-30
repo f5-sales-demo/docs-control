@@ -279,8 +279,23 @@ What this means for you now:
 Order matters, and getting it wrong deadlocks every open pull request — the same trap the suspended
 reviewer left behind.
 
-1. Set the `TRANSLATIONS_ENABLED` organisation variable to `true`, and export `ANTHROPIC_API_KEY`
-   locally. This re-enables both the generation hook and the audit workflow.
+1. Turn on **both** switches. `TRANSLATIONS_ENABLED` is one name for two independent settings, and
+   setting only one half-restores the system:
+
+   ```bash
+   # Generation — the pre-commit hook reads your local process environment.
+   # No organisation variable sets this; it must be exported where you commit.
+   export TRANSLATIONS_ENABLED=true
+   export ANTHROPIC_API_KEY=...
+   ```
+
+   Then set the `TRANSLATIONS_ENABLED` **organisation variable** to `true`, which is what the audit
+   workflow reads — an organisation variable is exposed to Actions through the `vars` context only, so
+   it never reaches the hook on your machine.
+
+   Setting just the organisation variable is the trap: the `--force` run in step 2 works, because you
+   run it directly, and then every later English edit silently skips generation. Nothing complains
+   until the audit is required again, at which point pull requests fail fleet-wide.
 2. Regenerate everything with `docs-translate --force` and commit. Expect roughly 4,320 files across
    the fleet.
 3. Confirm `audit / Translation freshness` reports green on a real pull request.
