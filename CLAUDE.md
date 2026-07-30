@@ -26,7 +26,7 @@ A hook blocks direct edits — open an issue in docs-control instead.
 Reviewing a **spec or plan** is not reviewing a **pull-request diff**. Pick by what you are reviewing, not by the word "review". Full detail: CONTRIBUTING.md, "Automated code review".
 
 - **Local, pre-PR — advisory, never a gate.** Use `codex:verified-code-review`: `review-doc --kind spec|plan` for a document, `adversarial-review` for a branch. Verify each finding against this codebase before acting, and report the ones you dismissed and why.
-- **Never** use a PR-diff reviewer for a spec, plan, or local branch — not `code-review:code-review`, `code-review-f5:code-review`, `pr-review-toolkit:review-pr`, `/review`, or `/security-review`. The first two are denied in `.claude/settings.json` and the third is `disable-model-invocation`; the built-ins are on you.
+- **Never** use a PR-diff reviewer for a spec, plan, or local branch. `.claude/settings.json` denies `code-review:code-review` and `pr-review-toolkit:review-pr`; `code-review-f5:code-review` is marked `disable-model-invocation`. The built-ins `/review` and `/security-review` cannot be denied — not selecting them is on you.
 - **CI** — the `review / claude-review` diff reviewer is **suspended**: not running, not required. Do not wait for it, and do not re-enable it outside REVIEWER-SPEC.md.
 
 ## Worktrees

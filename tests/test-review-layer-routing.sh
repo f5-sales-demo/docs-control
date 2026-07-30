@@ -146,6 +146,40 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 3b: each safeguard is attributed to the tool it actually protects
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 3b: CLAUDE.md attributes each enforcement mechanism correctly ==="
+
+# Compressing this section once produced prose saying the deny rules covered
+# code-review-f5 and that pr-review-toolkit used disable-model-invocation. Both
+# were backwards. The cause was ordinal referencing — "the first two are denied
+# ... the third is disable-model-invocation" — which points by position into a
+# list, so it silently mis-maps the moment the list is written in any other
+# order. A line-based content check cannot catch it, because every name sits on
+# the same line. Ban the construct instead: name each tool where its mechanism
+# is stated.
+ORDINALS='the first two|the first one|the second one|the third|the former|the latter|the first three'
+if grep -nEi "$ORDINALS" "$CLAUDE_MD" >/dev/null 2>&1; then
+  fail "3b.1 CLAUDE.md states mechanisms without ordinal references" \
+    "found: $(grep -oEi "$ORDINALS" "$CLAUDE_MD" | sort -u | tr '\n' ' ')— name the tool instead of its position"
+else
+  pass "3b.1 CLAUDE.md states mechanisms without ordinal references"
+fi
+
+# The mechanism claims must still be present and correctly paired, checked
+# against the real configuration rather than against the prose's own ordering.
+for denied in "code-review:code-review" "pr-review-toolkit:review-pr"; do
+  if jq -e --arg s "Skill($denied)" '.permissions.deny // [] | index($s)' "$SETTINGS" >/dev/null 2>&1 &&
+    grep -qF "$denied" "$CLAUDE_MD"; then
+    pass "3b.2 $denied is denied in settings and named in CLAUDE.md"
+  else
+    fail "3b.2 $denied is denied in settings and named in CLAUDE.md" \
+      "the deny rule and the documentation disagree"
+  fi
+done
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 5: CLAUDE.md stays small enough to be read (issue #855)
 # ════════════════════════════════════════════════════════════════════
 echo ""
