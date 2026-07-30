@@ -110,14 +110,31 @@ fi
 echo ""
 echo "=== Section 2: generation is opt-in, not opt-out ==="
 
-# The hook must require an explicit opt-in. Testing for the negative form
-# ("!= true") rather than any mention of the variable, because a hook that
-# merely names it could still run by default.
+# Assert against the current state rather than assuming suspension forever.
+# Restoration removes this branch from the hook (CONTRIBUTING step 3), so an
+# unconditional requirement would fail the moment someone follows the documented
+# procedure — forcing an undocumented test edit in the middle of a recovery.
+#
+# Testing the negative form ("!= true") rather than any mention of the variable,
+# because a hook that merely names it could still run by default.
 if grep -qE 'TRANSLATIONS_ENABLED:-.*\!=\s*"true"' "$PRE_COMMIT"; then
-  pass "2.1 docs-translate hook requires TRANSLATIONS_ENABLED=true to run"
+  HOOK_GATED=true
 else
-  fail "2.1 docs-translate hook requires TRANSLATIONS_ENABLED=true to run" \
-    "unset or absent must mean no generation; an opt-out default spends money by accident"
+  HOOK_GATED=false
+fi
+
+if [ "$GATED" = "true" ]; then
+  if [ "$HOOK_GATED" = "true" ]; then
+    pass "2.1 while suspended, the docs-translate hook requires TRANSLATIONS_ENABLED=true"
+  else
+    fail "2.1 while suspended, the docs-translate hook requires TRANSLATIONS_ENABLED=true" \
+      "the audit is suspended but generation is not gated — unset must mean no generation, or money is spent by accident"
+  fi
+elif [ "$HOOK_GATED" = "false" ]; then
+  pass "2.1 while restored, the docs-translate hook runs unconditionally"
+else
+  fail "2.1 while restored, the docs-translate hook runs unconditionally" \
+    "the audit is active but generation is still gated — translations would go stale while the audit demands freshness"
 fi
 
 # The hook must still exist and still be scoped to English sources — a suspension
