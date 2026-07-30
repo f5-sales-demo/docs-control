@@ -165,11 +165,28 @@ fi
 # a five-repo spot check came back clean while 9 of 38 repos were still stale,
 # because enforcement fans out in batches. Re-adding the context on that evidence
 # deadlocks whichever repos have not caught up.
-if grep -qiE 'all 38|every governed repo|all governed repo' "$CONTRIBUTING"; then
+if grep -qiE 'every governed repo|all governed repo' "$CONTRIBUTING"; then
   pass "3.4 restore procedure requires fleet-wide confirmation, not a single PR"
 else
   fail "3.4 restore procedure requires fleet-wide confirmation, not a single PR" \
     "a sample can be green while repos lag; the context must not be re-added on that evidence"
+fi
+
+# "Every governed repo must report" is impossible as stated: repos listed in
+# skip_files for translation-audit.yml never receive the workflow, so the check
+# can never appear there. Verified: terraform-provider-xcsh skips it and the file
+# 404s in that repository. That is exactly why it carried an
+# excluded_required_contexts entry — a required check whose workflow does not
+# exist is a permanent deadlock, not a transient one.
+#
+# So the procedure must scope its verification to repos that actually receive the
+# workflow, and must derive that set from skip_files rather than from a
+# hand-maintained list that will drift.
+if grep -q 'skip_files' "$CONTRIBUTING"; then
+  pass "3.4b restore procedure excludes repos that never receive the audit workflow"
+else
+  fail "3.4b restore procedure excludes repos that never receive the audit workflow" \
+    "terraform-provider-xcsh skips translation-audit.yml; demanding a report from it is impossible"
 fi
 
 # The ordering rule is the load-bearing part of the procedure. Assert the two

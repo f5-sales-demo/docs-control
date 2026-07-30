@@ -304,19 +304,37 @@ reviewer left behind.
    `docs-translate` hook in `.pre-commit-config.yaml`, and let that sync downstream.
    `tests/test-translation-suspension.sh` keys section 1 on those markers, so leaving them in place
    fails the guard the moment the context comes back.
-4. Confirm the audit actually reports on **every governed repository**, not on one pull request. One
-   green PR proves one repo. During the suspension a five-repository spot check came back clean while
-   **9 of 38** still had the old branch protection, because enforcement fans out in batches of five —
-   re-adding the context on that evidence would have deadlocked nine repositories.
+4. Confirm the audit actually reports on **every governed repository that receives the workflow**, not
+   on one pull request. Three traps here, all of them load-bearing:
+
+   - **One green PR proves one repo.** During the suspension a five-repository spot check came back
+     clean while **9 of 38** still had the old branch protection, because enforcement fans out in
+     batches of five. Re-adding the context on that evidence would have deadlocked nine repositories.
+   - **An old run proves nothing.** The last conclusion may predate the variable being set. Only count
+     runs created *after* you set it.
+   - **Some repos never receive this workflow at all.** Anything listed under `skip_files` for
+     `translation-audit.yml` does not have the file — `terraform-provider-xcsh` skips it, and the path
+     returns 404 there. Demanding a report from those repos is impossible, and it is exactly why they
+     carry an `excluded_required_contexts` entry: a required check whose workflow does not exist is a
+     *permanent* deadlock, not a transient one.
 
    ```bash
-   # every governed repo must show a translation-audit run on a recent PR
+   SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)   # capture BEFORE setting the variable
+   # ... set the variable, then:
+   SKIP=$(jq -r '.skip_files | to_entries[]
+                 | select(any(.value[]; test("translation-audit"))) | .key' .claude/governance.json)
    while IFS= read -r r; do
-     n=$(gh run list -R "f5-sales-demo/$r" --workflow=translation-audit.yml \
-           --limit 1 --json conclusion -q '.[0].conclusion // "none"')
-     printf '%-24s %s\n' "$r" "$n"
+     grep -qxF "$r" <<<"$SKIP" && { printf '%-24s skipped (no workflow)\n' "$r"; continue; }
+     gh run list -R "f5-sales-demo/$r" --workflow=translation-audit.yml \
+       --created ">$SINCE" --limit 1 --json conclusion \
+       -q '.[0].conclusion // "NO RUN SINCE VARIABLE WAS SET"' \
+       | xargs printf '%-24s %s\n' "$r"
    done < <(jq -r '.[]' .github/config/downstream-repos.json)
    ```
+
+   Every non-skipped repository must show `success`. A `skipped` conclusion means the job's `if:`
+   evaluated false there — the variable is not visible to that repository, and re-adding the context
+   would deadlock it.
 
 5. **Only then** re-add `audit / Translation freshness` to
    `branch_protection[0].required_status_checks.contexts` — **and re-add
