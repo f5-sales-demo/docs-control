@@ -356,12 +356,18 @@ reviewer left behind.
 
    ```bash
    # for any repo reading NO RUN SINCE UN-GATING
-   gh api "repos/f5-sales-demo/$r/contents/docs/en" >/dev/null 2>&1 || continue  # no docs/en: audit passes trivially, nothing to prove
    git clone --depth 1 "https://github.com/f5-sales-demo/$r" /tmp/probe-$r
    cd /tmp/probe-$r && git switch -c "chore/audit-probe" \
      && printf '\n' >> README.md && git commit -aqm "chore: probe translation audit" \
      && git push -q -u origin HEAD && gh pr create --fill --base main
    ```
+
+   Probe **every** repository that reads `NO RUN SINCE UN-GATING`, including those with no `docs/en`.
+   It is tempting to skip them on the grounds that the audit passes trivially there — the reusable
+   workflow exits 0 when `docs/en` is absent — but passing and *reporting* are different things. Once
+   the context is required, such a repository must still emit `audit / Translation freshness`, and it
+   cannot do so if its caller workflow is missing, malformed, or not triggering. That is exactly the
+   deadlock this step exists to catch, and it is invisible until the context is already required.
 
    Close the probe pull request once the audit reports. Skipping this step is how an operator ends up
    re-adding the required context on the strength of repositories that were never actually exercised.
