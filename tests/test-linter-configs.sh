@@ -206,8 +206,8 @@ WRONGLY_REQUIRED=""
 while IFS= read -r name; do
   [ -z "$name" ] && continue
   if jq -e --arg n "$name" \
-      '[.repo_overrides[] | .additional_contexts // [] | .[]] | index($n) != null' \
-      "$REPO_SETTINGS" >/dev/null; then
+    '[.repo_overrides[] | .additional_contexts // [] | .[]] | index($n) != null' \
+    "$REPO_SETTINGS" >/dev/null; then
     WRONGLY_REQUIRED="${WRONGLY_REQUIRED}  - ${name}\n"
   fi
 done < <(printf '%s\n' "$SKIPPABLE")
