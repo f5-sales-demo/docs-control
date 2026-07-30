@@ -216,6 +216,40 @@ $(jq -r '.permissions.deny // [] | .[]' "$SETTINGS" |
 EOF
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 4b: CLAUDE.md's cross-references must resolve everywhere (issue #859)
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 4b: no governed repo receives CLAUDE.md but skips CONTRIBUTING.md ==="
+
+# CLAUDE.md is synced to every governed repo and points into CONTRIBUTING.md for
+# detail it deliberately does not carry. A repo that receives one but skips the
+# other gets dangling pointers, and the only safe response is to inline the
+# guidance into CLAUDE.md — which fights the size budget in Section 5. xcsh was
+# exactly this case until its repo-specific content moved to DEVELOPING.md
+# (f5-sales-demo/xcsh#2605) and this opt-out was removed.
+GOVERNANCE="$REPO_ROOT/.claude/governance.json"
+REPO_SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
+
+for cfg_desc in "governance.json:$GOVERNANCE:.skip_files" \
+  "repo-settings.json:$REPO_SETTINGS:.managed_files.skip_files"; do
+  cfg_name="${cfg_desc%%:*}"
+  rest="${cfg_desc#*:}"
+  cfg_path="${rest%%:*}"
+  cfg_query="${rest#*:}"
+
+  offenders=$(jq -r --arg q "$cfg_query" \
+    "${cfg_query} // {} | to_entries | map(select(.value | index(\"CONTRIBUTING.md\"))) | .[].key" \
+    "$cfg_path" 2>/dev/null | tr '\n' ' ')
+
+  if [ -z "${offenders// /}" ]; then
+    pass "4b.1 $cfg_name has no CONTRIBUTING.md opt-out"
+  else
+    fail "4b.1 $cfg_name has no CONTRIBUTING.md opt-out" \
+      "these repos get CLAUDE.md but not the file it points into: ${offenders}"
+  fi
+done
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 5: CLAUDE.md stays small enough to be read (issue #855)
 # ════════════════════════════════════════════════════════════════════
 echo ""
