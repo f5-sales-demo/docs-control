@@ -748,7 +748,7 @@ echo "=== Section 12: managed PII scanner Ruff portability ==="
 # check the exact same bytes. These action steps are the executable regression;
 # Super-Linter still checks the caller repository's native Ruff configuration.
 for width in 88 100; do
-  if python3 - "$REPO_ROOT/.github/workflows/super-linter.yml" "$width" <<'PY'
+  if python3 - "$REPO_ROOT/.github/workflows/super-linter.yml" "$width" <<'PY'; then
 import sys
 
 import yaml
@@ -779,7 +779,6 @@ if inputs.get("src") != "scripts/check_pii.py":
 if inputs.get("args") != f"format --check --config=line-length={width}":
     raise SystemExit(1)
 PY
-  then
     pass "12.x super-linter checks PII scanner at ${width} columns"
   else
     fail "12.x super-linter checks PII scanner at ${width} columns" \
