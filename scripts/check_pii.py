@@ -276,7 +276,8 @@ def is_nonliteral_code_expression(path: str, match: re.Match[str]) -> bool:
         return False
     if match.group("quote"):
         return False
-    return not bool(NUMERIC_LITERAL_RE.fullmatch(normalized_value(match.group("value"))))
+    value = normalized_value(match.group("value"))
+    return not bool(NUMERIC_LITERAL_RE.fullmatch(value))
 
 
 def safe_phone(value: str) -> bool:
