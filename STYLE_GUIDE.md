@@ -80,7 +80,7 @@ address, `2001:db8::/32` remains the better-recognized choice.
 
 ## Fictitious organizations and people
 
-### Do not use ACME
+### Do not use ACME as a placeholder
 
 Two independent reasons:
 
@@ -88,13 +88,16 @@ Two independent reasons:
    multiple operating companies use it. Placeholders that are genuinely safe — Microsoft's
    Contoso, Google's Altostrat — were trademark-cleared and their domains are company-owned and
    redirected. ACME has neither property.
-2. **In networking and TLS content the name is already taken.** ACME means RFC 8555, the
-   certificate issuance protocol behind Let's Encrypt and behind automated certificate
-   management in F5 Distributed Cloud and most modern platforms. "ACME certificate renewal" in
-   one of our documents is a genuine ambiguity, not a stylistic preference.
+2. **In networking and TLS content the name is already taken.** The Automated Certificate
+   Management Environment (ACME) service, protocol, and challenge flow are legitimate registered
+   concepts defined by RFC 8555. They underpin Let's Encrypt, automated certificate management in
+   F5 Distributed Cloud, and most modern platforms. "ACME certificate renewal" in one of our
+   documents is a genuine technical reference, not a fictional organization.
 
-Do not introduce new ACME references. Rename existing ones as you touch the surrounding
-content; no separate cleanup sweep is required.
+This restriction applies only to fictitious organizations, tenants, people, and other placeholder
+values. Use ACME when the content genuinely documents the registered service, protocol, or
+challenge flow, and keep that terminology exact. Rename existing ACME placeholders as you touch
+the surrounding content; no separate cleanup sweep is required.
 
 ### Organization names
 
@@ -289,7 +292,7 @@ file.
 - [ ] Every domain is `example.com`, `example.net`, `example.org`, a reserved top-level domain,
       or F5-owned
 - [ ] Every ASN and MAC address is in the documentation range
-- [ ] No ACME; organizations follow the `Example` pattern
+- [ ] No ACME used as a placeholder; legitimate protocol and challenge references remain exact
 - [ ] No real person's name, email address, or contact details
 - [ ] No PII in fixtures, snapshots, logs, telemetry, errors, filenames, or commit messages
 - [ ] No credential, token, key, or certificate material — live, expired, or otherwise
