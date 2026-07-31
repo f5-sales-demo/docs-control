@@ -65,8 +65,7 @@
       "additional_contexts": [
         "Build and Test / Build and Test",
         "Build and Test / Lint",
-        "Mock Tests (Parallel)",
-        "Test Summary",
+        "Constitution Check",
         "Validate Docs Generation",
         "Validate Mock Fixtures",
         "Validate Shell Scripts",
@@ -77,7 +76,7 @@
       "additional_contexts": ["lint / Shell Unit Tests"]
     },
     "api-specs-enriched": {
-      "additional_contexts": ["Run pytest suite"]
+      "additional_contexts": ["Contract-diff gate", "Run pytest suite"]
     }
   },
   "topics": [],
