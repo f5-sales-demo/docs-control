@@ -88,7 +88,8 @@ QUERY_RE = re.compile(
 )
 IPV4_RE = re.compile(r"(?<![A-Za-z0-9.])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![A-Za-z0-9.])")
 PDF_AUTHOR_RE = re.compile(
-    r"/(?:Author|Subject)\s*\((?P<value>[^)]{2,})\)", re.IGNORECASE
+    r"/(?:Author|Subject)\s*\((?P<value>[^)]{2,})\)",
+    re.IGNORECASE,
 )
 SENSITIVE_MEDIA_TAG_RE = re.compile(
     r"GPSLatitude|GPSLongitude|OwnerName|CameraOwnerName", re.IGNORECASE
@@ -153,10 +154,12 @@ SAFE_IDENTITY_VALUES = {
     "shared",
     "system",
 }
-DOCUMENTATION_NETWORKS = tuple(
-    ipaddress.ip_network(value)
-    for value in ("192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24")
+DOCUMENTATION_NETWORKS = (
+    ipaddress.ip_network("192.0.2.0/24"),
+    ipaddress.ip_network("198.51.100.0/24"),
+    ipaddress.ip_network("203.0.113.0/24"),
 )
+SAFE_IDENTITY_VALUES_LOWER = {item.lower() for item in SAFE_IDENTITY_VALUES}
 
 
 @dataclass(frozen=True, order=True)
@@ -224,9 +227,7 @@ def placeholder_value(value: str) -> bool:
     if not value:
         return True
     lower = value.lower()
-    if lower in SCHEMA_SENTINELS or lower in {
-        item.lower() for item in SAFE_IDENTITY_VALUES
-    }:
+    if lower in SCHEMA_SENTINELS or lower in SAFE_IDENTITY_VALUES_LOWER:
         return True
     if lower in SAFE_PERSON_NAMES:
         return True
@@ -274,9 +275,8 @@ def redact_path(path: str) -> str:
 
     redacted = HOME_RE.sub(replace_home, redacted)
     if redacted != path:
-        digest = hashlib.sha256(path.encode("utf-8", "surrogateescape")).hexdigest()[
-            :12
-        ]
+        encoded_path = path.encode("utf-8", "surrogateescape")
+        digest = hashlib.sha256(encoded_path).hexdigest()[:12]
         return f"{redacted} [path-sha256:{digest}]"
     return redacted
 
@@ -358,7 +358,10 @@ def scan_structured_identity(
 
 
 def scan_query_parameters(
-    path: str, line_number: int, line: str, findings: set[Finding]
+    path: str,
+    line_number: int,
+    line: str,
+    findings: set[Finding],
 ) -> None:
     """Scan URL query parameters for embedded identity values."""
     for match in QUERY_RE.finditer(line):
@@ -377,7 +380,10 @@ def scan_query_parameters(
 
 
 def scan_public_ips(
-    path: str, line_number: int, line: str, findings: set[Finding]
+    path: str,
+    line_number: int,
+    line: str,
+    findings: set[Finding],
 ) -> None:
     """Report public IPv4 values outside documentation-reserved networks."""
     for match in IPV4_RE.finditer(line):
@@ -403,9 +409,9 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
     """Apply structured and line-oriented detectors to one text blob."""
     legal_path = is_legal_attribution_path(path)
     for line_number, line in enumerate(text.splitlines(), 1):
-        provenance_trailer = bool(
-            path.startswith("<commit:") and PROVENANCE_TRAILER_RE.match(line)
-        )
+        is_commit_message = path.startswith("<commit:")
+        trailer_match = PROVENANCE_TRAILER_RE.match(line)
+        provenance_trailer = bool(is_commit_message and trailer_match)
         scan_contacts(
             path,
             line_number,
@@ -479,10 +485,11 @@ def scan(input_dir: Path) -> set[Finding]:
 
 def selected_findings(findings: Iterable[Finding], mode: str) -> list[Finding]:
     """Filter advisory results from enforcement mode and sort the remainder."""
-    selected = [
-        finding for finding in findings if mode == "audit" or finding.severity == "high"
-    ]
-    return sorted(selected)
+
+    def should_include(finding: Finding) -> bool:
+        return mode == "audit" or finding.severity == "high"
+
+    return sorted(filter(should_include, findings))
 
 
 def render_text(findings: Sequence[Finding], *, scope: str, mode: str) -> str:
@@ -507,7 +514,9 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-dir", required=True, type=Path)
     parser.add_argument(
-        "--scope", choices=("staged", "head", "history"), default="head"
+        "--scope",
+        choices=("staged", "head", "history"),
+        default="head",
     )
     parser.add_argument("--mode", choices=("audit", "enforce"), default="audit")
     parser.add_argument("--format", choices=("text", "json"), default="text")

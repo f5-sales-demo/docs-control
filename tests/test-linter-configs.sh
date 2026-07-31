@@ -736,6 +736,56 @@ fi
 
 rm -rf "$GI_TMP"
 
+# ════════════════════════════════════════════════════════════════════
+# SECTION 12: managed PII scanner is formatter-portable
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 12: managed PII scanner Ruff portability ==="
+
+# The scanner is synced verbatim into repositories that intentionally retain
+# repo-specific Ruff settings. Ruff's formatter may join lines at 100 columns
+# that it splits at docs-control's canonical 88 columns, so both widths must
+# check the exact same bytes. These action steps are the executable regression;
+# Super-Linter still checks the caller repository's native Ruff configuration.
+for width in 88 100; do
+  if python3 - "$REPO_ROOT/.github/workflows/super-linter.yml" "$width" <<'PY'; then
+import sys
+
+import yaml
+
+workflow_path, width = sys.argv[1:]
+with open(workflow_path, encoding="utf-8") as workflow_file:
+    workflow = yaml.safe_load(workflow_file)
+
+expected_name = f"Check managed PII scanner format at {width} columns"
+steps = workflow["jobs"]["lint"]["steps"]
+matching = [step for step in steps if step.get("name") == expected_name]
+if len(matching) != 1:
+    raise SystemExit(1)
+
+step = matching[0]
+expected = {
+    "uses": "astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89",
+    "if": "hashFiles('scripts/check_pii.py') != ''",
+}
+if any(step.get(key) != value for key, value in expected.items()):
+    raise SystemExit(1)
+
+inputs = step.get("with", {})
+if inputs.get("version") != "0.16.0":
+    raise SystemExit(1)
+if inputs.get("src") != "scripts/check_pii.py":
+    raise SystemExit(1)
+if inputs.get("args") != f"format --check --config=line-length={width}":
+    raise SystemExit(1)
+PY
+    pass "12.x super-linter checks PII scanner at ${width} columns"
+  else
+    fail "12.x super-linter checks PII scanner at ${width} columns" \
+      "missing or incorrectly pinned Ruff action step"
+  fi
+done
+
 # If a future assertion generates a temp file, it must clean up.
 TMPS_BEFORE=$(find /tmp -maxdepth 1 -name 'test-linter-configs-*' 2>/dev/null | wc -l | tr -d ' ')
 if [ "$TMPS_BEFORE" = "0" ]; then
