@@ -30,7 +30,7 @@ chmod +x "$WORK/bin/gh"
 _run() { # _run <permission> [rc] -> echoes the script's exit code
   local rc=0
   FAKE_PERMISSION="$1" FAKE_RC="${2:-0}" PATH="$WORK/bin:$PATH" \
-    bash "$SCRIPT" "acme/repo" "octocat" >/dev/null 2>&1 || rc=$?
+    bash "$SCRIPT" "example-corp/repo" "octocat" >/dev/null 2>&1 || rc=$?
   echo "$rc"
 }
 assert_trusted() {
@@ -66,7 +66,7 @@ assert_untrusted "gh api failure (fails closed)" "admin" 1
 
 # --- Missing required args must error (not silently pass) ---
 missing_rc=0
-PATH="$WORK/bin:$PATH" bash "$SCRIPT" "acme/repo" >/dev/null 2>&1 || missing_rc=$?
+PATH="$WORK/bin:$PATH" bash "$SCRIPT" "example-corp/repo" >/dev/null 2>&1 || missing_rc=$?
 if [ "$missing_rc" -ne 0 ]; then echo "[OK] missing author arg → error (rc=$missing_rc)"; else
   echo "[FAIL] missing author arg — expected non-zero"
   FAIL=1
