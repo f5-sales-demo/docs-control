@@ -414,6 +414,10 @@ jobs:
         if: hashFiles('tests/test-check-repo-hygiene.sh') != ''
         run: bash tests/test-check-repo-hygiene.sh
 
+      - name: Run PII scanner test
+        if: hashFiles('tests/test-check-pii.sh') != ''
+        run: bash tests/test-check-pii.sh
+
       - name: Run require-linked-issue exemptions test
         if: hashFiles('tests/test-require-linked-issue-exemptions.sh') != ''
         run: bash tests/test-require-linked-issue-exemptions.sh

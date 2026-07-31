@@ -244,8 +244,20 @@
         "dest": "scripts/check-repo-hygiene.sh"
       },
       {
+        "src": "scripts/check-pii.py",
+        "dest": "scripts/check-pii.py"
+      },
+      {
+        "src": "scripts/check-pii.sh",
+        "dest": "scripts/check-pii.sh"
+      },
+      {
         "src": "tests/test-check-repo-hygiene.sh",
         "dest": "tests/test-check-repo-hygiene.sh"
+      },
+      {
+        "src": "tests/test-check-pii.sh",
+        "dest": "tests/test-check-pii.sh"
       },
       {
         "src": ".claude/governance.json",
