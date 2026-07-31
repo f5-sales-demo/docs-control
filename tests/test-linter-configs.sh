@@ -776,7 +776,7 @@ if inputs.get("version") != "0.16.0":
     raise SystemExit(1)
 if inputs.get("src") != "scripts/check_pii.py":
     raise SystemExit(1)
-if inputs.get("args") != f'format --check --config "line-length = {width}"':
+if inputs.get("args") != f"format --check --config=line-length={width}":
     raise SystemExit(1)
 PY
   then
