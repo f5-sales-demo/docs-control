@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-07-31T14:01:39Z",
-  "source_commit": "665792412892e370f922ae2952ace9cb33fb85c7",
+  "generated_at": "2026-07-31T14:18:53Z",
+  "source_commit": "10f91939e8ae4ceeab63d54fd2f2929ebc109899",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -239,8 +239,8 @@
     "scripts/check_pii.py": {
       "src": "scripts/check_pii.py",
       "dest": "scripts/check_pii.py",
-      "sha": "170ea2ab487f825aa4c07b7717e932cfd6fba3cc",
-      "size": 19697
+      "sha": "efae50a8b1c098a515b1ff3545f3f47de06fbc86",
+      "size": 19983
     },
     "scripts/check-pii.sh": {
       "src": "scripts/check-pii.sh",
@@ -257,8 +257,8 @@
     "tests/test-check-pii.sh": {
       "src": "tests/test-check-pii.sh",
       "dest": "tests/test-check-pii.sh",
-      "sha": "c6c95b22b47c7b6d52dc0ee115230c4f464b218a",
-      "size": 12531
+      "sha": "6fb3b5f10e8d5459bb2d76aeb258848810fc1dc7",
+      "size": 13209
     },
     ".claude/governance.json": {
       "src": ".claude/governance.json",
