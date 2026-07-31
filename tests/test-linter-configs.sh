@@ -178,30 +178,57 @@ fi
 echo ""
 echo "=== Section 7d: additional_contexts name unconditional checks ==="
 
-# A required context that never reports does not fail — it blocks forever, with
-# "Expected — Waiting for status to be reported". So a job carrying a condition
-# that can skip must NOT be required until the condition is moved inside the job
-# and it always reports.
+# What actually deadlocks a required check is a *workflow* that never starts, not a
+# *job* that skips. GitHub's documented behaviour, which decides this list:
 #
-# These two were audited for #862 and deliberately left out. Each is a real check
-# that has already caught a real defect, and each needs its workflow changed first:
+#   "Successful check statuses are success, skipped, and neutral."
+#   "If a job within a workflow is skipped due to a conditional, it will report its
+#    status as 'Success'."
+#   "If a workflow is skipped due to path filtering, branch filtering or a commit
+#    message, then checks associated with that workflow will remain in a 'Pending'
+#    state. A pull request that requires those checks to be successful will be
+#    blocked from merging."
+#   — docs.github.com, "Troubleshooting required status checks"
 #
-#   Constitution Check (terraform-provider-xcsh)
-#     if: github.event_name == 'pull_request' &&
-#         !startsWith(github.head_ref, 'auto-generate/') &&
-#         !startsWith(github.head_ref, 'auto-regenerate/') &&
-#         github.head_ref != 'docs/auto-update' && github.head_ref != 'openapi-update'
-#     Skips on the bot branches that legitimately commit generated files —
-#     precisely the branches it must not block.
+# So a job-level `if:` is safe to require: when it skips, it reports success and the
+# pull request merges. Only a workflow-level filter leaves the context pending.
 #
-#   Contract-diff gate (api-specs-enriched)
-#     if: ${{ !startsWith(github.head_ref, 'release/') }}
-#     Skips on release branches.
+# What this section cannot do, stated plainly so a green result is not mistaken for
+# coverage: it rejects names it was told about. The workflows live in independently
+# changing repositories, so a rename, a typo, or a newly added workflow-level filter
+# passes here and then enforce-repo-settings installs a context that never reports.
+# `scripts/verify-required-contexts.sh` closes that gap by asking GitHub which checks
+# real pull requests actually reported, and is the check docs-control#862 asks for:
+# "verified by opening a throwaway PR per repo and confirming the check actually
+# blocks, not by reading the config back." Run it when changing this config.
 #
-# Requiring either today would deadlock those PRs. Remove the name from this list
-# only together with the workflow change that makes the job always report.
-SKIPPABLE="Constitution Check
-Contract-diff gate"
+# This list is therefore workflow-filtered contexts only. Both live in
+# terraform-provider-xcsh's acc-tests.yml:
+#
+#   on:
+#     pull_request:
+#       branches: [main]
+#       paths:
+#         - 'internal/provider/**'
+#         - 'internal/client/**'
+#         ...
+#
+#   Mock Tests (Parallel), Test Summary
+#     Neither reports on a pull request touching nothing under those paths — a
+#     docs-only or CI-only change, for instance. Test Summary even carries
+#     `if: always()`, which looks maximally safe and is irrelevant: the workflow
+#     never starts, so the job never exists. Requiring either blocks every PR
+#     outside those paths, permanently.
+#
+# Constitution Check and Contract-diff gate were previously listed here and have
+# been removed. Both are ordinary jobs with a job-level `if:` in workflows that
+# trigger on every pull request to main (ci.yml and tests.yml respectively, neither
+# paths-filtered — verified against those repositories). They report success when
+# they skip, so requiring them is safe, and both are now required: each had already
+# caught a real defect that merged anyway (#1400, #1153). Keeping them out of the
+# required set was the very gap #862 exists to close.
+SKIPPABLE="Mock Tests (Parallel)
+Test Summary"
 WRONGLY_REQUIRED=""
 while IFS= read -r name; do
   [ -z "$name" ] && continue
