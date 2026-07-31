@@ -19,17 +19,26 @@ EOF
 while [ "$#" -gt 0 ]; do
   case "$1" in
   --scope)
-    [ "$#" -ge 2 ] || { usage >&2; exit 2; }
+    [ "$#" -ge 2 ] || {
+      usage >&2
+      exit 2
+    }
     SCOPE=$2
     shift 2
     ;;
   --mode)
-    [ "$#" -ge 2 ] || { usage >&2; exit 2; }
+    [ "$#" -ge 2 ] || {
+      usage >&2
+      exit 2
+    }
     MODE=$2
     shift 2
     ;;
   --format)
-    [ "$#" -ge 2 ] || { usage >&2; exit 2; }
+    [ "$#" -ge 2 ] || {
+      usage >&2
+      exit 2
+    }
     FORMAT=$2
     shift 2
     ;;
@@ -45,9 +54,21 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-case "$SCOPE" in staged | head | history) ;; *) echo "PII scan error: invalid scope: $SCOPE" >&2; exit 2 ;; esac
-case "$MODE" in audit | enforce) ;; *) echo "PII scan error: invalid mode: $MODE" >&2; exit 2 ;; esac
-case "$FORMAT" in text | json) ;; *) echo "PII scan error: invalid format: $FORMAT" >&2; exit 2 ;; esac
+case "$SCOPE" in staged | head | history) ;; *)
+  echo "PII scan error: invalid scope: $SCOPE" >&2
+  exit 2
+  ;;
+esac
+case "$MODE" in audit | enforce) ;; *)
+  echo "PII scan error: invalid mode: $MODE" >&2
+  exit 2
+  ;;
+esac
+case "$FORMAT" in text | json) ;; *)
+  echo "PII scan error: invalid format: $FORMAT" >&2
+  exit 2
+  ;;
+esac
 
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
   echo "PII scan error: not a Git repository" >&2
@@ -55,7 +76,7 @@ if ! git rev-parse --git-dir >/dev/null 2>&1; then
 fi
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
-SCANNER="${SCRIPT_DIR}/check-pii.py"
+SCANNER="${SCRIPT_DIR}/check_pii.py"
 if [ ! -f "$SCANNER" ]; then
   echo "PII scan error: content scanner is missing: $SCANNER" >&2
   exit 2

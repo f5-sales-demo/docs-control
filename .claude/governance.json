@@ -55,7 +55,7 @@
     ".mypy.ini",
     "scripts/locale-lint.sh",
     "scripts/check-repo-hygiene.sh",
-    "scripts/check-pii.py",
+    "scripts/check_pii.py",
     "scripts/check-pii.sh",
     "tests/test-check-repo-hygiene.sh",
     "tests/test-check-pii.sh",

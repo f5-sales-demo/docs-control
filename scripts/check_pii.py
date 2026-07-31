@@ -29,7 +29,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator, Sequence
 
 EXCLUDED_PATHS = {
-    "scripts/check-pii.py",
+    "scripts/check_pii.py",
     "scripts/check-pii.sh",
     "scripts/check-repo-hygiene.sh",
     "tests/test-check-pii.sh",
@@ -281,107 +281,142 @@ def redact_path(path: str) -> str:
     return redacted
 
 
+def scan_contacts(
+    path: str,
+    line_number: int,
+    line: str,
+    legal_path: bool,
+    provenance_trailer: bool,
+    findings: set[Finding],
+) -> None:
+    """Scan one line for contact details, home paths, and person names."""
+    if not legal_path and not provenance_trailer:
+        for match in EMAIL_RE.finditer(line):
+            if not safe_email(match.group(0)):
+                add_finding(
+                    findings,
+                    path=path,
+                    line=line_number,
+                    category="email",
+                    message="email address does not use a documentation-reserved domain",
+                )
+        for match in PERSON_FIELD_RE.finditer(line):
+            if not placeholder_value(match.group("value")):
+                add_finding(
+                    findings,
+                    path=path,
+                    line=line_number,
+                    category="person-name",
+                    message=f"{match.group('key')} contains a literal person name",
+                )
+
+    for match in HOME_RE.finditer(line):
+        user = match.group("user") or match.group("winuser") or ""
+        if not safe_home_user(user):
+            add_finding(
+                findings,
+                path=path,
+                line=line_number,
+                category="home-path",
+                message="home-directory path contains a non-placeholder user segment",
+            )
+
+    for match in PHONE_FIELD_RE.finditer(line):
+        if not safe_phone(match.group("value")):
+            add_finding(
+                findings,
+                path=path,
+                line=line_number,
+                category="phone",
+                message="phone field does not use the fictional NANP range",
+            )
+
+
+def scan_structured_identity(
+    path: str, line_number: int, line: str, findings: set[Finding]
+) -> None:
+    """Scan structured fields for customer identifiers and personal records."""
+    for match in IDENTITY_FIELD_RE.finditer(line):
+        if not placeholder_value(match.group("value")):
+            add_finding(
+                findings,
+                path=path,
+                line=line_number,
+                category="customer-identifier",
+                message=f"{match.group('key')} contains a literal organization identifier",
+            )
+
+    for match in ADDRESS_FIELD_RE.finditer(line):
+        if not placeholder_value(match.group("value")):
+            add_finding(
+                findings,
+                path=path,
+                line=line_number,
+                category="personal-record",
+                message=f"{match.group('key')} contains a literal personal value",
+            )
+
+
+def scan_query_parameters(
+    path: str, line_number: int, line: str, findings: set[Finding]
+) -> None:
+    """Scan URL query parameters for embedded identity values."""
+    for match in QUERY_RE.finditer(line):
+        value = urllib.parse.unquote_plus(match.group("value"))
+        if placeholder_value(value):
+            continue
+        if match.group("key").lower() == "email" and safe_email(value):
+            continue
+        add_finding(
+            findings,
+            path=path,
+            line=line_number,
+            category="pii-query-parameter",
+            message=f"URL query parameter {match.group('key')} contains a literal value",
+        )
+
+
+def scan_public_ips(
+    path: str, line_number: int, line: str, findings: set[Finding]
+) -> None:
+    """Report public IPv4 values outside documentation-reserved networks."""
+    for match in IPV4_RE.finditer(line):
+        try:
+            address = ipaddress.ip_address(match.group(0))
+        except ValueError:
+            continue
+        if address.is_private or address.is_loopback or address.is_link_local:
+            continue
+        if any(address in network for network in DOCUMENTATION_NETWORKS):
+            continue
+        add_finding(
+            findings,
+            path=path,
+            line=line_number,
+            category="public-ip-review",
+            severity="review",
+            message="public IPv4 address is outside documentation-reserved ranges",
+        )
+
+
 def scan_text(path: str, text: str, findings: set[Finding]) -> None:
     """Apply structured and line-oriented detectors to one text blob."""
     legal_path = is_legal_attribution_path(path)
     for line_number, line in enumerate(text.splitlines(), 1):
-        provenance_trailer = path.startswith(
-            "<commit:"
-        ) and PROVENANCE_TRAILER_RE.match(line)
-        if not legal_path:
-            for match in EMAIL_RE.finditer(line):
-                if not provenance_trailer and not safe_email(match.group(0)):
-                    add_finding(
-                        findings,
-                        path=path,
-                        line=line_number,
-                        category="email",
-                        message="email address does not use a documentation-reserved domain",
-                    )
-
-        for match in HOME_RE.finditer(line):
-            user = match.group("user") or match.group("winuser") or ""
-            if not safe_home_user(user):
-                add_finding(
-                    findings,
-                    path=path,
-                    line=line_number,
-                    category="home-path",
-                    message="home-directory path contains a non-placeholder user segment",
-                )
-
-        for match in PHONE_FIELD_RE.finditer(line):
-            if not safe_phone(match.group("value")):
-                add_finding(
-                    findings,
-                    path=path,
-                    line=line_number,
-                    category="phone",
-                    message="phone field does not use the fictional NANP range",
-                )
-
-        if not legal_path and not provenance_trailer:
-            for match in PERSON_FIELD_RE.finditer(line):
-                if not placeholder_value(match.group("value")):
-                    add_finding(
-                        findings,
-                        path=path,
-                        line=line_number,
-                        category="person-name",
-                        message=f"{match.group('key')} contains a literal person name",
-                    )
-
-        for match in IDENTITY_FIELD_RE.finditer(line):
-            if not placeholder_value(match.group("value")):
-                add_finding(
-                    findings,
-                    path=path,
-                    line=line_number,
-                    category="customer-identifier",
-                    message=f"{match.group('key')} contains a literal organization identifier",
-                )
-
-        for match in ADDRESS_FIELD_RE.finditer(line):
-            if not placeholder_value(match.group("value")):
-                add_finding(
-                    findings,
-                    path=path,
-                    line=line_number,
-                    category="personal-record",
-                    message=f"{match.group('key')} contains a literal personal value",
-                )
-
-        for match in QUERY_RE.finditer(line):
-            value = urllib.parse.unquote_plus(match.group("value"))
-            if placeholder_value(value):
-                continue
-            if match.group("key").lower() == "email" and safe_email(value):
-                continue
-            add_finding(
-                findings,
-                path=path,
-                line=line_number,
-                category="pii-query-parameter",
-                message=f"URL query parameter {match.group('key')} contains a literal value",
-            )
-
-        for match in IPV4_RE.finditer(line):
-            try:
-                address = ipaddress.ip_address(match.group(0))
-            except ValueError:
-                continue
-            if address.is_private or address.is_loopback or address.is_link_local:
-                continue
-            if any(address in network for network in DOCUMENTATION_NETWORKS):
-                continue
-            add_finding(
-                findings,
-                path=path,
-                line=line_number,
-                category="public-ip-review",
-                severity="review",
-                message="public IPv4 address is outside documentation-reserved ranges",
-            )
+        provenance_trailer = bool(
+            path.startswith("<commit:") and PROVENANCE_TRAILER_RE.match(line)
+        )
+        scan_contacts(
+            path,
+            line_number,
+            line,
+            legal_path,
+            provenance_trailer,
+            findings,
+        )
+        scan_structured_identity(path, line_number, line, findings)
+        scan_query_parameters(path, line_number, line, findings)
+        scan_public_ips(path, line_number, line, findings)
 
 
 def looks_binary(data: bytes) -> bool:
