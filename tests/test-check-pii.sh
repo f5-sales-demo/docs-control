@@ -227,6 +227,25 @@ git -C "$repo" add fixture.yaml
 git -C "$repo" commit -qm schematic
 assert_clean "generic environment and schema identities" "$repo" --scope head --mode enforce
 
+repo=$(new_repo composite-schematic-identities)
+cat >"${repo}/fixture.yaml" <<'EOF'
+tenant: example-corp|staging
+account_name: example-partners|production
+namespace: library
+EOF
+git -C "$repo" add fixture.yaml
+git -C "$repo" commit -qm composite-schematic
+assert_clean "composite and public schema identities" "$repo" --scope head --mode enforce
+
+repo=$(new_repo composite-customer-identifiers)
+cat >"${repo}/fixture.yaml" <<'EOF'
+tenant: real-customer|staging
+account_name: example-corp|real-customer
+EOF
+git -C "$repo" add fixture.yaml
+git -C "$repo" commit -qm composite-customer
+assert_violation "composite literal customer identifiers" "$repo" --scope head --mode enforce
+
 repo=$(new_repo sensitive-query)
 printf 'redirect=/done?email=person%%40customer.local\n' >"${repo}/config.ini"
 git -C "$repo" add config.ini

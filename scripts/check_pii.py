@@ -191,6 +191,8 @@ SAFE_IDENTITY_VALUES = {
     "demo",
     "demo-app",
     "example-corp",
+    "library",
+    "production",
     "shared",
     "staging",
     "system",
@@ -278,11 +280,21 @@ def placeholder_value(value: str) -> bool:
         return True
     if re.fullmatch(r"example(?:[-_.][a-z0-9]+)*", lower):
         return True
-    if lower in SAFE_PERSON_NAMES:
-        return True
-    if value.startswith(("$", "{", "<", "{{", "[%", "*", "&")):
-        return True
-    return bool(re.fullmatch(r"[A-Z][A-Z0-9_]*", value))
+    first, separator, second = value.partition("|")
+    safe_composite = bool(
+        first
+        and separator
+        and second
+        and "|" not in second
+        and placeholder_value(first)
+        and placeholder_value(second)
+    )
+    return (
+        safe_composite
+        or lower in SAFE_PERSON_NAMES
+        or value.startswith(("$", "{", "<", "{{", "[%", "*", "&"))
+        or bool(re.fullmatch(r"[A-Z][A-Z0-9_]*", value))
+    )
 
 
 def is_nonliteral_code_expression(path: str, match: re.Match[str]) -> bool:
