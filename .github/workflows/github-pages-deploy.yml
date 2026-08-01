@@ -1,8 +1,6 @@
 ---
 name: Build and Deploy Docs
 on:
-  push:
-    branches: [main]
   workflow_call:
     inputs:
       content-ref:
@@ -21,27 +19,6 @@ on:
         type: string
       docs-title:
         description: 'Documentation site title (overrides frontmatter)'
-        required: false
-        type: string
-      docs-site:
-        description: 'Documentation site URL'
-        required: false
-        default: 'https://f5-sales-demo.github.io'
-        type: string
-  workflow_dispatch:
-    inputs:
-      content-path:
-        description: 'Path to content directory'
-        required: false
-        default: 'docs'
-        type: string
-      builder-image:
-        description: 'Builder Docker image URI'
-        required: false
-        default: 'ghcr.io/f5-sales-demo/docs-builder:latest'
-        type: string
-      docs-title:
-        description: 'Documentation site title'
         required: false
         type: string
       docs-site:
@@ -71,23 +48,26 @@ jobs:
     outputs:
       build-status: ${{ job.status }}
     steps:
-      - name: Validate immutable content commit
+      - name: Resolve immutable content commit
+        id: content
         env:
-          CONTENT_REF: ${{ inputs.content-ref || github.sha }}
+          REQUESTED_REF: ${{ inputs.content-ref }}
         run: |
+          CONTENT_REF="$REQUESTED_REF"
           if [[ ! "$CONTENT_REF" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::content-ref must be a full lowercase 40-character commit SHA"
             exit 1
           fi
+          echo "content_ref=$CONTENT_REF" >> "$GITHUB_OUTPUT"
 
       - name: Checkout content repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.content-ref || github.sha }}
+          ref: ${{ steps.content.outputs.content_ref }}
 
       - name: Verify checked-out content commit
         env:
-          CONTENT_REF: ${{ inputs.content-ref || github.sha }}
+          CONTENT_REF: ${{ steps.content.outputs.content_ref }}
         run: |
           CHECKED_OUT_SHA=$(git rev-parse HEAD)
           if [ "$CHECKED_OUT_SHA" != "$CONTENT_REF" ]; then
@@ -168,7 +148,7 @@ jobs:
 
       - name: Stage governance assets for /api/
         env:
-          CONTENT_REF: ${{ inputs.content-ref || github.sha }}
+          CONTENT_REF: ${{ steps.content.outputs.content_ref }}
         run: |
           OUTPUT_DIR="${{ runner.temp }}/docs-output"
           API_DIR="${OUTPUT_DIR}/api"

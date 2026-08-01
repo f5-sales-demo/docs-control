@@ -21,6 +21,7 @@ REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 FAIL=0
 DEPLOY_WORKFLOW="${REPO_ROOT}/.github/workflows/github-pages-deploy.yml"
 CALLER_TEMPLATE="${REPO_ROOT}/workflows/github-pages-deploy.yml"
+SELF_CALLER="${REPO_ROOT}/.github/workflows/docs-site-deploy.yml"
 
 WORKFLOWS=(
   "${REPO_ROOT}/.github/workflows/sync-managed-files.yml"
@@ -39,7 +40,7 @@ bad() {
 # commit checkout resolved, and contains no wall-clock data.
 input_block=$(sed -n '/^      content-ref:/,/^        type: string/p' "$DEPLOY_WORKFLOW")
 checkout_block=$(sed -n '/^      - name: Checkout content repo/,/^      - name: Login to GHCR/p' "$DEPLOY_WORKFLOW")
-validation_block=$(sed -n '/^      - name: Validate immutable content commit/,/^      - name: Checkout content repo/p' "$DEPLOY_WORKFLOW")
+validation_block=$(sed -n '/^      - name: Resolve immutable content commit/,/^      - name: Checkout content repo/p' "$DEPLOY_WORKFLOW")
 revision_block=$(sed -n '/^      - name: Stage governance assets for \/api\//,/^      - name: Upload artifact/p' "$DEPLOY_WORKFLOW")
 
 if grep -q '^        required: true$' <<<"$input_block" &&
@@ -49,13 +50,15 @@ else
   bad "Pages deploy workflow_call content-ref is not required"
 fi
 
-if grep -qF 'ref: ${{ inputs.content-ref || github.sha }}' <<<"$checkout_block"; then
+if grep -qF 'ref: ${{ steps.content.outputs.content_ref }}' <<<"$checkout_block"; then
   ok "Pages deploy checks out the requested content ref"
 else
   bad "Pages deploy checkout does not use content-ref"
 fi
 
-if grep -qF '^[0-9a-f]{40}$' <<<"$validation_block" &&
+if grep -qF 'CONTENT_REF="$REQUESTED_REF"' <<<"$validation_block" &&
+  ! grep -qE 'GITHUB_SHA|\|\|' <<<"$validation_block" &&
+  grep -qF '^[0-9a-f]{40}$' <<<"$validation_block" &&
   grep -qF 'CHECKED_OUT_SHA=$(git rev-parse HEAD)' <<<"$checkout_block" &&
   grep -qF 'if [ "$CHECKED_OUT_SHA" != "$CONTENT_REF" ]' <<<"$checkout_block"; then
   ok "Pages deploy requires and verifies an immutable full commit SHA"
@@ -63,7 +66,15 @@ else
   bad "Pages deploy does not enforce immutable full-SHA content identity"
 fi
 
-if grep -qF 'CONTENT_REF: ${{ inputs.content-ref || github.sha }}' <<<"$revision_block" &&
+if ! grep -qE '^  (push|workflow_dispatch):' "$DEPLOY_WORKFLOW" &&
+  grep -qF 'uses: ./.github/workflows/github-pages-deploy.yml' "$SELF_CALLER" &&
+  grep -qF 'content-ref: ${{ github.sha }}' "$SELF_CALLER"; then
+  ok "direct docs-control triggers pass their exact SHA through a thin caller"
+else
+  bad "reusable Pages workflow still owns a direct trigger or lacks a thin caller"
+fi
+
+if grep -qF 'CONTENT_REF: ${{ steps.content.outputs.content_ref }}' <<<"$revision_block" &&
   grep -qF 'CHECKED_OUT_SHA=$(git rev-parse HEAD)' <<<"$revision_block" &&
   grep -qF -- '--arg content_ref "${CONTENT_REF}"' <<<"$revision_block" &&
   grep -qF -- '--arg commit "${CHECKED_OUT_SHA}"' <<<"$revision_block" &&
