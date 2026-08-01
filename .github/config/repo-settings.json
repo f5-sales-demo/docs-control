@@ -76,6 +76,33 @@
       "additional_contexts": ["Contract-diff gate", "Run pytest suite"]
     }
   },
+  "consumer_shell_tests": {
+    "profiles": {
+      "devcontainer": {
+        "unit": [
+          { "path": "tests/test-check-pii.sh", "args": [] },
+          { "path": "tests/test-check-repo-hygiene.sh", "args": [] },
+          { "path": "tests/test-fetch-governed.sh", "args": [] },
+          { "path": "tests/test-hook-neutralization.sh", "args": ["--unit-only"] },
+          { "path": "tests/test-inlined-helpers-match.sh", "args": [] }
+        ],
+        "environment": [
+          {
+            "path": "tests/test-firecrawl.sh",
+            "reason": "requires Redis, PostgreSQL, Playwright, and Firecrawl inside the running devcontainer"
+          },
+          {
+            "path": "tests/test-lsp-coverage.sh",
+            "reason": "requires the image's installed language servers and Claude plugin settings"
+          },
+          {
+            "path": "tests/test-npx-resolution.sh",
+            "reason": "requires the image's preinstalled npm toolchain and resolution links"
+          }
+        ]
+      }
+    }
+  },
   "topics": [],
   "pages": {
     "enabled": true,
