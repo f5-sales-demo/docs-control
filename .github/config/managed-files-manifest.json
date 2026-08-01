@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-08-01T16:21:48Z",
-  "source_commit": "38fab7bfe005ed165ccdc82ffceaf13a0a0955f8",
+  "generated_at": "2026-08-01T19:58:28Z",
+  "source_commit": "53fb736067cc0dc88121aaafd1a74b7f28a10cfa",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
       "dest": ".github/workflows/github-pages-deploy.yml",
-      "sha": "fc55ba814d142d32f6dca94b20591836b64faed1",
-      "size": 591
+      "sha": "c58f5430c3a728b6b9b9c3d2dcfd02c1d8840871",
+      "size": 772
     },
     ".github/workflows/enforce-repo-settings.yml": {
       "src": "workflows/enforce-repo-settings.yml",
@@ -17,14 +17,14 @@
     ".github/workflows/require-linked-issue.yml": {
       "src": "workflows/require-linked-issue.yml",
       "dest": ".github/workflows/require-linked-issue.yml",
-      "sha": "e2de9c5f77977e08f4076509ea854592b62f366c",
-      "size": 924
+      "sha": "6b5d81eefe91246406366ad7c62e30681c2b74c1",
+      "size": 1051
     },
     ".github/workflows/super-linter.yml": {
       "src": "workflows/super-linter.yml",
       "dest": ".github/workflows/super-linter.yml",
-      "sha": "b7ffdfd8d7cc9b36938c575a62234a89cf19b1db",
-      "size": 555
+      "sha": "ae59fd0912d8037773dceb36a2642c3af40ee81b",
+      "size": 764
     },
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
@@ -119,14 +119,14 @@
     ".github/workflows/dependabot-auto-merge.yml": {
       "src": "workflows/dependabot-auto-merge.yml",
       "dest": ".github/workflows/dependabot-auto-merge.yml",
-      "sha": "de262de8b1a84c46dd7962b4f25ca2c7692d5c26",
-      "size": 704
+      "sha": "7277cafe3fe8c2f5e5caaf17d16745bd1fdf683a",
+      "size": 804
     },
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "c744c29182a5c91da5914ac919d9d1d2d74a508e",
-      "size": 1210
+      "sha": "d30bec5383224db4c018298438fe9a0381eb3e6d",
+      "size": 1345
     },
     "biome.json": {
       "src": "biome.json",
@@ -287,8 +287,8 @@
     ".github/workflows/code-review.yml": {
       "src": "workflows/code-review.yml",
       "dest": ".github/workflows/code-review.yml",
-      "sha": "8b712ff4169ef4460ab6e0783f4f83f442b67d3c",
-      "size": 6523
+      "sha": "72e4e9be0ca22d3ce37d43c5cfb244e3b5f52878",
+      "size": 6720
     },
     ".github/workflows/workflow-security-audit.yml": {
       "src": "workflows/workflow-security-audit.yml",
@@ -299,8 +299,8 @@
     ".github/workflows/semgrep.yml": {
       "src": "workflows/semgrep.yml",
       "dest": ".github/workflows/semgrep.yml",
-      "sha": "1df9435abc52f5fe692e3c6cd242e33f3b574400",
-      "size": 2468
+      "sha": "cb2f7fd7e3797c6f6773ae6202262640c0ee1189",
+      "size": 2374
     }
   }
 }
