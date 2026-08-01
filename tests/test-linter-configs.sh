@@ -890,11 +890,9 @@ rm -rf "$GI_TMP"
 echo ""
 echo "=== Section 12: managed PII scanner Ruff portability ==="
 
-# The scanner is synced verbatim into repositories that intentionally retain
-# repo-specific Ruff settings. Ruff's formatter may join lines at wider columns
-# that it splits at docs-control's canonical 88 columns, so every fleet width
-# must check the exact same bytes. These action steps are the executable regression;
-# Super-Linter still checks the caller repository's native Ruff configuration.
+# The scanner is synced verbatim, so its formatter portability is enforced where
+# it is authored. Rechecking a caller's stale managed copy deadlocks unrelated
+# downstream PRs: they are forbidden to fix it, while the sync PR cannot land.
 for width in 88 100 120; do
   if python3 - "$REPO_ROOT/.github/workflows/super-linter.yml" "$width" <<'PY'; then
 import sys
@@ -914,7 +912,10 @@ if len(matching) != 1:
 step = matching[0]
 expected = {
     "uses": "astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89",
-    "if": "hashFiles('scripts/check_pii.py') != ''",
+    "if": (
+        "github.repository == 'f5-sales-demo/docs-control' && "
+        "hashFiles('scripts/check_pii.py') != ''"
+    ),
 }
 if any(step.get(key) != value for key, value in expected.items()):
     raise SystemExit(1)
@@ -927,10 +928,10 @@ if inputs.get("src") != "scripts/check_pii.py":
 if inputs.get("args") != f"format --check --config=line-length={width}":
     raise SystemExit(1)
 PY
-    pass "12.x super-linter checks PII scanner at ${width} columns"
+    pass "12.x docs-control checks canonical PII scanner at ${width} columns"
   else
-    fail "12.x super-linter checks PII scanner at ${width} columns" \
-      "missing or incorrectly pinned Ruff action step"
+    fail "12.x docs-control checks canonical PII scanner at ${width} columns" \
+      "missing, incorrectly pinned, or not source-repository scoped"
   fi
 done
 
