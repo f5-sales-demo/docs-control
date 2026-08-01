@@ -121,6 +121,7 @@ repos:
           - git+https://github.com/scop/pre-commit-shfmt@05c1426671b9237fb5e1444dd63aa5731bec0dfb # v3.13.1-1
         args: ["--write", "--indent", "2"]
         types: [shell]
+        exclude_types: [csh, tcsh]
 
   # ===========================================================================
   # Shell script analysis — config: .shellcheckrc (SC2016 disabled there)

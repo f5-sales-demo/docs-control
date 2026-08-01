@@ -743,6 +743,7 @@ result = {
     'additional_dependencies': None,
     'args': None,
     'types': None,
+    'exclude_types': None,
     'ci_skipped': 'shfmt' in cfg.get('ci', {}).get('skip', []),
 }
 for repo in cfg.get('repos', []):
@@ -756,6 +757,7 @@ for repo in cfg.get('repos', []):
             result['additional_dependencies'] = hook.get('additional_dependencies')
             result['args'] = hook.get('args')
             result['types'] = hook.get('types')
+            result['exclude_types'] = hook.get('exclude_types')
 print(json.dumps(result))
 ")
 
@@ -778,11 +780,12 @@ else
 fi
 
 if echo "$SHFMT_CONFIG" | jq -e \
-  '.types == ["shell"] and (.ci_skipped | not)' >/dev/null; then
-  pass "9.4 shfmt covers shell files locally and in pre-commit.ci"
+  '.types == ["shell"] and .exclude_types == ["csh", "tcsh"] and
+   (.ci_skipped | not)' >/dev/null; then
+  pass "9.4 shfmt covers Bourne shell files locally and in pre-commit.ci"
 else
-  fail "9.4 shfmt covers shell files locally and in pre-commit.ci" \
-    "expected types=[shell] and no ci.skip entry, got $SHFMT_CONFIG"
+  fail "9.4 shfmt covers Bourne shell files locally and in pre-commit.ci" \
+    "expected types=[shell], exclude_types=[csh,tcsh], and no ci.skip entry, got $SHFMT_CONFIG"
 fi
 
 # ════════════════════════════════════════════════════════════════════
