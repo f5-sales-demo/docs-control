@@ -5,6 +5,10 @@ on:
     branches: [main]
   workflow_call:
     inputs:
+      content-ref:
+        description: 'Exact commit or ref to build from the calling repo'
+        required: true
+        type: string
       content-path:
         description: 'Path to content directory in the calling repo'
         required: false
@@ -69,6 +73,8 @@ jobs:
     steps:
       - name: Checkout content repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.content-ref || github.sha }}
 
       - name: Login to GHCR
         uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
@@ -142,6 +148,8 @@ jobs:
           find "$OUTPUT_DIR" -type f | head -20
 
       - name: Stage governance assets for /api/
+        env:
+          CONTENT_REF: ${{ inputs.content-ref || github.sha }}
         run: |
           OUTPUT_DIR="${{ runner.temp }}/docs-output"
           API_DIR="${OUTPUT_DIR}/api"
@@ -173,11 +181,14 @@ jobs:
             done
           fi
 
-          # Revision marker — lets downstreams detect Pages deploy lag
+          # Revision marker — records what was requested and what checkout resolved.
+          # Do not add a timestamp: identical content at an identical ref must produce
+          # an identical marker.
+          CHECKED_OUT_SHA=$(git rev-parse HEAD)
           jq -n \
-            --arg commit "${GITHUB_SHA}" \
-            --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{commit:$commit, generated_at:$generated_at}' \
+            --arg content_ref "${CONTENT_REF}" \
+            --arg commit "${CHECKED_OUT_SHA}" \
+            '{content_ref:$content_ref, commit:$commit}' \
             > "${API_DIR}/revision.json"
           echo "Published: /api/revision.json"
 

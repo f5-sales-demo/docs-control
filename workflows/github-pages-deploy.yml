@@ -23,3 +23,5 @@ concurrency:
 jobs:
   docs:
     uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@main
+    with:
+      content-ref: ${{ github.sha }}

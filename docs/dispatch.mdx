@@ -10,6 +10,7 @@ sidebar:
 When template files change on docs-control's `main` branch, the dispatch workflow at `.github/workflows/dispatch-downstream.yml` triggers enforcement in every enrolled downstream repository.
 
 The trigger paths include:
+
 - `.github/config/repo-settings.json`, `downstream-repos.json`, `docs-sites.json`
 - `workflows/**` (caller templates)
 - `.github/workflows/enforce-repo-settings.yml`, `sync-managed-files.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`
@@ -103,11 +104,13 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   docs:
     uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@main
+    with:
+      content-ref: $\{{ github.sha }}
 ```
 
 ### require-linked-issue.yml

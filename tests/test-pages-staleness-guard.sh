@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Hermetic regression test for the Pages-freshness guard in the governed-read
-# workflows (sync-managed-files.yml, enforce-repo-settings.yml).
+# Hermetic regression tests for the Pages publication identity contract and the
+# Pages-freshness guard in the governed-read workflows (sync-managed-files.yml,
+# enforce-repo-settings.yml).
 #
 # WHY: `fetch_governed` prefers the Pages-published governance mirror, which lags a
 # docs-control merge by however long its deploy takes. The guard must force an API
@@ -10,14 +11,16 @@
 # governance changes silently never propagated. enforce-repo-settings.yml defined
 # revision_is_fresh but never called it at all.
 #
-# This test locks two properties, statically (no network):
-#   1. Both workflows CALL the guard, and do so UNCONDITIONALLY on SOURCE_SHA
-#      (i.e. an empty source_sha must still be checked, via a main-HEAD fallback).
-#   2. The revision_is_fresh comparison semantics stay exact-match.
+# This test locks the publication identity and freshness contracts statically
+# (no network): the deploy checks out its explicit caller ref and publishes the
+# resolved commit without volatile data; both readers call the freshness guard
+# unconditionally; and revision_is_fresh remains an exact comparison.
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 FAIL=0
+DEPLOY_WORKFLOW="${REPO_ROOT}/.github/workflows/github-pages-deploy.yml"
+CALLER_TEMPLATE="${REPO_ROOT}/workflows/github-pages-deploy.yml"
 
 WORKFLOWS=(
   "${REPO_ROOT}/.github/workflows/sync-managed-files.yml"
@@ -29,6 +32,49 @@ bad() {
   echo "[FAIL] $1"
   FAIL=1
 }
+
+# The reusable workflow must build the requested caller revision, not the SHA of
+# whichever commit happens to contain the reusable workflow invocation. Its
+# revision marker is an artifact identity: it records the requested ref and the
+# commit checkout resolved, and contains no wall-clock data.
+input_block=$(sed -n '/^      content-ref:/,/^        type: string/p' "$DEPLOY_WORKFLOW")
+checkout_block=$(sed -n '/^      - name: Checkout content repo/,/^      - name: Login to GHCR/p' "$DEPLOY_WORKFLOW")
+revision_block=$(sed -n '/^      - name: Stage governance assets for \/api\//,/^      - name: Upload artifact/p' "$DEPLOY_WORKFLOW")
+
+if grep -q '^        required: true$' <<<"$input_block" &&
+  grep -q '^        type: string$' <<<"$input_block"; then
+  ok "Pages deploy requires an explicit workflow_call content-ref"
+else
+  bad "Pages deploy workflow_call content-ref is not required"
+fi
+
+if grep -qF 'ref: ${{ inputs.content-ref || github.sha }}' <<<"$checkout_block"; then
+  ok "Pages deploy checks out the requested content ref"
+else
+  bad "Pages deploy checkout does not use content-ref"
+fi
+
+if grep -qF 'CONTENT_REF: ${{ inputs.content-ref || github.sha }}' <<<"$revision_block" &&
+  grep -qF 'CHECKED_OUT_SHA=$(git rev-parse HEAD)' <<<"$revision_block" &&
+  grep -qF -- '--arg content_ref "${CONTENT_REF}"' <<<"$revision_block" &&
+  grep -qF -- '--arg commit "${CHECKED_OUT_SHA}"' <<<"$revision_block" &&
+  grep -qF "'{content_ref:\$content_ref, commit:\$commit}'" <<<"$revision_block"; then
+  ok "revision.json records requested ref and checked-out commit"
+else
+  bad "revision.json does not bind requested ref to checked-out commit"
+fi
+
+if grep -qE 'GITHUB_SHA|generated_at|date -u' <<<"$revision_block"; then
+  bad "revision.json still contains caller-SHA or wall-clock inputs"
+else
+  ok "revision.json is independent of caller SHA and wall-clock time"
+fi
+
+if grep -qF 'content-ref: ${{ github.sha }}' "$CALLER_TEMPLATE"; then
+  ok "governed caller supplies the required content ref"
+else
+  bad "governed caller omits the required content ref"
+fi
 
 for wf in "${WORKFLOWS[@]}"; do
   name=$(basename "$wf")
