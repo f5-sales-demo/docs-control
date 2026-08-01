@@ -727,6 +727,67 @@ else
     "expected pass_filenames=True (or absent), got '$ECC_PASS'"
 fi
 
+# Shell formatting must fail locally before Super-Linter's SHELL_SHFMT gate.
+# Install the prebuilt mirror as a local Python hook so contributors and
+# pre-commit.ci get the same formatter version without a local prerequisite,
+# while pre-commit.ci's weekly autoupdater cannot rewrite its pinned revision.
+SHFMT_CONFIG=$(python3 -c "
+import json, yaml
+cfg = yaml.safe_load(open('$REPO_ROOT/.pre-commit-config.yaml'))
+result = {
+    'repo': None,
+    'rev': None,
+    'hook_found': False,
+    'entry': None,
+    'language': None,
+    'additional_dependencies': None,
+    'args': None,
+    'types': None,
+    'exclude_types': None,
+    'ci_skipped': 'shfmt' in cfg.get('ci', {}).get('skip', []),
+}
+for repo in cfg.get('repos', []):
+    for hook in repo.get('hooks', []):
+        if hook.get('id') == 'shfmt':
+            result['repo'] = repo.get('repo')
+            result['rev'] = repo.get('rev')
+            result['hook_found'] = True
+            result['entry'] = hook.get('entry')
+            result['language'] = hook.get('language')
+            result['additional_dependencies'] = hook.get('additional_dependencies')
+            result['args'] = hook.get('args')
+            result['types'] = hook.get('types')
+            result['exclude_types'] = hook.get('exclude_types')
+print(json.dumps(result))
+")
+
+if echo "$SHFMT_CONFIG" | jq -e \
+  '.hook_found and .repo == "local" and .rev == null and
+   .entry == "shfmt" and .language == "python" and
+   .additional_dependencies == ["git+https://github.com/scop/pre-commit-shfmt@05c1426671b9237fb5e1444dd63aa5731bec0dfb"]' >/dev/null; then
+  pass "9.2 shfmt uses an immutable auto-installed dependency outside autoupdate"
+else
+  fail "9.2 shfmt uses an immutable auto-installed dependency outside autoupdate" \
+    "expected a local Python hook pinned to scop/pre-commit-shfmt@05c1426671b9237fb5e1444dd63aa5731bec0dfb, got $SHFMT_CONFIG"
+fi
+
+if echo "$SHFMT_CONFIG" | jq -e \
+  '.args == ["--write", "--indent", "2"]' >/dev/null; then
+  pass "9.3 shfmt auto-formats with the CI-equivalent two-space style"
+else
+  fail "9.3 shfmt auto-formats with the CI-equivalent two-space style" \
+    "expected --write --indent 2, got $SHFMT_CONFIG"
+fi
+
+if echo "$SHFMT_CONFIG" | jq -e \
+  '.types == ["shell"] and .exclude_types == ["csh", "tcsh"] and
+   (.ci_skipped | not)' >/dev/null; then
+  pass "9.4 shfmt covers Bourne shell files locally and in pre-commit.ci"
+else
+  fail "9.4 shfmt covers Bourne shell files locally and in pre-commit.ci" \
+    "expected types=[shell], exclude_types=[csh,tcsh], and no ci.skip entry, got $SHFMT_CONFIG"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 10: secrets_manifest schema validity
 # ════════════════════════════════════════════════════════════════════
