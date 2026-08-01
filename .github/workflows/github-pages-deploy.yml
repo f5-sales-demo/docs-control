@@ -13,7 +13,7 @@ on:
       builder-image:
         description: 'Builder Docker image URI'
         required: false
-        default: 'ghcr.io/f5-sales-demo/docs-builder:latest'
+        default: 'ghcr.io/f5-sales-demo/docs-builder@sha256:905d2398fec15c05e828c881ab0e8b782368c30d70d97a978dc383935d7d0163'
         type: string
       docs-title:
         description: 'Documentation site title (overrides frontmatter)'
@@ -34,7 +34,7 @@ on:
       builder-image:
         description: 'Builder Docker image URI'
         required: false
-        default: 'ghcr.io/f5-sales-demo/docs-builder:latest'
+        default: 'ghcr.io/f5-sales-demo/docs-builder@sha256:905d2398fec15c05e828c881ab0e8b782368c30d70d97a978dc383935d7d0163'
         type: string
       docs-title:
         description: 'Documentation site title'
@@ -46,11 +46,7 @@ on:
         default: 'https://f5-sales-demo.github.io'
         type: string
 
-permissions:
-  contents: read
-  packages: read
-  pages: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: pages-${{ github.repository }}
@@ -61,9 +57,11 @@ concurrency:
 
 jobs:
   build:
+    name: Build Documentation
     runs-on: ubuntu-latest
     permissions:
-      packages: read
+      contents: read # checkout the documentation source
+      packages: read # authenticate the pinned builder image pull from GHCR
     outputs:
       build-status: ${{ job.status }}
     steps:
@@ -123,7 +121,7 @@ jobs:
             -e DOCS_SITE="${{ inputs.docs-site || format('https://{0}.github.io', github.repository_owner) }}" \
             -e GITHUB_REPOSITORY="${{ github.repository }}" \
             ${{ inputs.docs-title && format('-e DOCS_TITLE="{0}"', inputs.docs-title) || '' }} \
-            ${{ inputs.builder-image || format('ghcr.io/{0}/docs-builder:latest', github.repository_owner) }}
+            ${{ inputs.builder-image || 'ghcr.io/f5-sales-demo/docs-builder@sha256:905d2398fec15c05e828c881ab0e8b782368c30d70d97a978dc383935d7d0163' }}
 
           echo "✅ Build completed successfully"
           ls -lah ${{ runner.temp }}/docs-output/
@@ -191,12 +189,13 @@ jobs:
           retention-days: 1
 
   deploy:
+    name: Deploy Documentation
     needs: build
     runs-on: ubuntu-latest
     if: success()
     permissions:
-      pages: write
-      id-token: write
+      pages: write # publish the verified Pages artifact
+      id-token: write # authenticate the Pages deployment
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}

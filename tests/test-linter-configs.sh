@@ -957,6 +957,41 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 14: reusable workflow tool and image inputs are immutable
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 14: reusable workflow immutable inputs ==="
+
+SUPER_LINTER_WORKFLOW="$REPO_ROOT/.github/workflows/super-linter.yml"
+PAGES_WORKFLOW="$REPO_ROOT/.github/workflows/github-pages-deploy.yml"
+EXPECTED_BUILDER='ghcr.io/f5-sales-demo/docs-builder@sha256:905d2398fec15c05e828c881ab0e8b782368c30d70d97a978dc383935d7d0163'
+
+if [ "$(grep -Ec "^[[:space:]]*version:[[:space:]]*(['\"]?2\\.5\\.6['\"]?)[[:space:]]*$" "$SUPER_LINTER_WORKFLOW")" = "1" ] &&
+  ! grep -Eq "^[[:space:]]*version:[[:space:]]*(['\"]?latest['\"]?)([[:space:]]|$)" "$SUPER_LINTER_WORKFLOW"; then
+  pass "14.1 Super-Linter installs exactly Biome 2.5.6"
+else
+  fail "14.1 Super-Linter installs exactly Biome 2.5.6" \
+    "the formatter pin is absent, duplicated, or mutable"
+fi
+
+if grep -Fq 'group: reusable-super-linter-${{ github.workflow }}-' "$SUPER_LINTER_WORKFLOW"; then
+  pass "14.2 reusable lint concurrency cannot collide with its caller"
+else
+  fail "14.2 reusable lint concurrency cannot collide with its caller" \
+    "the group needs a reusable-workflow-specific prefix"
+fi
+
+# Two workflow_call defaults and the runtime fallback must resolve to identical
+# bytes. A caller can still opt into a different immutable digest explicitly.
+if [ "$(grep -cF "$EXPECTED_BUILDER" "$PAGES_WORKFLOW")" = "3" ] &&
+  ! grep -Fq 'docs-builder:latest' "$PAGES_WORKFLOW"; then
+  pass "14.3 every default documentation builder input uses the measured digest"
+else
+  fail "14.3 every default documentation builder input uses the measured digest" \
+    "expected three identical digest pins and no latest tag"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 # Summary
 # ════════════════════════════════════════════════════════════════════
 echo ""
