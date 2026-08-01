@@ -172,6 +172,13 @@ else
     "unmatched:\n$MISSING"
 fi
 
+XCSH_CONTEXTS=$(jq -c '.repo_overrides.xcsh.additional_contexts // []' "$REPO_SETTINGS")
+if echo "$XCSH_CONTEXTS" | jq -e 'index("pii-guard") != null' >/dev/null; then
+  pass "7c.2 xcsh requires the pii-guard check"
+else
+  fail "7c.2 xcsh requires the pii-guard check" "pii-guard is not in xcsh additional_contexts"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 7d: additional_contexts must name checks that ALWAYS run
 # ════════════════════════════════════════════════════════════════════
