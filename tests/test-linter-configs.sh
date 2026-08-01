@@ -849,6 +849,19 @@ PY
   fi
 done
 
+# ════════════════════════════════════════════════════════════════════
+# SECTION 13: managed security fixtures satisfy repository hygiene
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 13: managed security fixture hygiene ==="
+
+if (cd "$REPO_ROOT" && bash scripts/check-repo-hygiene.sh --include-paths >/dev/null); then
+  pass "13.1 managed security fixtures contain no literal machine-specific paths"
+else
+  fail "13.1 managed security fixtures contain no literal machine-specific paths" \
+    "the opt-in repository hygiene scan rejected governed source"
+fi
+
 # If a future assertion generates a temp file, it must clean up.
 TMPS_BEFORE=$(find /tmp -maxdepth 1 -name 'test-linter-configs-*' 2>/dev/null | wc -l | tr -d ' ')
 if [ "$TMPS_BEFORE" = "0" ]; then
