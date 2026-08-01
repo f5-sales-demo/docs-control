@@ -11,6 +11,10 @@ Exit 0 means no findings, 1 means findings, and 2 means the scan could not run.
 Finding messages never contain the matched value.
 """
 
+# The scanner remains one auditable policy unit until the parser seams tracked in
+# issues #932, #933, #939, and #940 are implemented.
+# pylint: disable=too-many-lines
+
 from __future__ import annotations
 
 import argparse
@@ -984,6 +988,7 @@ def decode_jq_unicode_escapes(value: str) -> str:
     return "".join(decoded)
 
 
+# pylint: disable-next=too-many-locals
 def jq_output_strings(expression: str) -> list[str]:
     """Return jq strings that contribute to the field value, not control functions."""
     strings: list[str] = []
@@ -1032,6 +1037,7 @@ def jq_output_strings(expression: str) -> list[str]:
     return strings
 
 
+# pylint: disable-next=too-many-locals,too-many-statements
 def jq_output_numbers(expression: str) -> list[str]:
     """Return numeric literals that contribute to a jq field value."""
     numbers: list[str] = []
@@ -1427,6 +1433,7 @@ def scan_contacts(
             )
 
 
+# pylint: disable-next=too-many-arguments
 def scan_structured_identity(
     path: str,
     line_number: int,
@@ -1681,14 +1688,14 @@ def safe_yaml_block_content(value: str) -> bool:
 
 def scan_yaml_identity_blocks(path: str, text: str, findings: set[Finding]) -> None:
     """Inspect scalar bodies owned by YAML identity fields."""
-    active_block: tuple[int, str] | None = None
+    active_block_indent: int | None = None
+    block_key = ""
     for line_number, raw_line in enumerate(text.splitlines(), 1):
         line = ANSI_ESCAPE_RE.sub("", raw_line)
         stripped = line.strip()
         indentation = len(line) - len(line.lstrip())
-        if active_block and stripped:
-            block_indent, key = active_block
-            if indentation > block_indent:
+        if active_block_indent is not None and stripped:
+            if indentation > active_block_indent:
                 value = normalized_value(stripped)
                 if not safe_yaml_block_content(value):
                     add_finding(
@@ -1696,17 +1703,19 @@ def scan_yaml_identity_blocks(path: str, text: str, findings: set[Finding]) -> N
                         path=path,
                         line=line_number,
                         category="customer-identifier",
-                        message=f"{key} contains a literal organization identifier",
+                        message=f"{block_key} contains a literal organization identifier",
                     )
                 continue
-            active_block = None
+            active_block_indent = None
         for match in IDENTITY_FIELD_RE.finditer(line):
             value = normalized_value(match.group("value"))
             if re.fullmatch(r"[|>](?:[+-]?[1-9]?|[1-9][+-])", value):
-                active_block = (indentation, match.group("key"))
+                active_block_indent = indentation
+                block_key = match.group("key")
                 break
 
 
+# pylint: disable-next=too-many-locals,too-many-branches,too-many-statements
 def scan_text(path: str, text: str, findings: set[Finding]) -> None:
     """Apply structured and line-oriented detectors to one text blob."""
     text = ANSI_ESCAPE_RE.sub("", text)
@@ -1784,7 +1793,7 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
             and fence_close_column is not None
             and "\t" not in line[: close.start("marker")]
             and close.start("marker") <= fence_close_column
-            and close.group("marker")[0] == fence_marker[0]
+            and fence_marker.startswith(close.group("marker")[0])
             and len(close.group("marker")) >= len(fence_marker)
         )
         opening_fence = bool(fence and fence_marker is None)
@@ -1802,6 +1811,7 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
         suffix_is_source = suffix in SOURCE_CODE_SUFFIXES
         fence_is_source = effective_language in SOURCE_FENCE_LANGUAGES
         source_code = suffix_is_source or fence_is_source
+        spans: tuple[tuple[int, int], ...]
         if suffix == ".jq" or effective_language == "jq":
             spans = ((0, len(line)),)
             active_jq_quote = None
