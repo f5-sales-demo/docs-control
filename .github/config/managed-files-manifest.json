@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-01T02:03:39Z",
-  "source_commit": "fa60c03ca57767f0615be007cc20ed6684171be6",
+  "generated_at": "2026-08-01T02:30:44Z",
+  "source_commit": "640af15aac04655ce9a7a9ec0208d07206f84c29",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -65,8 +65,8 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "079cdddec3a0f5b9298f25ca449c8de6e7d859c1",
-      "size": 40623
+      "sha": "91ab0172e52999b2d5fb147f63b5db9d9c622423",
+      "size": 40926
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
@@ -239,8 +239,8 @@
     "scripts/check_pii.py": {
       "src": "scripts/check_pii.py",
       "dest": "scripts/check_pii.py",
-      "sha": "16f3015bb9e3eb3ff37f03379551bc56b416f14b",
-      "size": 20794
+      "sha": "44a7a55e82eb24a4f17b86b6a1dbfb0ea6652e5b",
+      "size": 21947
     },
     "scripts/check-pii.sh": {
       "src": "scripts/check-pii.sh",
@@ -257,8 +257,8 @@
     "tests/test-check-pii.sh": {
       "src": "tests/test-check-pii.sh",
       "dest": "tests/test-check-pii.sh",
-      "sha": "e06e8248ec2b27f6683d162d30fe93204016544f",
-      "size": 14025
+      "sha": "d669d3e371b708f39a26ef4d92d9e83adae9a6c4",
+      "size": 14350
     },
     ".claude/governance.json": {
       "src": ".claude/governance.json",
