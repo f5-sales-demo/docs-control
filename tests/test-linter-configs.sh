@@ -137,6 +137,30 @@ for word in doesnt forin invokable takin defaul ser anc checkin sevice; do
   fi
 done
 
+# pre-commit passes explicit paths, bypassing .codespellrc's skip list. Its
+# hook-level regex must filter both translated docs and translated source
+# catalogs while leaving English docs and i18n implementation code checked.
+CODESPELL_EXCLUDE=$(awk '
+  /- id: codespell$/ { in_codespell = 1; next }
+  in_codespell && /exclude:/ { sub(/^[^:]*:[[:space:]]*/, ""); print; exit }
+' "$REPO_ROOT/.pre-commit-config.yaml")
+
+for path in docs/fr/guide.md src/i18n/mega-menu-translations.ts; do
+  if [[ "$path" =~ $CODESPELL_EXCLUDE ]]; then
+    pass "5.x codespell pre-commit excludes '$path'"
+  else
+    fail "5.x codespell pre-commit excludes '$path'" "not matched by hook exclude regex"
+  fi
+done
+
+for path in docs/en/guide.md src/i18n/translator.ts; do
+  if [[ "$path" =~ $CODESPELL_EXCLUDE ]]; then
+    fail "5.x codespell pre-commit checks '$path'" "unexpectedly matched by hook exclude regex"
+  else
+    pass "5.x codespell pre-commit checks '$path'"
+  fi
+done
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 7c: excluded_required_contexts entries must use the fully-
 #             qualified "workflow / job" form that matches the actual
