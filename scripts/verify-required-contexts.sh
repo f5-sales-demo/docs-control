@@ -36,6 +36,7 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
+REPOS_FILE="$REPO_ROOT/.github/config/downstream-repos.json"
 OWNER="f5-sales-demo"
 SAMPLE=5        # recent PRs to inspect per repo
 MIN_SAMPLES=3   # below this the evidence is inconclusive, not clean
@@ -44,28 +45,38 @@ MAX_AGE_DAYS=30 # newest sample older than this predates current workflows
 PROBLEMS=0
 CHECKED=0
 
+required_contexts_for_repo() {
+  jq -r --arg repo "$1" '
+    (.branch_protection[0].required_status_checks.contexts // []) as $base
+    | (.repo_overrides[$repo].additional_contexts // []) as $additional
+    | (.repo_overrides[$repo].excluded_required_contexts // []) as $excluded
+    | (($base + $additional | unique) - $excluded)[]
+  ' "$SETTINGS"
+}
+
+KNOWN_REPOS=$(jq -r '.[]' "$REPOS_FILE")
+
 if [ "$#" -gt 0 ]; then
   REPOS="$*"
-  # An explicitly named repository with nothing to check is almost always a typo, and
-  # silently reporting "0 problems" for it is the same failure this script exists to
-  # remove. Reject it before any work starts.
+  # Reject typos before any API work. Every governed repository now has the uniform
+  # base contexts, so an override is no longer required for a repository to be valid.
   for arg in "$@"; do
-    if ! jq -e --arg r "$arg" '.repo_overrides[$r].additional_contexts // empty' "$SETTINGS" >/dev/null 2>&1; then
-      echo "ERROR: '$arg' has no additional_contexts in $SETTINGS — nothing to verify." >&2
-      echo "       Known: $(jq -r '.repo_overrides | to_entries[] | select(.value.additional_contexts) | .key' "$SETTINGS" | tr '\n' ' ')" >&2
+    if ! grep -qxF "$arg" <<<"$KNOWN_REPOS"; then
+      echo "ERROR: '$arg' is not listed in $REPOS_FILE." >&2
+      echo "       Known: $(tr '\n' ' ' <<<"$KNOWN_REPOS")" >&2
       exit 2
     fi
   done
 else
-  REPOS=$(jq -r '.repo_overrides | to_entries[] | select(.value.additional_contexts) | .key' "$SETTINGS")
+  REPOS="$KNOWN_REPOS"
   if [ -z "$REPOS" ]; then
-    echo "ERROR: no repository declares additional_contexts — refusing to report success." >&2
+    echo "ERROR: no governed repositories are listed in $REPOS_FILE." >&2
     exit 2
   fi
 fi
 
 for repo in $REPOS; do
-  contexts=$(jq -r --arg r "$repo" '.repo_overrides[$r].additional_contexts // [] | .[]' "$SETTINGS")
+  contexts=$(required_contexts_for_repo "$repo")
   [ -z "$contexts" ] && continue
 
   echo "=== $repo ==="
@@ -213,7 +224,7 @@ echo ""
 # The two passes are complementary. Pass 1 catches names that resolve to nothing;
 # pass 2 catches names that resolve to something which can decline to run at all.
 for repo in $REPOS; do
-  contexts=$(jq -r --arg r "$repo" '.repo_overrides[$r].additional_contexts // [] | .[]' "$SETTINGS")
+  contexts=$(required_contexts_for_repo "$repo")
   [ -z "$contexts" ] && continue
 
   # Fail loudly on API trouble. Skipping quietly would let pass 2 examine nothing

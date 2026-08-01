@@ -39,8 +39,12 @@ The central configuration file drives all enforcement, sync, and dispatch behavi
       "enforce_admins": true,
       "required_status_checks": {
         "strict": false,
-        "contexts": ["check / Check linked issues"],
-        "self_contexts": ["Check linked issues"]
+        "contexts": [
+          "check / Check linked issues",
+          "lint / Lint Code Base",
+          "lint / Shell Unit Tests"
+        ],
+        "self_contexts": ["Check linked issues", "Lint Code Base", "Shell Unit Tests"]
       },
       "required_pull_request_reviews": null,
       "restrictions": null,
@@ -105,8 +109,8 @@ An array of branch protection rules. Each entry specifies a `branch` name and th
 Key fields:
 - `enforce_admins: true` -- protection rules apply to repository administrators too
 - `required_status_checks.strict: false` -- branches don't need to be up-to-date before merging
-- `required_status_checks.contexts` -- the check names downstream repositories must pass (e.g., `check / Check linked issues`)
-- `required_status_checks.self_contexts` -- the check names docs-control itself must pass (e.g., `Check linked issues`)
+- `required_status_checks.contexts` -- the check names downstream repositories must pass (for example, `check / Check linked issues` and `lint / Shell Unit Tests`)
+- `required_status_checks.self_contexts` -- the check names docs-control itself must pass (for example, `Check linked issues` and `Shell Unit Tests`)
 - `required_pull_request_reviews: null` -- no PR review approval required
 - `restrictions: null` -- no push restrictions beyond branch protection
 
@@ -115,6 +119,12 @@ Key fields:
 When a downstream repository uses a caller workflow, the status check name becomes `<caller_job_key> / <reusable_job_name>`. For example, the `require-linked-issue.yml` caller has job key `check`, so the check name is `check / Check linked issues`. But when docs-control runs the same workflow directly (via the `pull_request_target` trigger), the check name is just `Check linked issues`.
 
 The `self_contexts` field stores the check names that apply to docs-control itself. During [enforcement](./settings-enforcement/), the workflow detects whether it's running on the source repository and swaps `self_contexts` into `contexts` before applying branch protection. The `self_contexts` field is always stripped before sending the payload to the GitHub API.
+
+`Shell Unit Tests` is the uniform repository-test gate. The reusable workflow always reports it: consumer repositories run every `tests/test-*.sh` file, while a repository with no matching tests reports success with an explicit no-tests message. This makes repository shell tests required by default instead of relying on per-repository opt-in lists.
+
+The `xcsh` override excludes both Super-Linter contexts because that repository does not call the reusable Super-Linter workflow; its native `check`, `pii-guard`, and `test` contexts remain required. Live verification must prove an exclusion is necessary before it is added.
+
+Do not require a context from a workflow with `paths` or `paths-ignore` filters. GitHub leaves that context pending when the workflow does not start. Broad security tools must run in an unfiltered pull-request workflow or in a scheduled full-tree audit; the managed workflow-security audit uses the latter model for `zizmor`. A job-level condition is safe because a skipped job still reports a successful check.
 
 ### `topics`
 

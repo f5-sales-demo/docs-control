@@ -254,6 +254,62 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 7e: the uniform shell-test job gates every governed PR
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 7e: uniform shell-test required context ==="
+
+if echo "$BASE_CTX" | jq -e 'index("lint / Shell Unit Tests") != null' >/dev/null; then
+  pass "7e.1 downstream branch protection requires Shell Unit Tests"
+else
+  fail "7e.1 downstream branch protection requires Shell Unit Tests" \
+    "lint / Shell Unit Tests is absent from the base contexts"
+fi
+
+SELF_CTX=$(jq -c \
+  '.branch_protection[0].required_status_checks.self_contexts // []' \
+  "$REPO_SETTINGS")
+if echo "$SELF_CTX" | jq -e 'index("Shell Unit Tests") != null' >/dev/null; then
+  pass "7e.2 docs-control branch protection requires Shell Unit Tests"
+else
+  fail "7e.2 docs-control branch protection requires Shell Unit Tests" \
+    "Shell Unit Tests is absent from self_contexts"
+fi
+
+MCN_CONTEXTS=$(jq -c '.repo_overrides.mcn.additional_contexts // []' "$REPO_SETTINGS")
+if echo "$MCN_CONTEXTS" | jq -e 'index("lint / Shell Unit Tests") == null' >/dev/null; then
+  pass "7e.3 mcn does not duplicate the uniform base context"
+else
+  fail "7e.3 mcn does not duplicate the uniform base context" \
+    "remove the obsolete mcn-only Shell Unit Tests override"
+fi
+
+REQUIRED_CONTEXT_VERIFIER="$REPO_ROOT/scripts/verify-required-contexts.sh"
+if grep -qF 'downstream-repos.json' "$REQUIRED_CONTEXT_VERIFIER"; then
+  pass "7e.4 live verification covers the complete governed fleet"
+else
+  fail "7e.4 live verification covers the complete governed fleet" \
+    "verify-required-contexts.sh still checks only repository overrides"
+fi
+
+if grep -qF 'required_status_checks.contexts' "$REQUIRED_CONTEXT_VERIFIER"; then
+  pass "7e.5 live verification includes uniform base contexts"
+else
+  fail "7e.5 live verification includes uniform base contexts" \
+    "verify-required-contexts.sh ignores the base required contexts"
+fi
+
+XCSH_EXCLUDED=$(jq -c '.repo_overrides.xcsh.excluded_required_contexts // []' \
+  "$REPO_SETTINGS")
+if echo "$XCSH_EXCLUDED" | jq -e \
+  'index("lint / Shell Unit Tests") != null' >/dev/null; then
+  pass "7e.6 xcsh opts out of the Super-Linter shell context it does not emit"
+else
+  fail "7e.6 xcsh opts out of the Super-Linter shell context it does not emit" \
+    "fleet verification proves xcsh never reports lint / Shell Unit Tests"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 # SECTION 5e: super-linter disables validators not applicable to the
 #             ecosystem's language mix (TS/Rust/Python/Markdown/Astro)
 # ════════════════════════════════════════════════════════════════════

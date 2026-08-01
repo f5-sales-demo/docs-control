@@ -38,7 +38,7 @@ The enforcement workflow needs admin access to modify branch protection and Page
 
 ## Self-detection
 
-Docs-control is both the provider and consumer of its own governance config. When `enforce-repo-settings.yml` runs on docs-control itself (via the `push` trigger), it detects this by comparing `managed_files.source_repo` against `github.repository`. This triggers the `self_contexts` override in branch protection -- docs-control uses workflows directly (check name: `Check linked issues`), while downstream repositories use caller wrappers (check name: `check / Check linked issues`). See the [configuration page](./configuration/) for details on `contexts` vs `self_contexts`.
+Docs-control is both the provider and consumer of its own governance config. When `enforce-repo-settings.yml` runs on docs-control itself (via the `push` trigger), it detects this by comparing `managed_files.source_repo` against `github.repository`. This triggers the `self_contexts` override in branch protection -- docs-control uses workflows directly (for example, `Shell Unit Tests`), while downstream repositories use caller wrappers (for example, `lint / Shell Unit Tests`). See the [configuration page](./configuration/) for details on `contexts` vs `self_contexts`.
 
 ## Repository layout
 
