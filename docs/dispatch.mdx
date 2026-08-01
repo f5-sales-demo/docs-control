@@ -10,6 +10,7 @@ sidebar:
 When template files change on docs-control's `main` branch, the dispatch workflow at `.github/workflows/dispatch-downstream.yml` triggers enforcement in every enrolled downstream repository.
 
 The trigger paths include:
+
 - `.github/config/repo-settings.json`, `downstream-repos.json`, `docs-sites.json`
 - `workflows/**` (caller templates)
 - `.github/workflows/enforce-repo-settings.yml`, `sync-managed-files.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`
@@ -95,19 +96,20 @@ on:
       - 'docs/**'
   workflow_dispatch:
 
-permissions:
-  contents: read
-  packages: read
-  pages: write
-  id-token: write
+permissions: {}
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   docs:
     uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@main
+    permissions:
+      contents: read
+      packages: read
+      pages: write
+      id-token: write
 ```
 
 ### require-linked-issue.yml
@@ -121,9 +123,7 @@ on:
   pull_request_target:
     types: [opened, edited, reopened, synchronize]
 
-permissions:
-  issues: read
-  pull-requests: write
+permissions: {}
 
 concurrency:
   group: $\{{ github.workflow }}-$\{{ github.event.pull_request.number }}
@@ -132,7 +132,9 @@ concurrency:
 jobs:
   check:
     uses: f5-sales-demo/docs-control/.github/workflows/require-linked-issue.yml@main
-    secrets: inherit
+    permissions:
+      issues: read
+      pull-requests: write
 ```
 
 ## Check name format
