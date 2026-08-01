@@ -750,11 +750,11 @@ echo ""
 echo "=== Section 12: managed PII scanner Ruff portability ==="
 
 # The scanner is synced verbatim into repositories that intentionally retain
-# repo-specific Ruff settings. Ruff's formatter may join lines at 100 columns
-# that it splits at docs-control's canonical 88 columns, so both widths must
-# check the exact same bytes. These action steps are the executable regression;
+# repo-specific Ruff settings. Ruff's formatter may join lines at wider columns
+# that it splits at docs-control's canonical 88 columns, so every fleet width
+# must check the exact same bytes. These action steps are the executable regression;
 # Super-Linter still checks the caller repository's native Ruff configuration.
-for width in 88 100; do
+for width in 88 100 120; do
   if python3 - "$REPO_ROOT/.github/workflows/super-linter.yml" "$width" <<'PY'; then
 import sys
 
