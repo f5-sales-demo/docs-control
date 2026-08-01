@@ -39,6 +39,7 @@ bad() {
 # commit checkout resolved, and contains no wall-clock data.
 input_block=$(sed -n '/^      content-ref:/,/^        type: string/p' "$DEPLOY_WORKFLOW")
 checkout_block=$(sed -n '/^      - name: Checkout content repo/,/^      - name: Login to GHCR/p' "$DEPLOY_WORKFLOW")
+validation_block=$(sed -n '/^      - name: Validate immutable content commit/,/^      - name: Checkout content repo/p' "$DEPLOY_WORKFLOW")
 revision_block=$(sed -n '/^      - name: Stage governance assets for \/api\//,/^      - name: Upload artifact/p' "$DEPLOY_WORKFLOW")
 
 if grep -q '^        required: true$' <<<"$input_block" &&
@@ -52,6 +53,14 @@ if grep -qF 'ref: ${{ inputs.content-ref || github.sha }}' <<<"$checkout_block";
   ok "Pages deploy checks out the requested content ref"
 else
   bad "Pages deploy checkout does not use content-ref"
+fi
+
+if grep -qF '^[0-9a-f]{40}$' <<<"$validation_block" &&
+  grep -qF 'CHECKED_OUT_SHA=$(git rev-parse HEAD)' <<<"$checkout_block" &&
+  grep -qF 'if [ "$CHECKED_OUT_SHA" != "$CONTENT_REF" ]' <<<"$checkout_block"; then
+  ok "Pages deploy requires and verifies an immutable full commit SHA"
+else
+  bad "Pages deploy does not enforce immutable full-SHA content identity"
 fi
 
 if grep -qF 'CONTENT_REF: ${{ inputs.content-ref || github.sha }}' <<<"$revision_block" &&

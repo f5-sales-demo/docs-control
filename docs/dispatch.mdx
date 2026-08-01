@@ -110,6 +110,7 @@ jobs:
   docs:
     uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@main
     with:
+      # Must be the immutable full commit SHA whose documentation is being built.
       content-ref: $\{{ github.sha }}
 ```
 

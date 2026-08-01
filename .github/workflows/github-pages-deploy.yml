@@ -6,7 +6,7 @@ on:
   workflow_call:
     inputs:
       content-ref:
-        description: 'Exact commit or ref to build from the calling repo'
+        description: 'Exact 40-character commit SHA to build from the calling repo'
         required: true
         type: string
       content-path:
@@ -71,10 +71,29 @@ jobs:
     outputs:
       build-status: ${{ job.status }}
     steps:
+      - name: Validate immutable content commit
+        env:
+          CONTENT_REF: ${{ inputs.content-ref || github.sha }}
+        run: |
+          if [[ ! "$CONTENT_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::content-ref must be a full lowercase 40-character commit SHA"
+            exit 1
+          fi
+
       - name: Checkout content repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.content-ref || github.sha }}
+
+      - name: Verify checked-out content commit
+        env:
+          CONTENT_REF: ${{ inputs.content-ref || github.sha }}
+        run: |
+          CHECKED_OUT_SHA=$(git rev-parse HEAD)
+          if [ "$CHECKED_OUT_SHA" != "$CONTENT_REF" ]; then
+            echo "::error::Checkout resolved $CHECKED_OUT_SHA, expected $CONTENT_REF"
+            exit 1
+          fi
 
       - name: Login to GHCR
         uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
