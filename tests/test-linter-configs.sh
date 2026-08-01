@@ -755,11 +755,11 @@ print(json.dumps(result))
 ")
 
 if echo "$SHFMT_CONFIG" | jq -e \
-  '.repo_found and .hook_found and .rev == "v3.13.1-1"' >/dev/null; then
-  pass "9.2 shfmt uses the pinned v3.13.1-1 prebuilt hook"
+  '.repo_found and .hook_found and .rev == "05c1426671b9237fb5e1444dd63aa5731bec0dfb"' >/dev/null; then
+  pass "9.2 shfmt uses the immutable v3.13.1-1 prebuilt hook commit"
 else
-  fail "9.2 shfmt uses the pinned v3.13.1-1 prebuilt hook" \
-    "expected scop/pre-commit-shfmt@v3.13.1-1 with hook id shfmt, got $SHFMT_CONFIG"
+  fail "9.2 shfmt uses the immutable v3.13.1-1 prebuilt hook commit" \
+    "expected scop/pre-commit-shfmt@05c1426671b9237fb5e1444dd63aa5731bec0dfb with hook id shfmt, got $SHFMT_CONFIG"
 fi
 
 if echo "$SHFMT_CONFIG" | jq -e \
