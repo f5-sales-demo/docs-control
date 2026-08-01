@@ -8,19 +8,16 @@ name: Semgrep
 # managed_files entry with "only_repos" in .github/config/repo-settings.json.
 # Content/demo repos are excluded deliberately: they would produce noise, not signal.
 #
-# ADVISORY BY DESIGN: the scan never fails the build (`|| true`); findings surface in
-# the repository Security tab (Code Scanning) via the SARIF upload. Promote to a
-# required check per repo only AFTER its finding volume has been triaged — gating on
-# an untriaged SAST feed would block every merge on pre-existing findings.
+# Findings are advisory and surface in the repository Security tab through SARIF.
+# Scanner execution errors still fail the job; an unavailable or broken scan must
+# never be reported as success.
 on:
   pull_request:
     branches: [main]
   push:
     branches: [main]
 
-permissions:
-  contents: read
-  security-events: write # required to upload SARIF to Code Scanning
+permissions: {}
 
 concurrency:
   group: semgrep-${{ github.ref }}
@@ -30,6 +27,9 @@ jobs:
   semgrep:
     name: Semgrep SAST
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout the source to scan
+      security-events: write # upload SARIF to Code Scanning
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -39,7 +39,7 @@ jobs:
           # Registry rulesets: p/default (curated, cross-language) plus language
           # packs. A pack for a language a repo does not use simply yields no
           # findings, so one template serves every code-bearing repo.
-          # `|| true` keeps the job green regardless of findings (advisory).
+          # Findings remain advisory because --error is intentionally absent.
           # Excluded rules (categorically inapplicable — exclude at config level
           # rather than dismissing the same alert in every repo forever):
           #   python3x-compatibility-* : flags Python 3.6+ APIs as "too new". Every
@@ -51,7 +51,7 @@ jobs:
             --config p/golang \
             --exclude-rule python.lang.compatibility.python36.python36-compatibility-Popen1 \
             --exclude-rule python.lang.compatibility.python36.python36-compatibility-Popen2 \
-            --sarif --output semgrep.sarif || true
+            --sarif --output semgrep.sarif
 
       - name: Upload SARIF to Code Scanning
         if: always() && hashFiles('semgrep.sarif') != ''
