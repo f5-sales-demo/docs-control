@@ -106,6 +106,19 @@ repos:
         types: [markdown]
 
   # ===========================================================================
+  # Shell formatting — pinned to Super-Linter's SHELL_SHFMT v3.13.1.
+  # The prebuilt hook installs its own binary, so local and pre-commit.ci runs
+  # do not depend on a contributor having shfmt installed globally.
+  # ===========================================================================
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.13.1-1
+    hooks:
+      - id: shfmt
+        name: Shell format
+        args: ["--write", "--indent", "2"]
+        types: [shell]
+
+  # ===========================================================================
   # Shell script analysis — config: .shellcheckrc (SC2016 disabled there)
   # Replaces: shellcheck in super-linter
   # (was passing SHELLCHECK_OPTS="-e SC2016")

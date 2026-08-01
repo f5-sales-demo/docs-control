@@ -727,6 +727,57 @@ else
     "expected pass_filenames=True (or absent), got '$ECC_PASS'"
 fi
 
+# Shell formatting must fail locally before Super-Linter's SHELL_SHFMT gate.
+# Use the prebuilt mirror rather than a language: system hook so contributors
+# and pre-commit.ci get the same formatter version without a local prerequisite.
+SHFMT_CONFIG=$(python3 -c "
+import json, yaml
+cfg = yaml.safe_load(open('$REPO_ROOT/.pre-commit-config.yaml'))
+result = {
+    'repo_found': False,
+    'rev': None,
+    'hook_found': False,
+    'args': None,
+    'types': None,
+    'ci_skipped': 'shfmt' in cfg.get('ci', {}).get('skip', []),
+}
+for repo in cfg.get('repos', []):
+    if repo.get('repo') != 'https://github.com/scop/pre-commit-shfmt':
+        continue
+    result['repo_found'] = True
+    result['rev'] = repo.get('rev')
+    for hook in repo.get('hooks', []):
+        if hook.get('id') == 'shfmt':
+            result['hook_found'] = True
+            result['args'] = hook.get('args')
+            result['types'] = hook.get('types')
+print(json.dumps(result))
+")
+
+if echo "$SHFMT_CONFIG" | jq -e \
+  '.repo_found and .hook_found and .rev == "v3.13.1-1"' >/dev/null; then
+  pass "9.2 shfmt uses the pinned v3.13.1-1 prebuilt hook"
+else
+  fail "9.2 shfmt uses the pinned v3.13.1-1 prebuilt hook" \
+    "expected scop/pre-commit-shfmt@v3.13.1-1 with hook id shfmt, got $SHFMT_CONFIG"
+fi
+
+if echo "$SHFMT_CONFIG" | jq -e \
+  '.args == ["--write", "--indent", "2"]' >/dev/null; then
+  pass "9.3 shfmt auto-formats with the CI-equivalent two-space style"
+else
+  fail "9.3 shfmt auto-formats with the CI-equivalent two-space style" \
+    "expected --write --indent 2, got $SHFMT_CONFIG"
+fi
+
+if echo "$SHFMT_CONFIG" | jq -e \
+  '.types == ["shell"] and (.ci_skipped | not)' >/dev/null; then
+  pass "9.4 shfmt covers shell files locally and in pre-commit.ci"
+else
+  fail "9.4 shfmt covers shell files locally and in pre-commit.ci" \
+    "expected types=[shell] and no ci.skip entry, got $SHFMT_CONFIG"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 10: secrets_manifest schema validity
 # ════════════════════════════════════════════════════════════════════
