@@ -33,8 +33,8 @@
       "enforce_admins": true,
       "required_status_checks": {
         "strict": false,
-        "contexts": ["check / Check linked issues", "lint / Lint Code Base"],
-        "self_contexts": ["Check linked issues", "Lint Code Base"]
+        "contexts": ["check / Check linked issues", "lint / Lint Code Base", "lint / Shell Unit Tests"],
+        "self_contexts": ["Check linked issues", "Lint Code Base", "Shell Unit Tests"]
       },
       "required_pull_request_reviews": null,
       "restrictions": null,
@@ -53,7 +53,7 @@
     },
     "xcsh": {
       "additional_contexts": ["check", "pii-guard", "test"],
-      "excluded_required_contexts": ["lint / Lint Code Base"]
+      "excluded_required_contexts": ["lint / Lint Code Base", "lint / Shell Unit Tests"]
     },
     "vscode-xcsh": {
       "additional_contexts": ["Validate Generation", "Test (ubuntu-latest)", "Build VSIX"]
@@ -71,9 +71,6 @@
         "Validate Shell Scripts",
         "Validate Terraform Examples"
       ]
-    },
-    "mcn": {
-      "additional_contexts": ["lint / Shell Unit Tests"]
     },
     "api-specs-enriched": {
       "additional_contexts": ["Contract-diff gate", "Run pytest suite"]
