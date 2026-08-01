@@ -122,6 +122,17 @@ The `self_contexts` field stores the check names that apply to docs-control itse
 
 `Shell Unit Tests` is the uniform repository-test gate. The reusable workflow always reports it: consumer repositories run every `tests/test-*.sh` file, while a repository with no matching tests reports success with an explicit no-tests message. This makes repository shell tests required by default instead of relying on per-repository opt-in lists.
 
+#### Consumer shell-test profiles
+
+The default assumes every root-level `tests/test-*.sh` script is hermetic on an unprovisioned GitHub-hosted runner. A repository that also stores container or service integration tests under that glob needs a `consumer_shell_tests.profiles` entry in `repo-settings.json`.
+
+Each profile classifies the complete matching inventory:
+
+- `unit` entries contain a test `path` and an `args` array. The runner passes each argument literally, without shell evaluation.
+- `environment` entries contain a test `path` and a non-empty `reason` explaining why the bare-runner unit gate cannot execute it.
+
+The reusable workflow fetches the selector and configuration from the same docs-control `main` revision, logs that revision, and validates the inventory before running anything. Missing configuration, unsafe paths or arguments, duplicate paths, and unclassified or missing tests fail the required context. This makes a profile an audited classification contract rather than an ignore list. Repositories without a profile keep the broad default.
+
 The `xcsh` override excludes both Super-Linter contexts because that repository does not call the reusable Super-Linter workflow; its native `check`, `pii-guard`, and `test` contexts remain required. Live verification must prove an exclusion is necessary before it is added.
 
 Do not require a context from a workflow with `paths` or `paths-ignore` filters. GitHub leaves that context pending when the workflow does not start. Broad security tools must run in an unfiltered pull-request workflow or in a scheduled full-tree audit; the managed workflow-security audit uses the latter model for `zizmor`. A job-level condition is safe because a skipped job still reports a successful check.
