@@ -107,14 +107,18 @@ repos:
 
   # ===========================================================================
   # Shell formatting — pinned to Super-Linter's SHELL_SHFMT v3.13.1.
-  # The prebuilt hook installs its own binary, so local and pre-commit.ci runs
-  # do not depend on a contributor having shfmt installed globally.
+  # The local Python hook installs the mirror's checksum-verified binary without
+  # requiring a global shfmt. Keeping the dependency under repo: local prevents
+  # pre-commit.ci's weekly autoupdater from advancing it ahead of Super-Linter.
   # ===========================================================================
-  - repo: https://github.com/scop/pre-commit-shfmt
-    rev: 05c1426671b9237fb5e1444dd63aa5731bec0dfb # v3.13.1-1
+  - repo: local
     hooks:
       - id: shfmt
         name: Shell format
+        entry: shfmt
+        language: python
+        additional_dependencies:
+          - git+https://github.com/scop/pre-commit-shfmt@05c1426671b9237fb5e1444dd63aa5731bec0dfb # v3.13.1-1
         args: ["--write", "--indent", "2"]
         types: [shell]
 
