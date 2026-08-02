@@ -1,0 +1,74 @@
+name: Antigravity Code Review
+
+on:
+  workflow_call:
+    secrets:
+      ANTIGRAVITY_TOKEN:
+        required: true
+      GCP_PROJECT_ID:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  antigravity-review:
+    # Security: restrict execution to trusted same-repo PR heads (exclude external forks)
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout PR Head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Install System Dependencies for Headless Keyring
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dbus-x11 libsecret-1-0 gnome-keyring python3-pip python3-keyring
+
+      - name: Install Antigravity CLI
+        run: |
+          curl -fsSL https://antigravity.google/cli/install.sh | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Configure Keyring and Execute Antigravity AI Reviewer
+        env:
+          ANTIGRAVITY_TOKEN: ${{ secrets.ANTIGRAVITY_TOKEN }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dbus-run-session -- bash -c '
+            # 1. Unlock gnome-keyring in headless session
+            eval "$(echo "" | gnome-keyring-daemon --unlock --daemonize)"
+            export SSH_AUTH_SOCK
+            export GNOME_KEYRING_CONTROL
+            export GNOME_KEYRING_PID
+            
+            # 2. Extract clean raw JSON from macOS keychain base64-encoded token
+            RAW_TOKEN_JSON=$(echo "$ANTIGRAVITY_TOKEN" | sed "s/^go-keyring-base64:// " | base64 -d)
+            
+            # 3. Store raw JSON in standard DBus Secret Service
+            python3 -c "import keyring; keyring.set_password('\''gemini'\'', '\''antigravity'\'', \"\"\"$RAW_TOKEN_JSON\"\"\")"
+            
+            # 4. Automate workspace trust with Gemini 3.6 Flash (High) and global endpoint
+            mkdir -p ~/.gemini/antigravity-cli
+            echo "{\"gcp\": {\"project\": \"$GCP_PROJECT_ID\", \"location\": \"global\"}, \"model\": \"Gemini 3.6 Flash (High)\", \"trustedWorkspaces\": [\"/home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}\"]}" > ~/.gemini/antigravity-cli/settings.json
+            
+            # 5. Run the Antigravity Agentic PR Reviewer
+            /home/runner/.local/bin/agy --project "$GCP_PROJECT_ID" --print --prompt "
+            You are Antigravity, the elite agentic AI coding assistant from Google DeepMind.
+            You are running inside a GitHub Action as an automated Pull Request Code Reviewer.
+            
+            OBJECTIVES:
+            1. Analyze the changes in this PR. Run the authenticated '\''gh'\'' CLI to view the diff using '\''gh pr diff'\'' or git tools.
+            2. Scan the diff and context files meticulously for security flaws, PII (Personally Identifiable Information) leakage (e.g., hardcoded emails, credentials, real names), or high-risk exposed configs.
+            3. Highlight visual and aesthetic improvements if they touch frontend components (e.g., colors, fluid animations, typography).
+            4. Submit a constructive, high-quality high-level review comment directly to the PR using '\''gh pr comment'\'' or '\''gh pr review'\''.
+            "
+          '
