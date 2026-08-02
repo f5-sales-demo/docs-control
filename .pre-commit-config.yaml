@@ -129,6 +129,17 @@ repos:
         language: system
         types: [mdx]
 
+      # Plain Markdown prose. CI lints it through Super-Linter's NATURAL_LANGUAGE
+      # (textlint), which had no local equivalent — so a terminology finding only
+      # surfaced after a full Lint Code Base run. pre-commit exists to fail in
+      # seconds instead. Same script and same pinned versions as the MDX hook, so
+      # the two cannot drift apart.
+      - id: textlint-markdown
+        name: Markdown prose lint (textlint)
+        entry: scripts/lint-mdx-prose.sh --textlint-only
+        language: system
+        types: [markdown]
+
   # ===========================================================================
   # Shell formatting — pinned to Super-Linter's SHELL_SHFMT v3.13.1.
   # The local Python hook installs the mirror's checksum-verified binary without

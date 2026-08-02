@@ -15,8 +15,15 @@
 # repository at once — a pull request is judged on the pages it touches.
 #
 # Usage:
-#   lint-mdx-prose.sh [PATH ...]        lint the named files (.mdx are selected)
-#   lint-mdx-prose.sh --changed [BASE]  lint .mdx changed against BASE (default origin/main)
+#   lint-mdx-prose.sh [PATH ...]         lint the named files (.mdx are selected)
+#   lint-mdx-prose.sh --changed [BASE]   lint .mdx changed against BASE (default origin/main)
+#   lint-mdx-prose.sh --textlint-only [PATH ...]
+#       Run only textlint, and accept .md as well as .mdx. This is the local
+#       pre-commit path for plain Markdown: CI lints .md prose through
+#       Super-Linter's NATURAL_LANGUAGE, which has no local equivalent, so a
+#       terminology finding would otherwise only surface after a full CI run.
+#       markdownlint is skipped here because the markdownlint hook already owns
+#       .md locally.
 set -euo pipefail
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
@@ -47,6 +54,12 @@ collect_changed() {
 }
 
 main() {
+  local textlint_only=0
+  if [ "${1:-}" = "--textlint-only" ]; then
+    textlint_only=1
+    shift
+  fi
+
   local -a candidates=()
   if [ "${1:-}" = "--changed" ]; then
     shift
@@ -57,34 +70,42 @@ main() {
     candidates=("$@")
   fi
 
-  # .md is deliberately excluded: Super-Linter already lints that extension, and
-  # linting it here too would report every finding twice.
+  # In the default mode .md is excluded: Super-Linter already lints that extension
+  # in CI, and linting it here too would report every finding twice. In
+  # --textlint-only mode .md is included, because that mode exists precisely to
+  # give plain Markdown a local textlint run it otherwise never gets.
   local -a files=()
   local f
   for f in "${candidates[@]:-}"; do
     case "$f" in
     *.mdx) [ -f "$f" ] && files+=("$f") ;;
+    *.md) [ "$textlint_only" -eq 1 ] && [ -f "$f" ] && files+=("$f") ;;
     esac
   done
 
+  local selection=".mdx"
+  [ "$textlint_only" -eq 1 ] && selection=".md/.mdx"
+
   if [ "${#files[@]}" -eq 0 ]; then
-    echo "No .mdx files to lint."
+    echo "No ${selection} files to lint."
     return 0
   fi
 
-  echo "Linting ${#files[@]} .mdx file(s)."
+  echo "Linting ${#files[@]} ${selection} file(s)."
 
   local rc=0
 
-  local -a markdownlint_cmd
-  if [ -n "$MARKDOWNLINT_BIN" ]; then
-    markdownlint_cmd=("$MARKDOWNLINT_BIN")
-  else
-    markdownlint_cmd=(npx --yes "$MARKDOWNLINT_PKG")
+  if [ "$textlint_only" -eq 0 ]; then
+    local -a markdownlint_cmd
+    if [ -n "$MARKDOWNLINT_BIN" ]; then
+      markdownlint_cmd=("$MARKDOWNLINT_BIN")
+    else
+      markdownlint_cmd=(npx --yes "$MARKDOWNLINT_PKG")
+    fi
+    local -a markdownlint_args=()
+    [ -f "${REPO_ROOT}/.markdownlint.json" ] && markdownlint_args+=(--config "${REPO_ROOT}/.markdownlint.json")
+    "${markdownlint_cmd[@]}" "${markdownlint_args[@]}" "${files[@]}" || rc=1
   fi
-  local -a markdownlint_args=()
-  [ -f "${REPO_ROOT}/.markdownlint.json" ] && markdownlint_args+=(--config "${REPO_ROOT}/.markdownlint.json")
-  "${markdownlint_cmd[@]}" "${markdownlint_args[@]}" "${files[@]}" || rc=1
 
   # --plugin mdx is not optional: without it textlint parses MDX as Markdown and
   # reports the JSX as prose.

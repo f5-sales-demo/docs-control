@@ -132,6 +132,30 @@ else
   bad "a deleted file in a changed-file list must not fail the gate (rc=$rc)"
 fi
 
+# --- --textlint-only: the local gate for plain Markdown --------------------
+# CI lints .md prose through Super-Linter's NATURAL_LANGUAGE; pre-commit had no
+# equivalent, so a finding cost a full CI run to discover.
+
+reset_calls
+rc=$(run_gate --textlint-only "$WORK/docs/en/plain.md")
+if [ "$rc" -ne 0 ]; then
+  bad "--textlint-only must accept .md (rc=$rc)"
+elif ! grep -qF "$WORK/docs/en/plain.md" "$WORK/textlint.args" 2>/dev/null; then
+  bad "--textlint-only did not pass the .md file to textlint"
+elif [ -f "$WORK/markdownlint-cli2.args" ]; then
+  bad "--textlint-only must not run markdownlint — the markdownlint hook owns .md"
+else
+  ok "--textlint-only lints .md with textlint and skips markdownlint"
+fi
+
+reset_calls
+rc=$(run_gate --textlint-only "$WORK/docs/en/good.mdx")
+if [ "$rc" -eq 0 ] && grep -qF "$WORK/docs/en/good.mdx" "$WORK/textlint.args" 2>/dev/null; then
+  ok "--textlint-only still accepts .mdx"
+else
+  bad "--textlint-only should accept .mdx too (rc=$rc)"
+fi
+
 # --- the routing facts this gate exists to compensate for -----------------
 
 # The gate must be reachable locally as well as in CI, and both must run the same
@@ -147,6 +171,12 @@ if printf '%s' "$mdx_hook_types" | grep -q 'mdx'; then
   ok "the pre-commit MDX hook selects mdx files"
 else
   bad "the pre-commit MDX hook must select types: [mdx], got: ${mdx_hook_types}"
+fi
+
+if grep -q 'textlint-only' "${REPO_ROOT}/.pre-commit-config.yaml"; then
+  ok "pre-commit lints plain Markdown prose locally too"
+else
+  bad "pre-commit has no local textlint for .md — CI would be the first to know"
 fi
 
 if grep -q 'lint-mdx-prose.sh' "${REPO_ROOT}/.github/workflows/super-linter.yml"; then
