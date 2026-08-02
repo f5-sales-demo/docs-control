@@ -242,6 +242,23 @@ jobs:
             echo "No biome-eligible files found — skipping"
           fi
 
+      # MDX prose runs OUTSIDE the Super-Linter container for the same reason
+      # Biome does: the container cannot own it. Super-Linter v8.7.0 routes only
+      # the `md` extension into MARKDOWN and NATURAL_LANGUAGE, so a repository
+      # whose documentation is .mdx passed this gate with no linter having opened
+      # a file (docs-control#847). Scoped to changed files to match
+      # VALIDATE_ALL_CODEBASE=false below, so a pull request is judged on the
+      # pages it touches.
+      - name: Lint MDX prose
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
+        run: |
+          if [ -f scripts/lint-mdx-prose.sh ]; then
+            bash scripts/lint-mdx-prose.sh --changed "origin/${BASE_REF}"
+          else
+            echo "scripts/lint-mdx-prose.sh not present in this repository — skipping"
+          fi
+
       - name: Run Super-Linter
         uses: super-linter/super-linter@4ce20838b8ab83717e78138c5b3a1407148e0918 # v8.7.0
         env:
@@ -506,6 +523,10 @@ jobs:
       - name: Run require-linked-issue exemptions test
         if: hashFiles('tests/test-require-linked-issue-exemptions.sh') != ''
         run: bash tests/test-require-linked-issue-exemptions.sh
+
+      - name: Run MDX prose gate test
+        if: hashFiles('tests/test-lint-mdx-prose.sh') != ''
+        run: bash tests/test-lint-mdx-prose.sh
 
       # Consumer repos: run their OWN hermetic tests/test-*.sh through canonical
       # docs-control selection. The default remains every matching script. A repo
