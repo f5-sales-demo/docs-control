@@ -65,9 +65,9 @@ jobs:
           }
 
           if (issues.length) {
-            console.error(`\n✖ ${issues.length} translation issue(s) — regenerate with \`docs-translate --staged\` (or --force) and commit:\n`);
+            console.error(`\n✖ ${issues.length} translation issue(s) — trigger Antigravity translation workflow (antigravity-translate.yml) and commit:\n`);
             for (const i of issues) console.error('  ' + i);
-            console.error('\nGeneration runs in pre-commit; this gate only verifies freshness.');
+            console.error('\nGeneration runs via Antigravity (agy); this gate only verifies freshness.');
             process.exit(1);
           }
           console.log('✓ All translations are present and fresh.');

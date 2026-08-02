@@ -1,0 +1,76 @@
+name: Antigravity Language Translation
+
+on:
+  workflow_call:
+    secrets:
+      ANTIGRAVITY_TOKEN:
+        required: true
+      GCP_PROJECT_ID:
+        required: true
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "docs/en/**"
+      - "src/content/docs/en/**"
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  antigravity-translate:
+    # Security: restrict execution to trusted same-repo PR heads (exclude external forks)
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout PR Head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install System Dependencies for Headless Keyring
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dbus-x11 libsecret-1-0 gnome-keyring python3-pip python3-keyring
+
+      - name: Install Antigravity CLI
+        run: |
+          curl -fsSL https://antigravity.google/cli/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Configure Keyring and Execute Antigravity AI Translator
+        env:
+          ANTIGRAVITY_TOKEN: ${{ secrets.ANTIGRAVITY_TOKEN }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+        run: |
+          dbus-run-session -- bash -c '
+            # 1. Unlock gnome-keyring in headless session
+            eval "$(echo "" | gnome-keyring-daemon --unlock --daemonize)"
+            export SSH_AUTH_SOCK
+            export GNOME_KEYRING_CONTROL
+            export GNOME_KEYRING_PID
+            
+            # 2. Extract clean raw JSON from macOS keychain base64-encoded token
+            RAW_TOKEN_JSON=$(echo "$ANTIGRAVITY_TOKEN" | sed "s/^go-keyring-base64://" | base64 -d)
+            
+            # 3. Store raw JSON in standard DBus Secret Service
+            python3 -c "import keyring; keyring.set_password('\''gemini'\'', '\''antigravity'\'', \"\"\"$RAW_TOKEN_JSON\"\"\")"
+            
+            # 4. Automate workspace trust with Gemini 3.6 Flash (High) and global endpoint
+            mkdir -p ~/.gemini/antigravity-cli
+            echo "{\"gcp\": {\"project\": \"$GCP_PROJECT_ID\", \"location\": \"global\"}, \"model\": \"Gemini 3.6 Flash (High)\", \"trustedWorkspaces\": [\"/home/runner/work/$REPOSITORY_NAME/$REPOSITORY_NAME\"]}" > ~/.gemini/antigravity-cli/settings.json
+            
+            # 5. Configure git identity for automated translation commits
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+
+            # 6. Run the Antigravity Agentic Language Translator using --dangerously-skip-permissions
+            /home/runner/.local/bin/agy --project "$GCP_PROJECT_ID" --dangerously-skip-permissions --print "You are Antigravity, an elite agentic AI coding assistant and language translator. Your task is to update language translations for documentation under '\''docs/en/'\'' or '\''src/content/docs/en/'\'' across all 12 ecosystem target locales (fr, es, de, pt-br, ja, ko, zh-cn, zh-tw, ar, it, hi, th). Read .agents/skills/i18n-translate/SKILL.md for instructions. First, identify any changed or newly added English documentation. For each changed file, check if target locale files exist under docs/<locale>/ and verify if i18n.sourceHash matches the current SHA-256 (first 12 hex characters) of the English source. For any missing or stale translations, generate translated MDX content preserving code blocks, MDX tags, and frontmatter structure, and set i18n.sourceHash to the English SHA-256 hash. Finally, stage and commit updated translations with '\''chore(i18n): update translations via Antigravity [skip ci]'\'' and push them back to the PR branch."
+          '

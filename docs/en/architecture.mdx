@@ -1,6 +1,6 @@
 ---
 title: Architecture
-description: Three-repository documentation pipeline architecture spanning docs-control, docs-builder, and docs-theme.
+description: Three-repository documentation pipeline architecture spanning docs-control, docs-builder, and docs-theme, featuring Antigravity AI automation and fleet governance.
 sidebar:
   order: 2
 ---
@@ -11,7 +11,7 @@ The documentation and governance system spans three repositories, each with a di
 
 | Repository | Role |
 | --- | --- |
-| **docs-control** | Central governance hub -- repository settings, branch protection config, managed files manifest, reusable CI workflows, caller workflow templates, and downstream dispatch |
+| **docs-control** | Central governance hub -- repository settings, branch protection config, managed files manifest, reusable CI workflows, Antigravity AI workflows, caller workflow templates, agent skills, and downstream dispatch |
 | **docs-builder** | Docker build image -- Astro + Starlight build orchestration, npm dependencies, Puppeteer PDF generation, interactive components |
 | **docs-theme** | Astro Starlight plugin -- shared branding, CSS, fonts, logos, layout components, `astro.config.mjs`, and `content.config.ts` |
 
@@ -19,22 +19,33 @@ Content repositories only need a `docs/` directory. The build container and work
 
 ## Data flow
 
-When a template file changes in docs-control on `main`:
+When a template file or workflow changes in docs-control on `main`:
 
 1. The [dispatch workflow](./dispatch/) fires and triggers enforcement in every downstream repository
 2. The [enforcement workflow](./settings-enforcement/) compares desired state against current state and patches any drift
 3. The [file sync workflow](./file-sync/) detects drifted managed files, creates a PR with canonical content, and auto-merges it
+4. Reusable Antigravity AI workflows (`antigravity-review.yml` and `antigravity-translate.yml`) execute on pull requests across enrolled repositories
 
-## Token model
+## Antigravity AI Automation
 
-Two fine-grained personal access tokens provide least-privilege separation:
+The fleet incorporates **Antigravity (`agy`)** AI automation running on GitHub Actions runners:
 
-| Token | Permissions | Used by |
+| Workflow | Purpose | Trigger & Execution |
 | --- | --- | --- |
-| `REPO_SETTINGS_TOKEN` | Administration R/W, Pages R/W, Contents Read, Metadata Read | `enforce-repo-settings.yml`, `dispatch-downstream.yml` |
-| `REPO_SYNC_TOKEN` | Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read | `sync-managed-files.yml` |
+| **Antigravity Code Review** (`antigravity-review.yml`) | Automated AI pull request code review | Runs on PR creation or update. Uses Gemini 3.6 Flash (High) to audit diffs for security vulnerabilities, hardcoded secrets, PII leakage, and code quality, posting feedback via PR comments. |
+| **Antigravity Language Translation** (`antigravity-translate.yml`) | Automated AI documentation translation | Runs on PRs modifying `docs/en/**/*.md[x]`. Executes the `.agents/skills/i18n-translate/SKILL.md` skill to update 12 target locales (`fr`, `es`, `de`, `pt-br`, `ja`, `ko`, `zh-cn`, `zh-tw`, `ar`, `it`, `hi`, `th`), update `i18n.sourceHash`, and auto-commit back to the PR branch. |
 
-The enforcement workflow needs admin access to modify branch protection and Pages settings. The sync workflow needs contents and PR access to create branches, commit files, and merge PRs. Splitting these reduces the blast radius if either token is compromised.
+## Token & Credentials Model
+
+Three sets of credentials provide least-privilege separation:
+
+| Token / Secret | Permissions / Scope | Used by |
+| --- | --- | --- |
+| `REPO_SETTINGS_TOKEN` | Administration R/W, Pages R/W, Contents Read, Metadata Read | `enforce-repo-settings.yml`, `dispatch-downstream.yml`, `update-governed-workflow-pins.yml` |
+| `REPO_SYNC_TOKEN` | Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read | `sync-managed-files.yml` |
+| `ANTIGRAVITY_TOKEN` & `GCP_PROJECT_ID` | Antigravity AI Authentication & GCP Project Access | `antigravity-review.yml`, `antigravity-translate.yml` |
+
+The enforcement workflow needs admin access to modify branch protection and Pages settings. The sync workflow needs contents and PR access to create branches, commit files, and merge PRs. Antigravity AI workflows use dedicated project credentials to authenticate with Gemini 3.6 Flash.
 
 ## Self-detection
 
@@ -53,11 +64,13 @@ example, `Shell Unit Tests`), while downstream repositories use caller wrappers 
 | `.github/config/repo-settings.json` | Central config: repository settings, branch protection, Actions permissions, Pages config, and the managed files manifest |
 | `.github/config/downstream-repos.json` | Registry of enrolled downstream repositories |
 | `.github/config/docs-sites.json` | Metadata for each downstream docs site (label, URL, description) used by README templating |
-| `.github/workflows/` | Reusable workflows: enforcement, file sync, pages deploy, linked-issue check, and dispatch |
+| `.github/workflows/` | Reusable workflows: enforcement, file sync, pages deploy, linked-issue check, dispatch, antigravity review, and antigravity translation |
+| `.agents/skills/` | Agent skills governance: `demo-components`, `i18n-translate` |
 | `workflows/` | Caller templates downstream repositories install into `.github/workflows/` |
 | `docs/` | Documentation source (built and deployed via Astro Starlight) |
 | `CONTRIBUTING.md` | Contributor workflow rules (synced to all downstream repositories) |
 | `CLAUDE.md` | AI assistant instructions (synced to all downstream repositories) |
+| `AGENTS.md` | Repository agent instructions and governance policies |
 | `README.md.tpl` | Template for dynamically generated downstream README files |
 | `.pre-commit-config.yaml` | Pre-commit hooks configuration (synced to all downstream repositories) |
 | `.markdownlint.json` | Markdown linter rules |
