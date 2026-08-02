@@ -1100,6 +1100,50 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 15: every docs-control shell test is a guarded CI step
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 15: complete shell-test CI inventory ==="
+
+if python3 - "$REPO_ROOT" "$SUPER_LINTER_WORKFLOW" <<'PY'; then
+import pathlib
+import re
+import sys
+
+import yaml
+
+repo_root = pathlib.Path(sys.argv[1])
+workflow_path = pathlib.Path(sys.argv[2])
+with workflow_path.open(encoding="utf-8") as workflow_file:
+    workflow = yaml.safe_load(workflow_file)
+
+expected = {
+    path.relative_to(repo_root).as_posix()
+    for path in (repo_root / "tests").glob("test-*.sh")
+    if path.is_file()
+}
+steps = workflow["jobs"]["shell-unit-tests"]["steps"]
+observed: list[str] = []
+for step in steps:
+    command = step.get("run", "")
+    match = re.fullmatch(r"bash (tests/test-[A-Za-z0-9._-]+[.]sh)", command)
+    if not match:
+        continue
+    path = match.group(1)
+    if step.get("if") != f"hashFiles('{path}') != ''":
+        raise SystemExit(1)
+    observed.append(path)
+
+if len(observed) != len(set(observed)) or set(observed) != expected:
+    raise SystemExit(1)
+PY
+  pass "15.1 every shell test has exactly one guarded CI step"
+else
+  fail "15.1 every shell test has exactly one guarded CI step" \
+    "shell-unit-tests does not exactly cover tests/test-*.sh"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 # Summary
 # ════════════════════════════════════════════════════════════════════
 echo ""
