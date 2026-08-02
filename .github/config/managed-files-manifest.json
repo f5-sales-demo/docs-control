@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-02T16:49:32Z",
-  "source_commit": "ee2347f418ba0644cbc10a2c440969884190582f",
+  "generated_at": "2026-08-02T17:59:53Z",
+  "source_commit": "42ed6dbb4e7926e3aec16be9bc3ff87065fc2b12",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -65,14 +65,32 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "8daa247e96e4cbba00c10f5a8c726b068098cb14",
-      "size": 40995
+      "sha": "553240da30860c782424d39467fed1ca8af190b8",
+      "size": 41030
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
       "sha": "af9250d12082876d7f01dda78acd79df99b9a1e0",
       "size": 8465
+    },
+    "AGENTS.md": {
+      "src": "AGENTS.md",
+      "dest": "AGENTS.md",
+      "sha": "3bc05398714c9a1dd86891200cbd1cd9c1e431be",
+      "size": 3327
+    },
+    ".agents/skills/demo-components/SKILL.md": {
+      "src": ".agents/skills/demo-components/SKILL.md",
+      "dest": ".agents/skills/demo-components/SKILL.md",
+      "sha": "a5bf12ece27711c2518ca26a9269ede5f785ff8d",
+      "size": 3209
+    },
+    ".agents/skills/demo-components/agents/openai.yaml": {
+      "src": ".agents/skills/demo-components/agents/openai.yaml",
+      "dest": ".agents/skills/demo-components/agents/openai.yaml",
+      "sha": "fd4b41a73460f11b504ba01b649148fdf07ba80a",
+      "size": 204
     },
     "STYLE_GUIDE.md": {
       "src": "STYLE_GUIDE.md",
@@ -263,8 +281,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "574601ca30a7923999c8da4818e4baf4eddf9baf",
-      "size": 4851
+      "sha": "e222420e78ed27228756edebd677cdb04dbbb083",
+      "size": 4972
     },
     ".claude/settings.json": {
       "src": ".claude/settings.json",
