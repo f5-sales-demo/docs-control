@@ -293,12 +293,20 @@
         "dest": "scripts/check-pii.sh"
       },
       {
+        "src": "scripts/lint-mdx-prose.sh",
+        "dest": "scripts/lint-mdx-prose.sh"
+      },
+      {
         "src": "tests/test-check-repo-hygiene.sh",
         "dest": "tests/test-check-repo-hygiene.sh"
       },
       {
         "src": "tests/test-check-pii.sh",
         "dest": "tests/test-check-pii.sh"
+      },
+      {
+        "src": "tests/test-lint-mdx-prose.sh",
+        "dest": "tests/test-lint-mdx-prose.sh"
       },
       {
         "src": ".claude/governance.json",

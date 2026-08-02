@@ -101,12 +101,33 @@ repos:
     hooks:
       - id: markdownlint
         name: Markdown lint
-        entry: markdownlint-cli2
+        # Pinned to the tool AND version Super-Linter v8.7.0 runs in its container
+        # (dependencies/package.json: markdownlint-cli ^0.49.1) so a commit that
+        # passes locally cannot fail in CI. Previously this ran markdownlint-cli2
+        # from whatever happened to be installed globally — a different tool from
+        # the one CI uses. Bump with the Super-Linter SHA, never independently.
+        entry: npx --yes markdownlint-cli@0.49.1
         language: system
         types: [markdown]
         # Parser fixtures intentionally contain noncanonical Markdown so the
         # renderer's full syntax support remains covered.
         exclude: ^packages/chat-ui/test/markdown/fixtures/
+
+  # ===========================================================================
+  # MDX prose — configs: .markdownlint.json, .textlintrc
+  # `identify` tags .mdx as `mdx`, not `markdown`, so the hook above never sees
+  # it; Super-Linter routes only the `md` extension into MARKDOWN and
+  # NATURAL_LANGUAGE. Repositories whose documentation is .mdx were passing both
+  # gates unlinted (docs-control#847). One script so the local hook and CI run
+  # exactly the same checks.
+  # ===========================================================================
+  - repo: local
+    hooks:
+      - id: lint-mdx-prose
+        name: MDX prose lint
+        entry: scripts/lint-mdx-prose.sh
+        language: system
+        types: [mdx]
 
   # ===========================================================================
   # Shell formatting — pinned to Super-Linter's SHELL_SHFMT v3.13.1.
