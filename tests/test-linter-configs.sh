@@ -625,19 +625,30 @@ echo "=== Section 5b: .markdownlint.json opinionated-rule disables ==="
 # hundreds of noise violations on fork/reference-style docs.
 # MD029  ordered-list-style    — allow mixed 1. + 1) styles
 # MD033  no-inline-html        — MDX components and HTML embed
-# MD040  code-fence-language   — plain fenced code for pseudo-output is valid
 # MD041  first-line-h1         — Starlight frontmatter supplies the H1 implicitly
 # MD060  table-column-style    — tables are content-first, not pipe-aligned
 # MD025  single-title          — multi-H1 is used in reference docs
 # MD024  no-duplicate-heading  — repeated section names in reference docs
 # MD007  ul-indent             — indent preference varies by fork style
-for rule in MD029 MD033 MD040 MD041 MD060 MD025 MD024 MD007; do
+for rule in MD029 MD033 MD041 MD060 MD025 MD024 MD007; do
   if jq -e --arg r "$rule" '.[$r] == false' "$REPO_ROOT/.markdownlint.json" >/dev/null; then
     pass "5b.x .markdownlint.json disables $rule"
   else
     fail "5b.x .markdownlint.json disables $rule" "not set to false"
   fi
 done
+
+# MD040 (code-fence-language) is ENFORCED, and this asserts it stays that way.
+# It was previously disabled with the rationale "plain fenced code for pseudo-output
+# is valid", which contradicts STYLE_GUIDE.md §"Code and commands": "Tag every fence
+# with a language: bash, json, yaml, hcl, text." Pseudo-output has a tag — `text`.
+# The disable was a bypass, and this assertion exists so it cannot quietly return.
+if jq -e 'has("MD040") | not' "$REPO_ROOT/.markdownlint.json" >/dev/null ||
+  jq -e '.MD040 != false' "$REPO_ROOT/.markdownlint.json" >/dev/null; then
+  pass "5b.x .markdownlint.json enforces MD040 (every fence is tagged)"
+else
+  fail "5b.x .markdownlint.json enforces MD040" "MD040 is disabled — tag the fence instead"
+fi
 
 # MD013 (line-length) is ENFORCED with a generous 400-char cap, not disabled
 # (#682: "enforce MD013 (400) to match CI"). Long code examples and tables fit
