@@ -23,6 +23,7 @@ fail() {
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REPO_SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
+SUPER_LINTER_WORKFLOW="$REPO_ROOT/.github/workflows/super-linter.yml"
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 1: JSON Parse Validity (all managed JSON lint configs)
@@ -941,16 +942,18 @@ fi
 rm -rf "$GI_TMP"
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 12: managed PII scanner is formatter-portable
+# SECTION 12: managed PII scanner is Ruff-portable
 # ════════════════════════════════════════════════════════════════════
 echo ""
 echo "=== Section 12: managed PII scanner Ruff portability ==="
 
-# The scanner is synced verbatim, so its formatter portability is enforced where
-# it is authored. Rechecking a caller's stale managed copy deadlocks unrelated
-# downstream PRs: they are forbidden to fix it, while the sync PR cannot land.
+# The scanner is synced verbatim, so its lint and formatter portability are
+# enforced where it is authored. Rechecking a caller's stale managed copy
+# deadlocks unrelated downstream PRs: they are forbidden to fix it, while the
+# sync PR cannot land. Linting at each width matters because SIM rules can become
+# applicable only when their replacement fits the configured line length.
 for width in 88 100 120; do
-  if python3 - "$REPO_ROOT/.github/workflows/super-linter.yml" "$width" <<'PY'; then
+  if python3 - "$SUPER_LINTER_WORKFLOW" "$width" <<'PY'; then
 import sys
 
 import yaml
@@ -959,13 +962,7 @@ workflow_path, width = sys.argv[1:]
 with open(workflow_path, encoding="utf-8") as workflow_file:
     workflow = yaml.safe_load(workflow_file)
 
-expected_name = f"Check managed PII scanner format at {width} columns"
 steps = workflow["jobs"]["lint"]["steps"]
-matching = [step for step in steps if step.get("name") == expected_name]
-if len(matching) != 1:
-    raise SystemExit(1)
-
-step = matching[0]
 expected = {
     "uses": "astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89",
     "if": (
@@ -973,20 +970,30 @@ expected = {
         "hashFiles('scripts/check_pii.py') != ''"
     ),
 }
-if any(step.get(key) != value for key, value in expected.items()):
-    raise SystemExit(1)
+for mode, args in (
+    ("lint", f"check --config=line-length={width}"),
+    ("format", f"format --check --config=line-length={width}"),
+):
+    expected_name = f"Check managed PII scanner {mode} at {width} columns"
+    matching = [step for step in steps if step.get("name") == expected_name]
+    if len(matching) != 1:
+        raise SystemExit(1)
 
-inputs = step.get("with", {})
-if inputs.get("version") != "0.16.0":
-    raise SystemExit(1)
-if inputs.get("src") != "scripts/check_pii.py":
-    raise SystemExit(1)
-if inputs.get("args") != f"format --check --config=line-length={width}":
-    raise SystemExit(1)
+    step = matching[0]
+    if any(step.get(key) != value for key, value in expected.items()):
+        raise SystemExit(1)
+
+    inputs = step.get("with", {})
+    if inputs.get("version") != "0.16.0":
+        raise SystemExit(1)
+    if inputs.get("src") != "scripts/check_pii.py":
+        raise SystemExit(1)
+    if inputs.get("args") != args:
+        raise SystemExit(1)
 PY
-    pass "12.x docs-control checks canonical PII scanner at ${width} columns"
+    pass "12.x docs-control lints and formats canonical PII scanner at ${width} columns"
   else
-    fail "12.x docs-control checks canonical PII scanner at ${width} columns" \
+    fail "12.x docs-control lints and formats canonical PII scanner at ${width} columns" \
       "missing, incorrectly pinned, or not source-repository scoped"
   fi
 done
@@ -1018,7 +1025,6 @@ fi
 echo ""
 echo "=== Section 14: reusable workflow immutable inputs ==="
 
-SUPER_LINTER_WORKFLOW="$REPO_ROOT/.github/workflows/super-linter.yml"
 PAGES_WORKFLOW="$REPO_ROOT/.github/workflows/github-pages-deploy.yml"
 EXPECTED_BUILDER='ghcr.io/f5-sales-demo/docs-builder@sha256:905d2398fec15c05e828c881ab0e8b782368c30d70d97a978dc383935d7d0163'
 

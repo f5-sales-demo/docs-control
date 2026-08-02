@@ -37,6 +37,30 @@ jobs:
       # where it is authored; checking a downstream caller's stale copy blocks
       # an unrelated PR with a file that repository is forbidden to edit. The
       # three canonical widths still guard every Ruff configuration in the fleet.
+      - name: Check managed PII scanner lint at 88 columns
+        if: github.repository == 'f5-sales-demo/docs-control' && hashFiles('scripts/check_pii.py') != ''
+        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
+        with:
+          version: "0.16.0"
+          args: check --config=line-length=88
+          src: scripts/check_pii.py
+
+      - name: Check managed PII scanner lint at 100 columns
+        if: github.repository == 'f5-sales-demo/docs-control' && hashFiles('scripts/check_pii.py') != ''
+        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
+        with:
+          version: "0.16.0"
+          args: check --config=line-length=100
+          src: scripts/check_pii.py
+
+      - name: Check managed PII scanner lint at 120 columns
+        if: github.repository == 'f5-sales-demo/docs-control' && hashFiles('scripts/check_pii.py') != ''
+        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
+        with:
+          version: "0.16.0"
+          args: check --config=line-length=120
+          src: scripts/check_pii.py
+
       - name: Check managed PII scanner format at 88 columns
         if: github.repository == 'f5-sales-demo/docs-control' && hashFiles('scripts/check_pii.py') != ''
         uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89 # v4.1.0
