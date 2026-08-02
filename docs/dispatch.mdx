@@ -17,7 +17,12 @@ The trigger paths include:
 - `.github/PULL_REQUEST_TEMPLATE.md`, `.github/ISSUE_TEMPLATE/**`
 - `CONTRIBUTING.md`, `CLAUDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`, `.pre-commit-config.yaml`, `README.md.tpl`
 
-The workflow reads the downstream repository list, then calls `gh workflow run enforce-repo-settings.yml` for each repository using the `REPO_SETTINGS_TOKEN` secret (with 3 retry attempts per repository).
+The workflow verifies that its receipt is current protected `main` and that the
+immutable caller pin contains the exact reusable implementation. It then reads
+the downstream repository list and calls `gh workflow run
+enforce-repo-settings.yml -f source_sha=<receipt>` for each repository using the
+`REPO_SETTINGS_TOKEN` secret, with 3 retry attempts per repository. Historical
+main receipts defer; unmerged receipts fail provenance validation.
 
 ## Enrolled repositories
 
@@ -46,96 +51,63 @@ To enroll a new repository, add it to this file and follow the [onboarding proce
 
 ## Caller workflow templates
 
-The `workflows/` directory contains three workflow files that downstream repositories copy into their `.github/workflows/` directory. These are thin callers that invoke the reusable workflows hosted in docs-control.
+The `workflows/` directory is the source of truth for downstream caller files.
+Every reusable workflow reference in those callers is an immutable commit pin.
+Resolve protected `main` once, then download caller bytes at that exact receipt:
+
+```bash
+revision=$(gh api repos/f5-sales-demo/docs-control/commits/main --jq '.sha')
+for workflow in enforce-repo-settings github-pages-deploy require-linked-issue; do
+  gh api \
+    "repos/f5-sales-demo/docs-control/contents/workflows/${workflow}.yml?ref=${revision}" \
+    --jq '.content' | base64 -d > ".github/workflows/${workflow}.yml"
+done
+```
+
+The governed sync installs the complete caller set automatically. The three
+files below illustrate the main enforcement, Pages, and pull-request gates.
 
 ### enforce-repo-settings.yml
 
 Calls both `enforce-repo-settings.yml` and `sync-managed-files.yml` as parallel jobs with separate tokens. Triggers on schedule (every 6 hours), push to `.github/config/**`, and manual dispatch.
 
-```yaml title="workflows/enforce-repo-settings.yml"
-name: Enforce Repository Settings
+The caller resolves one protected-main receipt for scheduled and push runs. A
+manual run must supply `source_sha`. Both reusable jobs receive that same
+receipt. Before either job starts, the caller proves its own live blob and both
+immutable reusable-workflow pins against current protected main.
 
-on:
-  schedule:
-    - cron: '0 */6 * * *'
-  push:
-    branches: [main]
-    paths:
-      - '.github/config/**'
-  workflow_dispatch:
+During an implementation transition, `.github/config/governance-rollout.json`
+sets the fleet to `quiesced`. The dispatcher disables downstream enforcement,
+cancels active legacy runs, and installs the exact caller through one-file PRs.
+The `sync/exact-caller-*` branch namespace is reserved for that monotonic
+bootstrap; complete paginated PR inventory ensures a later run cannot be
+overtaken, and superseded PR branches are deleted rather than force-updated.
+The later exact-read release changes the state to `active`; enforcement resumes
+only after every caller and reusable pin is measured at the artifacts.
 
-permissions:
-  contents: read
-
-concurrency:
-  group: enforce-repo-settings
-  cancel-in-progress: true
-
-jobs:
-  enforce-settings:
-    uses: f5-sales-demo/docs-control/.github/workflows/enforce-repo-settings.yml@main
-    secrets:
-      repo-settings-token: $\{{ secrets.REPO_SETTINGS_TOKEN }}
-
-  sync-files:
-    uses: f5-sales-demo/docs-control/.github/workflows/sync-managed-files.yml@main
-    secrets:
-      repo-sync-token: $\{{ secrets.REPO_SYNC_TOKEN }}
-```
+Governed pin updates use a unique branch for each workflow run. The
+`sync/governed-workflow-pins-*` namespace is reserved exclusively for this
+monotonic automation: it inventories every open automation pull request and
+matching remote ref, then deletes superseded owners without force-updating
+them. The updater proves that its commit is based
+on current protected `main`, verifies the exact pull-request base, head, history,
+and files, and enables auto-merge only while required status checks are strict
+(the branch must be up to date before GitHub can merge it).
 
 ### github-pages-deploy.yml
 
 Calls the reusable docs build and deploy workflow. Triggers on push to `docs/**` on main and manual dispatch.
 
-```yaml title="workflows/github-pages-deploy.yml"
-name: GitHub Pages Deploy
-on:
-  push:
-    branches: [main]
-    paths:
-      - 'docs/**'
-  workflow_dispatch:
-
-permissions: {}
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
-jobs:
-  docs:
-    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@main
-    permissions:
-      contents: read
-      packages: read
-      pages: write
-      id-token: write
-```
+The caller deploys documentation from an immutable reusable-workflow pin. It
+triggers on configured documentation paths and on manual dispatch.
 
 ### require-linked-issue.yml
 
 Calls the reusable linked-issue check workflow. Triggers on `pull_request_target` events.
 
-```yaml title="workflows/require-linked-issue.yml"
-name: Require Linked Issue
-
-on:
-  pull_request_target:
-    types: [opened, edited, reopened, synchronize]
-
-permissions: {}
-
-concurrency:
-  group: $\{{ github.workflow }}-$\{{ github.event.pull_request.number }}
-  cancel-in-progress: true
-
-jobs:
-  check:
-    uses: f5-sales-demo/docs-control/.github/workflows/require-linked-issue.yml@main
-    permissions:
-      issues: read
-      pull-requests: write
-```
+The caller invokes the immutable linked-issue implementation for
+`pull_request_target` events and grants only issue-read and pull-request-write
+permissions.
 
 ## Check name format
 

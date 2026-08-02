@@ -32,7 +32,7 @@
       "branch": "main",
       "enforce_admins": true,
       "required_status_checks": {
-        "strict": false,
+        "strict": true,
         "contexts": ["check / Check linked issues", "lint / Lint Code Base", "lint / Shell Unit Tests"],
         "self_contexts": ["Check linked issues", "Lint Code Base", "Shell Unit Tests"]
       },

@@ -17,7 +17,13 @@ on:
       - '.github/config/managed-files-manifest.json'
       - '.github/config/repo-settings.json'
       - '.github/config/docs-sites.json'
+      - '.github/config/downstream-repos.json'
+      - '.github/config/governed-workflow-pin.json'
+      - '.github/config/governance-rollout.json'
+      - '.github/workflows/dispatch-downstream.yml'
       - 'README.md.tpl'
+  schedule:
+    - cron: '17 */6 * * *'
   workflow_dispatch:
 
 permissions:
@@ -40,8 +46,103 @@ jobs:
       - name: Dispatch enforce-repo-settings to all downstream repos
         env:
           GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
+          REPO_SETTINGS_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
+          REPO_SYNC_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}
+          SOURCE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
+
+          if ! printf '%s' "$SOURCE_SHA" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "::error::Could not resolve an exact docs-control source commit"
+            exit 1
+          fi
+
+          set +e
+          scripts/preflight-downstream-dispatch.sh
+          preflight_rc=$?
+          set -e
+          case "$preflight_rc" in
+            0) ;;
+            78)
+              echo "[DEFER] historical receipt; enqueueing current protected main"
+              gh workflow run dispatch-downstream.yml \
+                --repo "$GITHUB_REPOSITORY" \
+                --ref main
+              exit 0
+              ;;
+            79)
+              echo "[DEFER] governed workflow pin is not ready; enqueueing exact roll-forward"
+              gh workflow run update-governed-workflow-pins.yml \
+                --repo "$GITHUB_REPOSITORY" \
+                --ref main \
+                -f revision="$SOURCE_SHA"
+              exit 0
+              ;;
+            80|81|82)
+              echo "[BOOTSTRAP] propagating the exact managed caller before fan-out"
+              set +e
+              GH_TOKEN="$REPO_SYNC_TOKEN" \
+                scripts/bootstrap-downstream-callers.sh
+              bootstrap_rc=$?
+              set -e
+              case "$bootstrap_rc" in
+                0)
+                  set +e
+                  scripts/preflight-downstream-dispatch.sh
+                  postflight_rc=$?
+                  set -e
+                  case "$postflight_rc" in
+                    0) ;;
+                    78)
+                      echo "[DEFER] source advanced during bootstrap; enqueueing current protected main"
+                      gh workflow run dispatch-downstream.yml \
+                        --repo "$GITHUB_REPOSITORY" \
+                        --ref main
+                      exit 0
+                      ;;
+                    79)
+                      echo "[DEFER] reusable implementation advanced during bootstrap; enqueueing pin recovery"
+                      gh workflow run update-governed-workflow-pins.yml \
+                        --repo "$GITHUB_REPOSITORY" \
+                        --ref main
+                      exit 0
+                      ;;
+                    80|81|82)
+                      echo "[DEFER] bootstrap state changed; scheduled recovery remains active"
+                      exit 0
+                      ;;
+                    *)
+                      echo "::error::Post-bootstrap preflight failed"
+                      exit "$postflight_rc"
+                      ;;
+                  esac
+                  ;;
+                78)
+                  echo "[DEFER] source advanced during bootstrap; enqueueing current protected main"
+                  gh workflow run dispatch-downstream.yml \
+                    --repo "$GITHUB_REPOSITORY" \
+                    --ref main
+                  exit 0
+                  ;;
+                83)
+                  echo "[DEFER] exact-caller PRs or a newer bootstrap owner remain pending; scheduled recovery is active"
+                  exit 0
+                  ;;
+                81)
+                  echo "[DEFER] exact callers are installed and enforcement remains deliberately quiesced"
+                  exit 0
+                  ;;
+                *)
+                  echo "::error::Exact-caller bootstrap failed"
+                  exit "$bootstrap_rc"
+                  ;;
+              esac
+              ;;
+            *)
+              echo "::error::Downstream dispatch preflight failed"
+              exit "$preflight_rc"
+              ;;
+          esac
 
           dispatch_one() {
             local repo="$1"
@@ -50,7 +151,8 @@ jobs:
             local delay=2
             while true; do
               if gh workflow run enforce-repo-settings.yml \
-                  --repo "$repo" >/dev/null 2>&1; then
+                  --repo "$repo" \
+                  -f source_sha="$SOURCE_SHA" >/dev/null 2>&1; then
                 printf '[OK]   %s\n' "$repo"
                 return 0
               fi

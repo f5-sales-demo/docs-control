@@ -62,7 +62,10 @@ These files are also synced automatically by the [file sync workflow](./file-syn
 Run the enforcement workflow manually in the new repository:
 
 ```bash
-gh workflow run enforce-repo-settings.yml --repo f5-sales-demo/<repo-name>
+source_sha=$(gh api repos/f5-sales-demo/docs-control/commits/main --jq '.sha')
+gh workflow run enforce-repo-settings.yml \
+  --repo f5-sales-demo/<repo-name> \
+  -f source_sha="$source_sha"
 ```
 
 This applies all [repository settings](./settings-enforcement/), creates any missing governance files, and opens a sync PR if needed.
