@@ -407,6 +407,14 @@ jobs:
         if: hashFiles('tests/test-dispatch-matrix.sh') != ''
         run: bash tests/test-dispatch-matrix.sh
 
+      - name: Run downstream dispatch preflight test
+        if: hashFiles('tests/test-dispatch-preflight.sh') != ''
+        run: bash tests/test-dispatch-preflight.sh
+
+      - name: Run downstream caller bootstrap test
+        if: hashFiles('tests/test-bootstrap-downstream-callers.sh') != ''
+        run: bash tests/test-bootstrap-downstream-callers.sh
+
       - name: Run review-slot semaphore test
         if: hashFiles('tests/test-review-slot.sh') != ''
         run: bash tests/test-review-slot.sh
@@ -430,6 +438,10 @@ jobs:
       - name: Run pages-staleness-guard test
         if: hashFiles('tests/test-pages-staleness-guard.sh') != ''
         run: bash tests/test-pages-staleness-guard.sh
+
+      - name: Run source receipt ordering test
+        if: hashFiles('tests/test-source-receipt-ordering.sh') != ''
+        run: bash tests/test-source-receipt-ordering.sh
 
       - name: Run check-review-deps test
         if: hashFiles('tests/test-check-review-deps.sh') != ''
