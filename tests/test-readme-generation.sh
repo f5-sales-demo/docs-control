@@ -83,8 +83,8 @@ consecutive_blanks() {
 echo ""
 echo "=== Section 1: generated README has no consecutive blank lines (MD012) ==="
 
-# Every site in docs-sites.json currently omits readme_content, so the empty
-# case is not hypothetical -- it is what every repo in the fleet receives.
+# Most sites in docs-sites.json omit readme_content, so the empty case is not
+# hypothetical -- it remains what most repositories in the fleet receive.
 for case_name in "no badges, no content" "badges, no content" "no badges, content"; do
   case "$case_name" in
   "no badges, no content") out=$(render "🌐 English" "" "") ;;
@@ -155,21 +155,28 @@ else
     "the data-driven render lost content or advertised an unpublished locale"
 fi
 
+if grep -qF 'prerelease' "$API_README" && ! grep -qF 'pre-release' "$API_README"; then
+  pass "4.4 rendered api-specs-enriched README uses governed prerelease terminology"
+else
+  fail "4.4 rendered api-specs-enriched README uses governed prerelease terminology" \
+    "generated prose must use 'prerelease', never 'pre-release'"
+fi
+
 if grep -q 'readme_english_only' "$SYNC_WORKFLOW" &&
   grep -q '__LANGUAGE_NAV__' "$SYNC_WORKFLOW" &&
   grep -q 'type) == "boolean"' "$SYNC_WORKFLOW" &&
   grep -q 'readme_english_only must be a JSON boolean' "$SYNC_WORKFLOW"; then
-  pass "4.4 sync-managed-files renders a strictly typed per-repository language policy"
+  pass "4.5 sync-managed-files renders a strictly typed per-repository language policy"
 else
-  fail "4.4 sync-managed-files renders a strictly typed per-repository language policy" \
+  fail "4.5 sync-managed-files renders a strictly typed per-repository language policy" \
     "the generator must consume the policy and reject non-boolean values"
 fi
 
 if grep -q "README.md.tpl" "$DISPATCH_WORKFLOW" &&
   grep -q ".github/config/docs-sites.json" "$DISPATCH_WORKFLOW"; then
-  pass "4.5 README template and metadata changes trigger downstream regeneration"
+  pass "4.6 README template and metadata changes trigger downstream regeneration"
 else
-  fail "4.5 README template and metadata changes trigger downstream regeneration" \
+  fail "4.6 README template and metadata changes trigger downstream regeneration" \
     "dispatch-downstream.yml omits a dynamic README input"
 fi
 
