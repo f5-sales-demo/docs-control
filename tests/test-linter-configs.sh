@@ -632,13 +632,21 @@ echo "=== Section 5b: .markdownlint.json opinionated-rule disables ==="
 # support it either. MD041 was justified as "Starlight frontmatter supplies the H1
 # implicitly"; markdownlint already honours a frontmatter title, and the whole
 # fleet had six violations.
-for rule in MD033; do
-  if jq -e --arg r "$rule" '.[$r] == false' "$REPO_ROOT/.markdownlint.json" >/dev/null; then
-    pass "5b.x .markdownlint.json disables $rule"
-  else
-    fail "5b.x .markdownlint.json disables $rule" "not set to false"
-  fi
-done
+if jq -e '.MD033 == false' "$REPO_ROOT/.markdownlint.json" >/dev/null; then
+  pass "5b.x .markdownlint.json disables MD033"
+else
+  fail "5b.x .markdownlint.json disables MD033" "not set to false"
+fi
+
+# And nothing else. A new disable should have to argue for itself here rather than
+# arrive quietly in a configuration diff.
+disabled_count=$(jq '[to_entries[] | select(.value == false)] | length' "$REPO_ROOT/.markdownlint.json")
+if [ "$disabled_count" -eq 1 ]; then
+  pass "5b.x .markdownlint.json disables exactly one rule"
+else
+  fail "5b.x .markdownlint.json disables exactly one rule" \
+    "$disabled_count rules disabled: $(jq -r '[to_entries[] | select(.value == false) | .key] | join(", ")' "$REPO_ROOT/.markdownlint.json")"
+fi
 
 # Every rule below is ENFORCED. Each was previously disabled; the assertions exist
 # so a bypass cannot quietly return the way MD040's did — it was not only switched
