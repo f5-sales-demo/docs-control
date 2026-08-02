@@ -5,6 +5,7 @@ on:
   push:
     branches: [main]
     paths:
+      - '.github/workflows/antigravity-review.yml'
       - '.github/workflows/auto-merge.yml'
       - '.github/workflows/claude-review.yml'
       - '.github/workflows/dependabot-auto-merge.yml'
