@@ -47,6 +47,13 @@ bad() {
   FAIL=1
 }
 
+workflow_routes_mdx_gate() {
+  local workflow=$1
+
+  grep -Eq '^[[:space:]]*(-[[:space:]]+)?(run:[[:space:]]*)?bash[[:space:]]+scripts/lint-mdx-prose\.sh([[:space:]]|$)' "$workflow" ||
+    grep -Eq '^[[:space:]]*uses:[[:space:]]*f5-sales-demo/docs-control/\.github/workflows/super-linter\.yml@[0-9a-f]{40}([[:space:]]*(#.*)?)?$' "$workflow"
+}
+
 # --- fixtures -------------------------------------------------------------
 mkdir -p "$WORK/docs/en"
 printf -- '---\ntitle: Good\n---\n\nSome prose.\n' >"$WORK/docs/en/good.mdx"
@@ -158,6 +165,42 @@ fi
 
 # --- the routing facts this gate exists to compensate for -----------------
 
+mkdir -p "$WORK/workflows"
+cat >"$WORK/workflows/direct.yml" <<'EOF'
+jobs:
+  lint:
+    steps:
+      - run: bash scripts/lint-mdx-prose.sh --changed origin/main
+EOF
+cat >"$WORK/workflows/reusable.yml" <<'EOF'
+jobs:
+  lint:
+    uses: f5-sales-demo/docs-control/.github/workflows/super-linter.yml@0123456789abcdef0123456789abcdef01234567
+EOF
+cat >"$WORK/workflows/unrelated.yml" <<'EOF'
+jobs:
+  lint:
+    uses: example/actions/.github/workflows/lint.yml@0123456789abcdef0123456789abcdef01234567
+EOF
+
+if workflow_routes_mdx_gate "$WORK/workflows/direct.yml"; then
+  ok "a direct workflow invocation routes the MDX prose gate"
+else
+  bad "a direct workflow invocation must route the MDX prose gate"
+fi
+
+if workflow_routes_mdx_gate "$WORK/workflows/reusable.yml"; then
+  ok "a governed reusable-workflow caller routes the MDX prose gate"
+else
+  bad "a governed reusable-workflow caller must route the MDX prose gate"
+fi
+
+if workflow_routes_mdx_gate "$WORK/workflows/unrelated.yml"; then
+  bad "an unrelated reusable workflow must not satisfy MDX prose routing"
+else
+  ok "a workflow with no MDX prose route is rejected"
+fi
+
 # The gate must be reachable locally as well as in CI, and both must run the same
 # script — a hook that only widened markdownlint would still leave textlint blind.
 if grep -q 'lint-mdx-prose' "${REPO_ROOT}/.pre-commit-config.yaml"; then
@@ -179,7 +222,7 @@ else
   bad "pre-commit has no local textlint for .md — CI would be the first to know"
 fi
 
-if grep -q 'lint-mdx-prose.sh' "${REPO_ROOT}/.github/workflows/super-linter.yml"; then
+if workflow_routes_mdx_gate "${REPO_ROOT}/.github/workflows/super-linter.yml"; then
   ok "super-linter workflow invokes the MDX prose gate"
 else
   bad "super-linter workflow does not invoke scripts/lint-mdx-prose.sh"
