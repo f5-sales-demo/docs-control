@@ -60,6 +60,6 @@ jobs:
             mkdir -p ~/.gemini/antigravity-cli
             echo "{\"gcp\": {\"project\": \"$GCP_PROJECT_ID\", \"location\": \"global\"}, \"model\": \"Gemini 3.6 Flash (High)\", \"trustedWorkspaces\": [\"/home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}\"]}" > ~/.gemini/antigravity-cli/settings.json
             
-            # 5. Run the Antigravity Agentic PR Reviewer with a robust single-line prompt
-            /home/runner/.local/bin/agy --project "$GCP_PROJECT_ID" --print --prompt "You are Antigravity, an elite agentic AI coding assistant. Review this Pull Request. First, run '\''gh pr diff'\'' to retrieve the code modifications. Meticulously inspect the changes for security issues, hardcoded tokens/secrets, PII leakage (such as email addresses, user names, phone numbers), or bad architectural patterns. Finally, use '\''gh pr comment'\'' to post a constructive, high-quality review summary directly on the PR."
+            # 5. Run the Antigravity Agentic PR Reviewer. Passing the prompt as positional argument after the --print boolean flag.
+            /home/runner/.local/bin/agy --project "$GCP_PROJECT_ID" --print "You are Antigravity, an elite agentic AI coding assistant. Review this Pull Request. First, run '\''gh pr diff'\'' to retrieve the code modifications. Meticulously inspect the changes for security issues, hardcoded tokens/secrets, PII leakage (such as email addresses, user names, phone numbers), or bad architectural patterns. Finally, use '\''gh pr comment'\'' to post a constructive, high-quality review summary directly on the PR."
           '
