@@ -138,14 +138,15 @@ for word in doesnt forin invokable takin defaul ser anc checkin sevice; do
 done
 
 # pre-commit passes explicit paths, bypassing .codespellrc's skip list. Its
-# hook-level regex must filter both translated docs and translated source
-# catalogs while leaving English docs and i18n implementation code checked.
+# hook-level regex must filter translated docs, root translated READMEs, and
+# translated source catalogs while leaving English docs and i18n
+# implementation code checked.
 CODESPELL_EXCLUDE=$(awk '
   /- id: codespell$/ { in_codespell = 1; next }
   in_codespell && /exclude:/ { sub(/^[^:]*:[[:space:]]*/, ""); print; exit }
 ' "$REPO_ROOT/.pre-commit-config.yaml")
 
-for path in docs/fr/guide.md src/i18n/mega-menu-translations.ts; do
+for path in docs/fr/guide.md README.de.md README.zh-tw.md src/i18n/mega-menu-translations.ts; do
   if [[ "$path" =~ $CODESPELL_EXCLUDE ]]; then
     pass "5.x codespell pre-commit excludes '$path'"
   else
@@ -153,11 +154,35 @@ for path in docs/fr/guide.md src/i18n/mega-menu-translations.ts; do
   fi
 done
 
-for path in docs/en/guide.md src/i18n/translator.ts; do
+for path in README.md docs/en/guide.md src/i18n/translator.ts; do
   if [[ "$path" =~ $CODESPELL_EXCLUDE ]]; then
     fail "5.x codespell pre-commit checks '$path'" "unexpectedly matched by hook exclude regex"
   else
     pass "5.x codespell pre-commit checks '$path'"
+  fi
+done
+
+# Markdown parser fixtures intentionally exercise syntax that the published
+# documentation style rejects. Linting or autofixing them destroys parser
+# coverage, so the hook must exclude only that behavior-sensitive fixture tree.
+MARKDOWNLINT_EXCLUDE=$(awk '
+  /- id: markdownlint$/ { in_markdownlint = 1; next }
+  in_markdownlint && /exclude:/ { sub(/^[^:]*:[[:space:]]*/, ""); print; exit }
+' "$REPO_ROOT/.pre-commit-config.yaml")
+
+for path in packages/chat-ui/test/markdown/fixtures/emphasis.md packages/chat-ui/test/markdown/fixtures/headings.md; do
+  if [[ "$path" =~ $MARKDOWNLINT_EXCLUDE ]]; then
+    pass "5.x markdownlint preserves '$path'"
+  else
+    fail "5.x markdownlint preserves '$path'" "not matched by hook exclude regex"
+  fi
+done
+
+for path in README.md packages/chat-ui/src/markdown.ts; do
+  if [[ "$path" =~ $MARKDOWNLINT_EXCLUDE ]]; then
+    fail "5.x markdownlint checks '$path'" "unexpectedly matched by hook exclude regex"
+  else
+    pass "5.x markdownlint checks '$path'"
   fi
 done
 
