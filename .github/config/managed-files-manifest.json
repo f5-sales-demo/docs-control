@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-01T19:58:28Z",
-  "source_commit": "53fb736067cc0dc88121aaafd1a74b7f28a10cfa",
+  "generated_at": "2026-08-02T00:40:22Z",
+  "source_commit": "0524d7afbb3674475f999c4b4796af46a5997961",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -101,8 +101,8 @@
     ".pre-commit-config.yaml": {
       "src": ".pre-commit-config.yaml",
       "dest": ".pre-commit-config.yaml",
-      "sha": "ec82cd0abe375217dd18da55748425b5ebae4cc2",
-      "size": 11920
+      "sha": "7b137fa7ecf63681b87ddd15d67a118e43a50257",
+      "size": 12174
     },
     ".yamllint.yaml": {
       "src": ".yamllint.yaml",
