@@ -129,7 +129,7 @@ done
 # Upstream-misspelled F5 Distributed Cloud API identifiers that must reach the
 # wire verbatim (checkin, blocked_sevice) — codespell offers two candidates for
 # "sevice" so --write-changes cannot resolve it and the gate hard-fails
-for word in doesnt forin invokable takin defaul ser anc checkin sevice; do
+for word in doesnt forin invokable takin defaul ser anc checkin sevice cros doub; do
   if grep -qE "(^|[=,])${word}([,]|$)" "$REPO_ROOT/.codespellrc"; then
     pass "5.x .codespellrc ignore-words-list contains '$word'"
   else
@@ -146,7 +146,7 @@ CODESPELL_EXCLUDE=$(awk '
   in_codespell && /exclude:/ { sub(/^[^:]*:[[:space:]]*/, ""); print; exit }
 ' "$REPO_ROOT/.pre-commit-config.yaml")
 
-for path in docs/fr/guide.md README.de.md README.zh-tw.md src/i18n/mega-menu-translations.ts; do
+for path in docs/fr/guide.md README.de.md README.zh-tw.md src/i18n/mega-menu-translations.ts research/benchmarks/uat-matrix/corpora/i18n.yaml; do
   if [[ "$path" =~ $CODESPELL_EXCLUDE ]]; then
     pass "5.x codespell pre-commit excludes '$path'"
   else
