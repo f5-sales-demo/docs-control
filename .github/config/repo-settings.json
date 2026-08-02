@@ -177,6 +177,18 @@
         "dest": "CLAUDE.md"
       },
       {
+        "src": "AGENTS.md",
+        "dest": "AGENTS.md"
+      },
+      {
+        "src": ".agents/skills/demo-components/SKILL.md",
+        "dest": ".agents/skills/demo-components/SKILL.md"
+      },
+      {
+        "src": ".agents/skills/demo-components/agents/openai.yaml",
+        "dest": ".agents/skills/demo-components/agents/openai.yaml"
+      },
+      {
         "src": "STYLE_GUIDE.md",
         "dest": "STYLE_GUIDE.md"
       },
