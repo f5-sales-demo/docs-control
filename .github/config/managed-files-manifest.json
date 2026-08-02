@@ -1,35 +1,35 @@
 {
-  "generated_at": "2026-08-02T18:18:54Z",
-  "source_commit": "6824db902b1606f3b4ef2091e30c1dfa4e3e81d4",
+  "generated_at": "2026-08-02T18:30:49Z",
+  "source_commit": "00ff64a8d356c775270d32569fffa47ff1c77ce3",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
       "dest": ".github/workflows/github-pages-deploy.yml",
-      "sha": "82bad9393ab4056efc8c620a605538da1c5dd103",
+      "sha": "7727a420ee111d64042660433549329943fb0f55",
       "size": 808
     },
     ".github/workflows/enforce-repo-settings.yml": {
       "src": "workflows/enforce-repo-settings.yml",
       "dest": ".github/workflows/enforce-repo-settings.yml",
-      "sha": "fbf9f1c70ca7056566916e4bcd20f49c593c756d",
+      "sha": "bf6f8d1a187f28326231c1d5d483d1324a860a91",
       "size": 9685
     },
     ".github/workflows/require-linked-issue.yml": {
       "src": "workflows/require-linked-issue.yml",
       "dest": ".github/workflows/require-linked-issue.yml",
-      "sha": "8f59b24df5ef0f1ef0343480139a83651a8fde9c",
+      "sha": "a68ddb8aa050e0e6ca672073745e324af8c797c0",
       "size": 1087
     },
     ".github/workflows/super-linter.yml": {
       "src": "workflows/super-linter.yml",
       "dest": ".github/workflows/super-linter.yml",
-      "sha": "ce989392458972d4d3401094be94057996be4618",
+      "sha": "85bb685bdf4a5c38e5b071c9590a0fc5cd28daff",
       "size": 800
     },
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
       "dest": ".github/workflows/translation-audit.yml",
-      "sha": "8febcf094d40210e0a1bb214beb0f75efaad7465",
+      "sha": "8fc9f37802ff791c71056aed517a5c825e6eb89b",
       "size": 1796
     },
     ".github/PULL_REQUEST_TEMPLATE.md": {
@@ -119,8 +119,8 @@
     ".pre-commit-config.yaml": {
       "src": ".pre-commit-config.yaml",
       "dest": ".pre-commit-config.yaml",
-      "sha": "65847f41f79b0121df29f75e313b24c691aa4175",
-      "size": 12433
+      "sha": "8e852b521f4e652940ea8d4d7981cb32933ace96",
+      "size": 14135
     },
     ".yamllint.yaml": {
       "src": ".yamllint.yaml",
@@ -131,19 +131,19 @@
     ".markdownlint.json": {
       "src": ".markdownlint.json",
       "dest": ".markdownlint.json",
-      "sha": "f109fff2f7c9f7fe8418c698d1dcbfa849ee9c02",
-      "size": 182
+      "sha": "0bc3cc2fd635e531b2cb92d4315d549147a106ba",
+      "size": 164
     },
     ".github/workflows/dependabot-auto-merge.yml": {
       "src": "workflows/dependabot-auto-merge.yml",
       "dest": ".github/workflows/dependabot-auto-merge.yml",
-      "sha": "0faa1cd3a61823ba9db89b2d652c77759b290590",
+      "sha": "30112946d1c3b8a748a6d8b8bc833a270f984013",
       "size": 840
     },
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "d1650142f14afdc8736bda95f58a8d2fb92092a6",
+      "sha": "9d2a8e9f3c178a07e1fa80abbc65217e9ecca0a8",
       "size": 1381
     },
     "biome.json": {
@@ -266,6 +266,12 @@
       "sha": "3ccea87ab18f4241d208e19d52a16d6f877c34e5",
       "size": 4014
     },
+    "scripts/lint-mdx-prose.sh": {
+      "src": "scripts/lint-mdx-prose.sh",
+      "dest": "scripts/lint-mdx-prose.sh",
+      "sha": "4269c29cc8bf86e6ccd210dc55e302e78f6cb627",
+      "size": 4749
+    },
     "tests/test-check-repo-hygiene.sh": {
       "src": "tests/test-check-repo-hygiene.sh",
       "dest": "tests/test-check-repo-hygiene.sh",
@@ -278,11 +284,17 @@
       "sha": "65ea16c477dfc9d94d5627a30d1f833195f7ad92",
       "size": 85328
     },
+    "tests/test-lint-mdx-prose.sh": {
+      "src": "tests/test-lint-mdx-prose.sh",
+      "dest": "tests/test-lint-mdx-prose.sh",
+      "sha": "51781e2b3f3d0a913f6cb02d71a8e481c90bc7a0",
+      "size": 6903
+    },
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "e222420e78ed27228756edebd677cdb04dbbb083",
-      "size": 4972
+      "sha": "5f2d508ecf45ee63d67ff70eff56b8e835f539bc",
+      "size": 5041
     },
     ".claude/settings.json": {
       "src": ".claude/settings.json",
@@ -305,7 +317,7 @@
     ".github/workflows/code-review.yml": {
       "src": "workflows/code-review.yml",
       "dest": ".github/workflows/code-review.yml",
-      "sha": "3738506f4e95477edb24ca8fbb0fa1c71fed4100",
+      "sha": "934aab6b9e0ac6f6751a17c567725ea655a9158f",
       "size": 6756
     },
     ".github/workflows/workflow-security-audit.yml": {
