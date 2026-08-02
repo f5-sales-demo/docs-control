@@ -71,7 +71,7 @@ jobs:
             echo "::error::refusing to roll governed workflows backward from $CURRENT_REVISION to $TARGET_REVISION"
             exit 1
           fi
-          python3 scripts/update-governed-workflow-pins.py \
+          python3 scripts/update_governed_workflow_pins.py \
             --revision "$TARGET_REVISION" > /tmp/workflow-pin-update
           while IFS= read -r workflow; do
             [ -n "$workflow" ] || continue

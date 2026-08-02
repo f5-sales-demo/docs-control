@@ -4,7 +4,7 @@ set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 PIN_CONFIG="$REPO_ROOT/.github/config/governed-workflow-pin.json"
-UPDATER="$REPO_ROOT/scripts/update-governed-workflow-pins.py"
+UPDATER="$REPO_ROOT/scripts/update_governed_workflow_pins.py"
 UPDATER_WORKFLOW="$REPO_ROOT/.github/workflows/update-governed-workflow-pins.yml"
 FAIL=0
 
@@ -107,7 +107,7 @@ for caller in (root / "workflows").glob("*.yml"):
     )
 missing = [name for name in sorted(called) if f".github/workflows/{name}" not in workflow]
 required = (
-    "scripts/update-governed-workflow-pins.py",
+    "scripts/update_governed_workflow_pins.py",
     "--revision \"$TARGET_REVISION\"",
     "git merge-base --is-ancestor",
     "refusing to roll governed workflows backward",
