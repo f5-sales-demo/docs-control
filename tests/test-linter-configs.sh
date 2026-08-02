@@ -58,10 +58,11 @@ done
 echo ""
 echo "=== Section 3: TOML parse validity ==="
 
-if python3 -c "import sys, tomllib; tomllib.load(open('$REPO_ROOT/.ruff.toml', 'rb'))" 2>/dev/null; then
+if ruff check --config "$REPO_ROOT/.ruff.toml" --show-settings \
+  "$REPO_ROOT/scripts/check_pii.py" >/dev/null 2>&1; then
   pass "3.x .ruff.toml is valid TOML"
 else
-  fail "3.x .ruff.toml is valid TOML" "tomllib.load failed"
+  fail "3.x .ruff.toml is valid TOML" "Ruff could not load the configuration"
 fi
 
 # ════════════════════════════════════════════════════════════════════
@@ -73,7 +74,7 @@ echo "=== Section 4: .ruff.toml self-contained ==="
 # Test 4.1: .ruff.toml must not reference a non-existent file via `extend`.
 # It is synced downstream verbatim, so a missing target would break lint in
 # every governed repo.
-EXTEND_TARGET=$(python3 -c "import tomllib; d=tomllib.load(open('$REPO_ROOT/.ruff.toml','rb')); print(d.get('extend',''))")
+EXTEND_TARGET=$(sed -nE 's/^extend[[:space:]]*=[[:space:]]*"([^"]+)"/\1/p' "$REPO_ROOT/.ruff.toml")
 if [ -z "$EXTEND_TARGET" ]; then
   pass "4.x .ruff.toml has no extend directive"
 elif [ -f "$REPO_ROOT/$EXTEND_TARGET" ]; then
@@ -512,7 +513,6 @@ echo "=== Section 6: zizmor suppression coverage ==="
 # config). Each rule below represents a deliberate docs-control decision
 # — removing one here would re-introduce noise across every governed repo.
 for rule in \
-  unpinned-uses \
   artipacked \
   cache-poisoning \
   secrets-inherit \
@@ -530,6 +530,19 @@ sys.exit(0 if cfg.get('rules', {}).get('$rule', {}).get('disable') else 1)
     fail "6.x zizmor.yaml disables '$rule'" "rule not disabled"
   fi
 done
+
+# Remote actions and reusable workflows are required to use immutable commit
+# revisions. This must stay enabled now that the canonical workflows are clean.
+if python3 -c "
+import sys, yaml
+with open('$REPO_ROOT/zizmor.yaml') as f:
+  cfg = yaml.safe_load(f)
+sys.exit(1 if cfg.get('rules', {}).get('unpinned-uses', {}).get('disable') else 0)
+" 2>/dev/null; then
+  pass "6.x zizmor.yaml keeps 'unpinned-uses' enabled (immutable workflow dependencies)"
+else
+  fail "6.x zizmor.yaml keeps 'unpinned-uses' enabled" "rule is globally disabled"
+fi
 
 # Security-relevant audits stay ENABLED fleet-wide (never globally disabled).
 # Intentional instances are handled with justified inline `# zizmor: ignore`
@@ -892,6 +905,7 @@ cp "$REPO_ROOT/.gitignore" "$GI_TMP/.gitignore"
 mkdir -p "$GI_TMP/vendor" "$GI_TMP/src/vendor/chat-ui"
 : >"$GI_TMP/vendor/modules.txt"
 : >"$GI_TMP/src/vendor/chat-ui/index.ts"
+ln -s /tmp/example-venv "$GI_TMP/.venv"
 
 # A top-level vendor/ tree must still be ignored — that is the rule's purpose.
 if git -C "$GI_TMP" check-ignore -q vendor/modules.txt; then
@@ -905,6 +919,15 @@ if git -C "$GI_TMP" check-ignore -q src/vendor/chat-ui/index.ts; then
   fail "8.2 nested src/vendor/ is NOT ignored" "src/vendor/chat-ui/index.ts is ignored; the vendor rule needs a leading slash"
 else
   pass "8.2 nested src/vendor/ is NOT ignored"
+fi
+
+# A directory-only `.venv/` pattern does not match a symlink. Worktrees commonly
+# link their environment to a sibling checkout, so the link itself must be ignored.
+if git -C "$GI_TMP" check-ignore -q .venv; then
+  pass "8.3 a .venv symlink is ignored as well as a .venv directory"
+else
+  fail "8.3 a .venv symlink is ignored as well as a .venv directory" \
+    ".venv can be staged accidentally because only the directory form is ignored"
 fi
 
 rm -rf "$GI_TMP"

@@ -16,6 +16,8 @@ on:
     paths:
       - '.github/config/managed-files-manifest.json'
       - '.github/config/repo-settings.json'
+      - '.github/config/docs-sites.json'
+      - 'README.md.tpl'
   workflow_dispatch:
 
 permissions:

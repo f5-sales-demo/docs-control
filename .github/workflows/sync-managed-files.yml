@@ -606,6 +606,44 @@ jobs:
                    else .[] | "[![\(.name)](https://github.com/\($o)/\($r)/actions/workflows/\(.workflow)/badge.svg)](https://github.com/\($o)/\($r)/actions/workflows/\(.workflow))"
                    end' 2>/dev/null) || true
 
+                README_ENGLISH_ONLY=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
+                  '[.[] | select(.url | contains("/" + $r + "/")) |
+                    if has("readme_english_only") then
+                      if (.readme_english_only | type) == "boolean" then .readme_english_only
+                      else error("readme_english_only must be a JSON boolean") end
+                    else false end] |
+                   if length == 0 then false elif length == 1 then .[0] else error("duplicate docs site") end' \
+                  2>/dev/null) || {
+                  echo "[ERROR] Invalid README language policy for ${REPO}" >&2
+                  exit 1
+                }
+                case "$README_ENGLISH_ONLY" in
+                  true)
+                    printf '%s\n' '🌐 English' > /tmp/language_nav.tmp
+                    ;;
+                  false)
+                    printf '%s\n' \
+                      '🌐 English |' \
+                      "[日本語](https://${OWNER}.github.io/${REPO}/ja/) |" \
+                      "[한국어](https://${OWNER}.github.io/${REPO}/ko/) |" \
+                      "[简体中文](https://${OWNER}.github.io/${REPO}/zh-cn/) |" \
+                      "[繁體中文](https://${OWNER}.github.io/${REPO}/zh-tw/) |" \
+                      "[Español](https://${OWNER}.github.io/${REPO}/es/) |" \
+                      "[Português](https://${OWNER}.github.io/${REPO}/pt-br/) |" \
+                      "[Français](https://${OWNER}.github.io/${REPO}/fr/) |" \
+                      "[Deutsch](https://${OWNER}.github.io/${REPO}/de/) |" \
+                      "[Italiano](https://${OWNER}.github.io/${REPO}/it/) |" \
+                      "[العربية](https://${OWNER}.github.io/${REPO}/ar/) |" \
+                      "[हिन्दी](https://${OWNER}.github.io/${REPO}/hi/) |" \
+                      "[ไทย](https://${OWNER}.github.io/${REPO}/th/)" \
+                      > /tmp/language_nav.tmp
+                    ;;
+                  *)
+                    echo "[ERROR] readme_english_only must be true or false for ${REPO}" >&2
+                    exit 1
+                    ;;
+                esac
+
                 # Fetch README.md.tpl from docs-control
                 README_TPL=$(fetch_governed "README.md.tpl" "repos/${CONFIG_REPO}/contents/README.md.tpl")
 
@@ -628,6 +666,9 @@ jobs:
                   sed "s|__DESCRIPTION__|${README_DESC_ESC}|g" | \
                   sed "s|__REPO_NAME__|${REPO_NAME_ESC}|g" | \
                   sed "s|__DOCS_URL__|${DOCS_URL_ESC}|g" > /tmp/generated_readme.md
+
+                sed -i '/__LANGUAGE_NAV__/{r /tmp/language_nav.tmp
+                d;}' /tmp/generated_readme.md
 
                 # Replace __EXTRA_BADGES__ placeholder — inject per-repo badge lines or remove
                 if [ -n "$README_BADGES" ]; then

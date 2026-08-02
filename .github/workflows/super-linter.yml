@@ -427,6 +427,10 @@ jobs:
         if: hashFiles('tests/test-readme-generation.sh') != ''
         run: bash tests/test-readme-generation.sh
 
+      - name: Run governed workflow pin test
+        if: hashFiles('tests/test-governed-workflow-pins.sh') != ''
+        run: bash tests/test-governed-workflow-pins.sh
+
       - name: Run sync-managed-files test
         if: hashFiles('tests/test-sync-managed-files.sh') != ''
         run: bash tests/test-sync-managed-files.sh

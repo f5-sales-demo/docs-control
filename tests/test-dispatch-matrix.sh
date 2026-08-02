@@ -48,6 +48,10 @@ check "triggers on manifest landing on main" \
   "grep -q 'managed-files-manifest.json' '$WF'"
 check "triggers on repo-settings.json (settings-only changes)" \
   "grep -q 'repo-settings.json' '$WF'"
+check "triggers on README.md.tpl (dynamic README template changes)" \
+  "grep -q 'README.md.tpl' '$WF'"
+check "triggers on docs-sites.json (dynamic README metadata changes)" \
+  "grep -q 'docs-sites.json' '$WF'"
 check "does NOT trigger on build workflow_run (stale-manifest race)" \
   "! grep -q 'workflow_run:' '$WF'"
 check "keeps manual workflow_dispatch fallback" \
