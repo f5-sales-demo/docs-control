@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-02T18:30:49Z",
-  "source_commit": "00ff64a8d356c775270d32569fffa47ff1c77ce3",
+  "generated_at": "2026-08-02T19:18:20Z",
+  "source_commit": "fe2b5797ed315e059a715e223503919e6c8531b0",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -65,8 +65,8 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "553240da30860c782424d39467fed1ca8af190b8",
-      "size": 41030
+      "sha": "1c76834ca7b289411bbeac4cec22ae4b066af710",
+      "size": 41034
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
@@ -131,8 +131,8 @@
     ".markdownlint.json": {
       "src": ".markdownlint.json",
       "dest": ".markdownlint.json",
-      "sha": "0bc3cc2fd635e531b2cb92d4315d549147a106ba",
-      "size": 164
+      "sha": "3a30d7451c8f12b3994bfdad580a083b03303e38",
+      "size": 56
     },
     ".github/workflows/dependabot-auto-merge.yml": {
       "src": "workflows/dependabot-auto-merge.yml",
