@@ -670,6 +670,46 @@ for rule in MD029 MD041 MD025 MD024 MD007; do
   fi
 done
 
+# GitHub issue templates are forms whose platform-supplied title lives in the
+# `name` frontmatter field. Keep MD041 enforced for documents while teaching it
+# that precise form convention; unrelated metadata must not satisfy the rule.
+MD041_TITLE_RE=$(jq -r '.MD041.front_matter_title // ""' "$REPO_ROOT/.markdownlint.json")
+for heading in "title: Documentation" "name: Bug Report"; do
+  if [[ -n "$MD041_TITLE_RE" && "$heading" =~ $MD041_TITLE_RE ]]; then
+    pass "5b.x MD041 accepts form heading '$heading'"
+  else
+    fail "5b.x MD041 accepts form heading '$heading'" "front_matter_title does not match"
+  fi
+done
+if [[ "description: Review a pull request" =~ $MD041_TITLE_RE ]]; then
+  fail "5b.x MD041 rejects unrelated frontmatter" "description unexpectedly supplies a title"
+else
+  pass "5b.x MD041 rejects unrelated frontmatter"
+fi
+
+# Pull-request templates have no frontmatter because GitHub would copy it into
+# every PR body. A single next-line directive scopes the structural exception to
+# the form's opening H2 without exempting any later Markdown rule or file.
+if [ "$(sed -n '1p' "$REPO_ROOT/.github/PULL_REQUEST_TEMPLATE.md")" = \
+  '<!-- markdownlint-disable-next-line MD041 -->' ] &&
+  [ "$(sed -n '2p' "$REPO_ROOT/.github/PULL_REQUEST_TEMPLATE.md")" = "## Summary" ]; then
+  pass "5b.x pull-request form scopes only its opening MD041 exception"
+else
+  fail "5b.x pull-request form scopes only its opening MD041 exception" \
+    "expected an adjacent disable-next-line directive before Summary"
+fi
+
+# The review command is prompt documentation, not a GitHub form, so it keeps a
+# real H1 rather than gaining another exception.
+if awk '
+  /^---$/ { delimiters++; next }
+  delimiters >= 2 && NF { print; exit }
+' "$REPO_ROOT/plugins/f5-review/code-review-f5/commands/code-review.md" | grep -qx '# F5 code review'; then
+  pass "5b.x review command starts with a real H1"
+else
+  fail "5b.x review command starts with a real H1" "first body line is not the expected H1"
+fi
+
 # MD040 (code-fence-language) is ENFORCED, and this asserts it stays that way.
 # It was previously disabled with the rationale "plain fenced code for pseudo-output
 # is valid", which contradicts STYLE_GUIDE.md §"Code and commands": "Tag every fence

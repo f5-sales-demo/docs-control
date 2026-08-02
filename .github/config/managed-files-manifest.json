@@ -1,5 +1,5 @@
 {
-  "source_commit": "71ce8924653f2574684994e5f71d79ccc44aec46",
+  "source_commit": "2d37552e90c1652be09a3925a9dbf6e1672f5051",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -39,8 +39,8 @@
     ".github/PULL_REQUEST_TEMPLATE.md": {
       "src": ".github/PULL_REQUEST_TEMPLATE.md",
       "dest": ".github/PULL_REQUEST_TEMPLATE.md",
-      "sha": "2e152c07e5d16b1c934106f745ace6f7e0dc9f06",
-      "size": 753,
+      "sha": "8c24f1f1f5547ff6c3dae94ac71896418b177f9f",
+      "size": 799,
       "mode": "100644"
     },
     ".github/ISSUE_TEMPLATE/bug_report.md": {
@@ -151,8 +151,8 @@
     ".markdownlint.json": {
       "src": ".markdownlint.json",
       "dest": ".markdownlint.json",
-      "sha": "fa8f3a5d30a2cbc8adaaf8657dad39c2acd75d18",
-      "size": 73,
+      "sha": "194c8741f8fde0c1b6d18b9dda7046ade65a400d",
+      "size": 139,
       "mode": "100644"
     },
     ".github/workflows/dependabot-auto-merge.yml": {
