@@ -1,0 +1,69 @@
+---
+title: Application des paramètres
+description: Workflow d'application idempotente des paramètres de dépôt en sept phases pour la protection des branches, les étiquettes, les permissions des actions et les pages.
+sidebar:
+  order: 4
+i18n:
+  sourceHash: "9c98278db684"
+  translator: "machine"
+---
+
+Le workflow d'application dans `.github/workflows/enforce-repo-settings.yml` est un workflow réutilisable et idempotent qui compare l'état souhaité du dépôt à l'état actuel et corrige toute dérive. Les dépôts en aval l'appellent via un [workflow appelant](./dispatch/). Docs-control l'exécute également directement lors d'un push sur `.github/config/repo-settings.json`.
+
+## Déclencheurs
+
+- **`workflow_call`** -- invoqué par les workflows appelants en aval (planifié toutes les 6 heures, lors d'un push de configuration, ou dispatch manuel)
+- **`push`** -- se déclenche lorsque `repo-settings.json` change sur la branche `main` de docs-control
+
+## Exécution parallèle
+
+L'application est divisée en deux workflows réutilisables qui s'exécutent en tant que jobs parallèles dans l'appelant, chacun avec son propre jeton à moindre privilège :
+
+- **`enforce-repo-settings.yml`** utilise `REPO_SETTINGS_TOKEN` (Administration R/W, Pages R/W, Contents Read, Metadata Read)
+- **`sync-managed-files.yml`** utilise `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read)
+
+Cette page couvre le workflow d'application des paramètres. Consultez [Synchronisation de fichiers](./file-sync/) pour le workflow des fichiers gérés.
+
+## Les 7 phases
+
+Chaque phase est idempotente : elle compare l'état souhaité à l'état actuel et n'effectue des modifications que lorsqu'une dérive est détectée.
+
+### Phase 1 : Valider
+
+Récupère la [configuration](./configuration/) centrale depuis docs-control via l'API GitHub (avec 5 tentatives). Vérifie que `jq` et `gh` sont disponibles et authentifiés. Calcule automatiquement l'URL `homepage` si la valeur de configuration est vide.
+
+Détecte si le workflow s'exécute sur le dépôt source lui-même en comparant `managed_files.source_repo` à `github.repository`. Si l'exécution a lieu sur lui-même, la substitution `self_contexts` est activée pour la Phase 4.
+
+### Phase 2 : Appliquer les paramètres du dépôt
+
+Compare chaque clé de l'objet `repository` aux paramètres actuels du dépôt via `GET /repos/{owner}/{repo}`. Construit un objet de correctif contenant uniquement les clés ayant dérivé et l'applique via `PATCH /repos/{owner}/{repo}`.
+
+### Phase 3 : Appliquer les permissions Actions
+
+Compare l'objet `actions_permissions` (permissions par défaut du workflow, approbation de revue de PR) aux permissions actuelles du workflow Actions via `GET /repos/{owner}/{repo}/actions/permissions/workflow`. Met à jour via `PUT` si une clé a dérivé.
+
+### Phase 4 : Appliquer la protection des branches
+
+Parcourt le tableau `branch_protection`. Pour chaque branche :
+
+1. Si l'exécution a lieu sur lui-même, remplace `contexts` par `self_contexts`
+2. Supprime `self_contexts` du corps de la requête (ne fait pas partie de l'API GitHub)
+3. Récupère la protection actuelle via `GET /repos/{owner}/{repo}/branches/{branch}/protection`
+4. Compare : `enforce_admins`, `required_status_checks` (strict + contexts), `required_pull_request_reviews`, `restrictions`, et les indicateurs booléens (`required_linear_history`, `allow_force_pushes`, `allow_deletions`, `block_creations`, `required_conversation_resolution`, `lock_branch`, `allow_fork_syncing`)
+5. Crée ou met à jour les règles de protection via `PUT` si une dérive est détectée
+
+### Phase 5 : Appliquer les sujets
+
+Compare le tableau `topics` aux sujets actuels du dépôt via `GET /repos/{owner}/{repo}/topics`. Remplace via `PUT` en cas de dérive.
+
+### Phase 6 : Appliquer Pages
+
+Vérifie si GitHub Pages est activé via `GET /repos/{owner}/{repo}/pages`. Si non trouvé (404), active Pages avec le `build_type` configuré. Si trouvé mais que le `build_type` a dérivé, le met à jour via `PUT`.
+
+### Phase 7 : Vérifier
+
+Relt tous les paramètres via l'API GitHub et les compare à l'état souhaité. Vérifie les paramètres du dépôt, les permissions Actions, la protection des branches (y compris les indicateurs booléens) et le type de build Pages. Échoue le workflow si un paramètre ne correspond pas après les phases d'application.
+
+## Avancée automatique des fixations de workflow immutables
+
+Lorsque les workflows réutilisables dans docs-control changent, `.github/workflows/update-governed-workflow-pins.yml` déclenche `scripts/update-governed-workflow-pins.sh` pour mettre à jour les SHA fixés par commit de façon déterministe dans les workflows appelants sans intervention manuelle.

@@ -1,0 +1,169 @@
+---
+title: Configuration Reference
+description: 用於強制執行、同步、Antigravity AI 自動化和分發行為的中央 repo-settings.json 設定參考。
+i18n:
+  sourceHash: "66e243c0b43d"
+  translator: "machine"
+sidebar:
+  order: 3
+---
+
+中央設定檔驅動所有強制執行、同步和分發行為。它位於 docs-control 中的 `.github/config/repo-settings.json`，並在工作流執行時由下游儲存庫獲取。
+
+```json title=".github/config/repo-settings.json"
+{
+  "_comment": "Central repo-settings config — enforced by enforce-repo-settings.yml",
+  "repository": {
+    "private": false,
+    "has_issues": true,
+    "has_projects": false,
+    "has_wiki": false,
+    "is_template": false,
+    "allow_squash_merge": true,
+    "allow_merge_commit": true,
+    "allow_rebase_merge": true,
+    "allow_auto_merge": false,
+    "delete_branch_on_merge": true,
+    "web_commit_signoff_required": false,
+    "squash_merge_commit_title": "COMMIT_OR_PR_TITLE",
+    "squash_merge_commit_message": "COMMIT_MESSAGES",
+    "merge_commit_title": "MERGE_MESSAGE",
+    "merge_commit_message": "PR_TITLE",
+    "allow_update_branch": true,
+    "homepage": ""
+  },
+  "actions_permissions": {
+    "default_workflow_permissions": "write",
+    "can_approve_pull_request_reviews": true
+  },
+  "branch_protection": [
+    {
+      "branch": "main",
+      "enforce_admins": true,
+      "required_status_checks": {
+        "strict": false,
+        "contexts": [
+          "check / Check linked issues",
+          "lint / Lint Code Base",
+          "lint / Shell Unit Tests"
+        ],
+        "self_contexts": ["Check linked issues", "Lint Code Base", "Shell Unit Tests"]
+      },
+      "required_pull_request_reviews": null,
+      "restrictions": null,
+      "required_linear_history": false,
+      "allow_force_pushes": false,
+      "allow_deletions": false,
+      "block_creations": false,
+      "required_conversation_resolution": false,
+      "lock_branch": false,
+      "allow_fork_syncing": false
+    }
+  ],
+  "topics": [],
+  "pages": {
+    "enabled": true,
+    "build_type": "workflow"
+  },
+  "managed_files": {
+    "source_repo": "f5-sales-demo/docs-control",
+    "files": [
+      {"src": "workflows/github-pages-deploy.yml", "dest": ".github/workflows/github-pages-deploy.yml"},
+      {"src": "workflows/enforce-repo-settings.yml", "dest": ".github/workflows/enforce-repo-settings.yml"},
+      {"src": "workflows/require-linked-issue.yml", "dest": ".github/workflows/require-linked-issue.yml"},
+      {"src": "workflows/antigravity-review.yml", "dest": ".github/workflows/antigravity-review.yml"},
+      {"src": "workflows/antigravity-translate.yml", "dest": ".github/workflows/antigravity-translate.yml"},
+      {"src": ".github/PULL_REQUEST_TEMPLATE.md", "dest": ".github/PULL_REQUEST_TEMPLATE.md"},
+      {"src": ".github/ISSUE_TEMPLATE/bug_report.md", "dest": ".github/ISSUE_TEMPLATE/bug_report.md"},
+      {"src": ".github/ISSUE_TEMPLATE/feature_request.md", "dest": ".github/ISSUE_TEMPLATE/feature_request.md"},
+      {"src": ".github/ISSUE_TEMPLATE/documentation.md", "dest": ".github/ISSUE_TEMPLATE/documentation.md"},
+      {"src": ".github/ISSUE_TEMPLATE/config.yml", "dest": ".github/ISSUE_TEMPLATE/config.yml"},
+
+      {"src": "CONTRIBUTING.md", "dest": "CONTRIBUTING.md"},
+      {"src": "CLAUDE.md", "dest": "CLAUDE.md"},
+      {"src": "AGENTS.md", "dest": "AGENTS.md"},
+      {"src": ".agents/skills/demo-components/SKILL.md", "dest": ".agents/skills/demo-components/SKILL.md"},
+      {"src": ".agents/skills/i18n-translate/SKILL.md", "dest": ".agents/skills/i18n-translate/SKILL.md"},
+      {"src": ".editorconfig", "dest": ".editorconfig"},
+      {"src": ".gitignore", "dest": ".gitignore"},
+      {"src": "LICENSE", "dest": "LICENSE"},
+      {"src": ".pre-commit-config.yaml", "dest": ".pre-commit-config.yaml"}
+    ]
+  }
+}
+```
+
+## 欄位參考
+
+### `repository`
+
+透過 `PATCH /repos/{owner}/{repo}` 套用的標準 GitHub 儲存庫設定。每個鍵直接對應到 GitHub API 欄位。[強制執行工作流](./settings-enforcement/) 將每個鍵與儲存庫的當前值進行比較，僅對發生漂移的鍵進行修補修改。
+
+顯著設定：
+
+- `delete_branch_on_merge: true` -- 合併 PR 分支後自動清理該分支
+- `allow_update_branch: true` -- 在 PR 上啟用 "Update branch" 按鈕
+- `homepage: ""` -- 在執行階段自動計算為 `https://f5-sales-demo.github.io/{repo}/`
+
+### `actions_permissions`
+
+控制儲存庫的 GitHub Actions 工作流權限：
+
+- `default_workflow_permissions: "write"` -- 工作流預設獲得儲存庫的讀取/寫入存取權限
+- `can_approve_pull_request_reviews: true` -- 允許工作流核准 PR
+
+### `branch_protection`
+
+分支保護規則陣列。每個條目指定一個 `branch` 名稱和期望的保護設定。目前僅保護 `main`。
+
+關鍵欄位：
+
+- `enforce_admins: true` -- 保護規則同樣套用於儲存庫管理員
+- `required_status_checks.strict: false` -- 分支在合併前不需要保持最新狀態
+- `required_status_checks.contexts` -- 下游儲存庫必須通過的檢查名稱（例如 `check / Check linked issues` 和 `lint / Shell Unit Tests`）
+- `required_status_checks.self_contexts` -- docs-control 本身必須通過的檢查名稱（例如 `Check linked issues` 和 `Shell Unit Tests`）
+- `required_pull_request_reviews: null` -- 不需要 PR 審查核准
+- `restrictions: null` -- 除分支保護外無推送限制
+
+#### `contexts` 與 `self_contexts`
+
+當下游儲存庫使用呼叫方工作流時，狀態檢查名稱變為 `<caller_job_key> / <reusable_job_name>`。例如，`require-linked-issue.yml` 呼叫方的任務鍵為 `check`，因此檢查名稱為 `check / Check linked issues`。但當 docs-control 直接執行相同的工作流（透過 `pull_request_target` 觸發器）時，檢查名稱僅為 `Check linked issues`。
+
+`self_contexts` 欄位儲存套用於 docs-control 本身的檢查名稱。在[強制執行](./settings-enforcement/)期間，工作流檢測其是否在源儲存庫上執行，並在套用分支保護之前將 `self_contexts` 替換到 `contexts` 中。在將 Payload 發送到 GitHub API 之前，`self_contexts` 欄位總是會被剝離。
+
+`Shell Unit Tests` 是統一的儲存庫測試門控。可重用工作流始終報告它：使用者儲存庫執行每個 `tests/test-*.sh` 檔案，而沒有符合測試的儲存庫則報告成功並附帶明確的無測試訊息。這使得儲存庫 shell 測試預設成為必要項目，而不是依賴於每個儲存庫的顯式選擇清單。
+
+#### 使用者 shell 測試 Profile
+
+預設假設每個根目錄下的 `tests/test-*.sh` 腳本在未預先設定的 GitHub 託管 runner 上都是密封獨立的。在該 Glob 下還儲存了容器或服務整合測試的儲存庫需要在 `repo-settings.json` 中新增 `consumer_shell_tests.profiles` 條目。
+
+每個 Profile 對完整的符合清單進行分類：
+
+- `unit` 條目包含測試 `path` 和 `args` 陣列。Runner 字面傳遞每個參數，不進行 shell 計算。
+- `environment` 條目包含測試 `path` 和非空的 `reason`，解釋為什麼裸 runner 單元門控無法執行它。
+
+可重用工作流從相同的 docs-control `main` 版本獲取選擇器和設定，記錄該版本，並在執行任何內容之前驗證清單。缺少設定、不安全的路徑或參數、重複的路徑以及未分類或缺失的測試都會導致必要的 Context 失敗。這使得 Profile 成為經過審計的分類契約，而不是忽略清單。沒有 Profile 的儲存庫保留廣泛的預設設定。
+
+`xcsh` 覆蓋排除了兩個 Super-Linter context，因為該儲存庫未呼叫可重用 Super-Linter 工作流；其原生 `check`、`pii-guard` 和 `test` context 仍保持必要狀態。在新增排除項之前，即時驗證必須證明排除是必要的。
+
+請勿要求帶有 `paths` 或 `paths-ignore` 篩選條件的工作流中的 context。當工作流未啟動時，GitHub 會保持該 context 處於 pending 狀態。廣泛的安全工具必須在未篩選的拉取請求工作流或計劃的全樹審計中執行；託管的工作流安全審計為 `zizmor` 使用後一種模型。Job 級別的條件是安全的，因為跳過的 Job 仍會報告成功的檢查。
+
+### `topics`
+
+要套用到儲存庫的 GitHub topic 陣列。目前為空 -- 未強制執行 topic。
+
+### `pages`
+
+GitHub Pages 設定：
+
+- `enabled: true` -- 確保在每個已註冊的儲存庫上啟用 Pages
+- `build_type: "workflow"` -- 使用 GitHub Actions 進行 Pages 建置（而非傳統的基於分支的建置）
+
+### `managed_files`
+
+定義檔案同步清單：
+
+- `source_repo` -- 保存託管檔案規範版本的儲存庫（`f5-sales-demo/docs-control`）
+- `files` -- 一個 `{src, dest}` 物件陣列，將 docs-control 中的源路徑對應到下游儲存庫中的目標路徑
+
+[檔案同步工作流](./file-sync/) 迭代此陣列以檢測並糾正漂移。未在此處列出的檔案（如 `dependabot.yml` 和 `README.md`）是動態產生的，而不是從靜態源同步的。

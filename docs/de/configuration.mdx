@@ -1,0 +1,169 @@
+---
+title: Konfigurationsreferenz
+description: Zentrale repo-settings.json-Konfigurationsreferenz für Durchsetzung, Synchronisierung, Antigravity AI-Automatisierung und Dispatch-Verhalten.
+sidebar:
+  order: 3
+i18n:
+  sourceHash: "66e243c0b43d"
+  translator: "machine"
+---
+
+Die zentrale Konfigurationsdatei steuert das gesamte Durchsetzungs-, Synchronisierungs- und Dispatch-Verhalten. Sie befindet sich unter `.github/config/repo-settings.json` in docs-control und wird von nachgelagerten Repositories zur Workflow-Laufzeit abgerufen.
+
+```json title=".github/config/repo-settings.json"
+{
+  "_comment": "Central repo-settings config — enforced by enforce-repo-settings.yml",
+  "repository": {
+    "private": false,
+    "has_issues": true,
+    "has_projects": false,
+    "has_wiki": false,
+    "is_template": false,
+    "allow_squash_merge": true,
+    "allow_merge_commit": true,
+    "allow_rebase_merge": true,
+    "allow_auto_merge": false,
+    "delete_branch_on_merge": true,
+    "web_commit_signoff_required": false,
+    "squash_merge_commit_title": "COMMIT_OR_PR_TITLE",
+    "squash_merge_commit_message": "COMMIT_MESSAGES",
+    "merge_commit_title": "MERGE_MESSAGE",
+    "merge_commit_message": "PR_TITLE",
+    "allow_update_branch": true,
+    "homepage": ""
+  },
+  "actions_permissions": {
+    "default_workflow_permissions": "write",
+    "can_approve_pull_request_reviews": true
+  },
+  "branch_protection": [
+    {
+      "branch": "main",
+      "enforce_admins": true,
+      "required_status_checks": {
+        "strict": false,
+        "contexts": [
+          "check / Check linked issues",
+          "lint / Lint Code Base",
+          "lint / Shell Unit Tests"
+        ],
+        "self_contexts": ["Check linked issues", "Lint Code Base", "Shell Unit Tests"]
+      },
+      "required_pull_request_reviews": null,
+      "restrictions": null,
+      "required_linear_history": false,
+      "allow_force_pushes": false,
+      "allow_deletions": false,
+      "block_creations": false,
+      "required_conversation_resolution": false,
+      "lock_branch": false,
+      "allow_fork_syncing": false
+    }
+  ],
+  "topics": [],
+  "pages": {
+    "enabled": true,
+    "build_type": "workflow"
+  },
+  "managed_files": {
+    "source_repo": "f5-sales-demo/docs-control",
+    "files": [
+      {"src": "workflows/github-pages-deploy.yml", "dest": ".github/workflows/github-pages-deploy.yml"},
+      {"src": "workflows/enforce-repo-settings.yml", "dest": ".github/workflows/enforce-repo-settings.yml"},
+      {"src": "workflows/require-linked-issue.yml", "dest": ".github/workflows/require-linked-issue.yml"},
+      {"src": "workflows/antigravity-review.yml", "dest": ".github/workflows/antigravity-review.yml"},
+      {"src": "workflows/antigravity-translate.yml", "dest": ".github/workflows/antigravity-translate.yml"},
+      {"src": ".github/PULL_REQUEST_TEMPLATE.md", "dest": ".github/PULL_REQUEST_TEMPLATE.md"},
+      {"src": ".github/ISSUE_TEMPLATE/bug_report.md", "dest": ".github/ISSUE_TEMPLATE/bug_report.md"},
+      {"src": ".github/ISSUE_TEMPLATE/feature_request.md", "dest": ".github/ISSUE_TEMPLATE/feature_request.md"},
+      {"src": ".github/ISSUE_TEMPLATE/documentation.md", "dest": ".github/ISSUE_TEMPLATE/documentation.md"},
+      {"src": ".github/ISSUE_TEMPLATE/config.yml", "dest": ".github/ISSUE_TEMPLATE/config.yml"},
+
+      {"src": "CONTRIBUTING.md", "dest": "CONTRIBUTING.md"},
+      {"src": "CLAUDE.md", "dest": "CLAUDE.md"},
+      {"src": "AGENTS.md", "dest": "AGENTS.md"},
+      {"src": ".agents/skills/demo-components/SKILL.md", "dest": ".agents/skills/demo-components/SKILL.md"},
+      {"src": ".agents/skills/i18n-translate/SKILL.md", "dest": ".agents/skills/i18n-translate/SKILL.md"},
+      {"src": ".editorconfig", "dest": ".editorconfig"},
+      {"src": ".gitignore", "dest": ".gitignore"},
+      {"src": "LICENSE", "dest": "LICENSE"},
+      {"src": ".pre-commit-config.yaml", "dest": ".pre-commit-config.yaml"}
+    ]
+  }
+}
+```
+
+## Feldreferenz
+
+### `repository`
+
+Standardmäßige GitHub-Repository-Einstellungen, angewendet über `PATCH /repos/{owner}/{repo}`. Jeder Schlüssel wird direkt dem GitHub-API-Feld zugeordnet. Der [Durchsetzungs-Workflow](./settings-enforcement/) vergleicht jeden Schlüssel mit dem aktuellen Wert des Repositorys und wendet nur Patches für abweichende Schlüssel an.
+
+Wichtige Einstellungen:
+
+- `delete_branch_on_merge: true` -- bereinigt zusammengeführte PR-Branches automatisch
+- `allow_update_branch: true` -- aktiviert la Schaltfläche "Update branch" bei PRs
+- `homepage: ""` -- wird zur Laufzeit automatisch berechnet als `https://f5-sales-demo.github.io/{repo}/`
+
+### `actions_permissions`
+
+Steuert die GitHub Actions-Workflow-Berechtigungen für das Repository:
+
+- `default_workflow_permissions: "write"` -- Workflows erhalten standardmäßig Lese-/Schreibzugriff auf das Repository
+- `can_approve_pull_request_reviews: true` -- ermöglicht Workflows, PRs zu genehmigen
+
+### `branch_protection`
+
+Ein Array von Branch-Schutzregeln. Jeder Eintrag gibt einen `branch`-Namen und die gewünschten Schutzeinstellungen an. Derzeit ist nur `main` geschützt.
+
+Hauptfelder:
+
+- `enforce_admins: true` -- Schutzregeln gelten auch für Repository-Administratoren
+- `required_status_checks.strict: false` -- Branches müssen vor dem Zusammenführen nicht auf dem neuesten Stand sein
+- `required_status_checks.contexts` -- die Namen der Prüfungen, die nachgelagerte Repositories bestehen müssen (z. B. `check / Check linked issues` und `lint / Shell Unit Tests`)
+- `required_status_checks.self_contexts` -- die Namen der Prüfungen, die docs-control selbst bestehen muss (z. B. `Check linked issues` und `Shell Unit Tests`)
+- `required_pull_request_reviews: null` -- keine PR-Review-Genehmigung erforderlich
+- `restrictions: null` -- keine Push-Einschränkungen über den Branch-Schutz hinaus
+
+#### `contexts` vs. `self_contexts`
+
+Wenn ein nachgelagertes Repository einen Aufrufer-Workflow verwendet, wird der Statusprüfungsname zu `<caller_job_key> / <reusable_job_name>`. Beispielsweise hat der Aufrufer `require-linked-issue.yml` den Job-Schlüssel `check`, sodass der Prüfungsname `check / Check linked issues` lautet. Wenn docs-control jedoch denselben Workflow direkt ausführt (über den `pull_request_target`-Auslöser), lautet der Prüfungsname einfach `Check linked issues`.
+
+Das Feld `self_contexts` speichert die Prüfungsnamen, die für docs-control selbst gelten. Während der [Durchsetzung](./settings-enforcement/) erkennt der Workflow, ob er auf dem Quell-Repository läuft, und tauscht `self_contexts` vor der Anwendung des Branch-Schutzes in `contexts` aus. Das Feld `self_contexts` wird immer entfernt, bevor die Nutzlast an die GitHub-API gesendet wird.
+
+`Shell Unit Tests` ist das einheitliche Repository-Test-Gate. Der wiederverwendbare Workflow meldet es immer: Konsumenten-Repositories führen jede `tests/test-*.sh`-Datei aus, während ein Repository ohne passende Tests den Erfolg mit einer expliziten Meldung über fehlende Tests meldet. Dies macht Repository-Shell-Tests standardmäßig erforderlich, anstatt sich auf Opt-in-Listen pro Repository zu verlassen.
+
+#### Konsumenten-Shell-Testprofile
+
+Der Standard geht davon aus, dass jedes `tests/test-*.sh`-Skript auf Stammebene auf einem nicht bereitgestellten GitHub-hosted Runner hermetisch ist. Ein Repository, das auch Container- oder Dienst-Integrationstests unter diesem Glob speichert, benötigt einen `consumer_shell_tests.profiles`-Eintrag in `repo-settings.json`.
+
+Jedes Profil klassifiziert den vollständigen passenden Bestand:
+
+- `unit`-Einträge enthalten einen Test-`path` und ein `args`-Array. Der Runner übergibt jedes Argument wörtlich ohne Shell-Auswertung.
+- `environment`-Einträge enthalten einen Test-`path` und einen nicht leeren Grund (`reason`), der erklärt, warum das Bare-Runner-Unit-Gate ihn nicht ausführen kann.
+
+Der wiederverwendbare Workflow ruft den Selektor und die Konfiguration von derselben docs-control `main`-Revision ab, protokolliert diese Revision und überprüft den Bestand, bevor irgendetwas ausgeführt wird. Fehlende Konfiguration, unsichere Pfade oder Argumente, doppelte Pfade sowie unklassifizierte oder fehlende Tests lassen den erforderlichen Kontext fehlschlagen. Dies macht ein Profil zu einem geprüften Klassifizierungsvertrag anstelle einer Ignorierliste. Repositories ohne Profil behalten den breiten Standard bei.
+
+Die `xcsh`-Überschreibung schließt beide Super-Linter-Kontexte aus, da dieses Repository den wiederverwendbaren Super-Linter-Workflow nicht aufruft; seine nativen Kontexte `check`, `pii-guard` und `test` bleiben erforderlich. Eine Live-Überprüfung muss beweisen, dass ein Ausschluss erforderlich ist, bevor er hinzugefügt wird.
+
+Fordern Sie keinen Kontext aus einem Workflow mit `paths`- oder `paths-ignore`-Filtern an. GitHub lässt diesen Kontext ausstehend, wenn der Workflow nicht startet. Breites Sicherheitswerkzeuge müssen in einem ungefilterten Pull-Request-Workflow oder in einem geplanten Vollbaum-Audit ausgeführt werden; das verwaltete Workflow-Sicherheits-Audit verwendet für `zizmor` das letztgenannte Modell. Eine Bedingung auf Job-Ebene ist sicher, da ein übersprungener Job weiterhin eine erfolgreiche Prüfung meldet.
+
+### `topics`
+
+Ein Array von GitHub-Themen, die auf das Repository angewendet werden sollen. Derzeit leer -- Themen werden nicht durchgesetzt.
+
+### `pages`
+
+GitHub Pages-Konfiguration:
+
+- `enabled: true` -- stellt sicher, dass Pages in jedem registrierten Repository aktiviert ist
+- `build_type: "workflow"` -- verwendet GitHub Actions für den Pages-Build (keine veralteten branch-basierten Builds)
+
+### `managed_files`
+
+Definiert das Dateisynchronisierungsmanifest:
+
+- `source_repo` -- das Repository, das die kanonischen Versionen verwalteter Dateien enthält (`f5-sales-demo/docs-control`)
+- `files` -- ein Array von `{src, dest}`-Objekten, die Quellpfade in docs-control Zielpfaden in nachgelagerten Repositories zuordnen
+
+Der [Datei-Synchronisierungs-Workflow](./file-sync/) iteriert über dieses Array, um Abweichungen zu erkennen und zu korrigieren. Nicht hier aufgeführte Dateien (wie `dependabot.yml` und `README.md`) werden dynamisch generiert, anstatt aus statischen Quellen synchronisiert zu werden.

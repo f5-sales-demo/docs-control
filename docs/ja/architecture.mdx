@@ -1,0 +1,74 @@
+---
+title: アーキテクチャ
+description: docs-control、docs-builder、および docs-theme にまたがる 3 リポジトリ構成のドキュメントパイプラインアーキテクチャ。Antigravity AI 自動化とフリートガバナンスを備えています。
+sidebar:
+  order: 2
+i18n:
+  sourceHash: "c7a6eb5a25d8"
+  translator: "machine"
+---
+
+## 3 リポジトリパイプライン
+
+ドキュメントおよびガバナンスシステムは 3 つのリポジトリにまたがっており、それぞれ明確な役割を持っています:
+
+| リポジトリ | 役割 |
+| --- | --- |
+| **docs-control** | 中央ガバナンスハブ -- リポジトリ設定、ブランチ保護設定、管理対象ファイルマニフェスト、再利用可能な CI ワークフロー、Antigravity AI ワークフロー、呼び出し元ワークフローテンプレート、エージェントスキル、およびダウンストリームディスパッチ |
+| **docs-builder** | Docker ビルドイメージ -- Astro + Starlight ビルドオーケストレーション、npm 依存関係、Puppeteer PDF 生成、インタラクティブコンポーネント |
+| **docs-theme** | Astro Starlight プラグイン -- 共有ブランディング、CSS、フォント、ロゴ、レイアウトコンポーネント、`astro.config.mjs`、および `content.config.ts` |
+
+コンテンツリポジトリには `docs/` ディレクトリのみが必要です。ビルドコンテナとワークフローがそれ以外のすべてを処理します。
+
+## データフロー
+
+docs-control の `main` ブランチでテンプレートファイルやワークフローが変更された場合:
+
+1. [ディスパッチワークフロー](./dispatch/) が起動し、すべてのダウンストリームリポジトリで設定適用をトリガーします
+2. [設定適用ワークフロー](./settings-enforcement/) が望ましい状態と現在の状態を比較し、ドリフトをパッチ適用します
+3. [ファイル同期ワークフロー](./file-sync/) がドリフトした管理対象ファイルを検出し、正規のコンテンツを含む PR を作成して自動マージします
+4. 再利用可能な Antigravity AI ワークフロー（`antigravity-review.yml` および `antigravity-translate.yml`）が、登録済みリポジトリ全体のプルリクエストで実行されます
+
+## Antigravity AI 自動化
+
+フリートには GitHub Actions ランナー上で動作する **Antigravity (`agy`)** AI 自動化が組み込まれています:
+
+| ワークフロー | 目的 | トリガーと実行 |
+| --- | --- | --- |
+| **Antigravity コードレビュー** (`antigravity-review.yml`) | 自動 AI プルリクエストコードレビュー | PR の作成または更新時に実行されます。Gemini 3.6 Flash (High) を使用して差分（diff）を監査し、セキュリティの脆弱性、ハードコードされたシークレット、PII 漏洩、およびコード品質をチェックし、PR コメントを介してフィードバックを投稿します。 |
+| **Antigravity 言語翻訳** (`antigravity-translate.yml`) | 自動 AI ドキュメント翻訳 | `docs/en/**/*.md[x]` を変更する PR で実行されます。`.agents/skills/i18n-translate/SKILL.md` スキルを実行して 12 のターゲットロケール（`fr`、`es`、`de`、`pt-br`、`ja`、`ko`、`zh-cn`、`zh-tw`、`ar`、`it`、`hi`、`th`）を更新し、`i18n.sourceHash` を更新して PR ブランチに自動コミットします。 |
+
+## トークンと資格情報モデル
+
+3 組の資格情報が最小権限の分離を提供します:
+
+| トークン / シークレット | 権限 / スコープ | 使用場所 |
+| --- | --- | --- |
+| `REPO_SETTINGS_TOKEN` | Administration R/W、Pages R/W、Contents Read、Metadata Read | `enforce-repo-settings.yml`、`dispatch-downstream.yml`、`update-governed-workflow-pins.yml` |
+| `REPO_SYNC_TOKEN` | Contents R/W、Issues R/W、Pull Requests R/W、Metadata Read | `sync-managed-files.yml` |
+| `ANTIGRAVITY_TOKEN` & `GCP_PROJECT_ID` | Antigravity AI 認証および GCP プロジェクトアクセス | `antigravity-review.yml`、`antigravity-translate.yml` |
+
+適用ワークフローには、ブランチ保護および Pages 設定を変更するための管理者アクセス権が必要です。同期ワークフローには、ブランチの作成、ファイルのコミット、および PR のマージを行うためのコンテンツおよび PR アクセス権が必要です。Antigravity AI ワークフローは、Gemini 3.6 Flash で認証するために専用のプロジェクト資格情報を使用します。
+
+## 自己検出
+
+Docs-control は自身が提供するガバナンス設定の提供者であり、消費者でもあります。`enforce-repo-settings.yml` が docs-control 自体で実行される場合（`push` トリガー経由）、`managed_files.source_repo` と `github.repository` を比較することでこれを検出します。これにより、ブランチ保護で `self_contexts` オーバーライドがトリガーされます。docs-control はワークフローを直接使用するのに対し（例: `Shell Unit Tests`）、ダウンストリームリポジトリは呼び出し元ラッパーを使用します（例: `lint / Shell Unit Tests`）。`contexts` と `self_contexts` の詳細については、[設定ページ](./configuration/) を参照してください。
+
+## リポジトリのレイアウト
+
+| ディレクトリ / ファイル | 目的 |
+| --- | --- |
+| `.github/config/repo-settings.json` | 中央設定: リポジトリ設定、ブランチ保護、Actions 権限、Pages 設定、および管理対象ファイルマニフェスト |
+| `.github/config/downstream-repos.json` | 登録済みダウンストリームリポジトリのレジストリ |
+| `.github/config/docs-sites.json` | README テンプレート化で使用される各ダウンストリームドキュメントサイトのメタデータ（ラベル、URL、説明） |
+| `.github/workflows/` | 再利用可能なワークフロー: 設定適用、ファイル同期、Pages デプロイ、関連 Issue チェック、ディスパッチ、Antigravity レビュー、および Antigravity 翻訳 |
+| `.agents/skills/` | エージェントスキルのガバナンス: `demo-components`、`i18n-translate` |
+| `workflows/` | ダウンストリームリポジトリが `.github/workflows/` にインストールする呼び出し元テンプレート |
+| `docs/` | ドキュメントソース（Astro Starlight を介してビルドおよびデプロイ） |
+| `CONTRIBUTING.md` | 貢献者ワークフロールール（すべてのダウンストリームリポジトリに同期） |
+| `CLAUDE.md` | AI アシスタントへの指示（すべてのダウンストリームリポジトリに同期） |
+| `AGENTS.md` | リポジトリエージェントへの指示およびガバナンスポリシー |
+| `README.md.tpl` | 動的に生成されるダウンストリーム README ファイルのテンプレート |
+| `.pre-commit-config.yaml` | Pre-commit フック設定（すべてのダウンストリームリポジトリに同期） |
+| `.markdownlint.json` | Markdown リンタールール |
+| `.yamllint.yaml` | YAML リンタールール |

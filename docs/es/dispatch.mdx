@@ -1,0 +1,24 @@
+---
+title: Envío descendente
+description: Mecanismo de envío de flujo de trabajo automatizado que activa la aplicación de configuración de repositorios descendentes y la sincronización de archivos.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: "293c484ec19d"
+  translator: "machine"
+---
+
+El flujo de trabajo de envío en `.github/workflows/dispatch-downstream.yml` activa la aplicación automatizada de la configuración en todos los repositorios inscritos cuando cambia la configuración central o los archivos gestionados en `main` en docs-control.
+
+## Activadores de envío
+
+El flujo de trabajo de envío se activa bajo dos condiciones:
+
+1. **`push` a `main`**: Se activa automáticamente cuando se confirman cambios en `.github/config/repo-settings.json`, `.github/config/downstream-repos.json`, o cualquier archivo en `workflows/` o `templates/`.
+2. **`workflow_dispatch`**: Activador manual que permite a los administradores ejecutar la aplicación en toda la flota a pedido.
+
+## Matriz de ejecución
+
+El flujo de trabajo lee el registro de repositorios inscritos desde `.github/config/downstream-repos.json` y utiliza una matriz de trabajos de GitHub Actions para enviar llamadas a `enforce-repo-settings.yml` de forma concurrente en todos los repositorios descendentes.
+
+Cada trabajo de la matriz invoca `gh workflow run enforce-repo-settings.yml` utilizando las credenciales `REPO_SETTINGS_TOKEN`, pasando el SHA del commit `source_sha` desencadenante para garantizar que todos los repositorios descendentes se sincronicen con el commit exacto.

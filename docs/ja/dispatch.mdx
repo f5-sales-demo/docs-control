@@ -1,0 +1,24 @@
+---
+title: ダウンストリームディスパッチ
+description: ダウンストリームリポジトリの設定適用およびファイル同期をトリガーする自動ワークフローディスパッチ機構。
+sidebar:
+  order: 6
+i18n:
+  sourceHash: "293c484ec19d"
+  translator: "machine"
+---
+
+`.github/workflows/dispatch-downstream.yml` にあるディスパッチワークフローは、docs-control の `main` ブランチで中央設定または管理対象ファイルが変更されるたびに、登録されているすべてのリポジトリに対して自動設定適用をトリガーします。
+
+## ディスパッチトリガー
+
+ディスパッチワークフローは、以下の 2 つの条件で実行されます。
+
+1. **`main` への `push`**: `.github/config/repo-settings.json`、`.github/config/downstream-repos.json`、または `workflows/` や `templates/` 内のファイルへの変更がコミットされると自動的にトリガーされます。
+2. **`workflow_dispatch`**: 管理者がオンデマンドでフリート全体への適用を実行できるようにする手動トリガー。
+
+## 実行マトリックス
+
+ワークフローは `.github/config/downstream-repos.json` から登録済みリポジトリレジストリを読み取り、GitHub Actions のジョブマトリックスを使用して、すべてのダウンストリームリポジトリに対して並行して `enforce-repo-settings.yml` の呼び出しをディスパッチします。
+
+各マトリックスジョブは `REPO_SETTINGS_TOKEN` 資格情報を使用して `gh workflow run enforce-repo-settings.yml` を呼び出し、トリガーとなった `source_sha` コミット SHA を渡すことで、すべてのダウンストリームリポジトリが正確なコミットに対して同期されるようにします。

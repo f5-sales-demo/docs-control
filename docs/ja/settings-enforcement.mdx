@@ -1,0 +1,69 @@
+---
+title: 設定の適用
+description: ブランチ保護、ラベル、Actions 権限、および Pages のための 7 段階の冪等なリポジトリ設定適用ワークフロー。
+sidebar:
+  order: 4
+i18n:
+  sourceHash: "9c98278db684"
+  translator: "machine"
+---
+
+`.github/workflows/enforce-repo-settings.yml` にある適用ワークフローは、望ましいリポジトリの状態を現在の状態と比較し、設定のズレ（ドリフト）をパッチ適用する再利用可能で冪等なワークフローです。ダウンストリームリポジトリは [呼び出し元ワークフロー](./dispatch/) を介してこれを呼び出します。docs-control も `.github/config/repo-settings.json` へのプッシュ時に直接これを実行します。
+
+## トリガー
+
+- **`workflow_call`** -- ダウンストリーム呼び出し元ワークフローによって呼び出されます（6 時間ごとのスケジュール、設定プッシュ時、または手動ディスパッチ）
+- **`push`** -- docs-control の `main` ブランチで `repo-settings.json` が変更されたときに実行されます
+
+## 並列実行
+
+設定適用は、呼び出し元で並列ジョブとして実行される 2 つの再利用可能なワークフローに分割されており、それぞれが独自の最小権限トークンを使用します:
+
+- **`enforce-repo-settings.yml`** は `REPO_SETTINGS_TOKEN`（Administration R/W、Pages R/W、Contents Read、Metadata Read）を使用します
+- **`sync-managed-files.yml`** は `REPO_SYNC_TOKEN`（Contents R/W、Issues R/W、Pull Requests R/W、Metadata Read）を使用します
+
+このページでは設定適用ワークフローについて説明します。管理対象ファイルのワークフローについては [ファイル同期](./file-sync/) を参照してください。
+
+## 7 つのフェーズ
+
+各フェーズは冪等です。望ましい状態を現在の状態と比較し、ドリフトが検出された場合にのみ変更を加えます。
+
+### フェーズ 1: 検証 (Validate)
+
+GitHub API を介して docs-control から中央の [設定](./configuration/) を取得します（最大 5 回再試行）。`jq` および `gh` が利用可能で認証されていることを検証します。設定値が空の場合は `homepage` URL を自動計算します。
+
+`managed_files.source_repo` と `github.repository` を比較して、ワークフローがソースリポジトリ自体で実行されているかどうかを検出します。自身で実行されている場合、フェーズ 4 で `self_contexts` のオーバーライドが有効化されます。
+
+### フェーズ 2: リポジトリ設定の適用 (Apply repository settings)
+
+`GET /repos/{owner}/{repo}` を介して `repository` オブジェクトの各キーをリポジトリの現在の設定と比較します。ドリフトしたキーのみを含むパッチオブジェクトを構築し、`PATCH /repos/{owner}/{repo}` を介して適用します。
+
+### フェーズ 3: Actions 権限の適用 (Apply Actions permissions)
+
+`GET /repos/{owner}/{repo}/actions/permissions/workflow` を介して `actions_permissions` オブジェクト（デフォルトワークフロー権限、PR レビュー承認）を現在の Actions ワークフロー権限と比較します。キーにドリフトがある場合は `PUT` を介して更新します。
+
+### フェーズ 4: ブランチ保護の適用 (Apply branch protection)
+
+`branch_protection` 配列を反復処理します。各ブランチについて:
+
+1. 自身で実行されている場合、`self_contexts` を `contexts` に入れ替えます
+2. ペイロードから `self_contexts` を削除します（GitHub API の一部ではないため）
+3. `GET /repos/{owner}/{repo}/branches/{branch}/protection` を介して現在の保護ルールを取得します
+4. 比較項目: `enforce_admins`、`required_status_checks`（strict + contexts）、`required_pull_request_reviews`、`restrictions`、およびブーリアンフラグ（`required_linear_history`、`allow_force_pushes`、`allow_deletions`、`block_creations`、`required_conversation_resolution`、`lock_branch`、`allow_fork_syncing`）
+5. ドリフトが検出された場合、`PUT` を介して保護ルールを作成または更新します
+
+### フェーズ 5: トピックの適用 (Apply topics)
+
+`GET /repos/{owner}/{repo}/topics` を介して `topics` 配列をリポジトリの現在のトピックと比較します。ドリフトしている場合は `PUT` を介して置換します。
+
+### フェーズ 6: Pages の適用 (Apply Pages)
+
+`GET /repos/{owner}/{repo}/pages` を介して GitHub Pages が有効になっているかどうかを確認します。見つからない場合（404）、設定された `build_type` で Pages を有効にします。見つかったものの `build_type` がドリフトしている場合は、`PUT` を介して更新します。
+
+### フェーズ 7: 検証 (Verify)
+
+GitHub API を介してすべての設定を再読み込みし、望ましい状態と比較します。リポジトリ設定、Actions 権限、ブランチ保護（ブーリアンフラグを含む）、および Pages ビルドタイプを検証します。適用フェーズの後に一致しない設定がある場合、ワークフローは失敗します。
+
+## 不変ワークフローピンのロールフォワード (Immutable Workflow Pins Roll-Forward)
+
+docs-control 内の再利用可能なワークフローが変更されると、`.github/workflows/update-governed-workflow-pins.yml` が `scripts/update-governed-workflow-pins.sh` をトリガーし、手動による介入なしで呼び出し元ワークフロー全体のコミットピン留め SHA を決定論的に更新します。

@@ -1,0 +1,24 @@
+---
+title: Disparo Downstream
+description: Mecanismo automatizado de disparo de fluxo de trabalho que aciona a aplicação de configurações de repositório e a sincronização de arquivos em repositórios downstream.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: "293c484ec19d"
+  translator: "machine"
+---
+
+O fluxo de trabalho de disparo em `.github/workflows/dispatch-downstream.yml` aciona a aplicação automatizada de configurações em todos os repositórios inscritos sempre que a configuração central ou os arquivos gerenciados são alterados na `main` do docs-control.
+
+## Gatilhos de disparo
+
+O fluxo de trabalho de disparo é executado sob duas condições:
+
+1. **`push` para `main`**: Disparado automaticamente quando alterações são commitadas em `.github/config/repo-settings.json`, `.github/config/downstream-repos.json` ou qualquer arquivo em `workflows/` ou `templates/`.
+2. **`workflow_dispatch`**: Gatilho manual que permite que administradores executem a aplicação em toda a frota sob demanda.
+
+## Matriz de execução
+
+O fluxo de trabalho lê o registro de repositórios inscritos em `.github/config/downstream-repos.json` e usa uma matriz de jobs do GitHub Actions para disparar chamadas de `enforce-repo-settings.yml` concorrentemente em todos os repositórios downstream.
+
+Cada job da matriz invoca `gh workflow run enforce-repo-settings.yml` usando credenciais `REPO_SETTINGS_TOKEN`, passando o SHA de commit disparador `source_sha` para garantir que todos os repositórios downstream sincronizem com o commit exato.

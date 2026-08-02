@@ -1,0 +1,74 @@
+---
+title: สถาปัตยกรรม (Architecture)
+description: สถาปัตยกรรมไปป์ไลน์เอกสารแบบสามคลังเก็บข้อมูลครอบคลุม docs-control, docs-builder และ docs-theme พร้อมด้วยระบบอัตโนมัติ Antigravity AI และการกำกับดูแลทั่วทั้งระบบ
+sidebar:
+  order: 2
+i18n:
+  sourceHash: "c7a6eb5a25d8"
+  translator: "machine"
+---
+
+## ไปป์ไลน์สามคลังเก็บข้อมูล (Three-repository pipeline)
+
+ระบบเอกสารและการกำกับดูแลครอบคลุมคลังเก็บข้อมูลสามแห่ง โดยแต่ละแห่งมีความรับผิดชอบเฉพาะ:
+
+| คลังเก็บข้อมูล | บทบาท |
+| --- | --- |
+| **docs-control** | ศูนย์กลางการกำกับดูแล -- การตั้งค่าคลังเก็บข้อมูล, การกำหนดค่าการป้องกันสาขา, รายการไฟล์ที่อยู่ในการดูแล, CI workflows ที่นำกลับมาใช้ใหม่ได้, Antigravity AI workflows, เทมเพลต caller workflow, สกิลของเอเย่นต์, และการส่งต่อลงปลายน้ำ |
+| **docs-builder** | ภาพบิลด์ Docker -- การจัดการบิลด์ Astro + Starlight, npm dependencies, การสร้าง PDF ด้วย Puppeteer, คอมโพเนนต์แบบโต้ตอบ |
+| **docs-theme** | ปลั๊กอิน Astro Starlight -- แบรนด์ดิ้งร่วม, CSS, ฟอนต์, โลโก้, คอมโพเนนต์เลย์เอาต์, `astro.config.mjs`, และ `content.config.ts` |
+
+คลังเก็บข้อมูลเนื้อหาต้องการเพียงไดเรกทอรี `docs/` เท่านั้น คอนเทนเนอร์บิลด์และ workflow จะจัดการส่วนที่เหลือทั้งหมด
+
+## การไหลของข้อมูล (Data flow)
+
+เมื่อไฟล์เทมเพลตหรือ workflow เปลี่ยนแปลงใน docs-control บนสาขา `main`:
+
+1. [dispatch workflow](./dispatch/) จะทำงานและจุดชนวนการบังคับใช้ในทุกคลังเก็บข้อมูลปลายน้ำ
+2. [enforcement workflow](./settings-enforcement/) จะเปรียบเทียบสถานะที่ต้องการกับสถานะปัจจุบันและแก้ไขการเปลี่ยนแปลง (drift) ใดๆ
+3. [file sync workflow](./file-sync/) จะตรวจจับไฟล์ที่อยู่ในการดูแลที่มีการเปลี่ยนแปลง สร้าง PR พร้อมเนื้อหาหลัก และทำการรวมอัตโนมัติ (auto-merge)
+4. Antigravity AI workflows ที่นำกลับมาใช้ใหม่ได้ (`antigravity-review.yml` และ `antigravity-translate.yml`) จะทำงานบน pull requests ทั่วทั้งคลังเก็บข้อมูลที่ลงทะเบียนไว้
+
+## ระบบอัตโนมัติ Antigravity AI
+
+ระบบประกอบด้วยระบบอัตโนมัติ AI ของ **Antigravity (`agy`)** ที่ทำงานบน GitHub Actions runners:
+
+| Workflow | วัตถุประสงค์ | ตัวจุดชนวนและการทำงาน |
+| --- | --- | --- |
+| **Antigravity Code Review** (`antigravity-review.yml`) | การรีวิวโค้ด pull request ด้วย AI แบบอัตโนมัติ | รันเมื่อมีการสร้างหรืออัปเดต PR ใช้ Gemini 3.6 Flash (High) ในการตรวจสอบ diffs เพื่อหาช่องโหว่ความปลอดภัย ความลับที่ฝังไว้ (hardcoded secrets) ข้อมูลส่วนบุคคลรั่วไหล (PII) และคุณภาพโค้ด พร้อมโพสต์ข้อเสนอแนะผ่านความคิดเห็น PR |
+| **Antigravity Language Translation** (`antigravity-translate.yml`) | การแปลภาษาเอกสารด้วย AI แบบอัตโนมัติ | รันบน PRs ที่แก้ไข `docs/en/**/*.md[x]` เรียกใช้สกิล `.agents/skills/i18n-translate/SKILL.md` เพื่ออัปเดต 12 ภาษาเป้าหมาย (`fr`, `es`, `de`, `pt-br`, `ja`, `ko`, `zh-cn`, `zh-tw`, `ar`, `it`, `hi`, `th`), อัปเดต `i18n.sourceHash` และคอมมิตกลับไปยังสาขา PR โดยอัตโนมัติ |
+
+## โมเดลข้อมูลประจำตัวและโทเค็น (Token & Credentials Model)
+
+ชุดข้อมูลประจำตัวสามชุดให้การแยกสิทธิ์ขั้นต่ำ (least-privilege):
+
+| โทเค็น / ความลับ | สิทธิ์ / ขอบเขต | ใช้โดย |
+| --- | --- | --- |
+| `REPO_SETTINGS_TOKEN` | Administration R/W, Pages R/W, Contents Read, Metadata Read | `enforce-repo-settings.yml`, `dispatch-downstream.yml`, `update-governed-workflow-pins.yml` |
+| `REPO_SYNC_TOKEN` | Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read | `sync-managed-files.yml` |
+| `ANTIGRAVITY_TOKEN` & `GCP_PROJECT_ID` | การรับรองความถูกต้อง Antigravity AI และการเข้าถึงโครงการ GCP | `antigravity-review.yml`, `antigravity-translate.yml` |
+
+workflow การบังคับใช้ต้องการสิทธิ์เข้าถึงระดับผู้ดูแลระบบเพื่อแก้ไขการป้องกันสาขาและการตั้งค่า Pages workflow การซิงค์ต้องการสิทธิ์เข้าถึงเนื้อหาและ PR เพื่อสร้างสาขา คอมมิตไฟล์ และรวม PR Antigravity AI workflows ใช้ข้อมูลประจำตัวโครงการเฉพาะเพื่อรับรองความถูกต้องกับ Gemini 3.6 Flash
+
+## การตรวจจับตัวเอง (Self-detection)
+
+Docs-control เป็นทั้งผู้ให้บริการและผู้ใช้การกำหนดค่าการกำกับดูแลของตัวเอง เมื่อ `enforce-repo-settings.yml` รันบน docs-control เอง (ผ่านตัวจุดชนวน `push`) ระบบจะตรวจจับสิ่งนี้โดยการเปรียบเทียบ `managed_files.source_repo` กับ `github.repository` สิ่งนี้จะจุดชนวนการเขียนทับ `self_contexts` ในการป้องกันสาขา -- docs-control ใช้ workflows โดยตรง (เช่น `Shell Unit Tests`) ในขณะที่คลังเก็บข้อมูลปลายน้ำใช้ตัวห่อ caller (เช่น `lint / Shell Unit Tests`) ดู [หน้าการกำหนดค่า](./configuration/) สำหรับรายละเอียดเกี่ยวกับ `contexts` vs `self_contexts`
+
+## เค้าโครงคลังเก็บข้อมูล (Repository layout)
+
+| ไดเรกทอรี / ไฟล์ | วัตถุประสงค์ |
+| --- | --- |
+| `.github/config/repo-settings.json` | การตั้งค่าส่วนกลาง: การตั้งค่าคลังเก็บข้อมูล, การกำหนดค่าการป้องกันสาขา, สิทธิ์ของ Actions, การกำหนดค่า Pages และรายการไฟล์ที่อยู่ในการดูแล |
+| `.github/config/downstream-repos.json` | ทะเบียนของคลังเก็บข้อมูลปลายน้ำที่ลงทะเบียนไว้ |
+| `.github/config/docs-sites.json` | เมทาดาตาสำหรับแต่ละไซต์เอกสารปลายน้ำ (ป้ายชื่อ, URL, คำอธิบาย) ที่ใช้โดยการทำเทมเพลต README |
+| `.github/workflows/` | Workflows ที่นำกลับมาใช้ใหม่ได้: การบังคับใช้, การซิงค์ไฟล์, การปรับใช้ Pages, การตรวจสอบการเชื่อมโยง Issue, การส่งต่อ, การรีวิว Antigravity และการแปล Antigravity |
+| `.agents/skills/` | การกำกับดูแลสกิลของเอเย่นต์: `demo-components`, `i18n-translate` |
+| `workflows/` | เทมเพลต caller ที่คลังเก็บข้อมูลปลายน้ำติดตั้งไว้ใน `.github/workflows/` |
+| `docs/` | ซอร์สโค้ดเอกสาร (บิลด์และปรับใช้ผ่าน Astro Starlight) |
+| `CONTRIBUTING.md` | กฎกระบวนการทำงานของผู้ร่วมสมทบ (ซิงค์ไปยังคลังเก็บข้อมูลปลายน้ำทั้งหมด) |
+| `CLAUDE.md` | คำแนะนำสำหรับผู้ช่วย AI (ซิงค์ไปยังคลังเก็บข้อมูลปลายน้ำทั้งหมด) |
+| `AGENTS.md` | คำแนะนำเอเย่นต์ของคลังเก็บข้อมูล นโยบายการกำกับดูแล |
+| `README.md.tpl` | เทมเพลตสำหรับไฟล์ README ปลายน้ำที่สร้างขึ้นแบบไดนามิก |
+| `.pre-commit-config.yaml` | การกำหนดค่า Pre-commit hooks (ซิงค์ไปยังคลังเก็บข้อมูลปลายน้ำทั้งหมด) |
+| `.markdownlint.json` | กฎตัวตรวจสอบ Markdown |
+| `.yamllint.yaml` | กฎตัวตรวจสอบ YAML |

@@ -1,0 +1,74 @@
+---
+title: 아키텍처
+description: docs-control, docs-builder 및 docs-theme에 걸친 3개 리포지토리 문서 파이프라인 아키텍처로, Antigravity AI 자동화 및 플리트 거버넌스를 갖추고 있습니다.
+sidebar:
+  order: 2
+i18n:
+  sourceHash: "c7a6eb5a25d8"
+  translator: "machine"
+---
+
+## 3개 리포지토리 파이프라인
+
+문서 및 거버넌스 시스템은 3개의 리포지토리에 걸쳐 있으며 각각 명확한 역할을 가지고 있습니다.
+
+| 리포지토리 | 역할 |
+| --- | --- |
+| **docs-control** | 중앙 거버넌스 허브 -- 리포지토리 설정, 브랜치 보호 구성, 관리 대상 파일 매니페스트, 재사용 가능한 CI 워크플로, Antigravity AI 워크플로, 호출자 워크플로 템플릿, 에이전트 스킬 및 다운스트림 디스패치 |
+| **docs-builder** | Docker 빌드 이미지 -- Astro + Starlight 빌드 오케스트레이션, npm 의존성, Puppeteer PDF 생성, 대화형 구성 요소 |
+| **docs-theme** | Astro Starlight 플러그인 -- 공유 브랜딩, CSS, 폰트, 로고, 레이아웃 구성 요소, `astro.config.mjs` 및 `content.config.ts` |
+
+콘텐츠 리포지토리는 `docs/` 디렉터리만 있으면 됩니다. 빌드 컨테이너와 워크플로가 나머지 모든 작업을 처리합니다.
+
+## 데이터 흐름
+
+docs-control의 `main` 브랜치에서 템플릿 파일이나 워크플로가 변경되면:
+
+1. [디스패치 워크플로](./dispatch/)가 실행되어 모든 다운스트림 리포지토리에서 설정 적용을 트리거합니다.
+2. [설정 적용 워크플로](./settings-enforcement/)가 원하는 상태와 현재 상태를 비교하고 드리프트를 패치합니다.
+3. [파일 동기화 워크플로](./file-sync/)가 드리프트된 관리 대상 파일을 감지하고 정식 콘텐츠가 포함된 PR을 생성하여 자동 병합합니다.
+4. 재사용 가능한 Antigravity AI 워크플로(`antigravity-review.yml` 및 `antigravity-translate.yml`)가 등록된 리포지토리 전반의 풀 리퀘스트에서 실행됩니다.
+
+## Antigravity AI 자동화
+
+플리트에는 GitHub Actions 러너에서 실행되는 **Antigravity (`agy`)** AI 자동화가 통합되어 있습니다.
+
+| 워크플로 | 목적 | 트리거 및 실행 |
+| --- | --- | --- |
+| **Antigravity 코드 검토** (`antigravity-review.yml`) | 자동 AI 풀 리퀘스트 코드 검토 | PR 생성 또는 업데이트 시 실행됩니다. Gemini 3.6 Flash (High)를 사용하여 보안 취약점, 하드코딩된 시크릿, PII 유출 및 코드 품질을 감사하고 PR 댓글을 통해 피드백을 게시합니다. |
+| **Antigravity 언어 번역** (`antigravity-translate.yml`) | 자동 AI 문서 번역 | `docs/en/**/*.md[x]`를 수정하는 PR에서 실행됩니다. `.agents/skills/i18n-translate/SKILL.md` 스킬을 실행하여 12개 대상 로케일(`fr`, `es`, `de`, `pt-br`, `ja`, `ko`, `zh-cn`, `zh-tw`, `ar`, `it`, `hi`, `th`)을 업데이트하고 `i18n.sourceHash`를 업데이트한 후 PR 브랜치에 자동 커밋합니다. |
+
+## 토큰 및 자격 증명 모델
+
+3 세트의 자격 증명이 최소 권한 분리를 제공합니다.
+
+| 토큰 / 시크릿 | 권한 / 범위 | 사용처 |
+| --- | --- | --- |
+| `REPO_SETTINGS_TOKEN` | Administration R/W, Pages R/W, Contents Read, Metadata Read | `enforce-repo-settings.yml`, `dispatch-downstream.yml`, `update-governed-workflow-pins.yml` |
+| `REPO_SYNC_TOKEN` | Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read | `sync-managed-files.yml` |
+| `ANTIGRAVITY_TOKEN` & `GCP_PROJECT_ID` | Antigravity AI 인증 및 GCP 프로젝트 액세스 | `antigravity-review.yml`, `antigravity-translate.yml` |
+
+적용 워크플로에는 브랜치 보호 및 Pages 설정을 수정하기 위한 관리자 액세스 권한이 필요합니다. 동기화 워크플로에는 브랜치를 생성하고 파일을 커밋하며 PR을 병합하기 위한 콘텐츠 및 PR 액세스 권한이 필요합니다. Antigravity AI 워크플로는 Gemini 3.6 Flash 인증을 위해 전용 프로젝트 자격 증명을 사용합니다.
+
+## 자체 감지
+
+Docs-control은 자체 거버넌스 구성의 제공자이자 소비자입니다. `enforce-repo-settings.yml`이 docs-control 자체에서 실행될 때(`push` 트리거를 통해), `managed_files.source_repo`와 `github.repository`를 비교하여 이를 감지합니다. 이는 브랜치 보호에서 `self_contexts` 재정의를 트리거합니다. docs-control은 워크플로를 직접 사용하는 반면(예: `Shell Unit Tests`), 다운스트림 리포지토리는 호출자 래퍼를 사용합니다(예: `lint / Shell Unit Tests`). `contexts` 대 `self_contexts`에 대한 자세한 내용은 [구성 페이지](./configuration/)를 참조하세요.
+
+## 리포지토리 레이아웃
+
+| 디렉터리 / 파일 | 목적 |
+| --- | --- |
+| `.github/config/repo-settings.json` | 중앙 구성: 리포지토리 설정, 브랜치 보호, Actions 권한, Pages 구성 및 관리 대상 파일 매니페스트 |
+| `.github/config/downstream-repos.json` | 등록된 다운스트림 리포지토리 레지스트리 |
+| `.github/config/docs-sites.json` | README 템플릿 작업에 사용되는 각 다운스트림 문서 사이트의 메타데이터(레이블, URL, 설명) |
+| `.github/workflows/` | 재사용 가능한 워크플로: 설정 적용, 파일 동기화, Pages 배포, 연결된 이슈 확인, 디스패치, Antigravity 검토 및 Antigravity 번역 |
+| `.agents/skills/` | 에이전트 스킬 거버넌스: `demo-components`, `i18n-translate` |
+| `workflows/` | 다운스트림 리포지토리가 `.github/workflows/`에 설치하는 호출자 템플릿 |
+| `docs/` | 문서 소스(Astro Starlight를 통해 빌드 및 배포) |
+| `CONTRIBUTING.md` | 기여 워크플로 규칙(모든 다운스트림 리포지토리에 동기화) |
+| `CLAUDE.md` | AI 어시스턴트 지침(모든 다운스트림 리포지토리에 동기화) |
+| `AGENTS.md` | 리포지토리 에이전트 지침 및 거버넌스 정책 |
+| `README.md.tpl` | 동적으로 생성되는 다운스트림 README 파일용 템플릿 |
+| `.pre-commit-config.yaml` | Pre-commit 훅 구성(모든 다운스트림 리포지토리에 동기화) |
+| `.markdownlint.json` | Markdown 린터 규칙 |
+| `.yamllint.yaml` | YAML 린터 규칙 |

@@ -1,0 +1,42 @@
+---
+title: Dateisynchronisierung
+description: Verwaltung der Dateisynchronisierung, dynamische dependabot.yml-Generierung und README-Templating im gesamten Ökosystem.
+sidebar:
+  order: 5
+i18n:
+  sourceHash: "a389f6cb3ad7"
+  translator: "machine"
+---
+
+Der Dateisynchronisierungs-Workflow unter `.github/workflows/sync-managed-files.yml` läuft als paralleler Job neben der [Einstellungsdurchsetzung](./settings-enforcement/) unter Verwendung des `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read).
+
+Er überspringt die Ausführung, wenn er auf dem Quell-Repository selbst (docs-control) läuft, da die kanonischen Dateien sich bereits hier befinden.
+
+## Statische Dateisynchronisierung
+
+Der Workflow iteriert über das `managed_files.files`-Array aus der [zentralen Konfiguration](./configuration/). Für jeden Eintrag ruft er den kanonischen Inhalt von docs-control ab und vergleicht ihn mit der nachgelagerten Kopie. Fehlende oder abweichende Dateien werden für die Synchronisierung markiert.
+
+Das Manifest verwalteter Dateien umfasst:
+
+- Aufrufer-Workflows (`enforce-repo-settings.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`, `antigravity-review.yml`, `antigravity-translate.yml`)
+- Agent-Skills (`.agents/skills/demo-components/SKILL.md`, `.agents/skills/i18n-translate/SKILL.md`)
+- Issue- und PR-Vorlagen
+- `CONTRIBUTING.md`, `CLAUDE.md`, `AGENTS.md`, `STYLE_GUIDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
+- `.pre-commit-config.yaml`
+
+## Dynamische dependabot.yml-Generierung
+
+Der Workflow erkennt, welche Paket-Ökosysteme im nachgelagerten Repository vorhanden sind:
+
+- `npm` -- `package.json` existiert
+- `pip` -- `requirements.txt`, `pyproject.toml` oder `setup.py` existiert
+- `docker` -- `Dockerfile` existiert
+
+Er generiert eine `.github/dependabot.yml` mit einem `github-actions`-Ökosystemeintrag (immer enthalten) sowie Einträgen für jedes erkannte Ökosystem. Alle Ökosysteme verwenden wöchentliche Zeitpläne am Montag mit konventionellen Commit-Präfixen und Minor/Patch-Gruppierung.
+
+## Dynamische README.md-Generierung
+
+Jedes nachgelagerte Repository erhält eine generierte `README.md`, die aus zwei Quellen erstellt wird:
+
+- **`README.md.tpl`** -- eine Vorlage im docs-control-Stammverzeichnis mit Platzhaltern (`__TITLE__`, `__DESCRIPTION__`, `__REPO_NAME__`, `__DOCS_URL__`)
+- **`docs-sites.json`** -- stellt die lesbare Bezeichnung und Beschreibung für jedes Repository bereit, indem der Repository-Name mit dem URL-Feld abgeglichen wird

@@ -1,0 +1,42 @@
+---
+title: การซิงโครไนซ์ไฟล์ (File Synchronization)
+description: การซิงโครไนซ์ไฟล์ที่อยู่ในการดูแล การสร้าง dependabot.yml แบบไดนามิก และการทำเทมเพลต README ทั่วทั้งระบบนิเวศ
+sidebar:
+  order: 5
+i18n:
+  sourceHash: "a389f6cb3ad7"
+  translator: "machine"
+---
+
+workflow การซิงโครไนซ์ไฟล์ที่ `.github/workflows/sync-managed-files.yml` จะทำงานเป็นงานขนานควบคู่ไปกับ [การบังคับใช้การตั้งค่า](./settings-enforcement/) โดยใช้ `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read)
+
+ระบบจะข้ามการทำงานเมื่อรันบนคลังเก็บข้อมูลต้นทางเอง (docs-control) เนื่องจากไฟล์หลักที่แท้จริงอาศัยอยู่ที่นี่อยู่แล้ว
+
+## การซิงโครไนซ์ไฟล์แบบสแตติก
+
+workflow จะวนซ้ำอาร์เรย์ `managed_files.files` จาก [การตั้งค่าส่วนกลาง](./configuration/) สำหรับแต่ละรายการ ระบบจะดึงเนื้อหาหลักจาก docs-control และเปรียบเทียบกับสำเนาปลายน้ำ ไฟล์ที่สูญหายหรือมีการเปลี่ยนแปลง (drifted) จะถูกทำเครื่องหมายเพื่อซิงโครไนซ์
+
+รายการไฟล์ที่อยู่ในการดูแลรวมถึง:
+
+- Caller workflows (`enforce-repo-settings.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`, `antigravity-review.yml`, `antigravity-translate.yml`)
+- Agent skills (`.agents/skills/demo-components/SKILL.md`, `.agents/skills/i18n-translate/SKILL.md`)
+- เทมเพลต Issue และ PR
+- `CONTRIBUTING.md`, `CLAUDE.md`, `AGENTS.md`, `STYLE_GUIDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
+- `.pre-commit-config.yaml`
+
+## การสร้าง dependabot.yml แบบไดนามิก
+
+workflow จะตรวจจับว่ามีระบบนิเวศของแพ็กเกจ (package ecosystems) ใดบ้างในคลังเก็บข้อมูลปลายน้ำ:
+
+- `npm` -- มี `package.json` อยู่
+- `pip` -- มี `requirements.txt`, `pyproject.toml` หรือ `setup.py` อยู่
+- `docker` -- มี `Dockerfile` อยู่
+
+ระบบจะสร้าง `.github/dependabot.yml` โดยมีรายการระบบนิเวศ `github-actions` (รวมอยู่เสมอ) บวกกับรายการสำหรับแต่ละระบบนิเวศที่ตรวจพบ ทุกระบบนิเวศใช้กำหนดการทุกวันจันทร์ประจำสัปดาห์ พร้อมคำนำหน้าการคอมมิตตามรูปแบบมาตรฐาน (conventional commit) และการจัดกลุ่มเวอร์ชันย่อย/แพตช์
+
+## การสร้าง README.md แบบไดนามิก
+
+แต่ละคลังเก็บข้อมูลปลายน้ำจะได้รับ `README.md` ที่สร้างขึ้นจากสองแหล่ง:
+
+- **`README.md.tpl`** -- เทมเพลตในรากของ docs-control พร้อมตัวแทนข้อความ (`__TITLE__`, `__DESCRIPTION__`, `__REPO_NAME__`, `__DOCS_URL__`)
+- **`docs-sites.json`** -- ระบุป้ายชื่อและคำอธิบายที่อ่านเข้าใจได้สำหรับแต่ละคลังเก็บข้อมูล โดยการจับคู่ชื่อคลังเก็บข้อมูลกับฟิลด์ URL

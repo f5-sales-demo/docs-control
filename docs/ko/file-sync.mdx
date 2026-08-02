@@ -1,0 +1,42 @@
+---
+title: 파일 동기화
+description: 에코시스템 전반에 걸친 관리 대상 파일 동기화, 동적 dependabot.yml 생성 및 README 템플릿 작업.
+sidebar:
+  order: 5
+i18n:
+  sourceHash: "a389f6cb3ad7"
+  translator: "machine"
+---
+
+`.github/workflows/sync-managed-files.yml`에 위치한 파일 동기화 워크플로는 `REPO_SYNC_TOKEN`(Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read)을 사용하여 [설정 적용](./settings-enforcement/)과 함께 병렬 작업으로 실행됩니다.
+
+소스 리포지토리 자체(docs-control)에서 실행될 때는 정식 파일이 이미 여기에 존재하므로 실행을 건너뜁니다.
+
+## 정적 파일 동기화
+
+워크플로는 [중앙 구성](./configuration/)의 `managed_files.files` 배열을 순회합니다. 각 항목에 대해 docs-control에서 정식 콘텐츠를 가져와 다운스트림 복사본과 비교합니다. 누락되었거나 차이(드리프트)가 있는 파일은 동기화 대상으로 플래그가 지정됩니다.
+
+관리 대상 파일 매니페스트에는 다음이 포함됩니다.
+
+- 호출자 워크플로(`enforce-repo-settings.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`, `antigravity-review.yml`, `antigravity-translate.yml`)
+- 에이전트 스킬(`.agents/skills/demo-components/SKILL.md`, `.agents/skills/i18n-translate/SKILL.md`)
+- 이슈 및 PR 템플릿
+- `CONTRIBUTING.md`, `CLAUDE.md`, `AGENTS.md`, `STYLE_GUIDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
+- `.pre-commit-config.yaml`
+
+## 동적 dependabot.yml 생성
+
+워크플로는 다운스트림 리포지토리에 어떤 패키지 에코시스템이 존재하는지 감지합니다.
+
+- `npm` -- `package.json` 존재
+- `pip` -- `requirements.txt`, `pyproject.toml` 또는 `setup.py` 존재
+- `docker` -- `Dockerfile` 존재
+
+항상 포함되는 `github-actions` 에코시스템 항목과 감지된 각 에코시스템에 대한 항목이 포함된 `.github/dependabot.yml`을 생성합니다. 모든 에코시스템은 컨벤셔널 커밋 접두사 및 마이너/패치 그룹화를 사용하며 매주 월요일 일정을 사용합니다.
+
+## 동적 README.md 생성
+
+각 다운스트림 리포지토리는 두 가지 소스에서 작성된 생성된 `README.md`를 받습니다.
+
+- **`README.md.tpl`** -- 자리 표시자(`__TITLE__`, `__DESCRIPTION__`, `__REPO_NAME__`, `__DOCS_URL__`)가 포함된 docs-control 루트의 템플릿
+- **`docs-sites.json`** -- 리포지토리 이름을 URL 필드와 일치시켜 각 리포지토리에 대한 사람이 읽을 수 있는 레이블과 설명을 제공

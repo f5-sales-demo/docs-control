@@ -1,0 +1,169 @@
+---
+title: Referencia de configuración
+description: Referencia de configuración central repo-settings.json para la aplicación, la sincronización, la automatización de IA de Antigravity y el comportamiento de envío.
+sidebar:
+  order: 3
+i18n:
+  sourceHash: "66e243c0b43d"
+  translator: "machine"
+---
+
+El archivo de configuración central impulsa todo el comportamiento de aplicación, sincronización y envío. Reside en `.github/config/repo-settings.json` en docs-control y es obtenido por los repositorios descendentes en el momento de la ejecución del flujo de trabajo.
+
+```json title=".github/config/repo-settings.json"
+{
+  "_comment": "Central repo-settings config — enforced by enforce-repo-settings.yml",
+  "repository": {
+    "private": false,
+    "has_issues": true,
+    "has_projects": false,
+    "has_wiki": false,
+    "is_template": false,
+    "allow_squash_merge": true,
+    "allow_merge_commit": true,
+    "allow_rebase_merge": true,
+    "allow_auto_merge": false,
+    "delete_branch_on_merge": true,
+    "web_commit_signoff_required": false,
+    "squash_merge_commit_title": "COMMIT_OR_PR_TITLE",
+    "squash_merge_commit_message": "COMMIT_MESSAGES",
+    "merge_commit_title": "MERGE_MESSAGE",
+    "merge_commit_message": "PR_TITLE",
+    "allow_update_branch": true,
+    "homepage": ""
+  },
+  "actions_permissions": {
+    "default_workflow_permissions": "write",
+    "can_approve_pull_request_reviews": true
+  },
+  "branch_protection": [
+    {
+      "branch": "main",
+      "enforce_admins": true,
+      "required_status_checks": {
+        "strict": false,
+        "contexts": [
+          "check / Check linked issues",
+          "lint / Lint Code Base",
+          "lint / Shell Unit Tests"
+        ],
+        "self_contexts": ["Check linked issues", "Lint Code Base", "Shell Unit Tests"]
+      },
+      "required_pull_request_reviews": null,
+      "restrictions": null,
+      "required_linear_history": false,
+      "allow_force_pushes": false,
+      "allow_deletions": false,
+      "block_creations": false,
+      "required_conversation_resolution": false,
+      "lock_branch": false,
+      "allow_fork_syncing": false
+    }
+  ],
+  "topics": [],
+  "pages": {
+    "enabled": true,
+    "build_type": "workflow"
+  },
+  "managed_files": {
+    "source_repo": "f5-sales-demo/docs-control",
+    "files": [
+      {"src": "workflows/github-pages-deploy.yml", "dest": ".github/workflows/github-pages-deploy.yml"},
+      {"src": "workflows/enforce-repo-settings.yml", "dest": ".github/workflows/enforce-repo-settings.yml"},
+      {"src": "workflows/require-linked-issue.yml", "dest": ".github/workflows/require-linked-issue.yml"},
+      {"src": "workflows/antigravity-review.yml", "dest": ".github/workflows/antigravity-review.yml"},
+      {"src": "workflows/antigravity-translate.yml", "dest": ".github/workflows/antigravity-translate.yml"},
+      {"src": ".github/PULL_REQUEST_TEMPLATE.md", "dest": ".github/PULL_REQUEST_TEMPLATE.md"},
+      {"src": ".github/ISSUE_TEMPLATE/bug_report.md", "dest": ".github/ISSUE_TEMPLATE/bug_report.md"},
+      {"src": ".github/ISSUE_TEMPLATE/feature_request.md", "dest": ".github/ISSUE_TEMPLATE/feature_request.md"},
+      {"src": ".github/ISSUE_TEMPLATE/documentation.md", "dest": ".github/ISSUE_TEMPLATE/documentation.md"},
+      {"src": ".github/ISSUE_TEMPLATE/config.yml", "dest": ".github/ISSUE_TEMPLATE/config.yml"},
+
+      {"src": "CONTRIBUTING.md", "dest": "CONTRIBUTING.md"},
+      {"src": "CLAUDE.md", "dest": "CLAUDE.md"},
+      {"src": "AGENTS.md", "dest": "AGENTS.md"},
+      {"src": ".agents/skills/demo-components/SKILL.md", "dest": ".agents/skills/demo-components/SKILL.md"},
+      {"src": ".agents/skills/i18n-translate/SKILL.md", "dest": ".agents/skills/i18n-translate/SKILL.md"},
+      {"src": ".editorconfig", "dest": ".editorconfig"},
+      {"src": ".gitignore", "dest": ".gitignore"},
+      {"src": "LICENSE", "dest": "LICENSE"},
+      {"src": ".pre-commit-config.yaml", "dest": ".pre-commit-config.yaml"}
+    ]
+  }
+}
+```
+
+## Referencia de campos
+
+### `repository`
+
+Configuración estándar del repositorio de GitHub aplicada a través de `PATCH /repos/{owner}/{repo}`. Cada clave se asigna directamente al campo de la API de GitHub. El [flujo de trabajo de aplicación](./settings-enforcement/) compara cada clave con el valor actual del repositorio y solo aplica parches a las claves que se han desviado.
+
+Ajustes destacados:
+
+- `delete_branch_on_merge: true` -- limpia automáticamente las ramas de PR fusionadas
+- `allow_update_branch: true` -- habilita el botón "Update branch" en las PR
+- `homepage: ""` -- se calcula automáticamente en tiempo de ejecución como `https://f5-sales-demo.github.io/{repo}/`
+
+### `actions_permissions`
+
+Controla los permisos de flujo de trabajo de GitHub Actions para el repositorio:
+
+- `default_workflow_permissions: "write"` -- los flujos de trabajo obtienen acceso de lectura/escritura al repositorio de forma predeterminada
+- `can_approve_pull_request_reviews: true` -- permite que los flujos de trabajo aprueben solicitudes de extracción
+
+### `branch_protection`
+
+Un arreglo de reglas de protección de ramas. Cada entrada especifica un nombre de `branch` y los ajustes de protección deseados. Actualmente solo `main` está protegida.
+
+Campos clave:
+
+- `enforce_admins: true` -- las reglas de protección también se aplican a los administradores del repositorio
+- `required_status_checks.strict: false` -- las ramas no necesitan estar actualizadas antes de fusionarse
+- `required_status_checks.contexts` -- los nombres de las comprobaciones que deben pasar los repositorios descendentes (por ejemplo, `check / Check linked issues` y `lint / Shell Unit Tests`)
+- `required_status_checks.self_contexts` -- los nombres de las comprobaciones que debe pasar el propio docs-control (por ejemplo, `Check linked issues` y `Shell Unit Tests`)
+- `required_pull_request_reviews: null` -- no se requiere aprobación de revisión de PR
+- `restrictions: null` -- sin restricciones de push más allá de la protección de ramas
+
+#### `contexts` frente a `self_contexts`
+
+Cuando un repositorio descendente utiliza un flujo de trabajo solicitante, el nombre de la comprobación de estado se convierte en `<caller_job_key> / <reusable_job_name>`. Por ejemplo, el solicitante `require-linked-issue.yml` tiene la clave de trabajo `check`, por lo que el nombre de la comprobación es `check / Check linked issues`. Pero cuando docs-control ejecuta el mismo flujo de trabajo directamente (a través del activador `pull_request_target`), el nombre de la comprobación es simplemente `Check linked issues`.
+
+El campo `self_contexts` almacena los nombres de las comprobaciones que se aplican al propio docs-control. Durante la [aplicación](./settings-enforcement/), el flujo de trabajo detecta si se está ejecutando en el repositorio de origen y sustituye `contexts` por `self_contexts` antes de aplicar la protección de ramas. El campo `self_contexts` siempre se elimina antes de enviar la carga útil a la API de GitHub.
+
+`Shell Unit Tests` es la puerta de enlace de pruebas uniforme del repositorio. El flujo de trabajo reutilizable siempre lo informa: los repositorios consumidores ejecutan cada archivo `tests/test-*.sh`, mientras que un repositorio sin pruebas coincidentes informa de un éxito con un mensaje explícito de sin pruebas. Esto hace que las pruebas de shell del repositorio sean obligatorias de forma predeterminada en lugar de depender de listas de inclusión voluntaria por repositorio.
+
+#### Perfiles de pruebas de shell del consumidor
+
+El valor predeterminado asume que cada script `tests/test-*.sh` de nivel raíz es hermético en un ejecutor alojado por GitHub no aprovisionado. Un repositorio que también almacena pruebas de integración de servicios o contenedores bajo ese glob necesita una entrada `consumer_shell_tests.profiles` en `repo-settings.json`.
+
+Cada perfil clasifica el inventario coincidente completo:
+
+- Las entradas `unit` contienen un `path` de prueba y un arreglo `args`. El ejecutor pasa cada argumento literalmente, sin evaluación de shell.
+- Las entradas `environment` contienen un `path` de prueba y una `reason` no vacía que explica por qué la puerta de enlace de unidad del ejecutor no puede ejecutarla.
+
+El flujo de trabajo reutilizable obtiene el selector y la configuración de la misma revisión `main` de docs-control, registra esa revisión y valida el inventario antes de ejecutar cualquier cosa. La configuración faltante, las rutas o argumentos no seguros, las rutas duplicadas y las pruebas no clasificadas o faltantes hacen que falle el contexto requerido. Esto convierte a un perfil en un contrato de clasificación auditado en lugar de una lista de ignorados. Los repositorios sin un perfil mantienen el valor predeterminado general.
+
+La sustitución de `xcsh` excluye ambos contextos de Super-Linter porque ese repositorio no llama al flujo de trabajo reutilizable de Super-Linter; sus contextos nativos `check`, `pii-guard` y `test` siguen siendo obligatorios. La verificación en vivo debe demostrar que una exclusión es necesaria antes de ser agregada.
+
+No requiera un contexto de un flujo de trabajo con filtros `paths` o `paths-ignore`. GitHub deja ese contexto pendiente cuando el flujo de trabajo no se inicia. Las herramientas de seguridad generales deben ejecutarse en un flujo de trabajo de solicitud de extracción no filtrado o en una auditoría programada de árbol completo; la auditoría de seguridad de flujo de trabajo gestionado utiliza este último modelo para `zizmor`. Una condición a nivel de trabajo es segura porque un trabajo omitido sigue informando una comprobación exitosa.
+
+### `topics`
+
+Un arreglo de temas de GitHub para aplicar al repositorio. Actualmente vacío -- los temas no se aplican.
+
+### `pages`
+
+Configuración de GitHub Pages:
+
+- `enabled: true` -- garantiza que Pages esté habilitado en todos los repositorios inscritos
+- `build_type: "workflow"` -- utiliza GitHub Actions para la compilación de Pages (no compilaciones heredadas basadas en ramas)
+
+### `managed_files`
+
+Define el manifiesto de sincronización de archivos:
+
+- `source_repo` -- el repositorio que contiene las versiones canónicas de los archivos gestionados (`f5-sales-demo/docs-control`)
+- `files` -- un arreglo de objetos `{src, dest}` que asignan rutas de origen en docs-control a rutas de destino en repositorios descendentes
+
+El [flujo de trabajo de sincronización de archivos](./file-sync/) itera sobre este arreglo para detectar y corregir la desviación. Los archivos no enumerados aquí (como `dependabot.yml` y `README.md`) se generan dinámicamente en lugar de sincronizarse desde fuentes estáticas.

@@ -1,0 +1,69 @@
+---
+title: Einstellungsdurchsetzung
+description: Siebenphasiger idempotenter Repository-Einstellungsdurchsetzungs-Workflow für Branch-Schutz, Labels, Actions-Berechtigungen und Pages.
+sidebar:
+  order: 4
+i18n:
+  sourceHash: "9c98278db684"
+  translator: "machine"
+---
+
+Der Durchsetzungs-Workflow unter `.github/workflows/enforce-repo-settings.yml` ist ein wiederverwendbarer, idempotenter Workflow, der den gewünschten Repository-Zustand mit dem aktuellen Zustand vergleicht und etwaige Abweichungen behebt. Nachgelagerte Repositories rufen ihn über einen [Aufrufer-Workflow](./dispatch/) auf. Docs-control führt ihn auch direkt bei einem Push auf `.github/config/repo-settings.json` aus.
+
+## Auslöser
+
+- **`workflow_call`** -- aufgerufen von nachgelagerten Aufrufer-Workflows (alle 6 Stunden geplant, bei Konfigurations-Push oder manuellem Dispatch)
+- **`push`** -- wird ausgelöst, wenn sich `repo-settings.json` auf dem `main`-Branch von docs-control ändert
+
+## Parallele Ausführung
+
+Die Durchsetzung ist in zwei wiederverwendbare Workflows unterteilt, die als parallele Jobs im Aufrufer laufen, jeder mit seinem eigenen Token nach dem Prinzip der geringsten Rechte:
+
+- **`enforce-repo-settings.yml`** verwendet `REPO_SETTINGS_TOKEN` (Administration R/W, Pages R/W, Contents Read, Metadata Read)
+- **`sync-managed-files.yml`** verwendet `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read)
+
+Diese Seite behandelt den Einstellungsdurchsetzungs-Workflow. Siehe [Dateisynchronisierung](./file-sync/) für den Workflow verwalteter Dateien.
+
+## Die 7 Phasen
+
+Jede Phase ist idempotent: Sie vergleicht den Soll-Zustand mit dem Ist-Zustand und nimmt nur dann Änderungen vor, wenn eine Abweichung erkannt wird.
+
+### Phase 1: Validieren
+
+Ruft die zentrale [Konfiguration](./configuration/) aus docs-control über die GitHub-API ab (mit 5 Wiederholungsversuchen). Überprüft, ob `jq` und `gh` verfügbar und authentifiziert sind. Berechnet automatisch die `homepage`-URL, wenn der Konfigurationswert leer ist.
+
+Erkennt, ob der Workflow auf dem Quell-Repository selbst läuft, indem `managed_files.source_repo` mit `github.repository` verglichen wird. Bei Ausführung auf sich selbst wird die `self_contexts`-Überschreibung für Phase 4 aktiviert.
+
+### Phase 2: Repository-Einstellungen anwenden
+
+Vergleicht jeden Schlüssel im `repository`-Objekt mit den aktuellen Einstellungen des Repositorys über `GET /repos/{owner}/{repo}`. Erstellt ein Patch-Objekt, das nur die abweichenden Schlüssel enthält, und wendet es über `PATCH /repos/{owner}/{repo}` an.
+
+### Phase 3: Actions-Berechtigungen anwenden
+
+Vergleicht das `actions_permissions`-Objekt (Standard-Workflow-Berechtigungen, PR-Review-Genehmigung) mit den aktuellen Actions-Workflow-Berechtigungen über `GET /repos/{owner}/{repo}/actions/permissions/workflow`. Aktualisiert über `PUT`, falls ein Schlüssel abweicht.
+
+### Phase 4: Branch-Schutz anwenden
+
+Iteriert über das `branch_protection`-Array. Für jeden Branch:
+
+1. Bei Ausführung auf sich selbst wird `self_contexts` in `contexts` ausgetauscht
+2. Entfernt `self_contexts` aus der Nutzlast (nicht Teil der GitHub-API)
+3. Ruft den aktuellen Schutz über `GET /repos/{owner}/{repo}/branches/{branch}/protection` ab
+4. Vergleicht: `enforce_admins`, `required_status_checks` (strict + contexts), `required_pull_request_reviews`, `restrictions` und boolesche Flags (`required_linear_history`, `allow_force_pushes`, `allow_deletions`, `block_creations`, `required_conversation_resolution`, `lock_branch`, `allow_fork_syncing`)
+5. Erstellt oder aktualisiert Schutzregeln über `PUT`, wenn eine Abweichung erkannt wird
+
+### Phase 5: Themen anwenden
+
+Vergleicht das `topics`-Array mit den aktuellen Themen des Repositorys über `GET /repos/{owner}/{repo}/topics`. Ersetzt über `PUT` bei Abweichungen.
+
+### Phase 6: Pages anwenden
+
+Prüft über `GET /repos/{owner}/{repo}/pages`, ob GitHub Pages aktiviert ist. Wenn nicht gefunden (404), wird Pages mit dem konfigurierten `build_type` aktiviert. Wenn gefunden, aber der `build_type` abweicht, wird er über `PUT` aktualisiert.
+
+### Phase 7: Überprüfen
+
+Liest alle Einstellungen über die GitHub-API erneut aus und vergleicht sie mit dem Soll-Zustand. Überprüft Repository-Einstellungen, Actions-Berechtigungen, Branch-Schutz (einschließlich boolescher Flags) und Pages-Build-Typ. Lässt den Workflow fehlschlagen, wenn eine Einstellung nach den Anwendungsphasen nicht übereinstimmt.
+
+## Unveränderlicher Workflow-Pins-Roll-Forward
+
+Wenn wiederverwendbare Workflows in docs-control geändert werden, löst `.github/workflows/update-governed-workflow-pins.yml` den Aufruf von `scripts/update-governed-workflow-pins.sh` aus, um die per Commit angehefteten SHAs über Aufrufer-Workflows hinweg deterministisch ohne manuelles Eingreifen zu aktualisieren.

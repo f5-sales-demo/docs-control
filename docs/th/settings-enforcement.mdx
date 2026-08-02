@@ -1,0 +1,69 @@
+---
+title: การบังคับใช้การตั้งค่า (Settings Enforcement)
+description: กระบวนการทำงานบังคับใช้การตั้งค่าคลังเก็บข้อมูลแบบ 7 เฟสที่คงที่ (idempotent) สำหรับการป้องกันสาขา เลเบล สิทธิ์ของ Actions และ Pages
+sidebar:
+  order: 4
+i18n:
+  sourceHash: "9c98278db684"
+  translator: "machine"
+---
+
+workflow การบังคับใช้ที่ `.github/workflows/enforce-repo-settings.yml` เป็น workflow ที่นำกลับมาใช้ใหม่ได้และคงที่ (idempotent) ซึ่งเปรียบเทียบสถานะคลังเก็บข้อมูลที่ต้องการกับสถานะปัจจุบัน และแก้ไขการเปลี่ยนแปลง (drift) ใดๆ คลังเก็บข้อมูลปลายน้ำจะเรียกใช้ผ่าน [caller workflow](./dispatch/) และ docs-control รันโดยตรงเมื่อมีการ push ไปยัง `.github/config/repo-settings.json` เช่นกัน
+
+## ตัวจุดชนวน (Triggers)
+
+- **`workflow_call`** -- เรียกใช้โดย caller workflows ปลายน้ำ (กำหนดเวลาทุก 6 ชั่วโมง, เมื่อมีการ push การตั้งค่า, หรือการส่งต่อด้วยตนเอง)
+- **`push`** -- ทำงานเมื่อ `repo-settings.json` เปลี่ยนแปลงบนสาขา `main` ของ docs-control
+
+## การทำงานแบบขนาน (Parallel execution)
+
+การบังคับใช้ถูกแบ่งออกเป็นสอง workflows ที่นำกลับมาใช้ใหม่ได้ ซึ่งรันเป็นงานขนานใน caller โดยแต่ละงานมีโทเค็นสิทธิ์ขั้นต่ำของตัวเอง:
+
+- **`enforce-repo-settings.yml`** ใช้ `REPO_SETTINGS_TOKEN` (Administration R/W, Pages R/W, Contents Read, Metadata Read)
+- **`sync-managed-files.yml`** ใช้ `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read)
+
+หน้านี้ครอบคลุม workflow การบังคับใช้การตั้งค่า ดู [การซิงโครไนซ์ไฟล์](./file-sync/) สำหรับ workflow ไฟล์ที่อยู่ในการดูแล
+
+## 7 เฟสการทำงาน (The 7 phases)
+
+แต่ละเฟสมีคุณสมบัติ idempotent: เปรียบเทียบสถานะที่ต้องการกับสถานะปัจจุบัน และทำการเปลี่ยนแปลงเมื่อตรวจพบการเปลี่ยนแปลง (drift) เท่านั้น
+
+### เฟส 1: ตรวจสอบความถูกต้อง (Validate)
+
+ดึง [การตั้งค่า](./configuration/) ส่วนกลางจาก docs-control ผ่าน GitHub API (พร้อมการพยายามใหม่ 5 ครั้ง) ตรวจสอบว่า `jq` และ `gh` พร้อมใช้งานและได้รับการรับรองความถูกต้อง คำนวณ URL `homepage` โดยอัตโนมัติหากค่าการตั้งค่าว่างเปล่า
+
+ตรวจจับว่า workflow กำลังรันบนคลังเก็บข้อมูลต้นทางเองหรือไม่ โดยการเปรียบเทียบ `managed_files.source_repo` กับ `github.repository` หากรันบนตัวเอง การเขียนทับ `self_contexts` จะถูกเปิดใช้งานสำหรับเฟส 4
+
+### เฟส 2: ปรับใช้การตั้งค่าคลังเก็บข้อมูล (Apply repository settings)
+
+เปรียบเทียบแต่ละคีย์ในวัตถุ `repository` กับการตั้งค่าปัจจุบันของคลังเก็บข้อมูลผ่าน `GET /repos/{owner}/{repo}` สร้างวัตถุปัจจัยแก้ไขที่มีเฉพาะคีย์ที่มีการเปลี่ยนแปลง และปรับใช้ผ่าน `PATCH /repos/{owner}/{repo}`
+
+### เฟส 3: ปรับใช้สิทธิ์ Actions (Apply Actions permissions)
+
+เปรียบเทียบวัตถุ `actions_permissions` (สิทธิ์ workflow เริ่มต้น, การอนุมัติการรีวิว PR) กับสิทธิ์ Actions workflow ปัจจุบันผ่าน `GET /repos/{owner}/{repo}/actions/permissions/workflow` อัปเดตผ่าน `PUT` หากมีคีย์ใดเปลี่ยนแปลง
+
+### เฟส 4: ปรับใช้การป้องกันสาขา (Apply branch protection)
+
+วนซ้ำอาร์เรย์ `branch_protection` สำหรับแต่ละสาขา:
+
+1. หากรันบนตัวเอง ให้สลับ `self_contexts` เข้าไปใน `contexts`
+2. ตัด `self_contexts` ออกจากเนื้อหาข้อมูล (ไม่ได้เป็นส่วนหนึ่งของ GitHub API)
+3. ดึงการป้องกันปัจจุบันผ่าน `GET /repos/{owner}/{repo}/branches/{branch}/protection`
+4. เปรียบเทียบ: `enforce_admins`, `required_status_checks` (strict + contexts), `required_pull_request_reviews`, `restrictions` และแฟล็กบูลีน (`required_linear_history`, `allow_force_pushes`, `allow_deletions`, `block_creations`, `required_conversation_resolution`, `lock_branch`, `allow_fork_syncing`)
+5. สร้างหรืออัปเดต กฎการป้องกันผ่าน `PUT` หากตรวจพบการเปลี่ยนแปลงใดๆ
+
+### เฟส 5: ปรับใช้หัวข้อ (Apply topics)
+
+เปรียบเทียบอาร์เรย์ `topics` กับหัวข้อปัจจุบันของคลังเก็บข้อมูลผ่าน `GET /repos/{owner}/{repo}/topics` แทนที่ผ่าน `PUT` หากมีการเปลี่ยนแปลง
+
+### เฟส 6: ปรับใช้ Pages (Apply Pages)
+
+ตรวจสอบว่าเปิดใช้งาน GitHub Pages หรือไม่ผ่าน `GET /repos/{owner}/{repo}/pages` หากไม่พบ (404) ให้เปิดใช้งาน Pages ด้วย `build_type` ที่กำหนดไว้ หากพบแต่ `build_type` เปลี่ยนแปลงไป ให้อัปเดตผ่าน `PUT`
+
+### เฟส 7: ยืนยันความถูกต้อง (Verify)
+
+อ่านการตั้งค่าทั้งหมดอีกครั้งผ่าน GitHub API และเปรียบเทียบกับสถานะที่ต้องการ ยืนยันการตั้งค่าคลังเก็บข้อมูล สิทธิ์ Actions การป้องกันสาขา (รวมถึงแฟล็กบูลีน) และประเภทการบิลด์ของ Pages หากการตั้งค่าใดไม่ตรงกันหลังเฟสการปรับใช้ จะทำให้ workflow ล้มเหลว
+
+## การอัปเดต SHA ของ Workflow ที่ไม่เปลี่ยนแปลง (Immutable Workflow Pins Roll-Forward)
+
+เมื่อ workflows ที่นำกลับมาใช้ใหม่ได้ใน docs-control เปลี่ยนแปลง `.github/workflows/update-governed-workflow-pins.yml` จะจุดชนวน `scripts/update-governed-workflow-pins.sh` เพื่ออัปเดต SHA ที่ตรึงไว้สำหรับการคอมมิตทั่วทั้ง caller workflows อย่างแน่นอนโดยไม่ต้องจัดการด้วยตนเอง

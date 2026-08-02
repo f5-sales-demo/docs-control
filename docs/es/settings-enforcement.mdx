@@ -1,0 +1,69 @@
+---
+title: Aplicación de configuración
+description: Flujo de trabajo de aplicación de configuración de repositorio idempotente de siete fases para protección de ramas, etiquetas, permisos de acciones y páginas.
+sidebar:
+  order: 4
+i18n:
+  sourceHash: "9c98278db684"
+  translator: "machine"
+---
+
+El flujo de trabajo de aplicación en `.github/workflows/enforce-repo-settings.yml` es un flujo de trabajo reutilizable e idempotente que compara el estado deseado del repositorio con el estado actual y corrige cualquier desviación. Los repositorios descendentes lo llaman mediante un [flujo de trabajo solicitante](./dispatch/). Docs-control también lo ejecuta directamente al hacer push a `.github/config/repo-settings.json`.
+
+## Activadores
+
+- **`workflow_call`** -- invocado por flujos de trabajo solicitantes descendentes (programado cada 6 horas, al hacer push de configuración o envío manual)
+- **`push`** -- se activa cuando `repo-settings.json` cambia en la rama `main` de docs-control
+
+## Ejecución paralela
+
+La aplicación se divide en dos flujos de trabajo reutilizables que se ejecutan como trabajos paralelos en el solicitante, cada uno con su propio token de mínimo privilegio:
+
+- **`enforce-repo-settings.yml`** utiliza `REPO_SETTINGS_TOKEN` (Administration R/W, Pages R/W, Contents Read, Metadata Read)
+- **`sync-managed-files.yml`** utiliza `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read)
+
+Esta página cubre el flujo de trabajo de aplicación de configuración. Consulte [Sincronización de archivos](./file-sync/) para el flujo de trabajo de archivos gestionados.
+
+## Las 7 fases
+
+Cada fase es idempotente: compara el estado deseado con el estado actual y solo realiza cambios cuando se detecta una desviación.
+
+### Fase 1: Validar
+
+Obtiene la [configuración](./configuration/) central desde docs-control a través de la API de GitHub (con 5 intentos de reintento). Valida que `jq` y `gh` estén disponibles y autenticados. Calcula automáticamente la URL `homepage` si el valor de configuración está vacío.
+
+Detecta si el flujo de trabajo se ejecuta en el propio repositorio de origen comparando `managed_files.source_repo` con `github.repository`. Si se ejecuta en sí mismo, se activa la sustitución de `self_contexts` para la Fase 4.
+
+### Fase 2: Aplicar configuración del repositorio
+
+Compara cada clave del objeto `repository` con la configuración actual del repositorio a través de `GET /repos/{owner}/{repo}`. Crea un objeto de parche que contiene solo las claves que se han desviado y lo aplica a través de `PATCH /repos/{owner}/{repo}`.
+
+### Fase 3: Aplicar permisos de Actions
+
+Compara el objeto `actions_permissions` (permisos predeterminados del flujo de trabajo, aprobación de revisión de PR) con los permisos actuales del flujo de trabajo de Actions a través de `GET /repos/{owner}/{repo}/actions/permissions/workflow`. Actualiza a través de `PUT` si alguna clave se ha desviado.
+
+### Fase 4: Aplicar protección de ramas
+
+Itera sobre el arreglo `branch_protection`. Para cada rama:
+
+1. Si se ejecuta en sí mismo, sustituye `contexts` por `self_contexts`
+2. Elimina `self_contexts` de la carga útil (no forma parte de la API de GitHub)
+3. Obtiene la protección actual a través de `GET /repos/{owner}/{repo}/branches/{branch}/protection`
+4. Compara: `enforce_admins`, `required_status_checks` (strict + contexts), `required_pull_request_reviews`, `restrictions` y marcas booleanas (`required_linear_history`, `allow_force_pushes`, `allow_deletions`, `block_creations`, `required_conversation_resolution`, `lock_branch`, `allow_fork_syncing`)
+5. Crea o actualiza reglas de protección a través de `PUT` si se detecta alguna desviación
+
+### Fase 5: Aplicar temas
+
+Compara el arreglo `topics` con los temas actuales del repositorio a través de `GET /repos/{owner}/{repo}/topics`. Reemplaza a través de `PUT` si se ha desviado.
+
+### Fase 6: Aplicar Pages
+
+Comprueba si GitHub Pages está habilitado a través de `GET /repos/{owner}/{repo}/pages`. Si no se encuentra (404), habilita Pages con el `build_type` configurado. Si se encuentra pero el `build_type` se ha desviado, lo actualiza a través de `PUT`.
+
+### Fase 7: Verificar
+
+Vuelve a leer toda la configuración a través de la API de GitHub y la compara con el estado deseado. Verifica la configuración del repositorio, los permisos de Actions, la protección de ramas (incluidas las marcas booleanas) y el tipo de compilación de Pages. Hace fallar el flujo de trabajo si alguna configuración no coincide después de las fases de aplicación.
+
+## Avance de fijaciones de flujo de trabajo inmutables
+
+Cuando los flujos de trabajo reutilizables en docs-control cambian, `.github/workflows/update-governed-workflow-pins.yml` activa `scripts/update-governed-workflow-pins.sh` para actualizar los SHA fijados por commit en todos los flujos de trabajo solicitantes de forma determinista sin intervención manual.

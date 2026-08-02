@@ -1,0 +1,69 @@
+---
+title: Settings Enforcement
+description: 用於分支保護、標籤、Actions 權限和 Pages 的七階段冪等儲存庫設定強制執行工作流。
+i18n:
+  sourceHash: "9c98278db684"
+  translator: "machine"
+sidebar:
+  order: 4
+---
+
+位於 `.github/workflows/enforce-repo-settings.yml` 的強制執行工作流是一個可重用的、冪等的工作流，它將期望的儲存庫狀態與當前狀態進行比較，並修補任何漂移。下游儲存庫透過 [呼叫方工作流](./dispatch/) 呼叫它。Docs-control 也會在推送到 `.github/config/repo-settings.json` 時直接執行它。
+
+## 觸發器
+
+- **`workflow_call`** -- 由下游呼叫方工作流呼叫（每 6 小時排程執行一次、設定推送時執行或手動分發）
+- **`push`** -- 當 `repo-settings.json` 在 docs-control 的 `main` 分支上發生變更時觸發
+
+## 並行執行
+
+強制執行分為兩個可重用工作流，作為呼叫方中的並行任務執行，每個工作流都有自己的最小權限 Token：
+
+- **`enforce-repo-settings.yml`** 使用 `REPO_SETTINGS_TOKEN`（Administration R/W, Pages R/W, Contents Read, Metadata Read）
+- **`sync-managed-files.yml`** 使用 `REPO_SYNC_TOKEN`（Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read）
+
+本頁涵蓋設定強制執行工作流。有關託管檔案工作流，請參閱 [檔案同步](./file-sync/)。
+
+## 7 個階段
+
+每個階段都是冪等的：它將期望狀態與當前狀態進行比較，並且僅在檢測到漂移時進行更改。
+
+### 階段 1：驗證
+
+透過 GitHub API 從 docs-control 獲取中央 [設定](./configuration/)（重試 5 次）。驗證 `jq` 和 `gh` 可用且已身分驗證。如果設定值為空，則自動計算 `homepage` URL。
+
+透過比較 `managed_files.source_repo` 與 `github.repository` 來檢測工作流是否在源儲存庫本身上執行。如果在自身上執行，則針對階段 4 啟動 `self_contexts` 覆蓋。
+
+### 階段 2：套用儲存庫設定
+
+透過 `GET /repos/{owner}/{repo}` 將 `repository` 物件中的每個鍵與儲存庫的當前設定進行比較。構建僅包含漂移鍵的修補物態，並透過 `PATCH /repos/{owner}/{repo}` 套用它。
+
+### 階段 3：套用 Actions 權限
+
+透過 `GET /repos/{owner}/{repo}/actions/permissions/workflow` 將 `actions_permissions` 物件（預設工作流權限、PR 審查核准）與當前 Actions 工作流權限進行比較。如果有任何鍵發生漂移，則透過 `PUT` 進行更新。
+
+### 階段 4：套用分支保護
+
+走訪 `branch_protection` 陣列。對於每個分支：
+
+1. 如果在自身上執行，將 `self_contexts` 替換到 `contexts` 中
+2. 從 Payload 中剝離 `self_contexts`（不屬於 GitHub API 的一部分）
+3. 透過 `GET /repos/{owner}/{repo}/branches/{branch}/protection` 獲取當前保護設定
+4. 比較：`enforce_admins`、`required_status_checks`（strict + contexts）、`required_pull_request_reviews`、`restrictions` 以及布林旗標（`required_linear_history`、`allow_force_pushes`、`allow_deletions`、`block_creations`、`required_conversation_resolution`、`lock_branch`、`allow_fork_syncing`）
+5. 如果檢測到任何漂移，透過 `PUT` 建立或更新保護規則
+
+### 階段 5：套用 Topic
+
+透過 `GET /repos/{owner}/{repo}/topics` 將 `topics` 陣列與儲存庫的當前 Topic 進行比較。如果發生漂移，透過 `PUT` 進行替換。
+
+### 階段 6：套用 Pages
+
+透過 `GET /repos/{owner}/{repo}/pages` 檢查是否已啟用 GitHub Pages。如果未找到 (404)，則使用設定的 `build_type` 啟用 Pages。如果已找到但 `build_type` 發生漂移，則透過 `PUT` 進行更新。
+
+### 階段 7：驗證
+
+透過 GitHub API 重新讀取所有設定，並將其與期望狀態進行比較。驗證儲存庫設定、Actions 權限、分支保護（包括布林旗標）和 Pages 建置類型。如果套用階段後有任何設定不符，則使工作流失敗。
+
+## 不可變工作流 Pin 向前推進 (Roll-Forward)
+
+當 docs-control 中的可重用工作流發生變更時，`.github/workflows/update-governed-workflow-pins.yml` 會觸發 `scripts/update-governed-workflow-pins.sh`，在無需人工干預的情況下確定性地更新整個呼叫方工作流中 Commit Pin 的 SHA。

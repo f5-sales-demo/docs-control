@@ -1,0 +1,42 @@
+---
+title: File Synchronization
+description: 跨生態系統的託管檔案同步、動態 dependabot.yml 產生和 README 模板化。
+i18n:
+  sourceHash: "a389f6cb3ad7"
+  translator: "machine"
+sidebar:
+  order: 5
+---
+
+位於 `.github/workflows/sync-managed-files.yml` 的檔案同步工作流作為與 [設定強制執行](./settings-enforcement/) 並行的任務執行，使用 `REPO_SYNC_TOKEN`（Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read）。
+
+當在源儲存庫本身（docs-control）上執行時，它會跳過執行，因為規範檔案已經存在於此處。
+
+## 靜態檔案同步
+
+工作流迭代來自 [中央設定](./configuration/) 的 `managed_files.files` 陣列。對於每個條目，它從 docs-control 獲取規範內容，並將其與下游副本進行比較。缺失或已發生漂移的檔案將被標記為需要同步。
+
+託管檔案清單包括：
+
+- 呼叫方工作流（`enforce-repo-settings.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`, `antigravity-review.yml`, `antigravity-translate.yml`）
+- Agent skills（`.agents/skills/demo-components/SKILL.md`, `.agents/skills/i18n-translate/SKILL.md`）
+- Issue 和 PR 模板
+- `CONTRIBUTING.md`, `CLAUDE.md`, `AGENTS.md`, `STYLE_GUIDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
+- `.pre-commit-config.yaml`
+
+## 動態 dependabot.yml 產生
+
+工作流會檢測下游儲存庫中存在哪些套件生態系統：
+
+- `npm` -- 存在 `package.json`
+- `pip` -- 存在 `requirements.txt`、`pyproject.toml` 或 `setup.py`
+- `docker` -- 存在 `Dockerfile`
+
+它會產生一個 `.github/dependabot.yml`，其中包含一個 `github-actions` 生態系統條目（始終包含）以及每個檢測到的生態系統的條目。所有生態系統都使用每週一的排程，並帶有約定式提交字首和 minor/patch 分組。
+
+## 動態 README.md 產生
+
+每個下游儲存庫都會收到一個產生的 `README.md`，該檔案由兩個來源構建：
+
+- **`README.md.tpl`** -- docs-control 根目錄中的一個模板，帶有預留位置（`__TITLE__`、`__DESCRIPTION__`、`__REPO_NAME__`、`__DOCS_URL__`）
+- **`docs-sites.json`** -- 透過將儲存庫名稱與 URL 欄位進行比對，為每個儲存庫提供可讀的標籤和描述

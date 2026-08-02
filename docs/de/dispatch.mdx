@@ -1,0 +1,24 @@
+---
+title: Nachgelagerter Dispatch
+description: Automatisierter Workflow-Dispatch-Mechanismus, der die nachgelagerte Repository-Einstellungsdurchsetzung und Dateisynchronisierung auslöst.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: "293c484ec19d"
+  translator: "machine"
+---
+
+Der Dispatch-Workflow unter `.github/workflows/dispatch-downstream.yml` löst die automatisierte Einstellungsdurchsetzung in allen registrierten Repositories aus, wann immer sich die zentrale Konfiguration oder verwaltete Dateien auf `main` in docs-control ändern.
+
+## Dispatch-Auslöser
+
+Der Dispatch-Workflow wird unter zwei Bedingungen ausgelöst:
+
+1. **`push` auf `main`**: Wird automatisch ausgelöst, wenn Änderungen an `.github/config/repo-settings.json`, `.github/config/downstream-repos.json` oder einer Datei in `workflows/` oder `templates/` committed werden.
+2. **`workflow_dispatch`**: Manueller Auslöser, der es Administratoren ermöglicht, die flottenweite Durchsetzung bei Bedarf auszuführen.
+
+## Ausführungsmatrix
+
+Der Workflow liest das Register der registrierten Repositories aus `.github/config/downstream-repos.json` und verwendet eine GitHub Actions-Job-Matrix, um `enforce-repo-settings.yml`-Aufrufe gleichzeitig über alle nachgelagerten Repositories hinweg zu senden.
+
+Jeder Matrix-Job ruft `gh workflow run enforce-repo-settings.yml` unter Verwendung von `REPO_SETTINGS_TOKEN`-Anmeldedaten auf und übergibt den auslösenden `source_sha`-Commit-SHA, um sicherzustellen, dass alle nachgelagerten Repositories mit dem exakten Commit synchronisiert werden.

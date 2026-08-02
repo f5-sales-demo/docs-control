@@ -1,0 +1,42 @@
+---
+title: Sincronizzazione dei File
+description: Sincronizzazione dei file gestiti, generazione dinamica di dependabot.yml e modelli README nell'intero ecosistema.
+sidebar:
+  order: 5
+i18n:
+  sourceHash: "a389f6cb3ad7"
+  translator: "machine"
+---
+
+Il workflow di sincronizzazione dei file in `.github/workflows/sync-managed-files.yml` viene eseguito come job parallelo insieme all'[enforcement delle impostazioni](./settings-enforcement/), utilizzando il `REPO_SYNC_TOKEN` (Contenuti R/W, Issues R/W, Pull Requests R/W, Lettura Metadati).
+
+Salta l'esecuzione quando viene eseguito sul repository sorgente stesso (docs-control), poiché i file canonici risiedono già qui.
+
+## Sincronizzazione statica dei file
+
+Il workflow cicla sull'array `managed_files.files` dalla [configurazione centrale](./configuration/). Per ogni voce, recupera il contenuto canonico da docs-control e lo confronta con la copia downstream. I file mancanti o disallineati vengono contrassegnati per la sincronizzazione.
+
+Il manifesto dei file gestiti include:
+
+- Workflow chiamanti (`enforce-repo-settings.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`, `antigravity-review.yml`, `antigravity-translate.yml`)
+- Skill dell'agente (`.agents/skills/demo-components/SKILL.md`, `.agents/skills/i18n-translate/SKILL.md`)
+- Template per Issue e PR
+- `CONTRIBUTING.md`, `CLAUDE.md`, `AGENTS.md`, `STYLE_GUIDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
+- `.pre-commit-config.yaml`
+
+## Generazione dinamica di dependabot.yml
+
+Il workflow rileva quali ecosistemi di pacchetti esistono nel repository downstream:
+
+- `npm` -- `package.json` esiste
+- `pip` -- `requirements.txt`, `pyproject.toml` o `setup.py` esiste
+- `docker` -- `Dockerfile` esiste
+
+Genera un `.github/dependabot.yml` con una voce per l'ecosistema `github-actions` (sempre inclusa) più le voci per ogni ecosistema rilevato. Tutti gli ecosistemi utilizzano pianificazioni settimanali il lunedì con prefissi di commit convenzionali e raggruppamento minor/patch.
+
+## Generazione dinamica di README.md
+
+Ogni repository downstream riceve un `README.md` generato costruito da due sorgenti:
+
+- **`README.md.tpl`** -- un template nella radice di docs-control con segnaposto (`__TITLE__`, `__DESCRIPTION__`, `__REPO_NAME__`, `__DOCS_URL__`)
+- **`docs-sites.json`** -- fornisce l'etichetta leggibile e la descrizione per ciascun repository confrontando il nome del repository con il campo URL

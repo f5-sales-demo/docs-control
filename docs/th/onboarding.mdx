@@ -1,0 +1,95 @@
+---
+title: การเริ่มต้นใช้งาน (Onboarding)
+description: ขั้นตอนในการลงทะเบียนคลังเก็บข้อมูลใหม่เข้าสู่ระบบกำกับดูแล docs-control และกำหนดค่าระบบอัตโนมัติ Antigravity AI และเอกสาร Astro Starlight
+sidebar:
+  order: 7
+i18n:
+  sourceHash: "d4105fff3f9f"
+  translator: "machine"
+---
+
+หน้านี้ครอบคลุมขั้นตอนในการลงทะเบียนคลังเก็บข้อมูลใหม่เข้าสู่ระบบกำกับดูแล docs-control และกำหนดค่าไปป์ไลน์เอกสารรวมถึงระบบอัตโนมัติ Antigravity AI
+
+## ข้อกำหนดเบื้องต้น (Prerequisites)
+
+- การเป็นสมาชิกองค์กรใน `f5-sales-demo`
+- มีการกำหนดค่าความลับ `REPO_SETTINGS_TOKEN` และ `REPO_SYNC_TOKEN` เป็นความลับระดับองค์กร (หรือเพิ่มลงในคลังเก็บข้อมูลใหม่ทีละรายการ)
+- มีการกำหนดค่าความลับ `ANTIGRAVITY_TOKEN` และ `GCP_PROJECT_ID` สำหรับการรีวิวโค้ดและการแปลภาษาอัตโนมัติด้วย Antigravity AI
+- สิทธิ์เข้าถึงภาพคอนเทนเนอร์ `ghcr.io/f5-sales-demo/docs-builder`
+
+## ขั้นตอนการลงทะเบียน (Enrollment steps)
+
+### 1. เพิ่มลงใน downstream-repos.json
+
+เพิ่มชื่อเปล่าของคลังเก็บข้อมูล -- ไม่ใช่ `owner/repo` -- ลงใน `.github/config/downstream-repos.json` ใน docs-control เจ้าของจะถูกเติมไว้ข้างหน้า ณ เวลาส่งต่อจาก `GITHUB_REPOSITORY_OWNER` ซึ่งเป็นการลงทะเบียนเพื่อการส่งต่อและการบังคับใช้
+
+จากนั้นกำหนดคลาสใน `repo_classes.repos` ใน `.claude/governance.json` นี่เป็นข้อกำหนดที่จำเป็น: การทดสอบหน่วยเชลล์จะล้มเหลวหากมีการลงทะเบียนคลังเก็บข้อมูลเพื่อการส่งต่อโดยไม่มีการกำหนดคลาส
+
+### 2. เพิ่มลงใน docs-sites.json (ทางเลือก)
+
+หากคลังเก็บข้อมูลจะเผยแพร่เอกสาร ให้เพิ่มรายการลงใน `.github/config/docs-sites.json` พร้อมด้วย:
+
+- `label` -- ชื่อไซต์ที่อ่านเข้าใจได้
+- `url` -- URL ไปยังเอนด์พอยต์ `llms-full.txt` ของไซต์
+- `description` -- คำอธิบายสั้นๆ ที่ใช้ใน README ที่สร้างขึ้น
+
+หากไม่ได้เพิ่มรายการ เครื่องมือสร้าง README จะย้อนกลับไปใช้ชื่อคลังเก็บข้อมูลที่ขึ้นต้นด้วยตัวพิมพ์ใหญ่และคำอธิบายจาก GitHub API
+
+### 3. รวม .gitignore
+
+workflow การบังคับใช้จะ **เขียนทับ** `.gitignore` ปลายน้ำทั้งหมด ก่อนการเริ่มต้นใช้งาน ให้รวมรายการเฉพาะของคลังเก็บข้อมูลลงในเทมเพลต `.gitignore` ใน docs-control เพื่อไม่ให้สูญหาย
+
+### 4. ติดตั้ง caller workflows
+
+คัดลอกเทมเพลต caller workflow จาก `workflows/` ใน docs-control ไปยังไดเรกทอรี `.github/workflows/` ของคลังเก็บข้อมูลใหม่:
+
+- `enforce-repo-settings.yml` -- จุดชนวนการบังคับใช้และการซิงค์ไฟล์
+- `github-pages-deploy.yml` -- จุดชนวนการบิลด์และการปรับใช้เอกสาร
+- `require-linked-issue.yml` -- บังคับใช้การเชื่อมโยง PR กับ Issue
+- `antigravity-review.yml` -- จุดชนวนการรีวิวโค้ด PR ด้วย Antigravity AI
+- `antigravity-translate.yml` -- จุดชนวนการแปลภาษาด้วย Antigravity AI
+- `super-linter.yml` -- รันชุด super-linter บน PR
+- `dependabot-auto-merge.yml` -- รวม PR ของ dependabot ที่ผ่านการตรวจสอบโดยอัตโนมัติ
+
+ไฟล์เหล่านี้จะถูกซิงค์โดยอัตโนมัติด้วย [file sync workflow](./file-sync/) เช่นกัน แต่การติดตั้งด้วยตนเองจะเป็นการเริ่มต้นกระบวนการ
+
+### 5. จุดชนวนการบังคับใช้
+
+รัน workflow การบังคับใช้ด้วยตนเองในคลังเก็บข้อมูลใหม่:
+
+```bash
+source_sha=$(gh api repos/f5-sales-demo/docs-control/commits/main --jq '.sha')
+gh workflow run enforce-repo-settings.yml \
+  --repo f5-sales-demo/<repo-name> \
+  -f source_sha="$source_sha"
+```
+
+สิ่งนี้จะปรับใช้ [การตั้งค่าคลังเก็บข้อมูล](./settings-enforcement/) ทั้งหมด สร้างไฟล์การกำกับดูแลที่สูญหาย และเปิด PR การซิงค์หากจำเป็น
+
+### 6. ตรวจสอบการตั้งค่า
+
+ยืนยันว่าการบังคับใช้สำเร็จ:
+
+```bash
+gh run list --repo f5-sales-demo/<repo-name> --workflow enforce-repo-settings.yml --limit 1
+```
+
+ตรวจสอบว่าการป้องกันสาขา สิทธิ์ของ Actions และ Pages ได้รับการกำหนดค่าอย่างถูกต้อง:
+
+```bash
+gh api repos/f5-sales-demo/<repo-name>/branches/main/protection \
+  --jq '.required_status_checks.contexts'
+```
+
+### 7. ตรวจสอบไซต์เอกสาร
+
+หากคลังเก็บข้อมูลมีไดเรกทอรี `docs/` ให้ยืนยันว่าไซต์เอกสารสามารถเข้าถึงได้หลังจากการปรับใช้ที่สำเร็จครั้งแรก:
+
+```bash
+curl -sf "https://f5-sales-demo.github.io/<repo-name>/" \
+  && echo "OK" || echo "FAIL"
+```
+
+## ความสมบูรณ์ของ Fork: การยกเว้นไฟล์ที่อยู่ในการดูแล (opting out)
+
+คลังเก็บข้อมูลที่อยู่ในการกำกับดูแลส่วนใหญ่จะรับไฟล์ที่อยู่ในการดูแลทุกไฟล์ตามที่เป็นอยู่ แต่ fork ที่ใช้งานอยู่อาจยกเว้นการซิงค์ในเส้นทางเฉพาะโดยใช้ `skip_files` ใน `repo-settings.json` ภายใต้ `managed_files` และ `.claude/governance.json`

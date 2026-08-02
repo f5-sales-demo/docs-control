@@ -1,0 +1,95 @@
+---
+title: Onboarding
+description: 將新儲存庫註冊到 docs-control 治理體系並設定 Antigravity AI 自動化和 Astro Starlight 文件的步驟。
+i18n:
+  sourceHash: "d4105fff3f9f"
+  translator: "machine"
+sidebar:
+  order: 7
+---
+
+本頁介紹了將新儲存庫註冊到 docs-control 治理體系並設定文件流水線及 Antigravity AI 自動化的步驟。
+
+## 先決條件
+
+- 擁有 `f5-sales-demo` 的組織成員身份
+- 已設定為組織級 Secret（或單獨新增到新儲存庫）的 `REPO_SETTINGS_TOKEN` 和 `REPO_SYNC_TOKEN` Secret
+- 為自動化的 Antigravity AI 程式碼審查和語言翻譯設定的 `ANTIGRAVITY_TOKEN` 和 `GCP_PROJECT_ID` Secret
+- 擁有對 `ghcr.io/f5-sales-demo/docs-builder` 容器映像檔的存取權限
+
+## 註冊步驟
+
+### 1. 新增到 downstream-repos.json
+
+將儲存庫的裸名稱（而非 `owner/repo`）新增到 docs-control 中的 `.github/config/downstream-repos.json` 中。Owner 在分發時透過 `GITHUB_REPOSITORY_OWNER` 自動字首。這會將其註冊以進行分發和強制執行。
+
+然後在 `.claude/governance.json` 的 `repo_classes.repos` 中為其分配一個類別。這是必要的：如果儲存庫已註冊分發但未指定類別分配，則 shell 單元測試將失敗。
+
+### 2. 可選新增到 docs-sites.json
+
+如果儲存庫將發布文件，請在 `.github/config/docs-sites.json` 中新增一個條目，包含：
+
+- `label` -- 可讀的網站名稱
+- `url` -- 指向網站 `llms-full.txt` 端點的 URL
+- `description` -- 在產生的 README 中使用的簡短描述
+
+如果未新增條目，README 產生器將退而使用字首大寫的儲存庫名稱和 GitHub API 描述。
+
+### 3. 整合 .gitignore
+
+強制執行工作流會完全 **覆蓋** 下游的 `.gitignore`。在註冊之前，請將任何特定於儲存庫的條目合併到 docs-control 中的模板 `.gitignore` 中，以免遺失。
+
+### 4. 安裝呼叫方工作流
+
+將 docs-control 中 `workflows/` 目錄下的呼叫方工作流模板複製到新儲存庫的 `.github/workflows/` 目錄中：
+
+- `enforce-repo-settings.yml` -- 觸發強制執行和檔案同步
+- `github-pages-deploy.yml` -- 觸發文件建置和部署
+- `require-linked-issue.yml` -- 強制執行 PR 與 issue 的關聯
+- `antigravity-review.yml` -- 觸發 Antigravity AI PR 程式碼審查
+- `antigravity-translate.yml` -- 觸發 Antigravity AI 語言翻譯
+- `super-linter.yml` -- 在 PR 上執行 super-linter 套件
+- `dependabot-auto-merge.yml` -- 自動合併通過測試的 dependabot PR
+
+這些檔案也會由 [檔案同步工作流](./file-sync/) 自動同步，但手動安裝它們可以引導啟動該過程。
+
+### 5. 觸發強制執行
+
+在新儲存庫中手動執行強制執行工作流：
+
+```bash
+source_sha=$(gh api repos/f5-sales-demo/docs-control/commits/main --jq '.sha')
+gh workflow run enforce-repo-settings.yml \
+  --repo f5-sales-demo/<repo-name> \
+  -f source_sha="$source_sha"
+```
+
+這將套用所有 [儲存庫設定](./settings-enforcement/)，建立任何缺失的治理檔案，並在需要時開啟同步 PR。
+
+### 6. 驗證設定
+
+確認強制執行成功：
+
+```bash
+gh run list --repo f5-sales-demo/<repo-name> --workflow enforce-repo-settings.yml --limit 1
+```
+
+檢查分支保護、Actions 權限和 Pages 是否設定正確：
+
+```bash
+gh api repos/f5-sales-demo/<repo-name>/branches/main/protection \
+  --jq '.required_status_checks.contexts'
+```
+
+### 7. 驗證文件網站
+
+如果儲存庫包含 `docs/` 目錄，請在首次成功部署後確認文件網站可存取：
+
+```bash
+curl -sf "https://f5-sales-demo.github.io/<repo-name>/" \
+  && echo "OK" || echo "FAIL"
+```
+
+## Fork 保真度：選擇退出託管檔案
+
+大多數受治理的儲存庫都會原樣接收每個託管檔案，但活躍的 Fork 可以透過在 `managed_files` 和 `.claude/governance.json` 下的 `repo-settings.json` 中使用 `skip_files` 來選擇退出特定路徑的同步。

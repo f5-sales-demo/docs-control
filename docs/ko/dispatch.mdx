@@ -1,0 +1,24 @@
+---
+title: 다운스트림 디스패치
+description: 다운스트림 리포지토리 설정 적용 및 파일 동기화를 트리거하는 자동 워크플로 디스패치 메커니즘.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: "293c484ec19d"
+  translator: "machine"
+---
+
+`.github/workflows/dispatch-downstream.yml`에 위치한 디스패치 워크플로는 docs-control의 `main` 브랜치에서 중앙 구성 또는 관리 대상 파일이 변경될 때마다 등록된 모든 리포지토리에 대해 자동 설정 적용을 트리거합니다.
+
+## 디스패치 트리거
+
+디스패치 워크플로는 다음 두 가지 조건에서 실행됩니다.
+
+1. **`main`으로의 `push`**: `.github/config/repo-settings.json`, `.github/config/downstream-repos.json` 또는 `workflows/`나 `templates/` 내의 파일에 변경 사항이 커밋되면 자동으로 트리거됩니다.
+2. **`workflow_dispatch`**: 관리자가 필요에 따라 전체 플리트에 대한 적용을 실행할 수 있도록 하는 수동 트리거입니다.
+
+## 실행 매트릭스
+
+워크플로는 `.github/config/downstream-repos.json`에서 등록된 리포지토리 레지스트리를 읽고, GitHub Actions 작업 매트릭스를 사용하여 모든 다운스트림 리포지토리에 대해 `enforce-repo-settings.yml` 호출을 동시에 디스패치합니다.
+
+각 매트릭스 작업은 `REPO_SETTINGS_TOKEN` 자격 증명을 사용하여 `gh workflow run enforce-repo-settings.yml`을 호출하고, 트리거된 `source_sha` 커밋 SHA를 전달하여 모든 다운스트림 리포지토리가 정확한 커밋을 기준으로 동기화되도록 합니다.

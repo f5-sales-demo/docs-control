@@ -1,0 +1,42 @@
+---
+title: Synchronisation de fichiers
+description: Synchronisation des fichiers gérés, génération dynamique de dependabot.yml et création de modèles README dans tout l'écosystème.
+sidebar:
+  order: 5
+i18n:
+  sourceHash: "a389f6cb3ad7"
+  translator: "machine"
+---
+
+Le workflow de synchronisation de fichiers dans `.github/workflows/sync-managed-files.yml` s'exécute en tant que job parallèle aux côtés de [l'application des paramètres](./settings-enforcement/), en utilisant le `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read).
+
+Il ignore l'exécution lorsqu'il tourne sur le dépôt source lui-même (docs-control), puisque les fichiers canoniques s'y trouvent déjà.
+
+## Synchronisation statique de fichiers
+
+Le workflow parcourt le tableau `managed_files.files` de la [configuration centrale](./configuration/). Pour chaque entrée, il récupère le contenu canonique depuis docs-control et le compare à la copie en aval. Les fichiers manquants ou ayant dérivé sont marqués pour la synchronisation.
+
+Le manifeste des fichiers gérés comprend :
+
+- Workflows appelants (`enforce-repo-settings.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`, `antigravity-review.yml`, `antigravity-translate.yml`)
+- Compétences d'agent (`.agents/skills/demo-components/SKILL.md`, `.agents/skills/i18n-translate/SKILL.md`)
+- Modèles de tickets et de PR
+- `CONTRIBUTING.md`, `CLAUDE.md`, `AGENTS.md`, `STYLE_GUIDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
+- `.pre-commit-config.yaml`
+
+## Génération dynamique de dependabot.yml
+
+Le workflow détecte les écosystèmes de paquets présents dans le dépôt en aval :
+
+- `npm` -- `package.json` existe
+- `pip` -- `requirements.txt`, `pyproject.toml`, ou `setup.py` existe
+- `docker` -- `Dockerfile` existe
+
+Il génère un `.github/dependabot.yml` avec une entrée d'écosystème `github-actions` (toujours incluse) ainsi que des entrées pour chaque écosystème détecté. Tous les écosystèmes utilisent des planifications hebdomadaires le lundi avec des préfixes de commit conventionnels et un regroupement minor/patch.
+
+## Génération dynamique de README.md
+
+Chaque dépôt en aval reçoit un `README.md` généré construit à partir de deux sources :
+
+- **`README.md.tpl`** -- un modèle dans la racine de docs-control avec des espaces réservés (`__TITLE__`, `__DESCRIPTION__`, `__REPO_NAME__`, `__DOCS_URL__`)
+- **`docs-sites.json`** -- fournit l'étiquette lisible par l'homme et la description pour chaque dépôt en faisant correspondre le nom du dépôt au champ URL

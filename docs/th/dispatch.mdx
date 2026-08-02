@@ -1,0 +1,24 @@
+---
+title: การส่งต่อลงปลายน้ำ (Downstream Dispatch)
+description: กลไกการส่งต่อ workflow แบบอัตโนมัติที่เปิดใช้งานการบังคับใช้การตั้งค่าคลังเก็บข้อมูลและการซิงโครไนซ์ไฟล์ในคลังเก็บข้อมูลปลายน้ำ
+sidebar:
+  order: 6
+i18n:
+  sourceHash: "293c484ec19d"
+  translator: "machine"
+---
+
+กระบวนการ dispatch workflow ที่ `.github/workflows/dispatch-downstream.yml` จะเรียกใช้การบังคับใช้การตั้งค่าโดยอัตโนมัติในทุกคลังเก็บข้อมูลที่ลงทะเบียนไว้ เมื่อใดก็ตามที่มีการเปลี่ยนแปลงการตั้งค่าส่วนกลางหรือไฟล์ที่อยู่ในการดูแลบนสาขา `main` ใน docs-control
+
+## ตัวจุดชนวนการส่งต่อ (Dispatch triggers)
+
+dispatch workflow จะทำงานภายใต้สองเงื่อนไข:
+
+1. **`push` ไปยัง `main`**: ดำเนินการโดยอัตโนมัติเมื่อมีการคอมมิตการเปลี่ยนแปลงไปยัง `.github/config/repo-settings.json`, `.github/config/downstream-repos.json` หรือไฟล์ใดๆ ใน `workflows/` หรือ `templates/`
+2. **`workflow_dispatch`**: ตัวจุดชนวนแบบสม่ำเสมอด้วยตนเอง ช่วยให้ผู้ดูแลระบบสามารถเรียกใช้การบังคับใช้ทั่วทั้งระบบได้ตามต้องการ
+
+## เมทริกซ์การทำงาน (Execution matrix)
+
+workflow จะอ่านทะเบียนคลังเก็บข้อมูลที่ลงทะเบียนจาก `.github/config/downstream-repos.json` และใช้ job matrix ของ GitHub Actions เพื่อส่งการเรียก `enforce-repo-settings.yml` พร้อมกันไปยังคลังเก็บข้อมูลปลายน้ำทั้งหมด
+
+แต่ละงานในเมทริกซ์จะเรียกใช้ `gh workflow run enforce-repo-settings.yml` โดยใช้ข้อมูลประจำตัว `REPO_SETTINGS_TOKEN` พร้อมส่งผ่าน commit SHA `source_sha` ที่เป็นตัวจุดชนวน เพื่อให้มั่นใจว่าคลังเก็บข้อมูลปลายน้ำทั้งหมดซิงโครไนซ์กับคอมมิตที่ถูกต้องแม่นยำ
