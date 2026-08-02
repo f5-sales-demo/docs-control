@@ -24,9 +24,9 @@ The managed files manifest includes:
 
 The workflow detects which package ecosystems exist in the downstream repository:
 
-- **npm** -- `package.json` exists
-- **pip** -- `requirements.txt`, `pyproject.toml`, or `setup.py` exists
-- **docker** -- `Dockerfile` exists
+- `npm` -- `package.json` exists
+- `pip` -- `requirements.txt`, `pyproject.toml`, or `setup.py` exists
+- `docker` -- `Dockerfile` exists
 
 It generates a `.github/dependabot.yml` with a `github-actions` ecosystem entry (always included) plus entries for each detected ecosystem. All ecosystems use weekly Monday schedules with conventional commit prefixes and minor/patch grouping.
 

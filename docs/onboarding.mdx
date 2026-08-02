@@ -136,7 +136,7 @@ each opted-out config (e.g., xcsh ships a permissive `ruff.toml` and
 ## Deferring required status checks: excluded_required_contexts
 
 When onboarding an existing codebase that is not yet compatible with the
-ecosystem's lint rules, immediately marking `Lint Code Base` (or any other
+ecosystem's linter rules, immediately marking `Lint Code Base` (or any other
 reusable-workflow status check) as a required context will block every
 PR until the codebase is cleaned up. Use
 `repo_overrides.<repo>.excluded_required_contexts` in
@@ -202,7 +202,7 @@ It lives in `governance.json` rather than `repo-settings.json` because
 `governance.json` is itself a managed file, synced byte-identically into
 every downstream repository. A consumer can therefore read the
 classification offline from any checkout, with no API call. `repo-settings.json`
-is only ever fetched by workflows at run time and never lands in a clone.
+is only ever fetched by workflows at runtime and never lands in a clone.
 
 Two `jq` assertions in `tests/test-protect-managed-files.sh` keep the manifest
 honest: every assignment must name a defined class, and every entry in
