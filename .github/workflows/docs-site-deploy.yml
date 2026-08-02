@@ -1,0 +1,19 @@
+---
+name: Deploy docs-control Site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+  pages: write
+  id-token: write
+
+jobs:
+  docs:
+    uses: ./.github/workflows/github-pages-deploy.yml
+    with:
+      content-ref: ${{ github.sha }}

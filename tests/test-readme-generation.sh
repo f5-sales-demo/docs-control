@@ -162,10 +162,24 @@ else
     "generated prose must use 'prerelease', never 'pre-release'"
 fi
 
-if grep -q 'readme_english_only' "$SYNC_WORKFLOW" &&
-  grep -q '__LANGUAGE_NAV__' "$SYNC_WORKFLOW" &&
-  grep -q 'type) == "boolean"' "$SYNC_WORKFLOW" &&
-  grep -q 'readme_english_only must be a JSON boolean' "$SYNC_WORKFLOW"; then
+awk '
+  /^          validate_docs_sites\(\) \{/ { found=1 }
+  found {
+    line=$0
+    sub(/^          /, "")
+    print
+    if (line == "          }") exit
+  }
+' "$SYNC_WORKFLOW" >"$WORK/validate-docs-sites.sh"
+if (
+  # shellcheck source=/dev/null
+  source "$WORK/validate-docs-sites.sh"
+  OWNER=f5-sales-demo
+  validate_docs_sites <"$DOCS_SITES" &&
+    ! jq 'map(if .url | contains("/api-specs-enriched/") then
+      .readme_english_only = "true" else . end)' "$DOCS_SITES" |
+    validate_docs_sites
+) && grep -q '__LANGUAGE_NAV__' "$SYNC_WORKFLOW"; then
   pass "4.5 sync-managed-files renders a strictly typed per-repository language policy"
 else
   fail "4.5 sync-managed-files renders a strictly typed per-repository language policy" \

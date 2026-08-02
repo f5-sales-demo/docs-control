@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Unit tests for tests/fixtures/fetch-governed.sh
-# Run: bash tests/test-fetch-governed.sh
+# Unit tests for exact governed-content reads.
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
@@ -49,17 +48,10 @@ teardown_stubs() {
   unset STUB_DIR FAKE_LOG
 }
 stub_curl() {
-  local mode="$1" body="${2:-}"
-  printf '%s' "$body" >"${STUB_DIR}/curl.body"
   cat >"${STUB_DIR}/curl" <<EOF
 #!/usr/bin/env bash
 echo "curl \$*" >> "${FAKE_LOG}"
-case "${mode}" in
-  200)   cat "${STUB_DIR}/curl.body"; exit 0 ;;
-  404)   exit 22 ;;
-  empty) exit 0 ;;
-  hang)  exit 28 ;;
-esac
+exit 99
 EOF
   chmod +x "${STUB_DIR}/curl"
 }
@@ -77,61 +69,55 @@ EOF
   chmod +x "${STUB_DIR}/gh"
 }
 
-# --- Tests ----------------------------------------------------------
-export PAGES_BASE="https://example.test/docs-control"
+expected_source_sha="1111111111111111111111111111111111111111"
 
 # shellcheck source=fixtures/fetch-governed.sh disable=SC1091
 . "$SOURCE"
 
-CURRENT_TEST="pages 200 -> use pages, no gh call"
+CURRENT_TEST="exact API read returns verified receipt bytes"
 setup_stubs
-stub_curl 200 '{"hello":"world"}'
-stub_gh fail
+stub_curl
+stub_gh ok '{"type":"file","sha":"e4e07a17cff3c298ae171a752a8186ff4484638d","size":19,"content":"ZXhhY3QtcmVjZWlwdC1ieXRlcw==","encoding":"base64"}'
 out=$(fetch_governed repo-settings.json "repos/x/y/contents/.github/config/repo-settings.json")
-_assert_eq '{"hello":"world"}' "$out" "body matches"
-if grep -q "^gh " "$FAKE_LOG"; then
-  FAIL=$((FAIL + 1))
-  echo "  [FAIL] ${CURRENT_TEST} — gh was called"
-else
-  PASS=$((PASS + 1))
-  echo "  [PASS] ${CURRENT_TEST} — gh was NOT called"
-fi
+_assert_eq 'exact-receipt-bytes' "$out" "decoded body"
+_assert_eq \
+  "gh api repos/x/y/contents/.github/config/repo-settings.json?ref=${expected_source_sha}" \
+  "$(grep '^gh ' "$FAKE_LOG")" \
+  "API read is bound to the exact source receipt"
+_assert_eq "" "$(grep '^curl ' "$FAKE_LOG" || true)" \
+  "mutable Pages/CDN bytes are never requested"
 teardown_stubs
 
-CURRENT_TEST="pages 404 -> fallback to gh api"
+CURRENT_TEST="invalid source receipt fails before any read"
 setup_stubs
-stub_curl 404
-stub_gh ok '{"content":"aGVsbG8=","encoding":"base64"}'
-out=$(fetch_governed repo-settings.json "repos/x/y/contents/.github/config/repo-settings.json")
-_assert_eq 'hello' "$out" "decoded body"
-if grep -q "^gh " "$FAKE_LOG"; then
-  PASS=$((PASS + 1))
-  echo "  [PASS] ${CURRENT_TEST} — gh invoked"
-else
-  FAIL=$((FAIL + 1))
-  echo "  [FAIL] ${CURRENT_TEST} — gh not invoked"
-fi
+stub_curl
+stub_gh ok '{"type":"file","sha":"e4e07a17cff3c298ae171a752a8186ff4484638d","size":19,"content":"ZXhhY3QtcmVjZWlwdC1ieXRlcw==","encoding":"base64"}'
+saved_source_sha="$expected_source_sha"
+expected_source_sha=""
+set +e
+fetch_governed x.json "repos/x/y/contents/x.json" >/dev/null 2>&1
+rc=$?
+set -e
+expected_source_sha="$saved_source_sha"
+_assert_nonzero "$rc"
+_assert_eq "" "$(cat "$FAKE_LOG")" "no network read attempted"
 teardown_stubs
 
-CURRENT_TEST="pages empty body -> fallback"
+CURRENT_TEST="pre-existing query cannot override the exact receipt"
 setup_stubs
-stub_curl empty
-stub_gh ok '{"content":"Zm9v","encoding":"base64"}'
-out=$(fetch_governed x.json "repos/x/y/contents/x.json")
-_assert_eq 'foo' "$out"
+stub_curl
+stub_gh ok '{"type":"file","sha":"e4e07a17cff3c298ae171a752a8186ff4484638d","size":19,"content":"ZXhhY3QtcmVjZWlwdC1ieXRlcw==","encoding":"base64"}'
+set +e
+fetch_governed x.json "repos/x/y/contents/x.json?ref=main" >/dev/null 2>&1
+rc=$?
+set -e
+_assert_nonzero "$rc"
+_assert_eq "" "$(cat "$FAKE_LOG")" "ambiguous API path rejected locally"
 teardown_stubs
 
-CURRENT_TEST="pages timeout -> fallback"
+CURRENT_TEST="API failure returns non-zero"
 setup_stubs
-stub_curl hang
-stub_gh ok '{"content":"YmFy","encoding":"base64"}'
-out=$(fetch_governed x.json "repos/x/y/contents/x.json")
-_assert_eq 'bar' "$out"
-teardown_stubs
-
-CURRENT_TEST="both fail -> non-zero exit"
-setup_stubs
-stub_curl 404
+stub_curl
 stub_gh fail
 set +e
 fetch_governed x.json "repos/x/y/contents/x.json" >/dev/null 2>&1
@@ -140,24 +126,26 @@ set -e
 _assert_nonzero "$rc"
 teardown_stubs
 
-CURRENT_TEST="revision_is_fresh: SHA matches"
+CURRENT_TEST="malformed API envelope returns non-zero"
 setup_stubs
-stub_curl 200 '{"commit":"abc123","generated_at":"2026-04-20T00:00:00Z"}'
+stub_curl
+stub_gh ok '{"type":"file","sha":"bad","size":19,"content":"","encoding":"none"}'
 set +e
-revision_is_fresh abc123
+fetch_governed x.json "repos/x/y/contents/x.json" >/dev/null 2>&1
 rc=$?
 set -e
-_assert_eq 0 "$rc" "fresh when SHA equal"
+_assert_nonzero "$rc" "invalid content response rejected"
 teardown_stubs
 
-CURRENT_TEST="revision_is_fresh: SHA mismatch"
+CURRENT_TEST="content digest mismatch returns non-zero"
 setup_stubs
-stub_curl 200 '{"commit":"old0000","generated_at":"2026-04-20T00:00:00Z"}'
+stub_curl
+stub_gh ok '{"type":"file","sha":"0000000000000000000000000000000000000000","size":19,"content":"ZXhhY3QtcmVjZWlwdC1ieXRlcw==","encoding":"base64"}'
 set +e
-revision_is_fresh abc123
+fetch_governed x.json "repos/x/y/contents/x.json" >/dev/null 2>&1
 rc=$?
 set -e
-_assert_nonzero "$rc" "stale when SHA differs"
+_assert_nonzero "$rc" "decoded bytes must match GitHub blob receipt"
 teardown_stubs
 
 echo ""

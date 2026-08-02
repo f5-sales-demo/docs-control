@@ -318,6 +318,86 @@ else
   fail "unknown Pages status fails verification" "unknown status does not set VERIFY_FAILED"
 fi
 
+# A configured Pages site is required state. Creation errors must stop the apply
+# phase, and a 404 after apply must fail verification rather than be downgraded to
+# a warning that still permits the final success message.
+pages_apply_block=$(sed -n '/# --- Phase 6: Apply Pages/,/# --- Phase 7: Enforce secrets/p' "$ENFORCE_WF")
+if grep -qE 'retry_current_json .*--method POST' <<<"$pages_apply_block" &&
+  ! grep -qE 'retry_current_json .*--method POST.*\|\| true' <<<"$pages_apply_block"; then
+  pass "Pages creation failure is fatal"
+else
+  fail "Pages creation failure is fatal" "the required POST is absent or its failure is suppressed"
+fi
+
+pages_missing_verification_block=$(
+  awk '
+    /elif \[ "\$VERIFY_PAGES_CODE" = "404" \]; then/ { found=1; next }
+    found && /^[[:space:]]*else$/ { exit }
+    found { print }
+  ' "$ENFORCE_WF"
+)
+if grep -q 'VERIFY_FAILED=true' <<<"$pages_missing_verification_block"; then
+  pass "Pages 404 after apply fails verification"
+else
+  fail "Pages 404 after apply fails verification" "missing required Pages state can still report success"
+fi
+
+# Enforcement reads that decide whether to mutate protected settings must
+# distinguish a proved 404 from transport, authorization, and schema failures.
+protection_apply_block=$(sed -n '/# --- Phase 4: Apply branch protection/,/# --- Phase 5: Apply topics/p' "$ENFORCE_WF")
+if grep -q 'api_value_or_404' <<<"$protection_apply_block" &&
+  ! grep -qE '(HTTP_CODE|CURRENT_PROTECTION)=.*\|\| true' <<<"$protection_apply_block"; then
+  pass "branch-protection inventory distinguishes absence from read failure"
+else
+  fail "branch-protection inventory distinguishes absence from read failure" \
+    "an unreadable protection can still be treated as missing and overwritten"
+fi
+
+secrets_apply_block=$(sed -n '/# --- Phase 7: Enforce secrets/,/# --- Phase 8: Verify/p' "$ENFORCE_WF")
+if grep -q 'actions/secrets?per_page=100' <<<"$secrets_apply_block" &&
+  grep -q -- '--paginate --slurp' <<<"$secrets_apply_block" &&
+  ! grep -qE 'CURRENT_SECRETS=.*\|\| true' <<<"$secrets_apply_block"; then
+  pass "secret inventory is complete and fatal on read failure"
+else
+  fail "secret inventory is complete and fatal on read failure" \
+    "partial or failed secret inventory can still report an audit result"
+fi
+
+verify_protection_block=$(sed -n '/VERIFY_PROTECTION=/,/desired_enforce=/p' "$ENFORCE_WF")
+if ! grep -qE 'VERIFY_PROTECTION=.*\|\| true' <<<"$verify_protection_block"; then
+  pass "branch-protection verification read failure is fatal"
+else
+  fail "branch-protection verification read failure is fatal" \
+    "failed verification reads are still converted to an empty value"
+fi
+
+if grep -q 'normalize_desired_protection()' "$ENFORCE_WF" &&
+  grep -q 'normalize_current_protection()' "$ENFORCE_WF" &&
+  grep -q 'Branch protection does not match desired state' "$ENFORCE_WF" &&
+  grep -q 'Branch protection failed exact verification' "$ENFORCE_WF"; then
+  pass "branch protection compares one complete normalized state during apply and verify"
+else
+  fail "branch protection compares one complete normalized state during apply and verify" \
+    "null reviews, status checks, restrictions, or flags can escape convergence"
+fi
+
+if grep -q '\[ "$MISSING" -gt 0 \]' <<<"$secrets_apply_block" &&
+  grep -q '\[ERROR\].*required repository secret' <<<"$secrets_apply_block"; then
+  pass "missing required secrets fail enforcement"
+else
+  fail "missing required secrets fail enforcement" \
+    "measured missing secrets can still lead to an OK result"
+fi
+
+pages_apply_block=$(sed -n '/# --- Phase 6: Apply Pages/,/# --- Phase 7: Enforce secrets/p' "$ENFORCE_WF")
+if ! grep -qE 'PAGES_RESPONSE=.*\|\| true' <<<"$pages_apply_block" &&
+  grep -q 'Pages API returned an invalid response' <<<"$pages_apply_block"; then
+  pass "Pages body read and schema failures are fatal before PUT"
+else
+  fail "Pages body read and schema failures are fatal before PUT" \
+    "a failed body GET can still be converted into corrective mutation"
+fi
+
 # The probes must stay off retry(), or the regression returns silently.
 if grep -qE 'retry [0-9]+ gh api .*--include' "$ENFORCE_WF"; then
   fail "status probes do not use retry()" "a --include probe is still wrapped in retry"

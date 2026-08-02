@@ -1,10 +1,12 @@
 ---
 name: Build and Deploy Docs
 on:
-  push:
-    branches: [main]
   workflow_call:
     inputs:
+      content-ref:
+        description: 'Exact 40-character commit SHA to build from the calling repo'
+        required: true
+        type: string
       content-path:
         description: 'Path to content directory in the calling repo'
         required: false
@@ -24,28 +26,6 @@ on:
         required: false
         default: 'https://f5-sales-demo.github.io'
         type: string
-  workflow_dispatch:
-    inputs:
-      content-path:
-        description: 'Path to content directory'
-        required: false
-        default: 'docs'
-        type: string
-      builder-image:
-        description: 'Builder Docker image URI'
-        required: false
-        default: 'ghcr.io/f5-sales-demo/docs-builder@sha256:905d2398fec15c05e828c881ab0e8b782368c30d70d97a978dc383935d7d0163'
-        type: string
-      docs-title:
-        description: 'Documentation site title'
-        required: false
-        type: string
-      docs-site:
-        description: 'Documentation site URL'
-        required: false
-        default: 'https://f5-sales-demo.github.io'
-        type: string
-
 permissions: {}
 
 concurrency:
@@ -65,8 +45,51 @@ jobs:
     outputs:
       build-status: ${{ job.status }}
     steps:
+      - name: Resolve immutable content commit
+        id: content
+        env:
+          REQUESTED_REF: ${{ inputs.content-ref }}
+          REQUESTED_IMAGE: ${{ inputs.builder-image }}
+        run: |
+          CONTENT_REF="$REQUESTED_REF"
+          if [[ ! "$CONTENT_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::content-ref must be a full lowercase 40-character commit SHA"
+            exit 1
+          fi
+          BUILDER_IMAGE="$REQUESTED_IMAGE"
+          if [[ ! "$BUILDER_IMAGE" =~ ^ghcr\.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::builder-image must use the approved repository and an immutable SHA-256 digest"
+            exit 1
+          fi
+          echo "content_ref=$CONTENT_REF" >> "$GITHUB_OUTPUT"
+          echo "builder_image=$BUILDER_IMAGE" >> "$GITHUB_OUTPUT"
+
       - name: Checkout content repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.content.outputs.content_ref }}
+
+      - name: Verify checked-out content commit
+        env:
+          CONTENT_REF: ${{ steps.content.outputs.content_ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          CHECKED_OUT_SHA=$(git rev-parse HEAD)
+          if [ "$CHECKED_OUT_SHA" != "$CONTENT_REF" ]; then
+            echo "::error::Checked-out commit does not match content-ref"
+            exit 1
+          fi
+          if [ "$DEFAULT_BRANCH" != "main" ]; then
+            echo "::error::Pages publication requires protected main"
+            exit 1
+          fi
+          git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
+          PROTECTED_MAIN_SHA=$(git rev-parse refs/remotes/origin/main)
+          if [[ ! "$PROTECTED_MAIN_SHA" =~ ^[0-9a-f]{40}$ ]] ||
+            [ "$PROTECTED_MAIN_SHA" != "$CONTENT_REF" ]; then
+            echo "::error::content-ref is not current protected main"
+            exit 1
+          fi
 
       - name: Login to GHCR
         uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
@@ -121,7 +144,7 @@ jobs:
             -e DOCS_SITE="${{ inputs.docs-site || format('https://{0}.github.io', github.repository_owner) }}" \
             -e GITHUB_REPOSITORY="${{ github.repository }}" \
             ${{ inputs.docs-title && format('-e DOCS_TITLE="{0}"', inputs.docs-title) || '' }} \
-            ${{ inputs.builder-image || 'ghcr.io/f5-sales-demo/docs-builder@sha256:905d2398fec15c05e828c881ab0e8b782368c30d70d97a978dc383935d7d0163' }}
+            ${{ steps.content.outputs.builder_image }}
 
           echo "✅ Build completed successfully"
           ls -lah ${{ runner.temp }}/docs-output/
@@ -140,6 +163,9 @@ jobs:
           find "$OUTPUT_DIR" -type f | head -20
 
       - name: Stage governance assets for /api/
+        env:
+          CONTENT_REF: ${{ steps.content.outputs.content_ref }}
+          BUILDER_IMAGE: ${{ steps.content.outputs.builder_image }}
         run: |
           OUTPUT_DIR="${{ runner.temp }}/docs-output"
           API_DIR="${OUTPUT_DIR}/api"
@@ -171,11 +197,13 @@ jobs:
             done
           fi
 
-          # Revision marker — lets downstreams detect Pages deploy lag
+          # Deterministic publication identity: requested and resolved content.
+          CHECKED_OUT_SHA=$(git rev-parse HEAD)
           jq -n \
-            --arg commit "${GITHUB_SHA}" \
-            --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{commit:$commit, generated_at:$generated_at}' \
+            --arg content_ref "${CONTENT_REF}" \
+            --arg commit "${CHECKED_OUT_SHA}" \
+            --arg builder_image "${BUILDER_IMAGE}" \
+            '{content_ref:$content_ref, commit:$commit, builder_image:$builder_image}' \
             > "${API_DIR}/revision.json"
           echo "Published: /api/revision.json"
 

@@ -1094,14 +1094,61 @@ else
     "the group needs a reusable-workflow-specific prefix"
 fi
 
-# Two workflow_call defaults and the runtime fallback must resolve to identical
-# bytes. A caller can still opt into a different immutable digest explicitly.
-if [ "$(grep -cF "$EXPECTED_BUILDER" "$PAGES_WORKFLOW")" = "3" ] &&
-  ! grep -Fq 'docs-builder:latest' "$PAGES_WORKFLOW"; then
-  pass "14.3 every default documentation builder input uses the measured digest"
+# One workflow_call default is validated before use; there is no runtime
+# fallback. Callers may select a different immutable digest only in the approved
+# builder repository.
+if [ "$(grep -cF "$EXPECTED_BUILDER" "$PAGES_WORKFLOW")" = "1" ] &&
+  grep -qF '^ghcr\.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$' "$PAGES_WORKFLOW" &&
+  grep -qF '${{ steps.content.outputs.builder_image }}' "$PAGES_WORKFLOW" &&
+  ! grep -Eq 'docs-builder:latest|inputs\.builder-image \|\|' "$PAGES_WORKFLOW"; then
+  pass "14.3 documentation builder identity is validated and digest-pinned"
 else
-  fail "14.3 every default documentation builder input uses the measured digest" \
-    "expected three identical digest pins and no latest tag"
+  fail "14.3 documentation builder identity is validated and digest-pinned" \
+    "expected one measured default, approved digest validation, and no fallback"
+fi
+
+# ════════════════════════════════════════════════════════════════════
+# SECTION 15: every docs-control shell test is a guarded CI step
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 15: complete shell-test CI inventory ==="
+
+if python3 - "$REPO_ROOT" "$SUPER_LINTER_WORKFLOW" <<'PY'; then
+import pathlib
+import re
+import sys
+
+import yaml
+
+repo_root = pathlib.Path(sys.argv[1])
+workflow_path = pathlib.Path(sys.argv[2])
+with workflow_path.open(encoding="utf-8") as workflow_file:
+    workflow = yaml.safe_load(workflow_file)
+
+expected = {
+    path.relative_to(repo_root).as_posix()
+    for path in (repo_root / "tests").glob("test-*.sh")
+    if path.is_file()
+}
+steps = workflow["jobs"]["shell-unit-tests"]["steps"]
+observed: list[str] = []
+for step in steps:
+    command = step.get("run", "")
+    match = re.fullmatch(r"bash (tests/test-[A-Za-z0-9._-]+[.]sh)", command)
+    if not match:
+        continue
+    path = match.group(1)
+    if step.get("if") != f"hashFiles('{path}') != ''":
+        raise SystemExit(1)
+    observed.append(path)
+
+if len(observed) != len(set(observed)) or set(observed) != expected:
+    raise SystemExit(1)
+PY
+  pass "15.1 every shell test has exactly one guarded CI step"
+else
+  fail "15.1 every shell test has exactly one guarded CI step" \
+    "shell-unit-tests does not exactly cover tests/test-*.sh"
 fi
 
 # ════════════════════════════════════════════════════════════════════
