@@ -468,6 +468,10 @@ jobs:
         if: hashFiles('tests/test-protect-managed-files.sh') != ''
         run: bash tests/test-protect-managed-files.sh
 
+      - name: Run managed agent-guidance test
+        if: hashFiles('tests/test-agent-guidance.sh') != ''
+        run: bash tests/test-agent-guidance.sh
+
       - name: Run linter-configs test
         if: hashFiles('tests/test-linter-configs.sh') != ''
         run: bash tests/test-linter-configs.sh

@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   docs:
-    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@bd59d19a39642bddd649f207f85a80d538fd081b
+    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@42ed6dbb4e7926e3aec16be9bc3ff87065fc2b12
     permissions:
       contents: read # read documentation sources
       packages: read # pull the fleet documentation builder image

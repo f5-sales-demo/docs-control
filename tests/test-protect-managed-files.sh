@@ -431,7 +431,10 @@ setup_downstream
 # Test each category of protected file
 PROTECTED_TEST_CASES=(
   "CLAUDE.md"
+  "AGENTS.md"
   "CONTRIBUTING.md"
+  ".agents/skills/demo-components/SKILL.md"
+  ".agents/skills/demo-components/agents/openai.yaml"
   ".gitignore"
   ".pre-commit-config.yaml"
   ".github/workflows/super-linter.yml"
@@ -489,12 +492,12 @@ else
 fi
 
 # Test 5.5.N: non-opted-out protected files are STILL blocked for xcsh
-# CLAUDE.md is managed but not in xcsh's skip_files, so it must remain blocked.
+# AGENTS.md is managed but not in xcsh's skip_files, so it must remain blocked.
 OUTPUT=""
 EXIT_CODE=0
-OUTPUT=$(run_hook "$XCSH_DOWN" "CLAUDE.md") || EXIT_CODE=$?
-assert_exit_code 2 "$EXIT_CODE" "5.5 non-opted-out CLAUDE.md still blocked for xcsh"
-assert_contains "$OUTPUT" "BLOCKED" "5.5 non-opted-out CLAUDE.md shows BLOCKED for xcsh"
+OUTPUT=$(run_hook "$XCSH_DOWN" "AGENTS.md") || EXIT_CODE=$?
+assert_exit_code 2 "$EXIT_CODE" "5.5 non-opted-out AGENTS.md still blocked for xcsh"
+assert_contains "$OUTPUT" "BLOCKED" "5.5 non-opted-out AGENTS.md shows BLOCKED for xcsh"
 
 # Test 5.5.N+1: a different downstream (waf) is NOT opted out of biome.json
 # The existing $DOWNSTREAM (origin=waf) should still block biome.json.

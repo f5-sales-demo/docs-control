@@ -19,6 +19,8 @@ on:
       - 'workflows/**'
       - 'CONTRIBUTING.md'
       - 'CLAUDE.md'
+      - 'AGENTS.md'
+      - '.agents/**'
       - 'README.md'
       - 'LICENSE'
       - '.editorconfig'
