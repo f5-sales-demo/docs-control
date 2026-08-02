@@ -58,11 +58,19 @@ done
 echo ""
 echo "=== Section 3: TOML parse validity ==="
 
-if ruff check --config "$REPO_ROOT/.ruff.toml" --show-settings \
-  "$REPO_ROOT/scripts/check_pii.py" >/dev/null 2>&1; then
+if command -v ruff >/dev/null 2>&1; then
+  TOML_VALIDATOR=(ruff check --config "$REPO_ROOT/.ruff.toml" --show-settings
+    "$REPO_ROOT/scripts/check_pii.py")
+else
+  # Hosted shell-test runners do not install Ruff, but use Python 3.11+.
+  TOML_VALIDATOR=(python3 -c
+    "import tomllib; tomllib.load(open('$REPO_ROOT/.ruff.toml', 'rb'))")
+fi
+
+if "${TOML_VALIDATOR[@]}" >/dev/null 2>&1; then
   pass "3.x .ruff.toml is valid TOML"
 else
-  fail "3.x .ruff.toml is valid TOML" "Ruff could not load the configuration"
+  fail "3.x .ruff.toml is valid TOML" "no available validator could parse it"
 fi
 
 # ════════════════════════════════════════════════════════════════════
