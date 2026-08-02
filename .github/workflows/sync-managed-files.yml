@@ -5,13 +5,15 @@ on:
   workflow_call:
     inputs:
       source_sha:
-        description: 'Commit SHA of the docs-control push that triggered this run.'
-        required: false
+        description: 'Exact docs-control commit receipt for every governed read.'
+        required: true
         type: string
-        default: ''
     secrets:
       repo-sync-token:
         description: 'PAT with contents, issues, and pull-request permissions for file sync'
+        required: true
+      repo-settings-token:
+        description: 'PAT used to enqueue the current protected-main receipt'
         required: true
 
 concurrency:
@@ -28,6 +30,7 @@ jobs:
       - name: Sync managed files
         env:
           GH_TOKEN: ${{ secrets.repo-sync-token }}
+          REPO_SETTINGS_TOKEN: ${{ secrets.repo-settings-token }}
           SOURCE_SHA: ${{ inputs.source_sha }}
         run: |
           set -euo pipefail
@@ -96,96 +99,313 @@ jobs:
             retry "$max" bash -c 'printf "%s" "$0" | gh api "$@" --input -' "$json" "$@"
           }
 
-          # --- Pages-first fetch helper (canonical: tests/fixtures/fetch-governed.sh) ---
-          PAGES_BASE="https://${GITHUB_REPOSITORY_OWNER}.github.io/docs-control"
-
-          fetch_governed() {
-            local key="$1" fallback="$2" body err_file
-            local url="${PAGES_BASE}/api/${key}"
-
-            body=$(curl -fsSL --retry 2 --retry-delay 2 --max-time 10 "$url" 2>/dev/null || true)
-            if [ -n "$body" ]; then
-              printf '%s' "$body"
+          api_value_or_404() {
+            local endpoint="$1" jq_filter="$2"
+            local out_file err_file rc value
+            out_file=$(mktemp)
+            err_file=$(mktemp)
+            set +e
+            gh api "$endpoint" --jq "$jq_filter" >"$out_file" 2>"$err_file"
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then
+              value=$(cat "$out_file")
+              rm -f "$out_file" "$err_file"
+              if [ -z "$value" ]; then
+                echo "[ERROR] GitHub API returned an empty value for ${endpoint}" >&2
+                return 1
+              fi
+              printf '%s' "$value"
               return 0
             fi
+            if grep -qE '\(HTTP 404\)$' "$err_file"; then
+              rm -f "$out_file" "$err_file"
+              return 44
+            fi
+            echo "[ERROR] GitHub API read failed closed for ${endpoint}" >&2
+            sed -E 's/(Request-Id:).*/\1 [redacted]/I' "$err_file" >&2
+            rm -f "$out_file" "$err_file"
+            return 1
+          }
 
-            echo "[WARN] Pages unavailable for ${key} — falling back to API" >&2
+          # --- Exact-receipt fetch helper (canonical: tests/fixtures/fetch-governed.sh) ---
+          fetch_governed() {
+            local key="$1" fallback="$2" api_file decoded_file err_file
+            local receipt_sha receipt_size decoded_sha decoded_size
+
+            if ! printf '%s' "${expected_source_sha:-}" | grep -qE '^[0-9a-f]{40}$'; then
+              echo "[ERROR] Could not resolve an exact docs-control source commit" >&2
+              return 1
+            fi
+            if [[ "$fallback" == *[?#]* ]]; then
+              echo "[ERROR] Governed API path already contains a query or fragment for ${key}" >&2
+              return 1
+            fi
+
+            api_file=$(mktemp)
+            decoded_file=$(mktemp)
             err_file=$(mktemp)
-            if ! body=$(retry 3 gh api "$fallback" 2>"$err_file"); then
+            if ! retry 3 gh api "${fallback}?ref=${expected_source_sha}" >"$api_file" 2>"$err_file"; then
               echo "[ERROR] gh api failed for ${key}:" >&2
               cat "$err_file" >&2
-              rm -f "$err_file"
+              rm -f "$api_file" "$decoded_file" "$err_file"
               return 1
             fi
-            rm -f "$err_file"
-            if [ -z "$body" ]; then
-              echo "[ERROR] gh api returned empty body for ${key}" >&2
+            if ! jq -e '
+              .type == "file" and .encoding == "base64" and
+              (.sha | type == "string" and test("^[0-9a-f]{40}$")) and
+              (.size | type == "number" and floor == . and . >= 0) and
+              (.content | type == "string") and
+              (.size == 0 or (.content | length > 0))
+            ' "$api_file" >/dev/null 2>&1; then
+              echo "[ERROR] gh api returned an invalid content envelope for ${key}" >&2
+              rm -f "$api_file" "$decoded_file" "$err_file"
               return 1
             fi
-
-            printf '%s' "$body" | jq -r '.content' | tr -d '\n' | base64 -d
+            if ! jq -r '.content' "$api_file" | tr -d '\n' | base64 -d >"$decoded_file"; then
+              echo "[ERROR] gh api returned invalid base64 content for ${key}" >&2
+              rm -f "$api_file" "$decoded_file" "$err_file"
+              return 1
+            fi
+            receipt_sha=$(jq -r '.sha' "$api_file")
+            receipt_size=$(jq -r '.size' "$api_file")
+            decoded_sha=$(git hash-object "$decoded_file")
+            decoded_size=$(wc -c <"$decoded_file" | tr -d ' ')
+            if [ "$decoded_sha" != "$receipt_sha" ] || [ "$decoded_size" != "$receipt_size" ]; then
+              echo "[ERROR] Decoded bytes do not match the content receipt for ${key}" >&2
+              rm -f "$api_file" "$decoded_file" "$err_file"
+              return 1
+            fi
+            cat "$decoded_file"
+            rm -f "$api_file" "$decoded_file" "$err_file"
           }
 
-          # Freshness of the Pages-published governance mirror. When a source_sha is
-          # supplied (dispatch from a docs-control push) we require an EXACT match.
-          # Otherwise (schedule / manual workflow_dispatch, where source_sha is
-          # empty) we compare Pages' own revision marker against docs-control's live
-          # main HEAD — see expected_source_sha below.
-          revision_is_fresh() {
-            local source_sha="${1:-}" rev pages_sha
-            [ -z "$source_sha" ] && return 1
-
-            rev=$(curl -fsSL --retry 2 --retry-delay 2 --max-time 10 \
-              "${PAGES_BASE}/api/revision.json" 2>/dev/null || true)
-            [ -z "$rev" ] && return 1
-
-            pages_sha=$(printf '%s' "$rev" | jq -r '.commit // empty')
-            [ "$pages_sha" = "$source_sha" ]
+          cache_managed_content() {
+            local label="$1" api_path="$2" expected_sha="$3" expected_size="$4" output_file="$5"
+            local temp_file canonical_sha canonical_size
+            temp_file=$(mktemp)
+            if ! fetch_governed "$label" "$api_path" >"$temp_file"; then
+              echo "[ERROR] Could not fetch required canonical content: ${api_path}" >&2
+              rm -f "$temp_file"
+              return 1
+            fi
+            canonical_sha=$(git hash-object "$temp_file")
+            canonical_size=$(wc -c <"$temp_file" | tr -d ' ')
+            if [ "$canonical_sha" != "$expected_sha" ] || [ "$canonical_size" != "$expected_size" ]; then
+              echo "[ERROR] Canonical blob mismatch for ${api_path}" >&2
+              rm -f "$temp_file"
+              return 1
+            fi
+            mv "$temp_file" "$output_file"
           }
 
-          # The sha the Pages mirror must have published for governed reads to be
-          # trustworthy. Prefer the dispatching push's sha; when absent, fall back
-          # to docs-control's current main HEAD.
-          #
-          # WHY this must not be conditional on SOURCE_SHA: `fetch_governed` prefers
-          # the Pages mirror, and Pages lags a merge by however long its deploy
-          # takes. Previously the staleness check ran ONLY when SOURCE_SHA was
-          # non-empty, so schedule/manual runs (source_sha empty) silently read a
-          # STALE manifest. Drift detection then compared downstream files against
-          # OLD canonical SHAs, matched them, and reported "[OK] All managed files
-          # match canonical" — so governance changes never propagated and no sync PR
-          # was opened. Observed: a run read a manifest from a 1-day-old commit and
-          # passed four caller templates that had genuinely drifted.
           expected_source_sha="${SOURCE_SHA:-}"
-          if [ -z "$expected_source_sha" ]; then
-            expected_source_sha=$(retry 3 gh api \
-              "repos/${GITHUB_REPOSITORY_OWNER}/docs-control/commits/main" --jq '.sha' 2>/dev/null || echo "")
-          fi
 
-          if [ -z "$expected_source_sha" ]; then
-            echo "[WARN] Could not determine docs-control main HEAD — using API for governed reads" >&2
-            PAGES_BASE="https://invalid.pages.local"
-          elif ! revision_is_fresh "$expected_source_sha"; then
-            echo "[WARN] Pages revision lags source ${expected_source_sha:0:8} — this run will fall back to API for governed reads" >&2
-            # Force fallback by making Pages calls error.
-            PAGES_BASE="https://invalid.pages.local"
-          else
-            echo "[OK] Pages governance mirror is fresh at ${expected_source_sha:0:8}"
+          if ! printf '%s' "$expected_source_sha" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "[ERROR] Could not resolve an exact docs-control source commit" >&2
+            exit 1
           fi
+          if ! current_source_sha=$(retry 3 gh api \
+            "repos/${GITHUB_REPOSITORY_OWNER}/docs-control/commits/main" --jq '.sha'); then
+            echo "[ERROR] Could not resolve protected docs-control main" >&2
+            exit 1
+          fi
+          if ! printf '%s' "$current_source_sha" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "[ERROR] Protected docs-control main returned an invalid commit" >&2
+            exit 1
+          fi
+          if [ "$expected_source_sha" != "$current_source_sha" ]; then
+            if ! source_status=$(retry 3 gh api \
+              "repos/${GITHUB_REPOSITORY_OWNER}/docs-control/compare/${expected_source_sha}...${current_source_sha}" \
+              --jq '.status'); then
+              echo "[ERROR] Could not prove the source receipt is on protected docs-control main" >&2
+              exit 1
+            fi
+            if [ "$source_status" = "ahead" ]; then
+              echo "[DEFER] Historical protected-main receipt; enqueueing current main"
+              if ! GH_TOKEN="$REPO_SETTINGS_TOKEN" gh workflow run \
+                enforce-repo-settings.yml \
+                --repo "$GITHUB_REPOSITORY" \
+                -f source_sha="$current_source_sha"; then
+                echo "[ERROR] Could not enqueue the current protected-main receipt" >&2
+                exit 1
+              fi
+              exit 0
+            fi
+            echo "[ERROR] Source receipt is not an approved protected-main commit" >&2
+            exit 1
+          fi
+          echo "[OK] Governed reads bound to source ${expected_source_sha:0:8}"
 
           OWNER="${GITHUB_REPOSITORY_OWNER}"
           REPO="${GITHUB_REPOSITORY#*/}"
           CONFIG_REPO="${GITHUB_REPOSITORY_OWNER}/docs-control"
           CONFIG_PATH=".github/config/repo-settings.json"
+          if ! printf '%s\n%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" |
+            awk '/^[1-9][0-9]*$/ { valid++ } END { exit valid != 2 }'; then
+            echo "[ERROR] Workflow run ownership identifiers are invalid" >&2
+            exit 1
+          fi
+          SYNC_BRANCH="governance/sync-managed-files-${expected_source_sha:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          require_sha() {
+            local label="$1" value="$2"
+            if ! printf '%s' "$value" | grep -qE '^[0-9a-f]{40}$'; then
+              echo "[ERROR] ${label} is not a commit SHA" >&2
+              return 1
+            fi
+          }
+
+          read_sync_prs() {
+            local destination="$1"
+            if ! gh api "repos/${OWNER}/${REPO}/pulls?state=open&per_page=100" \
+              --paginate --slurp >"$destination"; then
+              echo "[ERROR] Could not inventory open sync PRs" >&2
+              return 1
+            fi
+            if ! jq -e --arg prefix 'governance/sync-managed-files' '
+              type == "array" and all(.[]; type == "array") and
+              all(.[][] | select(.head.ref | startswith($prefix));
+                (.number | type == "number" and floor == . and . >= 1) and
+                (.head.ref | type == "string" and
+                  test("^governance/sync-managed-files(-[0-9a-f]{12}-[1-9][0-9]*-[1-9][0-9]*)?$")) and
+                (.head.sha | type == "string" and test("^[0-9a-f]{40}$")) and
+                (.head.repo.full_name | type == "string") and
+                (.base.ref | type == "string"))
+            ' "$destination" >/dev/null; then
+              echo "[ERROR] Open sync PR inventory is invalid" >&2
+              return 1
+            fi
+          }
+
+          select_owned_sync_pr() {
+            local inventory="$1" count row pr_num pr_repo pr_base pr_branch pr_head
+            count=$(jq '
+              [.[][] | select(.head.ref | startswith("governance/sync-managed-files"))] | length
+            ' "$inventory")
+            case "$count" in
+              0) return 0 ;;
+              1)
+                row=$(jq -r '
+                  .[][] | select(.head.ref | startswith("governance/sync-managed-files")) |
+                  [.number, .head.repo.full_name, .base.ref, .head.ref, .head.sha] | @tsv
+                ' "$inventory")
+                IFS=$'\t' read -r pr_num pr_repo pr_base pr_branch pr_head <<<"$row"
+                if [ "$pr_repo" != "${OWNER}/${REPO}" ] || [ "$pr_base" != "main" ]; then
+                  echo "[ERROR] Open sync PR is not owned by protected ${OWNER}/${REPO} main" >&2
+                  return 1
+                fi
+                printf '%s\t%s\t%s\n' "$pr_num" "$pr_branch" "$pr_head"
+                ;;
+              *)
+                echo "[ERROR] Multiple open sync PRs claim governance/sync-managed-files" >&2
+                return 1
+                ;;
+            esac
+          }
+
+          assert_sync_pr_head() {
+            local pr_num="$1" expected_branch="$2" expected_sha="$3" response
+            if ! printf '%s' "$pr_num" | grep -qE '^[1-9][0-9]*$'; then
+              echo "[ERROR] Invalid sync PR number" >&2
+              return 1
+            fi
+            if ! printf '%s' "$expected_branch" |
+              grep -qE '^governance/sync-managed-files(-[0-9a-f]{12}-[1-9][0-9]*-[1-9][0-9]*)?$'; then
+              echo "[ERROR] Invalid sync PR branch" >&2
+              return 1
+            fi
+            require_sha "expected sync PR head" "$expected_sha" || return 1
+            response=$(gh api "repos/${OWNER}/${REPO}/pulls/${pr_num}")
+            if ! echo "$response" | jq -e \
+              --arg repo "${OWNER}/${REPO}" \
+              --arg branch "$expected_branch" \
+              --arg sha "$expected_sha" '
+                .state == "open" and
+                .head.repo.full_name == $repo and
+                .head.ref == $branch and
+                .head.sha == $sha and
+                .base.ref == "main"
+              ' >/dev/null; then
+              echo "[ERROR] Sync PR ownership or exact head changed before auto-merge" >&2
+              return 1
+            fi
+          }
+
+          managed_cache_path() {
+            local dest_file="$1" cache_key
+            cache_key=$(printf '%s' "$dest_file" | git hash-object --stdin)
+            require_sha "managed cache key" "$cache_key" || return 1
+            printf '/tmp/drift_content/%s' "$cache_key"
+          }
+
+          validate_managed_routing() {
+            jq -e '
+              type == "object" and
+              (.source_repo | type == "string" and length > 0) and
+              (.files | type == "array" and length > 0) and
+              all(.files[];
+                (.src | type == "string" and length > 0) and
+                (.dest | type == "string" and length > 0) and
+                ((has("only_repos") | not) or
+                  (.only_repos | type == "array" and
+                    all(.[]; type == "string" and test("^[A-Za-z0-9_.-]+$")) and
+                    length == (unique | length)))) and
+              (.skip_files | type == "object") and
+              all(.skip_files | to_entries[];
+                (.key | test("^[A-Za-z0-9_.-]+$")) and
+                (.value | type == "array" and
+                  all(.[]; type == "string" and length > 0) and
+                  length == (unique | length)))
+            ' >/dev/null
+          }
+
+          validate_docs_sites() {
+            jq -e --arg owner "$OWNER" '
+              type == "array" and
+              all(.[];
+                (.label | type == "string" and length > 0) and
+                (.description | type == "string" and length > 0) and
+                (.url | type == "string" and
+                  test("^https://" + $owner + "\\.github\\.io/[A-Za-z0-9_.-]+/llms-full\\.txt$")) and
+                ((has("badges") | not) or
+                  (.badges | type == "array" and
+                    all(.[]; (.name | type == "string" and length > 0) and
+                      (.workflow | type == "string" and test("^[A-Za-z0-9_.-]+\\.ya?ml$"))))) and
+                ((has("readme_english_only") | not) or
+                  (.readme_english_only | type == "boolean")) and
+                ((has("readme_content") | not) or
+                  (.readme_content | type == "string"))) and
+              ([.[].url] | length == (unique | length))
+            ' >/dev/null
+          }
+
+          select_owned_stale_issues() {
+            jq -r '
+              if type != "array" or
+                any(.[]; (.number | type != "number" or floor != . or . < 1) or
+                  (.title | type != "string") or (.body | type != "string"))
+              then error("invalid issue inventory")
+              else
+                .[] |
+                select(.title == "chore: sync managed files from governance template") |
+                select(.body | contains("This issue was created automatically by the governance enforcement workflow.")) |
+                .number
+              end
+            '
+          }
 
           # --- Helper: enable auto-merge (replaces polling) -----------------
           auto_merge() {
             local pr_num="$1"
             local repo_slug="$2"
+            local expected_sha="$3"
+            require_sha "expected auto-merge head" "$expected_sha" || return 1
 
             echo "[INFO] Enabling auto-merge for PR #${pr_num}..."
 
-            if gh pr merge "${pr_num}" --repo "${repo_slug}" --auto --squash --delete-branch 2>/dev/null; then
+            if gh pr merge "${pr_num}" --repo "${repo_slug}" --auto --squash \
+              --delete-branch --match-head-commit "$expected_sha" 2>/dev/null; then
               echo "[OK] Auto-merge enabled for PR #${pr_num} -- will merge when checks pass"
               return 0
             fi
@@ -206,7 +426,8 @@ jobs:
                   else "pending" end' 2>/dev/null) || BUCKET="pending"
 
               if [ "$BUCKET" = "pass" ]; then
-                if gh pr merge "${pr_num}" --repo "${repo_slug}" --squash --delete-branch 2>/dev/null; then
+                if gh pr merge "${pr_num}" --repo "${repo_slug}" --squash \
+                  --delete-branch --match-head-commit "$expected_sha" 2>/dev/null; then
                   echo "[OK] Merged sync PR #${pr_num}"
                   return 0
                 fi
@@ -236,8 +457,13 @@ jobs:
           append_tree_item() {
             local tree_items_file="$1"
             local dest_file="$2"
-            local content_file="$3"
+            local file_mode="$3"
+            local content_file="$4"
             local next_items_file
+            if ! printf '%s' "$file_mode" | grep -qE '^100(644|755)$'; then
+              echo "[ERROR] Invalid Git mode for ${dest_file}: ${file_mode}" >&2
+              return 1
+            fi
             next_items_file=$(mktemp "${tree_items_file}.next.XXXXXX")
 
             # Both the existing tree and managed content are unbounded payloads.
@@ -245,8 +471,9 @@ jobs:
             # smaller per-argument MAX_ARG_STRLEN limit.
             if ! jq \
               --arg path "$dest_file" \
+              --arg mode "$file_mode" \
               --rawfile content "$content_file" \
-              '. + [{"path": $path, "mode": "100644", "type": "blob", "content": $content}]' \
+              '. + [{"path": $path, "mode": $mode, "type": "blob", "content": $content}]' \
               "$tree_items_file" >"$next_items_file"; then
               rm -f "$next_items_file"
               return 1
@@ -269,31 +496,10 @@ jobs:
           commit_tree() {
             local branch="$1"
             local commit_msg="$2"
-            # Optional base commit. When given, the new commit is parented on it and the
-            # branch ref is force-moved -- which rebases the branch and adds the drift in a
-            # SINGLE ref update. Doing those as two calls empties the PR in between: the
-            # branch briefly equals main, so it has zero commits ahead of base and GitHub
-            # closes it and disables auto-merge (#836).
-            local base_override="${3:-}"
             local repo_slug="${OWNER}/${REPO}"
 
-            # Never interpolate a non-SHA into a URL: that is what turned a transient
-            # 404 into three attempts against an unresolvable request (issue #805).
-            require_sha() {
-              local label="$1" value="$2"
-              if ! printf '%s' "$value" | grep -qE '^[0-9a-f]{40}$'; then
-                echo "[ERROR] ${label} is not a commit SHA: ${value}" >&2
-                return 1
-              fi
-            }
-
-            local ref_sha force_update="false"
-            if [ -n "$base_override" ]; then
-              ref_sha="$base_override"
-              force_update="true"
-            else
-              ref_sha=$(retry 3 gh api "repos/${repo_slug}/git/ref/heads/${branch}" --jq '.object.sha')
-            fi
+            local ref_sha
+            ref_sha=$(retry 3 gh api "repos/${repo_slug}/git/ref/heads/${branch}" --jq '.object.sha')
             require_sha "ref_sha for ${branch}" "$ref_sha" || return 1
 
             local base_tree
@@ -308,25 +514,38 @@ jobs:
             local item_index=0
             for dest_file in $(printf '%b' "$DRIFT_FILES" | sed '/^$/d'); do
               local source_file=""
-              local normalized_file
-              local key
-              key=$(echo "$dest_file" | tr '/' '__')
+              local content_file
+              local file_mode
 
               if [ "$dest_file" = ".github/dependabot.yml" ] && [ "$DEPENDABOT_DRIFT" = true ]; then
                 source_file="/tmp/generated_dependabot.yml"
+                item_index=$((item_index + 1))
+                content_file="${payload_dir}/content-${item_index}"
+                normalize_tree_content "$source_file" "$content_file"
+                file_mode=100644
               elif [ "$dest_file" = "README.md" ] && [ "$README_DRIFT" = true ]; then
                 source_file="/tmp/generated_readme.md"
-              elif [ -f "/tmp/drift_content/${key}" ]; then
-                source_file="/tmp/drift_content/${key}"
+                item_index=$((item_index + 1))
+                content_file="${payload_dir}/content-${item_index}"
+                normalize_tree_content "$source_file" "$content_file"
+                file_mode=100644
+              elif source_file=$(managed_cache_path "$dest_file") &&
+                [ -f "$source_file" ]; then
+                content_file="$source_file"
+                if ! file_mode=$(jq -er --arg dest "$dest_file" \
+                  '.files[$dest].mode | select(test("^100(644|755)$"))' \
+                  "$MANIFEST_RECEIPT_FILE"); then
+                  echo "[ERROR] Missing canonical Git mode for ${dest_file}" >&2
+                  rm -r "$payload_dir"
+                  return 1
+                fi
               else
-                echo "[WARN] No cached content for ${dest_file} -- skipping"
-                continue
+                echo "[ERROR] No cached content for required drift path ${dest_file}" >&2
+                rm -r "$payload_dir"
+                return 1
               fi
 
-              item_index=$((item_index + 1))
-              normalized_file="${payload_dir}/content-${item_index}"
-              normalize_tree_content "$source_file" "$normalized_file"
-              append_tree_item "$tree_items_file" "$dest_file" "$normalized_file"
+              append_tree_item "$tree_items_file" "$dest_file" "$file_mode" "$content_file"
             done
 
             local item_count
@@ -350,13 +569,14 @@ jobs:
               '{"message": $msg, "tree": $tree, "parents": [$parent]}')
             local new_commit_sha
             new_commit_sha=$(echo "$commit_json" | retry 3 gh api "repos/${repo_slug}/git/commits" --method POST --input - --jq '.sha')
+            require_sha "new_commit_sha for ${branch}" "$new_commit_sha" || return 1
 
             local ref_update
-            ref_update=$(jq -n --arg sha "$new_commit_sha" --argjson force "$force_update" \
-              '{"sha": $sha, "force": $force}')
+            ref_update=$(jq -n --arg sha "$new_commit_sha" '{"sha": $sha}')
             retry_json 3 "$ref_update" "repos/${repo_slug}/git/refs/heads/${branch}" --method PATCH >/dev/null
 
             rm -r "$payload_dir"
+            LAST_COMMIT_SHA="$new_commit_sha"
             echo "[OK] Atomic commit ${new_commit_sha:0:8} (${item_count} files)"
           }
 
@@ -379,6 +599,8 @@ jobs:
           if ! echo "$CONFIG" | jq empty 2>/dev/null; then
             echo "[ERROR] Failed to fetch or parse config from ${CONFIG_REPO}" >&2; exit 1
           fi
+          CONFIG_RECEIPT_FILE=$(mktemp)
+          printf '%s' "$CONFIG" >"$CONFIG_RECEIPT_FILE"
           echo "[OK] Fetched config from ${CONFIG_REPO}"
 
           echo "[OK] Config validated for ${OWNER}/${REPO}"
@@ -395,7 +617,15 @@ jobs:
           if [ -z "$MANAGED_FILES" ]; then
             echo "[SKIP] No managed_files in config"
           else
+            if ! echo "$MANAGED_FILES" | validate_managed_routing; then
+              echo "[ERROR] Managed-file routing schema is invalid" >&2
+              exit 1
+            fi
             SOURCE_REPO=$(echo "$MANAGED_FILES" | jq -r '.source_repo')
+            if [ "$SOURCE_REPO" != "$CONFIG_REPO" ]; then
+              echo "[ERROR] Managed source must be the exact governance repository" >&2
+              exit 1
+            fi
 
             # Guard: skip if running in the source repo itself
             if [ "${OWNER}/${REPO}" = "$SOURCE_REPO" ]; then
@@ -407,24 +637,95 @@ jobs:
               # Per-repo opt-out list (files this repo maintains independently)
               SKIP_LIST=$(echo "$MANAGED_FILES" | jq -c --arg repo "$REPO" '.skip_files[$repo] // []')
 
-              # Fetch the pre-computed manifest once (1 API call vs 34×2 per-file
-              # content fetches). Manifest is produced by
-              # build-managed-files-manifest.yml in docs-control on every change
-              # to a managed-file source. Downstream side uses local
-              # `git hash-object` to compare against manifest SHAs -- no API call
-              # per file. Falls back to per-file fetch if manifest is missing or
-              # an entry isn't listed there yet.
+              # The manifest is required receipt evidence. Missing or malformed
+              # entries fail closed; no mutable per-file fallback is admissible.
               MANIFEST_PATH=".github/config/managed-files-manifest.json"
-              MANIFEST=$(fetch_governed "managed-files-manifest.json" "repos/${SOURCE_REPO}/contents/${MANIFEST_PATH}" 2>/dev/null || echo "")
-              MANIFEST_AVAILABLE=false
-              if [ -n "$MANIFEST" ] && echo "$MANIFEST" | jq -e '.files' >/dev/null 2>&1; then
-                MANIFEST_AVAILABLE=true
-                MANIFEST_COMMIT=$(echo "$MANIFEST" | jq -r '.source_commit // "unknown"')
-                echo "[INFO] Using manifest from ${SOURCE_REPO}@${MANIFEST_COMMIT} for drift detection"
+              MANIFEST_RECEIPT_FILE=$(mktemp)
+              if ! fetch_governed \
+                "managed-files-manifest.json" \
+                "repos/${SOURCE_REPO}/contents/${MANIFEST_PATH}" \
+                >"$MANIFEST_RECEIPT_FILE"; then
+                echo "[ERROR] Required managed-files manifest is unavailable" >&2
+                exit 1
               fi
-              if [ "$MANIFEST_AVAILABLE" = false ]; then
-                echo "[WARN] No manifest available -- falling back to per-file API fetch"
+              if ! jq -e '
+                type == "object" and
+                (.source_commit | type == "string" and test("^[0-9a-f]{40}$")) and
+                (.files | type == "object" and length > 0) and
+                all(.files | to_entries[];
+                  .key == .value.dest and
+                  (.value.src | type == "string" and length > 0) and
+                  (.value.dest | type == "string" and length > 0) and
+                  (.value.sha | type == "string" and test("^[0-9a-f]{40}$")) and
+                  (.value.size | type == "number" and floor == . and . >= 0) and
+                  (.value.mode | type == "string" and test("^100(644|755)$")))
+              ' "$MANIFEST_RECEIPT_FILE" >/dev/null; then
+                echo "[ERROR] Required managed-files manifest is malformed" >&2
+                exit 1
               fi
+              MANIFEST_COMMIT=$(jq -r '.source_commit' "$MANIFEST_RECEIPT_FILE")
+              MANIFEST_STATUS=identical
+              if [ "$MANIFEST_COMMIT" != "$expected_source_sha" ]; then
+                if ! MANIFEST_STATUS=$(retry 3 gh api \
+                  "repos/${SOURCE_REPO}/compare/${MANIFEST_COMMIT}...${expected_source_sha}" \
+                  --jq '.status'); then
+                  echo "[ERROR] Could not prove managed manifest provenance" >&2
+                  exit 1
+                fi
+              fi
+              if [ "$MANIFEST_STATUS" != "identical" ] && [ "$MANIFEST_STATUS" != "ahead" ]; then
+                echo "[ERROR] Managed manifest source is not on protected-main history" >&2
+                exit 1
+              fi
+
+              SOURCE_TREE_FILE=$(mktemp)
+              MANIFEST_TREE_FILE=$(mktemp)
+              if ! retry 3 gh api \
+                "repos/${SOURCE_REPO}/git/trees/${expected_source_sha}?recursive=1" \
+                >"$SOURCE_TREE_FILE" ||
+                ! retry 3 gh api \
+                  "repos/${SOURCE_REPO}/git/trees/${MANIFEST_COMMIT}?recursive=1" \
+                  >"$MANIFEST_TREE_FILE"; then
+                echo "[ERROR] Could not resolve exact managed source trees" >&2
+                exit 1
+              fi
+              if ! jq -e \
+                --slurpfile config "$CONFIG_RECEIPT_FILE" \
+                --slurpfile source_tree "$SOURCE_TREE_FILE" \
+                --slurpfile manifest_tree "$MANIFEST_TREE_FILE" '
+                  . as $manifest |
+                  ($config[0].managed_files.files) as $configured |
+                  ($source_tree[0]) as $current |
+                  ($manifest_tree[0]) as $provenance |
+                  ($configured | type == "array" and length > 0) and
+                  (($configured | map(.dest) | length) ==
+                    ($configured | map(.dest) | unique | length)) and
+                  (($manifest.files | keys | sort) ==
+                    ($configured | map(.dest) | sort)) and
+                  ($current.truncated == false) and
+                  ($current.tree | type == "array") and
+                  ($provenance.truncated == false) and
+                  ($provenance.tree | type == "array") and
+                  all($configured[];
+                    . as $file |
+                    ($manifest.files[$file.dest]) as $receipt |
+                    ([$current.tree[] | select(.path == $file.src)]) as $current_entries |
+                    ([$provenance.tree[] | select(.path == $file.src)]) as $provenance_entries |
+                    ($receipt | type == "object") and
+                    ($receipt.src == $file.src) and
+                    ($receipt.dest == $file.dest) and
+                    ($current_entries | length == 1) and
+                    ($provenance_entries | length == 1) and
+                    all([$current_entries[0], $provenance_entries[0]][];
+                      .type == "blob" and
+                      .sha == $receipt.sha and
+                      .size == $receipt.size and
+                      .mode == $receipt.mode))
+                ' "$MANIFEST_RECEIPT_FILE" >/dev/null; then
+                echo "[ERROR] Exact source tree does not match the managed manifest" >&2
+                exit 1
+              fi
+              echo "[INFO] Using exact manifest from ${SOURCE_REPO}@${MANIFEST_COMMIT} for drift detection"
 
               mkdir -p /tmp/drift_content
 
@@ -448,53 +749,34 @@ jobs:
                   continue
                 fi
 
-                # Manifest-based path: compare git blob SHA locally (no API)
-                if [ "$MANIFEST_AVAILABLE" = true ]; then
-                  CANONICAL_SHA=$(echo "$MANIFEST" | jq -r --arg d "$dest" '.files[$d].sha // empty')
-                  if [ -n "$CANONICAL_SHA" ]; then
-                    if [ -f "$dest" ]; then
-                      LOCAL_SHA=$(git hash-object "$dest")
-                      if [ "$LOCAL_SHA" != "$CANONICAL_SHA" ]; then
-                        echo "[DRIFT] Content mismatch: ${dest}"
-                        DRIFT_FILES="${DRIFT_FILES}${dest}\n"
-                        DRIFT_COUNT=$((DRIFT_COUNT + 1))
-                        DRIFT_CONTENT=$(fetch_governed "files/${dest}" "repos/${SOURCE_REPO}/contents/${src}" 2>/dev/null) || true
-                        if [ -n "$DRIFT_CONTENT" ]; then
-                          printf '%s' "$DRIFT_CONTENT" > "/tmp/drift_content/$(echo "$dest" | tr '/' '__')"
-                        fi
-                      else
-                        echo "[OK] ${dest}"
-                      fi
-                    else
-                      echo "[DRIFT] Missing downstream: ${dest}"
-                      DRIFT_FILES="${DRIFT_FILES}${dest}\n"
-                      DRIFT_COUNT=$((DRIFT_COUNT + 1))
-                      DRIFT_CONTENT=$(fetch_governed "files/${dest}" "repos/${SOURCE_REPO}/contents/${src}" 2>/dev/null) || true
-                      if [ -n "$DRIFT_CONTENT" ]; then
-                        printf '%s' "$DRIFT_CONTENT" > "/tmp/drift_content/$(echo "$dest" | tr '/' '__')"
-                      fi
-                    fi
-                    continue
-                  fi
-                  # Fall through to API path when entry is missing from manifest
-                  # (e.g. a new managed file added but manifest not yet regenerated)
-                  echo "[INFO] ${dest} not in manifest -- falling back to API fetch"
+                MANIFEST_ENTRY=$(jq -c --arg d "$dest" '.files[$d] // empty' "$MANIFEST_RECEIPT_FILE")
+                if [ -z "$MANIFEST_ENTRY" ] || ! echo "$MANIFEST_ENTRY" | jq -e \
+                  --arg src "$src" --arg dest "$dest" '
+                    .src == $src and .dest == $dest and
+                    (.sha | type == "string" and test("^[0-9a-f]{40}$")) and
+                    (.size | type == "number" and floor == . and . >= 0)
+                  ' >/dev/null; then
+                  echo "[ERROR] Manifest entry missing or inconsistent for ${dest}" >&2
+                  exit 1
                 fi
-
-                # Fallback API path (manifest unavailable or entry missing)
-                CANONICAL_CONTENT=$(fetch_governed "files/${dest}" "repos/${SOURCE_REPO}/contents/${src}" 2>/dev/null) || true
-                if [ -z "$CANONICAL_CONTENT" ]; then
-                  echo "[WARN] Could not fetch canonical: ${src}"
-                  continue
-                fi
+                CANONICAL_SHA=$(echo "$MANIFEST_ENTRY" | jq -r '.sha')
+                CANONICAL_SIZE=$(echo "$MANIFEST_ENTRY" | jq -r '.size')
+                CANONICAL_MODE=$(echo "$MANIFEST_ENTRY" | jq -r '.mode')
+                CACHE_FILE=$(managed_cache_path "$dest")
 
                 if [ -f "$dest" ]; then
-                  DOWNSTREAM_CONTENT=$(cat "$dest")
-                  if [ "$CANONICAL_CONTENT" != "$DOWNSTREAM_CONTENT" ]; then
+                  LOCAL_SHA=$(git hash-object "$dest")
+                  LOCAL_MODE=$(git ls-files -s -- "$dest" | awk 'NR == 1 { print $1 }')
+                  if [ "$LOCAL_SHA" != "$CANONICAL_SHA" ] || [ "$LOCAL_MODE" != "$CANONICAL_MODE" ]; then
                     echo "[DRIFT] Content mismatch: ${dest}"
                     DRIFT_FILES="${DRIFT_FILES}${dest}\n"
                     DRIFT_COUNT=$((DRIFT_COUNT + 1))
-                    printf '%s' "$CANONICAL_CONTENT" > "/tmp/drift_content/$(echo "$dest" | tr '/' '__')"
+                    if ! cache_managed_content \
+                      "files/${dest}" \
+                      "repos/${SOURCE_REPO}/contents/${src}" \
+                      "$CANONICAL_SHA" "$CANONICAL_SIZE" "$CACHE_FILE"; then
+                      exit 1
+                    fi
                   else
                     echo "[OK] ${dest}"
                   fi
@@ -502,7 +784,12 @@ jobs:
                   echo "[DRIFT] Missing downstream: ${dest}"
                   DRIFT_FILES="${DRIFT_FILES}${dest}\n"
                   DRIFT_COUNT=$((DRIFT_COUNT + 1))
-                  printf '%s' "$CANONICAL_CONTENT" > "/tmp/drift_content/$(echo "$dest" | tr '/' '__')"
+                  if ! cache_managed_content \
+                    "files/${dest}" \
+                    "repos/${SOURCE_REPO}/contents/${src}" \
+                    "$CANONICAL_SHA" "$CANONICAL_SIZE" "$CACHE_FILE"; then
+                    exit 1
+                  fi
                 fi
               done
 
@@ -575,48 +862,40 @@ jobs:
               else
                 # Fetch docs-sites.json from docs-control
                 DOCS_SITES_JSON=$(fetch_governed "docs-sites.json" "repos/${CONFIG_REPO}/contents/.github/config/docs-sites.json")
-
-                # Look up label and description by matching repo name in URL
-                README_TITLE=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
-                  '.[] | select(.url | contains("/" + $r + "/")) | .label' 2>/dev/null) || true
-                README_DESC=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
-                  '.[] | select(.url | contains("/" + $r + "/")) | .description' 2>/dev/null) || true
-
-                # Fallback: capitalize repo name for title
-                if [ -z "$README_TITLE" ] || [ "$README_TITLE" = "null" ]; then
-                  README_TITLE=$(echo "$REPO" | sed 's/-/ /g; s/\b\(.\)/\u\1/g')
-                  echo "[INFO] No docs-sites.json match -- using capitalized repo name: ${README_TITLE}"
-                fi
-
-                # Fallback: GitHub API repo description
-                if [ -z "$README_DESC" ] || [ "$README_DESC" = "null" ]; then
-                  README_DESC=$(gh api "repos/${OWNER}/${REPO}" --jq '.description // ""') || true
-                  if [ -z "$README_DESC" ] || [ "$README_DESC" = "null" ]; then
-                    README_DESC=""
-                  fi
-                  echo "[INFO] No docs-sites.json description -- using GitHub API description"
-                fi
-
-                DOCS_URL="https://${GITHUB_REPOSITORY_OWNER}.github.io/${REPO}/"
-
-                # Extract per-repo extra badges from docs-sites.json
-                README_BADGES=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" --arg o "$OWNER" \
-                  '[.[] | select(.url | contains("/" + $r + "/")) | .badges // [] | .[]] |
-                   if length == 0 then empty
-                   else .[] | "[![\(.name)](https://github.com/\($o)/\($r)/actions/workflows/\(.workflow)/badge.svg)](https://github.com/\($o)/\($r)/actions/workflows/\(.workflow))"
-                   end' 2>/dev/null) || true
-
-                README_ENGLISH_ONLY=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
-                  '[.[] | select(.url | contains("/" + $r + "/")) |
-                    if has("readme_english_only") then
-                      if (.readme_english_only | type) == "boolean" then .readme_english_only
-                      else error("readme_english_only must be a JSON boolean") end
-                    else false end] |
-                   if length == 0 then false elif length == 1 then .[0] else error("duplicate docs site") end' \
-                  2>/dev/null) || {
-                  echo "[ERROR] Invalid README language policy for ${REPO}" >&2
+                if ! printf '%s' "$DOCS_SITES_JSON" | validate_docs_sites; then
+                  echo "[ERROR] Canonical docs-sites.json is invalid" >&2
                   exit 1
-                }
+                fi
+
+                DOCS_SITE_URL="https://${OWNER}.github.io/${REPO}/llms-full.txt"
+                DOCS_SITE_ENTRY=$(printf '%s' "$DOCS_SITES_JSON" | jq -ec \
+                  --arg url "$DOCS_SITE_URL" '
+                    [.[] | select(.url == $url)] |
+                    if length == 0 then null
+                    elif length == 1 then .[0]
+                    else error("duplicate canonical docs site")
+                    end')
+
+                if [ "$DOCS_SITE_ENTRY" = "null" ]; then
+                  echo "[ERROR] No canonical docs-site metadata for ${OWNER}/${REPO}; add the exact entry or an explicit README.md opt-out" >&2
+                  exit 1
+                else
+                  README_TITLE=$(printf '%s' "$DOCS_SITE_ENTRY" | jq -er '.label')
+                  README_DESC=$(printf '%s' "$DOCS_SITE_ENTRY" | jq -er '.description')
+                  DOCS_URL=$(printf '%s' "$DOCS_SITE_ENTRY" | jq -er \
+                    '.url | sub("llms-full\\.txt$"; "")')
+
+                  # Generate badges only from the selected canonical site entry.
+                  README_BADGES=$(printf '%s' "$DOCS_SITE_ENTRY" | jq -r \
+                    --arg r "$REPO" --arg o "$OWNER" '
+                      .badges // [] |
+                      if length == 0 then empty
+                      else .[] |
+                        "[![\(.name)](https://github.com/\($o)/\($r)/actions/workflows/\(.workflow)/badge.svg)](https://github.com/\($o)/\($r)/actions/workflows/\(.workflow))"
+                      end')
+
+                  README_ENGLISH_ONLY=$(printf '%s' "$DOCS_SITE_ENTRY" |
+                    jq -er '.readme_english_only // false')
                 case "$README_ENGLISH_ONLY" in
                   true)
                     printf '%s\n' '🌐 English' > /tmp/language_nav.tmp
@@ -680,8 +959,7 @@ jobs:
                 fi
 
                 # Replace __EXTRA_CONTENT__ placeholder — inject per-repo markdown content or remove
-                README_CONTENT=$(echo "$DOCS_SITES_JSON" | jq -r --arg r "$REPO" \
-                  '.[] | select(.url | contains("/" + $r + "/")) | .readme_content // empty' 2>/dev/null) || true
+                README_CONTENT=$(printf '%s' "$DOCS_SITE_ENTRY" | jq -r '.readme_content // ""')
 
                 if [ -n "$README_CONTENT" ]; then
                   printf '%s\n' "$README_CONTENT" > /tmp/extra_content.tmp
@@ -716,6 +994,7 @@ jobs:
                 else
                   echo "[OK] README.md"
                 fi
+                fi
               fi
 
               if [ "$DRIFT_COUNT" -eq 0 ]; then
@@ -723,77 +1002,104 @@ jobs:
               else
                 echo "[INFO] Found ${DRIFT_COUNT} drifted file(s)"
 
-                # Check for existing open sync PR (idempotency)
-                EXISTING_PR=$(gh pr list --repo "${OWNER}/${REPO}" \
-                  --head "governance/sync-managed-files" \
-                  --state open --json number --jq '.[0].number // empty' 2>/dev/null) || true
-                if [ -n "$EXISTING_PR" ]; then
-                  echo "[INFO] Open sync PR #${EXISTING_PR} already exists -- updating drifted files"
-
-                  # Rebase onto main AND add the drift in one ref update, by handing
-                  # commit_tree main's SHA as the base. Two calls -- reset the branch to
-                  # main, then commit -- leave the branch equal to main in between, so the
-                  # PR has zero commits ahead of base and GitHub closes it and disables
-                  # auto-merge. The content returns on the next call but the PR does not
-                  # reopen, stranding the change on an unmerged branch (#836).
-                  MAIN_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/git/ref/heads/main" --jq '.object.sha')
-
-                  commit_tree "governance/sync-managed-files" \
-                    "chore: sync managed files from governance template" \
-                    "$MAIN_SHA"
-                  echo "[OK] Rebased onto main and committed drift in one update"
-
-                  echo "[INFO] PR branch updated -- attempting merge"
-                  auto_merge "${EXISTING_PR}" "${OWNER}/${REPO}" || true
-                else
-                  # Close any orphaned sync issues from previous runs
-                  STALE_ISSUES=$(gh issue list --repo "${OWNER}/${REPO}" \
-                    --state open \
-                    --search "chore: sync managed files from governance template" \
-                    --json number --jq '.[].number' 2>/dev/null) || true
-                  for stale_num in $STALE_ISSUES; do
-                    gh issue close "$stale_num" --repo "${OWNER}/${REPO}" \
-                      --comment "Superseded by new sync run. Closing stale issue." 2>/dev/null || true
-                    echo "[INFO] Closed stale sync issue #${stale_num}"
-                  done
-
-                  # Create issue
-                  DRIFT_LIST=$(printf '%b' "$DRIFT_FILES" | sed '/^$/d' | sed 's/^/- /')
-                  ISSUE_BODY=$(printf 'The following managed files have drifted from the canonical source in `%s`:\n\n%s\n\nThis issue was created automatically by the governance enforcement workflow.' \
-                    "$SOURCE_REPO" "$DRIFT_LIST")
-                  ISSUE_NUM=$(gh issue create --repo "${OWNER}/${REPO}" \
-                    --title "chore: sync managed files from governance template" \
-                    --body "$ISSUE_BODY" | grep -o '[0-9]*$')
-                  echo "[OK] Created issue #${ISSUE_NUM}"
-
-                  # Create branch from main HEAD (try create, fall back to update if concurrent run created it)
-                  MAIN_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/git/ref/heads/main" --jq '.object.sha')
-                  BRANCH_CREATE_JSON=$(jq -n --arg sha "$MAIN_SHA" '{"ref":"refs/heads/governance/sync-managed-files","sha":$sha}')
-                  if ! retry_json 3 "$BRANCH_CREATE_JSON" "repos/${OWNER}/${REPO}/git/refs" --method POST >/dev/null 2>&1; then
-                    BRANCH_UPDATE_JSON=$(jq -n --arg sha "$MAIN_SHA" '{"sha":$sha,"force":true}')
-                    retry_json 3 "$BRANCH_UPDATE_JSON" "repos/${OWNER}/${REPO}/git/refs/heads/governance/sync-managed-files" --method PATCH >/dev/null
-                  fi
-                  echo "[OK] Created or updated branch governance/sync-managed-files"
-
-                  commit_tree "governance/sync-managed-files" \
-                    "chore: sync managed files from governance template"
-
-
-                  # Create PR
-                  PR_BODY=$(printf 'Closes #%s\n\nSynced managed files from `%s` canonical source:\n\n%s' \
-                    "$ISSUE_NUM" "$SOURCE_REPO" "$DRIFT_LIST")
-                  PR_URL=$(gh pr create --repo "${OWNER}/${REPO}" \
-                    --head governance/sync-managed-files \
-                    --title "chore: sync managed files from governance template" \
-                    --body "$PR_BODY")
-                  PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
-                  echo "[OK] Created sync PR #${PR_NUM}"
-
-                  # --- Auto-merge governance PR ---------------------------
-                  auto_merge "${PR_NUM}" "${OWNER}/${REPO}" || true
-
-                  SYNC_PR_CREATED=true
+                # Inventory every same-named PR across all head repositories.
+                # The CLI head filter cannot express owner-qualified heads, so
+                # selecting its first result could merge a same-named fork PR.
+                SYNC_PR_INVENTORY=$(mktemp)
+                read_sync_prs "$SYNC_PR_INVENTORY"
+                SYNC_PR_ROW=$(select_owned_sync_pr "$SYNC_PR_INVENTORY")
+                rm -f "$SYNC_PR_INVENTORY"
+                EXISTING_PR=""
+                if [ -n "$SYNC_PR_ROW" ]; then
+                  IFS=$'\t' read -r EXISTING_PR EXISTING_BRANCH EXISTING_HEAD <<<"$SYNC_PR_ROW"
                 fi
+                if [ -n "$EXISTING_PR" ]; then
+                  retry 3 assert_sync_pr_head \
+                    "$EXISTING_PR" "$EXISTING_BRANCH" "$EXISTING_HEAD"
+                  gh pr close "$EXISTING_PR" --repo "${OWNER}/${REPO}" \
+                    --comment "Superseded by exact managed-file receipt ${expected_source_sha:0:12} on run-owned branch ${SYNC_BRANCH}."
+                  echo "[OK] Closed superseded sync PR #${EXISTING_PR} without deleting its branch"
+                fi
+
+                # Close only issues carrying the exact automation ownership marker.
+                STALE_ISSUE_INVENTORY=$(mktemp)
+                if ! gh issue list --repo "${OWNER}/${REPO}" \
+                  --state open \
+                  --search 'chore: sync managed files from governance template' \
+                  --limit 1000 --json number,title,body >"$STALE_ISSUE_INVENTORY"; then
+                  echo "[ERROR] Could not inventory stale sync issues" >&2
+                  rm -f "$STALE_ISSUE_INVENTORY"
+                  exit 1
+                fi
+                if ! STALE_ISSUES=$(select_owned_stale_issues <"$STALE_ISSUE_INVENTORY"); then
+                  echo "[ERROR] Stale sync issue inventory is invalid" >&2
+                  rm -f "$STALE_ISSUE_INVENTORY"
+                  exit 1
+                fi
+                rm -f "$STALE_ISSUE_INVENTORY"
+                for stale_num in $STALE_ISSUES; do
+                  gh issue close "$stale_num" --repo "${OWNER}/${REPO}" \
+                    --comment "Superseded by exact managed-file receipt ${expected_source_sha:0:12}."
+                  echo "[OK] Closed stale owned sync issue #${stale_num}"
+                done
+
+                DRIFT_LIST=$(printf '%b' "$DRIFT_FILES" | sed '/^$/d' | sed 's/^/- /')
+                ISSUE_BODY=$(printf 'The following managed files have drifted from the canonical source in `%s`:\n\n%s\n\nThis issue was created automatically by the governance enforcement workflow.' \
+                  "$SOURCE_REPO" "$DRIFT_LIST")
+                ISSUE_NUM=$(gh issue create --repo "${OWNER}/${REPO}" \
+                  --title "chore: sync managed files from governance template" \
+                  --body "$ISSUE_BODY" | grep -o '[0-9]*$')
+                if ! printf '%s' "$ISSUE_NUM" | grep -qE '^[1-9][0-9]*$'; then
+                  echo "[ERROR] Issue creation returned an invalid URL" >&2
+                  exit 1
+                fi
+                echo "[OK] Created issue #${ISSUE_NUM}"
+
+                # The run-owned branch must be absent. Never move or reuse an
+                # unproved ref, even if an earlier attempt used the same name.
+                MAIN_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/git/ref/heads/main" --jq '.object.sha')
+                require_sha "protected main" "$MAIN_SHA"
+                set +e
+                EXISTING_BRANCH_SHA=$(api_value_or_404 \
+                  "repos/${OWNER}/${REPO}/git/ref/heads/${SYNC_BRANCH}" \
+                  '.object.sha')
+                BRANCH_LOOKUP_RC=$?
+                set -e
+                case "$BRANCH_LOOKUP_RC" in
+                  0)
+                    require_sha "unexpected run-owned sync branch" "$EXISTING_BRANCH_SHA"
+                    echo "[ERROR] Run-owned sync branch ${SYNC_BRANCH} already exists" >&2
+                    exit 1
+                    ;;
+                  44)
+                    BRANCH_CREATE_JSON=$(jq -n --arg sha "$MAIN_SHA" --arg branch "$SYNC_BRANCH" \
+                      '{"ref":("refs/heads/" + $branch),"sha":$sha}')
+                    retry_json 3 "$BRANCH_CREATE_JSON" \
+                      "repos/${OWNER}/${REPO}/git/refs" --method POST >/dev/null
+                    ;;
+                  *) exit 1 ;;
+                esac
+                echo "[OK] Created run-owned branch ${SYNC_BRANCH} at protected main"
+
+                commit_tree "$SYNC_BRANCH" \
+                  "chore: sync managed files from governance template"
+
+                PR_BODY=$(printf 'Closes #%s\n\nSynced managed files from `%s` canonical source:\n\n%s' \
+                  "$ISSUE_NUM" "$SOURCE_REPO" "$DRIFT_LIST")
+                PR_URL=$(gh pr create --repo "${OWNER}/${REPO}" \
+                  --base main --head "$SYNC_BRANCH" \
+                  --title "chore: sync managed files from governance template" \
+                  --body "$PR_BODY")
+                PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
+                if ! printf '%s' "$PR_NUM" | grep -qE '^[1-9][0-9]*$'; then
+                  echo "[ERROR] PR creation returned an invalid URL" >&2
+                  exit 1
+                fi
+                echo "[OK] Created sync PR #${PR_NUM}"
+
+                retry 3 assert_sync_pr_head "$PR_NUM" "$SYNC_BRANCH" "$LAST_COMMIT_SHA"
+                auto_merge "$PR_NUM" "${OWNER}/${REPO}" "$LAST_COMMIT_SHA"
+                SYNC_PR_CREATED=true
               fi
             fi
           fi
@@ -804,9 +1110,9 @@ jobs:
 
           if [ -n "$MANAGED_FILES" ] && [ "${OWNER}/${REPO}" != "$SOURCE_REPO" ]; then
             if [ "$SYNC_PR_CREATED" = true ]; then
-              echo "[OK] Sync PR created and merge attempted -- check logs above for result"
+              echo "[OK] Sync PR created with a confirmed merge transition"
             elif [ -n "$EXISTING_PR" ]; then
-              echo "[OK] Existing sync PR #${EXISTING_PR} merge attempted -- check logs above for result"
+              echo "[OK] Existing sync PR #${EXISTING_PR} has a confirmed merge transition"
             else
               echo "[OK] Managed files verified"
             fi
@@ -814,4 +1120,4 @@ jobs:
             echo "[SKIP] No managed files to verify"
           fi
 
-          echo "[OK] Managed file sync complete"
+          echo "[OK] Managed-file enforcement run complete"

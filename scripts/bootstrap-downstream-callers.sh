@@ -101,6 +101,28 @@ retry() {
   done
 }
 
+active_run_ids() {
+  local slug="$1" state_filter
+  # Filter server-side so quiescence is proportional to active work, not the
+  # repository's unbounded workflow history. Inventory repository-wide runs
+  # and select the exact workflow path locally: the workflow-scoped endpoint
+  # returns 404 after the file is deleted even while a legacy run remains active.
+  for state_filter in \
+    status=queued \
+    status=in_progress \
+    status=waiting \
+    status=requested \
+    status=pending; do
+    if ! GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
+      "repos/${slug}/actions/runs?${state_filter}&per_page=100" \
+      --paginate --jq \
+      '.workflow_runs[] | select(.path == ".github/workflows/enforce-repo-settings.yml") | .id'; then
+      echo "[ERROR] Could not inventory ${state_filter#status=} enforcement runs for ${slug}" >&2
+      return 1
+    fi
+  done
+}
+
 assert_source_current() {
   local current_main
   current_main=$(gh api "repos/${repository}/commits/main" --jq '.sha')
@@ -264,7 +286,7 @@ reconcile_bootstrap_prs() {
 }
 
 quiesce_one() {
-  local name="$1" slug state runs run_id status attempt rc
+  local name="$1" slug state runs run_id status attempt rc workflow_present=true empty_sweeps=0
   slug="${owner}/${name}"
   set +e
   state=$(api_value_or_404 \
@@ -274,39 +296,55 @@ quiesce_one() {
   set -e
   case "$rc" in
   0) ;;
-  44) return 0 ;;
+  44) workflow_present=false ;;
   *) return 1 ;;
   esac
-  if [ "$state" != "disabled_manually" ]; then
+  if [ "$workflow_present" = true ] && [ "$state" != "disabled_manually" ]; then
     GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
       "repos/${slug}/actions/workflows/enforce-repo-settings.yml/disable" \
       --method PUT >/dev/null
   fi
 
-  runs=$(GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
-    "repos/${slug}/actions/workflows/enforce-repo-settings.yml/runs?per_page=100" \
-    --paginate --jq '.workflow_runs[] | select(.status != "completed") | .id')
-  while IFS= read -r run_id; do
-    [ -n "$run_id" ] || continue
-    if ! GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
-      "repos/${slug}/actions/runs/${run_id}/cancel" --method POST >/dev/null 2>&1; then
-      status=$(GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
-        "repos/${slug}/actions/runs/${run_id}" --jq '.status')
-      [ "$status" = "completed" ] || return 1
+  # A run may change status between filtered API queries and escape one sweep.
+  # Require two consecutive empty inventories after disabling, and cancel every
+  # run found in every sweep, before certifying quiescence.
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    if ! runs=$(active_run_ids "$slug"); then
+      return 1
     fi
-  done <<<"$runs"
-
-  for attempt in 1 2 3 4 5; do
-    runs=$(GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
-      "repos/${slug}/actions/workflows/enforce-repo-settings.yml/runs?per_page=100" \
-      --paginate --jq '.workflow_runs[] | select(.status != "completed") | .id')
-    [ -z "$runs" ] && break
-    sleep "$((attempt * 2))"
+    while IFS= read -r run_id; do
+      [ -n "$run_id" ] || continue
+      if [[ ! "$run_id" =~ ^[1-9][0-9]*$ ]]; then
+        echo "[ERROR] Active-run inventory returned an invalid run ID for ${slug}" >&2
+        return 1
+      fi
+      if ! GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
+        "repos/${slug}/actions/runs/${run_id}/cancel" --method POST >/dev/null 2>&1; then
+        status=$(GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
+          "repos/${slug}/actions/runs/${run_id}" --jq '.status')
+        [ "$status" = "completed" ] || return 1
+      fi
+    done <<<"$runs"
+    if [ -z "$runs" ]; then
+      empty_sweeps=$((empty_sweeps + 1))
+      [ "$empty_sweeps" -ge 2 ] && break
+    else
+      empty_sweeps=0
+    fi
+    sleep "$((attempt < 5 ? attempt : 5))"
   done
-  [ -z "$runs" ] || return 1
-  state=$(GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
-    "repos/${slug}/actions/workflows/enforce-repo-settings.yml" --jq '.state')
-  [ "$state" = "disabled_manually" ]
+  [ "$empty_sweeps" -ge 2 ] || return 1
+  set +e
+  state=$(api_value_or_404 \
+    "repos/${slug}/actions/workflows/enforce-repo-settings.yml" '.state' \
+    "$REPO_SETTINGS_TOKEN")
+  rc=$?
+  set -e
+  case "$rc" in
+  0) [ "$state" = "disabled_manually" ] ;;
+  44) return 0 ;;
+  *) return 1 ;;
+  esac
 }
 
 quiesce_fleet() {
@@ -565,7 +603,8 @@ bootstrap_one() {
     echo "[ERROR] Bootstrap caller changed after exact PR verification for ${name}" >&2
     return 1
   fi
-  gh pr merge "$pr_number" --repo "$slug" --auto --squash --delete-branch
+  gh pr merge "$pr_number" --repo "$slug" --auto --squash --delete-branch \
+    --match-head-commit "$verified_head"
   echo "[BOOTSTRAP] ${name} caller PR #${pr_number} is queued for exact merge"
 }
 
@@ -683,6 +722,10 @@ if [ "$source_superseded" = true ]; then
   exit 78
 fi
 if [ "$enable_failures" -gt 0 ]; then
+  if ! quiesce_fleet; then
+    echo "[ERROR] Enable failed and fleet rollback could not be verified" >&2
+    exit 1
+  fi
   echo "[ERROR] ${enable_failures} exact enforcement workflow(s) remain disabled" >&2
   exit 1
 fi

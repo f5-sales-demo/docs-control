@@ -9,17 +9,15 @@ on:
   workflow_dispatch:
     inputs:
       source_sha:
-        description: 'Commit SHA of the docs-control push that triggered this run. Used for Pages staleness check.'
-        required: false
+        description: 'Exact docs-control commit receipt for every governed read.'
+        required: true
         type: string
-        default: ''
   workflow_call:
     inputs:
       source_sha:
-        description: 'Commit SHA of the docs-control push that triggered this run. Used for Pages staleness check.'
-        required: false
+        description: 'Exact docs-control commit receipt for every governed read.'
+        required: true
         type: string
-        default: ''
     secrets:
       repo-settings-token:
         description: 'PAT with admin permissions for repository settings'
@@ -46,6 +44,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.repo-settings-token || secrets.REPO_SETTINGS_TOKEN }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
 
@@ -113,6 +113,137 @@ jobs:
             retry "$max" bash -c 'printf "%s" "$0" | gh api "$@" --input -' "$json" "$@"
           }
 
+          api_value_or_404() {
+            local endpoint="$1" jq_filter="$2"
+            local out_file err_file rc value
+            out_file=$(mktemp)
+            err_file=$(mktemp)
+            set +e
+            gh api "$endpoint" --jq "$jq_filter" >"$out_file" 2>"$err_file"
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then
+              value=$(cat "$out_file")
+              rm -f "$out_file" "$err_file"
+              if [ -z "$value" ]; then
+                echo "[ERROR] GitHub API returned an empty value for ${endpoint}" >&2
+                return 1
+              fi
+              printf '%s' "$value"
+              return 0
+            fi
+            if grep -qE '\(HTTP 404\)$' "$err_file"; then
+              rm -f "$out_file" "$err_file"
+              return 44
+            fi
+            echo "[ERROR] GitHub API read failed closed for ${endpoint}" >&2
+            sed -E 's/(Request-Id:).*/\1 [redacted]/I' "$err_file" >&2
+            rm -f "$out_file" "$err_file"
+            return 1
+          }
+
+          normalize_desired_protection() {
+            jq -ce '
+              def names($key):
+                map(if type == "string" then . else error("invalid " + $key) end) | sort;
+              {
+                enforce_admins: .enforce_admins,
+                required_status_checks:
+                  (if .required_status_checks == null then null else {
+                    strict: .required_status_checks.strict,
+                    contexts: (.required_status_checks.contexts | sort)
+                  } end),
+                required_pull_request_reviews:
+                  (if .required_pull_request_reviews == null then null else {
+                    dismiss_stale_reviews:
+                      (.required_pull_request_reviews.dismiss_stale_reviews // false),
+                    require_code_owner_reviews:
+                      (.required_pull_request_reviews.require_code_owner_reviews // false),
+                    required_approving_review_count:
+                      (.required_pull_request_reviews.required_approving_review_count // 0),
+                    require_last_push_approval:
+                      (.required_pull_request_reviews.require_last_push_approval // false),
+                    dismissal_restrictions: {
+                      users: ((.required_pull_request_reviews.dismissal_restrictions.users // []) | names("users")),
+                      teams: ((.required_pull_request_reviews.dismissal_restrictions.teams // []) | names("teams"))
+                    },
+                    bypass_pull_request_allowances: {
+                      users: ((.required_pull_request_reviews.bypass_pull_request_allowances.users // []) | names("users")),
+                      teams: ((.required_pull_request_reviews.bypass_pull_request_allowances.teams // []) | names("teams")),
+                      apps: ((.required_pull_request_reviews.bypass_pull_request_allowances.apps // []) | names("apps"))
+                    }
+                  } end),
+                restrictions:
+                  (if .restrictions == null then null else {
+                    users: ((.restrictions.users // []) | names("users")),
+                    teams: ((.restrictions.teams // []) | names("teams")),
+                    apps: ((.restrictions.apps // []) | names("apps"))
+                  } end),
+                required_linear_history: .required_linear_history,
+                allow_force_pushes: .allow_force_pushes,
+                allow_deletions: .allow_deletions,
+                block_creations: .block_creations,
+                required_conversation_resolution: .required_conversation_resolution,
+                lock_branch: .lock_branch,
+                allow_fork_syncing: .allow_fork_syncing
+              }
+            '
+          }
+
+          normalize_current_protection() {
+            jq -ce '
+              def identities($key):
+                map(
+                  if type == "string" then .
+                  elif $key == "users" then .login
+                  else .slug
+                  end
+                ) | sort;
+              {
+                enforce_admins: .enforce_admins.enabled,
+                required_status_checks:
+                  (if .required_status_checks == null then null else {
+                    strict: .required_status_checks.strict,
+                    contexts: (.required_status_checks.contexts | sort)
+                  } end),
+                required_pull_request_reviews:
+                  (if .required_pull_request_reviews == null then null else {
+                    dismiss_stale_reviews:
+                      (.required_pull_request_reviews.dismiss_stale_reviews // false),
+                    require_code_owner_reviews:
+                      (.required_pull_request_reviews.require_code_owner_reviews // false),
+                    required_approving_review_count:
+                      (.required_pull_request_reviews.required_approving_review_count // 0),
+                    require_last_push_approval:
+                      (.required_pull_request_reviews.require_last_push_approval // false),
+                    dismissal_restrictions: {
+                      users: ((.required_pull_request_reviews.dismissal_restrictions.users // []) | identities("users")),
+                      teams: ((.required_pull_request_reviews.dismissal_restrictions.teams // []) | identities("teams"))
+                    },
+                    bypass_pull_request_allowances: {
+                      users: ((.required_pull_request_reviews.bypass_pull_request_allowances.users // []) | identities("users")),
+                      teams: ((.required_pull_request_reviews.bypass_pull_request_allowances.teams // []) | identities("teams")),
+                      apps: ((.required_pull_request_reviews.bypass_pull_request_allowances.apps // []) | identities("apps"))
+                    }
+                  } end),
+                restrictions:
+                  (if .restrictions == null then null else {
+                    users: ((.restrictions.users // []) | identities("users")),
+                    teams: ((.restrictions.teams // []) | identities("teams")),
+                    apps: ((.restrictions.apps // []) | identities("apps"))
+                  } end),
+                required_linear_history: (.required_linear_history.enabled // false),
+                allow_force_pushes: (.allow_force_pushes.enabled // false),
+                allow_deletions: (.allow_deletions.enabled // false),
+                block_creations: (.block_creations.enabled // false),
+                required_conversation_resolution:
+                  (.required_conversation_resolution.enabled // false),
+                lock_branch: (.lock_branch.enabled // false),
+                allow_fork_syncing: (.allow_fork_syncing.enabled // false)
+              }
+            '
+          }
+
           # Probe an endpoint for its HTTP status line.
           #
           # This deliberately does NOT use retry(): reading a status code requires
@@ -164,69 +295,97 @@ jobs:
             return 1
           }
 
-          # --- Pages-first fetch helper (canonical: tests/fixtures/fetch-governed.sh) ---
-          PAGES_BASE="https://${GITHUB_REPOSITORY_OWNER}.github.io/docs-control"
-
+          # --- Exact-receipt fetch helper (canonical: tests/fixtures/fetch-governed.sh) ---
           fetch_governed() {
-            local key="$1" fallback="$2" body err_file
-            local url="${PAGES_BASE}/api/${key}"
+            local key="$1" fallback="$2" api_file decoded_file err_file
+            local receipt_sha receipt_size decoded_sha decoded_size
 
-            body=$(curl -fsSL --retry 2 --retry-delay 2 --max-time 10 "$url" 2>/dev/null || true)
-            if [ -n "$body" ]; then
-              printf '%s' "$body"
-              return 0
+            if ! printf '%s' "${expected_source_sha:-}" | grep -qE '^[0-9a-f]{40}$'; then
+              echo "[ERROR] Could not resolve an exact docs-control source commit" >&2
+              return 1
+            fi
+            if [[ "$fallback" == *[?#]* ]]; then
+              echo "[ERROR] Governed API path already contains a query or fragment for ${key}" >&2
+              return 1
             fi
 
-            echo "[WARN] Pages unavailable for ${key} — falling back to API" >&2
+            api_file=$(mktemp)
+            decoded_file=$(mktemp)
             err_file=$(mktemp)
-            if ! body=$(retry 3 gh api "$fallback" 2>"$err_file"); then
+            if ! retry 3 gh api "${fallback}?ref=${expected_source_sha}" >"$api_file" 2>"$err_file"; then
               echo "[ERROR] gh api failed for ${key}:" >&2
               cat "$err_file" >&2
-              rm -f "$err_file"
+              rm -f "$api_file" "$decoded_file" "$err_file"
               return 1
             fi
-            rm -f "$err_file"
-            if [ -z "$body" ]; then
-              echo "[ERROR] gh api returned empty body for ${key}" >&2
+            if ! jq -e '
+              .type == "file" and .encoding == "base64" and
+              (.sha | type == "string" and test("^[0-9a-f]{40}$")) and
+              (.size | type == "number" and floor == . and . >= 0) and
+              (.content | type == "string") and
+              (.size == 0 or (.content | length > 0))
+            ' "$api_file" >/dev/null 2>&1; then
+              echo "[ERROR] gh api returned an invalid content envelope for ${key}" >&2
+              rm -f "$api_file" "$decoded_file" "$err_file"
               return 1
             fi
-
-            printf '%s' "$body" | jq -r '.content' | tr -d '\n' | base64 -d
+            if ! jq -r '.content' "$api_file" | tr -d '\n' | base64 -d >"$decoded_file"; then
+              echo "[ERROR] gh api returned invalid base64 content for ${key}" >&2
+              rm -f "$api_file" "$decoded_file" "$err_file"
+              return 1
+            fi
+            receipt_sha=$(jq -r '.sha' "$api_file")
+            receipt_size=$(jq -r '.size' "$api_file")
+            decoded_sha=$(git hash-object "$decoded_file")
+            decoded_size=$(wc -c <"$decoded_file" | tr -d ' ')
+            if [ "$decoded_sha" != "$receipt_sha" ] || [ "$decoded_size" != "$receipt_size" ]; then
+              echo "[ERROR] Decoded bytes do not match the content receipt for ${key}" >&2
+              rm -f "$api_file" "$decoded_file" "$err_file"
+              return 1
+            fi
+            cat "$decoded_file"
+            rm -f "$api_file" "$decoded_file" "$err_file"
           }
 
-          revision_is_fresh() {
-            local source_sha="${1:-}" rev pages_sha
-            [ -z "$source_sha" ] && return 1
-
-            rev=$(curl -fsSL --retry 2 --retry-delay 2 --max-time 10 \
-              "${PAGES_BASE}/api/revision.json" 2>/dev/null || true)
-            [ -z "$rev" ] && return 1
-
-            pages_sha=$(printf '%s' "$rev" | jq -r '.commit // empty')
-            [ "$pages_sha" = "$source_sha" ]
-          }
-
-          # Gate governed reads on Pages freshness. `fetch_governed` prefers the
-          # Pages-published governance mirror, which lags a docs-control merge by
-          # however long its deploy takes; reading a stale mirror means enforcing
-          # OUTDATED settings (and previously `revision_is_fresh` was defined here
-          # but never called, so this workflow had no staleness guard at all).
-          # Prefer the dispatching push's sha; otherwise use docs-control main HEAD.
           expected_source_sha="${SOURCE_SHA:-}"
-          if [ -z "$expected_source_sha" ]; then
-            expected_source_sha=$(retry 3 gh api \
-              "repos/${GITHUB_REPOSITORY_OWNER}/docs-control/commits/main" --jq '.sha' 2>/dev/null || echo "")
+          if [ -z "$expected_source_sha" ] && [ "$EVENT_NAME" != "workflow_call" ]; then
+            expected_source_sha="$EVENT_SHA"
           fi
 
-          if [ -z "$expected_source_sha" ]; then
-            echo "[WARN] Could not determine docs-control main HEAD — using API for governed reads" >&2
-            PAGES_BASE="https://invalid.pages.local"
-          elif ! revision_is_fresh "$expected_source_sha"; then
-            echo "[WARN] Pages revision lags source ${expected_source_sha:0:8} — this run will fall back to API for governed reads" >&2
-            PAGES_BASE="https://invalid.pages.local"
-          else
-            echo "[OK] Pages governance mirror is fresh at ${expected_source_sha:0:8}"
+          if ! printf '%s' "$expected_source_sha" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "[ERROR] Could not resolve an exact docs-control source commit" >&2
+            exit 1
           fi
+          if ! current_source_sha=$(retry 3 gh api \
+            "repos/${GITHUB_REPOSITORY_OWNER}/docs-control/commits/main" --jq '.sha'); then
+            echo "[ERROR] Could not resolve protected docs-control main" >&2
+            exit 1
+          fi
+          if ! printf '%s' "$current_source_sha" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "[ERROR] Protected docs-control main returned an invalid commit" >&2
+            exit 1
+          fi
+          if [ "$expected_source_sha" != "$current_source_sha" ]; then
+            if ! source_status=$(retry 3 gh api \
+              "repos/${GITHUB_REPOSITORY_OWNER}/docs-control/compare/${expected_source_sha}...${current_source_sha}" \
+              --jq '.status'); then
+              echo "[ERROR] Could not prove the source receipt is on protected docs-control main" >&2
+              exit 1
+            fi
+            if [ "$source_status" = "ahead" ]; then
+              echo "[DEFER] Historical protected-main receipt; enqueueing current main"
+              if ! gh workflow run enforce-repo-settings.yml \
+                --repo "$GITHUB_REPOSITORY" \
+                -f source_sha="$current_source_sha"; then
+                echo "[ERROR] Could not enqueue the current protected-main receipt" >&2
+                exit 1
+              fi
+              exit 0
+            fi
+            echo "[ERROR] Source receipt is not an approved protected-main commit" >&2
+            exit 1
+          fi
+          echo "[OK] Governed reads bound to source ${expected_source_sha:0:8}"
 
           OWNER="${GITHUB_REPOSITORY_OWNER}"
           REPO="${GITHUB_REPOSITORY#*/}"
@@ -411,69 +570,34 @@ jobs:
               fi
             fi
 
-            HTTP_CODE=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
-              --include 2>/dev/null | head -1 | awk '{print $2}') || true
-            CURRENT_PROTECTION=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" 2>/dev/null) || true
+            set +e
+            CURRENT_PROTECTION=$(api_value_or_404 \
+              "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" '.')
+            PROTECTION_READ_RC=$?
+            set -e
+            case "$PROTECTION_READ_RC" in
+              0)
+                if ! echo "$CURRENT_PROTECTION" | jq -e 'type == "object"' >/dev/null; then
+                  echo "[ERROR] Branch-protection API returned an invalid response" >&2
+                  exit 1
+                fi
+                ;;
+              44) CURRENT_PROTECTION="" ;;
+              *) exit 1 ;;
+            esac
 
             PROTECTION_DRIFT=false
 
-            if [ "$HTTP_CODE" = "404" ] || [ -z "$CURRENT_PROTECTION" ]; then
+            if [ "$PROTECTION_READ_RC" = 44 ]; then
               echo "[WARN] No branch protection found -- will create"
               PROTECTION_DRIFT=true
             else
-              desired_enforce=$(echo "$DESIRED_PAYLOAD" | jq '.enforce_admins')
-              current_enforce=$(echo "$CURRENT_PROTECTION" | jq '.enforce_admins.enabled')
-              if [ "$desired_enforce" != "$current_enforce" ]; then
-                echo "[WARN] Drift in enforce_admins: current=$current_enforce desired=$desired_enforce"
+              DESIRED_PROTECTION_STATE=$(echo "$DESIRED_PAYLOAD" | normalize_desired_protection)
+              CURRENT_PROTECTION_STATE=$(echo "$CURRENT_PROTECTION" | normalize_current_protection)
+              if [ "$DESIRED_PROTECTION_STATE" != "$CURRENT_PROTECTION_STATE" ]; then
+                echo "[WARN] Branch protection does not match desired state"
                 PROTECTION_DRIFT=true
               fi
-
-              desired_checks=$(echo "$DESIRED_PAYLOAD" | jq -c '.required_status_checks')
-              current_checks_raw=$(echo "$CURRENT_PROTECTION" | jq -c '.required_status_checks')
-              if [ "$current_checks_raw" != "null" ]; then
-                current_checks=$(echo "$current_checks_raw" | jq -c '{strict: .strict, contexts: (.contexts | sort)}')
-              else
-                current_checks="null"
-              fi
-              if [ "$desired_checks" != "null" ]; then
-                desired_checks_norm=$(echo "$desired_checks" | jq -c '{strict: .strict, contexts: (.contexts | sort)}')
-              else
-                desired_checks_norm="null"
-              fi
-              if [ "$desired_checks_norm" != "$current_checks" ]; then
-                echo "[WARN] Drift in required_status_checks"
-                PROTECTION_DRIFT=true
-              fi
-
-              desired_reviews=$(echo "$DESIRED_PAYLOAD" | jq -c '.required_pull_request_reviews')
-              if [ "$desired_reviews" != "null" ]; then
-                for review_key in required_approving_review_count dismiss_stale_reviews require_code_owner_reviews require_last_push_approval; do
-                  desired_val=$(echo "$desired_reviews" | jq ".$review_key")
-                  current_val=$(echo "$CURRENT_PROTECTION" | jq ".required_pull_request_reviews.$review_key // false")
-                  if [ "$desired_val" != "$current_val" ]; then
-                    echo "[WARN] Drift in $review_key: current=$current_val desired=$desired_val"
-                    PROTECTION_DRIFT=true
-                  fi
-                done
-              fi
-
-              desired_restrictions=$(echo "$DESIRED_PAYLOAD" | jq -c '.restrictions')
-              if [ "$desired_restrictions" = "null" ]; then
-                current_restrictions=$(echo "$CURRENT_PROTECTION" | jq -c '.restrictions')
-                if [ "$current_restrictions" != "null" ]; then
-                  echo "[WARN] Drift in restrictions"
-                  PROTECTION_DRIFT=true
-                fi
-              fi
-
-              for flag in required_linear_history allow_force_pushes allow_deletions block_creations required_conversation_resolution lock_branch allow_fork_syncing; do
-                desired_flag=$(echo "$DESIRED_PAYLOAD" | jq ".$flag")
-                current_flag=$(echo "$CURRENT_PROTECTION" | jq ".$flag.enabled // false")
-                if [ "$desired_flag" != "$current_flag" ]; then
-                  echo "[WARN] Drift in $flag: current=$current_flag desired=$desired_flag"
-                  PROTECTION_DRIFT=true
-                fi
-              done
             fi
 
             if [ "$PROTECTION_DRIFT" = true ]; then
@@ -484,16 +608,7 @@ jobs:
                 '{
                   enforce_admins: $desired.enforce_admins,
                   required_status_checks: $desired.required_status_checks,
-                  required_pull_request_reviews: (
-                    if $desired.required_pull_request_reviews == null then null
-                    else {
-                      required_approving_review_count: $desired.required_pull_request_reviews.required_approving_review_count,
-                      dismiss_stale_reviews: $desired.required_pull_request_reviews.dismiss_stale_reviews,
-                      require_code_owner_reviews: $desired.required_pull_request_reviews.require_code_owner_reviews,
-                      require_last_push_approval: $desired.required_pull_request_reviews.require_last_push_approval
-                    }
-                    end
-                  ),
+                  required_pull_request_reviews: $desired.required_pull_request_reviews,
                   restrictions: $desired.restrictions,
                   required_linear_history: $desired.required_linear_history,
                   allow_force_pushes: $desired.allow_force_pushes,
@@ -545,11 +660,17 @@ jobs:
               echo "[WARN] Pages status unknown -- skipping Pages phase rather than guessing between create and update"
             elif [ "$PAGES_HTTP_CODE" = "404" ]; then
               echo "[INFO] Enabling GitHub Pages with ${DESIRED_BUILD_TYPE} source..."
-              retry_json 3 "$PAGES_JSON" "repos/${OWNER}/${REPO}/pages" --method POST >/dev/null 2>&1 || true
+              retry_json 3 "$PAGES_JSON" "repos/${OWNER}/${REPO}/pages" --method POST >/dev/null 2>&1
               echo "[OK] Pages enabled with build_type=${DESIRED_BUILD_TYPE}"
             else
-              PAGES_RESPONSE=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages" 2>/dev/null) || true
-              CURRENT_BUILD_TYPE=$(echo "$PAGES_RESPONSE" | jq -r '.build_type // empty')
+              PAGES_RESPONSE=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages")
+              if ! echo "$PAGES_RESPONSE" | jq -e '
+                type == "object" and (.build_type | type == "string" and length > 0)
+              ' >/dev/null; then
+                echo "[ERROR] Pages API returned an invalid response" >&2
+                exit 1
+              fi
+              CURRENT_BUILD_TYPE=$(echo "$PAGES_RESPONSE" | jq -r '.build_type')
               if [ "$CURRENT_BUILD_TYPE" != "$DESIRED_BUILD_TYPE" ]; then
                 echo "[WARN] Drift in pages.build_type: current=$CURRENT_BUILD_TYPE desired=$DESIRED_BUILD_TYPE"
                 echo "[INFO] Updating Pages build_type to ${DESIRED_BUILD_TYPE}..."
@@ -594,8 +715,31 @@ jobs:
               echo "[INFO] Expected secrets for ${REPO}: $(echo "$EXPECTED_SECRETS" | tr '\n' ', ' | sed 's/,$//')"
 
               # List current secrets
-              CURRENT_SECRETS=$(retry 3 gh api "repos/${OWNER}/${REPO}/actions/secrets" \
-                --jq '.secrets[].name' 2>/dev/null | sort) || true
+              SECRETS_RECEIPT=$(mktemp)
+              if ! retry 3 gh api \
+                "repos/${OWNER}/${REPO}/actions/secrets?per_page=100" \
+                --paginate --slurp >"$SECRETS_RECEIPT"; then
+                echo "[ERROR] Could not inventory repository secrets" >&2
+                rm -f "$SECRETS_RECEIPT"
+                exit 1
+              fi
+              if ! jq -e '
+                type == "array" and length > 0 and
+                all(.[]; type == "object" and
+                  (.total_count | type == "number" and floor == . and . >= 0) and
+                  (.secrets | type == "array") and
+                  all(.secrets[]; .name | type == "string" and length > 0)) and
+                ([.[].total_count] | unique | length == 1) and
+                ([.[].secrets[].name] | length) ==
+                  ([.[].secrets[].name] | unique | length) and
+                .[0].total_count == ([.[].secrets[].name] | length)
+              ' "$SECRETS_RECEIPT" >/dev/null; then
+                echo "[ERROR] Repository secret inventory is incomplete or invalid" >&2
+                rm -f "$SECRETS_RECEIPT"
+                exit 1
+              fi
+              CURRENT_SECRETS=$(jq -r '[.[].secrets[].name] | sort | .[]' "$SECRETS_RECEIPT")
+              rm -f "$SECRETS_RECEIPT"
 
               # Detect missing
               MISSING=0
@@ -617,7 +761,11 @@ jobs:
                 fi
               done <<< "$CURRENT_SECRETS"
 
-              echo "[OK] Secrets audit: missing=${MISSING}, unexpected=${UNEXPECTED}"
+              if [ "$MISSING" -gt 0 ]; then
+                echo "[ERROR] Missing required repository secret(s): ${MISSING}" >&2
+                exit 1
+              fi
+              echo "[OK] Secrets audit: missing=0, unexpected=${UNEXPECTED}"
             fi
           fi
 
@@ -699,7 +847,8 @@ jobs:
               fi
             fi
 
-            VERIFY_PROTECTION=$(retry 3 gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" 2>/dev/null) || true
+            VERIFY_PROTECTION=$(retry 3 gh api \
+              "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection")
 
             if [ -z "$VERIFY_PROTECTION" ]; then
               echo "[FAIL] Branch protection for $BRANCH not found after apply"
@@ -707,31 +856,12 @@ jobs:
               continue
             fi
 
-            desired_enforce=$(echo "$DESIRED_PAYLOAD" | jq '.enforce_admins')
-            actual_enforce=$(echo "$VERIFY_PROTECTION" | jq '.enforce_admins.enabled')
-            if [ "$desired_enforce" != "$actual_enforce" ]; then
-              echo "[FAIL] $BRANCH enforce_admins: expected=$desired_enforce actual=$actual_enforce"
+            DESIRED_PROTECTION_STATE=$(echo "$DESIRED_PAYLOAD" | normalize_desired_protection)
+            VERIFIED_PROTECTION_STATE=$(echo "$VERIFY_PROTECTION" | normalize_current_protection)
+            if [ "$DESIRED_PROTECTION_STATE" != "$VERIFIED_PROTECTION_STATE" ]; then
+              echo "[FAIL] Branch protection failed exact verification for $BRANCH"
               VERIFY_FAILED=true
             fi
-
-            desired_reviews=$(echo "$DESIRED_PAYLOAD" | jq -c '.required_pull_request_reviews')
-            if [ "$desired_reviews" != "null" ]; then
-              desired_approvals=$(echo "$desired_reviews" | jq '.required_approving_review_count')
-              actual_approvals=$(echo "$VERIFY_PROTECTION" | jq '.required_pull_request_reviews.required_approving_review_count // empty')
-              if [ "$desired_approvals" != "$actual_approvals" ]; then
-                echo "[FAIL] $BRANCH required_approving_review_count: expected=$desired_approvals actual=$actual_approvals"
-                VERIFY_FAILED=true
-              fi
-            fi
-
-            for flag in required_linear_history allow_force_pushes allow_deletions block_creations required_conversation_resolution lock_branch allow_fork_syncing; do
-              desired_flag=$(echo "$DESIRED_PAYLOAD" | jq ".$flag")
-              actual_flag=$(echo "$VERIFY_PROTECTION" | jq ".$flag.enabled // false")
-              if [ "$desired_flag" != "$actual_flag" ]; then
-                echo "[FAIL] $BRANCH $flag: expected=$desired_flag actual=$actual_flag"
-                VERIFY_FAILED=true
-              fi
-            done
           done
 
           if [ "$PAGES_ENABLED" = "true" ]; then
@@ -740,13 +870,21 @@ jobs:
               echo "[FAIL] Pages status could not be determined -- state is unverified, not confirmed"
               VERIFY_FAILED=true
             elif [ "$VERIFY_PAGES_CODE" = "404" ]; then
-              echo "[WARN] Pages not found after apply -- repo may lack a deploy workflow"
+              echo "[FAIL] Pages not found after apply"
+              VERIFY_FAILED=true
             else
-              VERIFY_PAGES=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages" 2>/dev/null) || true
-              ACTUAL_BUILD_TYPE=$(echo "$VERIFY_PAGES" | jq -r '.build_type // empty')
-              if [ "$ACTUAL_BUILD_TYPE" != "$DESIRED_BUILD_TYPE" ]; then
-                echo "[FAIL] pages.build_type: expected=$DESIRED_BUILD_TYPE actual=$ACTUAL_BUILD_TYPE"
+              VERIFY_PAGES=$(retry 3 gh api "repos/${OWNER}/${REPO}/pages")
+              if ! echo "$VERIFY_PAGES" | jq -e '
+                type == "object" and (.build_type | type == "string" and length > 0)
+              ' >/dev/null; then
+                echo "[FAIL] Pages API returned an invalid verification response"
                 VERIFY_FAILED=true
+              else
+                ACTUAL_BUILD_TYPE=$(echo "$VERIFY_PAGES" | jq -r '.build_type')
+                if [ "$ACTUAL_BUILD_TYPE" != "$DESIRED_BUILD_TYPE" ]; then
+                  echo "[FAIL] pages.build_type: expected=$DESIRED_BUILD_TYPE actual=$ACTUAL_BUILD_TYPE"
+                  VERIFY_FAILED=true
+                fi
               fi
             fi
           fi

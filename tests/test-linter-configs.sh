@@ -1086,14 +1086,17 @@ else
     "the group needs a reusable-workflow-specific prefix"
 fi
 
-# Two workflow_call defaults and the runtime fallback must resolve to identical
-# bytes. A caller can still opt into a different immutable digest explicitly.
-if [ "$(grep -cF "$EXPECTED_BUILDER" "$PAGES_WORKFLOW")" = "3" ] &&
-  ! grep -Fq 'docs-builder:latest' "$PAGES_WORKFLOW"; then
-  pass "14.3 every default documentation builder input uses the measured digest"
+# One workflow_call default is validated before use; there is no runtime
+# fallback. Callers may select a different immutable digest only in the approved
+# builder repository.
+if [ "$(grep -cF "$EXPECTED_BUILDER" "$PAGES_WORKFLOW")" = "1" ] &&
+  grep -qF '^ghcr\.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$' "$PAGES_WORKFLOW" &&
+  grep -qF '${{ steps.content.outputs.builder_image }}' "$PAGES_WORKFLOW" &&
+  ! grep -Eq 'docs-builder:latest|inputs\.builder-image \|\|' "$PAGES_WORKFLOW"; then
+  pass "14.3 documentation builder identity is validated and digest-pinned"
 else
-  fail "14.3 every default documentation builder input uses the measured digest" \
-    "expected three identical digest pins and no latest tag"
+  fail "14.3 documentation builder identity is validated and digest-pinned" \
+    "expected one measured default, approved digest validation, and no fallback"
 fi
 
 # ════════════════════════════════════════════════════════════════════

@@ -59,6 +59,8 @@ check "triggers when fleet membership changes" \
   "grep -q 'downstream-repos.json' '$WF'"
 check "triggers when the dispatcher contract changes" \
   "grep -q 'dispatch-downstream.yml' '$WF'"
+check "triggers when the exact managed caller changes" \
+  "grep -q 'workflows/enforce-repo-settings.yml' '$WF'"
 check "triggers after the immutable governed workflow pin rolls forward" \
   "grep -q 'governed-workflow-pin.json' '$WF'"
 check "triggers when the explicit governance rollout state changes" \
@@ -67,6 +69,8 @@ check "does NOT trigger on build workflow_run (stale-manifest race)" \
   "! grep -q 'workflow_run:' '$WF'"
 check "keeps manual workflow_dispatch fallback" \
   "grep -q 'workflow_dispatch:' '$WF'"
+check "queues transitions instead of cancelling a mutating bootstrap" \
+  "grep -A5 '^concurrency:' '$WF' | grep -q 'cancel-in-progress: false'"
 
 # Receipt: every downstream workflow must receive the exact docs-control commit
 # that caused this dispatch. Without this field, callers resolve mutable main at
