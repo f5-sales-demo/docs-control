@@ -1,0 +1,95 @@
+---
+title: Incorporación
+description: Procedimiento para inscribir un nuevo repositorio en el sistema de gobernanza docs-control y configurar la automatización de IA de Antigravity y la documentación de Astro Starlight.
+sidebar:
+  order: 7
+i18n:
+  sourceHash: "d4105fff3f9f"
+  translator: "machine"
+---
+
+Esta página cubre el procedimiento para inscribir un nuevo repositorio en el sistema de gobernanza docs-control y configurar canalizaciones de documentación y automatización de IA de Antigravity.
+
+## Requisitos previos
+
+- Pertenencia a la organización `f5-sales-demo`
+- Secretos `REPO_SETTINGS_TOKEN` y `REPO_SYNC_TOKEN` configurados a nivel de organización (o agregados individualmente al nuevo repositorio)
+- Secretos `ANTIGRAVITY_TOKEN` y `GCP_PROJECT_ID` configurados para la revisión automática de código y traducción de idiomas con IA de Antigravity
+- Acceso a la imagen de contenedor `ghcr.io/f5-sales-demo/docs-builder`
+
+## Pasos de inscripción
+
+### 1. Agregar a downstream-repos.json
+
+Agregue el nombre simple del repositorio -- no `owner/repo` -- a `.github/config/downstream-repos.json` en docs-control. El propietario se antepone en el momento del envío desde `GITHUB_REPOSITORY_OWNER`. Esto lo registra para el envío y la aplicación.
+
+Luego asígnele una clase en `repo_classes.repos` en `.claude/governance.json`. Esto es obligatorio: las pruebas unitarias de shell fallan si un repositorio está registrado para el envío sin una asignación de clase.
+
+### 2. Opcionalmente agregar a docs-sites.json
+
+Si el repositorio publicará documentación, agregue una entrada a `.github/config/docs-sites.json` con:
+
+- `label` -- nombre del sitio legible por humanos
+- `url` -- URL al punto de conexión `llms-full.txt` del sitio
+- `description` -- descripción corta utilizada en el README generado
+
+Si no se agrega ninguna entrada, el generador de README utiliza de forma predeterminada el nombre del repositorio en mayúsculas y la descripción de la API de GitHub.
+
+### 3. Consolidar .gitignore
+
+El flujo de trabajo de aplicación **sobrescribe** el archivo `.gitignore` descendente por completo. Antes de la incorporación, fusione cualquier entrada específica del repositorio en la plantilla `.gitignore` en docs-control para que no se pierdan.
+
+### 4. Instalar flujos de trabajo solicitantes
+
+Copie las plantillas de flujos de trabajo solicitantes desde `workflows/` en docs-control al directorio `.github/workflows/` del nuevo repositorio:
+
+- `enforce-repo-settings.yml` -- activa la aplicación y la sincronización de archivos
+- `github-pages-deploy.yml` -- activa la compilación y despliegue de la documentación
+- `require-linked-issue.yml` -- impone la vinculación de PR a problemas
+- `antigravity-review.yml` -- activa la revisión de código de PR con IA de Antigravity
+- `antigravity-translate.yml` -- activa la traducción de idiomas con IA de Antigravity
+- `super-linter.yml` -- ejecuta la suite super-linter en las PR
+- `dependabot-auto-merge.yml` -- fusiona automáticamente las PR de dependabot aprobadas
+
+Estos archivos también se sincronizan automáticamente mediante el [flujo de trabajo de sincronización de archivos](./file-sync/), pero instalarlos manualmente inicializa el proceso.
+
+### 5. Activar la aplicación
+
+Ejecute el flujo de trabajo de aplicación manualmente en el nuevo repositorio:
+
+```bash
+source_sha=$(gh api repos/f5-sales-demo/docs-control/commits/main --jq '.sha')
+gh workflow run enforce-repo-settings.yml \
+  --repo f5-sales-demo/<repo-name> \
+  -f source_sha="$source_sha"
+```
+
+Esto aplica toda la [configuración del repositorio](./settings-enforcement/), crea los archivos de gobernanza faltantes y abre una PR de sincronización si es necesario.
+
+### 6. Verificar la configuración
+
+Confirme que la aplicación se realizó correctamente:
+
+```bash
+gh run list --repo f5-sales-demo/<repo-name> --workflow enforce-repo-settings.yml --limit 1
+```
+
+Verifique que la protección de ramas, los permisos de Actions y Pages estén configurados correctamente:
+
+```bash
+gh api repos/f5-sales-demo/<repo-name>/branches/main/protection \
+  --jq '.required_status_checks.contexts'
+```
+
+### 7. Verificar el sitio de documentación
+
+Si el repositorio tiene un directorio `docs/`, confirme que el sitio de documentación sea accesible después del primer despliegue exitoso:
+
+```bash
+curl -sf "https://f5-sales-demo.github.io/<repo-name>/" \
+  && echo "OK" || echo "FAIL"
+```
+
+## Fidelidad de bifurcaciones: exclusión voluntaria de archivos gestionados
+
+La mayoría de los repositorios gobernados aceptan cada archivo gestionado tal como está, pero las bifurcaciones activas pueden optar por no sincronizar rutas específicas utilizando `skip_files` en `repo-settings.json` bajo `managed_files` y `.claude/governance.json`.

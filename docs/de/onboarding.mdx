@@ -1,0 +1,95 @@
+---
+title: Onboarding
+description: Verfahren zur Registrierung eines neuen Repositorys im docs-control-Governance-System und zur Konfiguration der Antigravity AI-Automatisierung sowie Astro Starlight-Dokumentation.
+sidebar:
+  order: 7
+i18n:
+  sourceHash: "d4105fff3f9f"
+  translator: "machine"
+---
+
+Diese Seite beschreibt das Verfahren zur Registrierung eines neuen Repositorys im docs-control-Governance-System und zur Konfiguration von Dokumentations-Pipelines sowie der Antigravity AI-Automatisierung.
+
+## Voraussetzungen
+
+- Organisation-Mitgliedschaft in `f5-sales-demo`
+- Auf Organisationsebene konfigurierte Secrets `REPO_SETTINGS_TOKEN` und `REPO_SYNC_TOKEN` (oder einzeln zum neuen Repository hinzugefügt)
+- Konfigurierte Secrets `ANTIGRAVITY_TOKEN` und `GCP_PROJECT_ID` für automatisierte Antigravity AI-Code-Überprüfung und Sprachübersetzung
+- Zugriff auf das Container-Image `ghcr.io/f5-sales-demo/docs-builder`
+
+## Schritte zur Registrierung
+
+### 1. Zu downstream-repos.json hinzufügen
+
+Fügen Sie den bloßen Namen des Repositorys -- nicht `owner/repo` -- zu `.github/config/downstream-repos.json` in docs-control hinzu. Der Eigentümer wird beim Dispatch aus `GITHUB_REPOSITORY_OWNER` vorangestellt. Dies registriert es für Dispatch und Durchsetzung.
+
+Weisen Sie ihm dann eine Klasse in `repo_classes.repos` in `.claude/governance.json` zu. Dies ist erforderlich: Shell-Unit-Tests schlagen fehl, wenn ein Repository für den Dispatch ohne Klassenzuweisung registriert ist.
+
+### 2. Optional zu docs-sites.json hinzufügen
+
+Wenn das Repository Dokumentation veröffentlichen wird, fügen Sie einen Eintrag zu `.github/config/docs-sites.json` hinzu mit:
+
+- `label` -- lesbarer Website-Name
+- `url` -- URL zum `llms-full.txt`-Endpunkt der Website
+- `description` -- kurze Beschreibung, die in der generierten README verwendet wird
+
+Wenn kein Eintrag hinzugefügt wird, verwendet der README-Generator standardmäßig einen großgeschriebenen Repository-Namen und die GitHub-API-Beschreibung.
+
+### 3. .gitignore konsolidieren
+
+Der Durchsetzungs-Workflow **überschreibt** die nachgelagerte `.gitignore` vollständig. Zusammenführen Sie vor dem Onboarding alle repository-spezifischen Einträge in die Vorlagen-`.gitignore` in docs-control, damit sie nicht verloren gehen.
+
+### 4. Aufrufer-Workflows installieren
+
+Kopieren Sie die Aufrufer-Workflow-Vorlagen aus `workflows/` in docs-control in das `.github/workflows/`-Verzeichnis des neuen Repositorys:
+
+- `enforce-repo-settings.yml` -- löst Durchsetzung und Dateisynchronisierung aus
+- `github-pages-deploy.yml` -- löst Dokumentations-Build und -Bereitstellung aus
+- `require-linked-issue.yml` -- erzwingt die Verknüpfung von PRs mit Issues
+- `antigravity-review.yml` -- löst die Antigravity AI-PR-Code-Überprüfung aus
+- `antigravity-translate.yml` -- löst die Antigravity AI-Sprachübersetzung aus
+- `super-linter.yml` -- führt die Super-Linter-Suite bei PRs aus
+- `dependabot-auto-merge.yml` -- führt grüne Dependabot-PRs automatisch zusammen
+
+Diese Dateien werden auch automatisch durch den [Datei-Synchronisierungs-Workflow](./file-sync/) synchronisiert, aber die manuelle Installation stößt den Prozess an.
+
+### 5. Durchsetzung auslösen
+
+Führen Sie den Durchsetzungs-Workflow im neuen Repository manuell aus:
+
+```bash
+source_sha=$(gh api repos/f5-sales-demo/docs-control/commits/main --jq '.sha')
+gh workflow run enforce-repo-settings.yml \
+  --repo f5-sales-demo/<repo-name> \
+  -f source_sha="$source_sha"
+```
+
+Dies wendet alle [Repository-Einstellungen](./settings-enforcement/) an, erstellt fehlende Governance-Dateien und öffnet bei Bedarf einen Synchronisierungs-PR.
+
+### 6. Einstellungen überprüfen
+
+Bestätigen Sie, dass die Durchsetzung erfolgreich war:
+
+```bash
+gh run list --repo f5-sales-demo/<repo-name> --workflow enforce-repo-settings.yml --limit 1
+```
+
+Überprüfen Sie, ob Branch-Schutz, Actions-Berechtigungen und Pages korrekt konfiguriert sind:
+
+```bash
+gh api repos/f5-sales-demo/<repo-name>/branches/main/protection \
+  --jq '.required_status_checks.contexts'
+```
+
+### 7. Dokumentations-Website überprüfen
+
+Wenn das Repository ein `docs/`-Verzeichnis hat, bestätigen Sie, dass die Dokumentationsseite nach der ersten erfolgreichen Bereitstellung erreichbar ist:
+
+```bash
+curl -sf "https://f5-sales-demo.github.io/<repo-name>/" \
+  && echo "OK" || echo "FAIL"
+```
+
+## Fork-Treue: Deaktivierung verwalteter Dateien
+
+Die meisten verwalteten Repositories übernehmen jede verwaltete Datei wie sie ist, aber aktive Forks können die Synchronisierung für bestimmte Pfade über `skip_files` in `repo-settings.json` unter `managed_files` und `.claude/governance.json` deaktivieren.

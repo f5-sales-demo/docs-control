@@ -1,0 +1,42 @@
+---
+title: Sincronización de archivos
+description: Sincronización de archivos gestionados, generación dinámica de dependabot.yml y plantillas README en todo el ecosistema.
+sidebar:
+  order: 5
+i18n:
+  sourceHash: "a389f6cb3ad7"
+  translator: "machine"
+---
+
+El flujo de trabajo de sincronización de archivos en `.github/workflows/sync-managed-files.yml` se ejecuta como un trabajo paralelo junto con la [aplicación de configuración](./settings-enforcement/), utilizando el `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read).
+
+Omite la ejecución cuando se ejecuta en el propio repositorio de origen (docs-control), ya que los archivos canónicos ya se encuentran aquí.
+
+## Sincronización de archivos estáticos
+
+El flujo de trabajo itera sobre el arreglo `managed_files.files` de la [configuración central](./configuration/). Para cada entrada, obtiene el contenido canónico de docs-control y lo compara con la copia descendente. Los archivos faltantes o que se han desviado se marcan para sincronización.
+
+El manifiesto de archivos gestionados incluye:
+
+- Flujos de trabajo solicitantes (`enforce-repo-settings.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`, `antigravity-review.yml`, `antigravity-translate.yml`)
+- Habilidades de agentes (`.agents/skills/demo-components/SKILL.md`, `.agents/skills/i18n-translate/SKILL.md`)
+- Plantillas de problemas y solicitudes de extracción (PR)
+- `CONTRIBUTING.md`, `CLAUDE.md`, `AGENTS.md`, `STYLE_GUIDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
+- `.pre-commit-config.yaml`
+
+## Generación dinámica de dependabot.yml
+
+El flujo de trabajo detecta qué ecosistemas de paquetes existen en el repositorio descendente:
+
+- `npm` -- `package.json` existe
+- `pip` -- `requirements.txt`, `pyproject.toml`, o `setup.py` existe
+- `docker` -- `Dockerfile` existe
+
+Genera un `.github/dependabot.yml` con una entrada de ecosistema `github-actions` (siempre incluida) más entradas para cada ecosistema detectado. Todos los ecosistemas utilizan programaciones semanales los lunes con prefijos de commit convencionales y agrupación de versiones menores/parches.
+
+## Generación dinámica de README.md
+
+Cada repositorio descendente recibe un `README.md` generado creado a partir de dos fuentes:
+
+- **`README.md.tpl`** -- una plantilla en la raíz de docs-control con marcadores de posición (`__TITLE__`, `__DESCRIPTION__`, `__REPO_NAME__`, `__DOCS_URL__`)
+- **`docs-sites.json`** -- proporciona la etiqueta legible por humanos y la descripción para cada repositorio al hacer coincidir el nombre del repositorio con el campo URL

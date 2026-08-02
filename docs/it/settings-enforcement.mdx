@@ -1,0 +1,69 @@
+---
+title: Enforcement delle Impostazioni
+description: Workflow di enforcement delle impostazioni del repository idempotente in sette fasi per protezione branch, etichette, permessi actions e pages.
+sidebar:
+  order: 4
+i18n:
+  sourceHash: "9c98278db684"
+  translator: "machine"
+---
+
+Il workflow di enforcement in `.github/workflows/enforce-repo-settings.yml` è un workflow riutilizzabile e idempotente che confronta lo stato desiderato del repository con quello attuale e corregge eventuali disallineamenti. I repository downstream lo chiamano tramite un [workflow chiamante](./dispatch/). Docs-control lo esegue anche direttamente ai push su `.github/config/repo-settings.json`.
+
+## Trigger
+
+- **`workflow_call`** -- invocato da workflow chiamanti downstream (pianificato ogni 6 ore, al push della config o dispatch manuale)
+- **`push`** -- si attiva quando `repo-settings.json` cambia sulla branch `main` di docs-control
+
+## Esecuzione parallela
+
+L'enforcement è suddiviso in due workflow riutilizzabili che vengono eseguiti come job paralleli nel chiamante, ciascuno con il proprio token a minimo privilegio:
+
+- **`enforce-repo-settings.yml`** utilizza `REPO_SETTINGS_TOKEN` (Amministrazione R/W, Pages R/W, Lettura Contenuti, Lettura Metadati)
+- **`sync-managed-files.yml`** utilizza `REPO_SYNC_TOKEN` (Contenuti R/W, Issues R/W, Pull Requests R/W, Lettura Metadati)
+
+Questa pagina copre il workflow di enforcement delle impostazioni. Vedere [Sincronizzazione dei File](./file-sync/) per il workflow dei file gestiti.
+
+## Le 7 fasi
+
+Ogni fase è idempotente: confronta lo stato desiderato con quello attuale ed effettua modifiche solo quando viene rilevato un disallineamento.
+
+### Fase 1: Convalida
+
+Recupera la [configurazione](./configuration/) centrale da docs-control tramite l'API GitHub (con 5 tentativi di riprova). Convalida che `jq` e `gh` siano disponibili e autenticati. Calcola automaticamente l'URL della `homepage` se il valore di configurazione è vuoto.
+
+Rileva se il workflow è in esecuzione sul repository sorgente stesso confrontando `managed_files.source_repo` con `github.repository`. Se in esecuzione su se stesso, viene attivato l'override di `self_contexts` per la Fase 4.
+
+### Fase 2: Applica impostazioni repository
+
+Confronta ogni chiave nell'oggetto `repository` con le impostazioni attuali del repository tramite `GET /repos/{owner}/{repo}`. Costruisce un oggetto patch contenente solo le chiavi disallineate e lo applica tramite `PATCH /repos/{owner}/{repo}`.
+
+### Fase 3: Applica permessi Actions
+
+Confronta l'oggetto `actions_permissions` (permessi predefiniti del workflow, approvazione revisione PR) con i permessi attuali del workflow Actions tramite `GET /repos/{owner}/{repo}/actions/permissions/workflow`. Aggiorna tramite `PUT` se una qualsiasi chiave è disallineata.
+
+### Fase 4: Applica protezione branch
+
+Cicla sull'array `branch_protection`. Per ogni branch:
+
+1. Se in esecuzione su se stesso, scambia `self_contexts` in `contexts`
+2. Rimuove `self_contexts` dal payload (non fa parte dell'API GitHub)
+3. Recupera la protezione attuale tramite `GET /repos/{owner}/{repo}/branches/{branch}/protection`
+4. Confronta: `enforce_admins`, `required_status_checks` (rigido + contesti), `required_pull_request_reviews`, `restrictions` e flag booleani (`required_linear_history`, `allow_force_pushes`, `allow_deletions`, `block_creations`, `required_conversation_resolution`, `lock_branch`, `allow_fork_syncing`)
+5. Crea o aggiorna le regole di protezione tramite `PUT` se viene rilevato un disallineamento
+
+### Fase 5: Applica argomenti
+
+Confronta l'array `topics` con gli argomenti attuali del repository tramite `GET /repos/{owner}/{repo}/topics`. Sostituisce tramite `PUT` se disallineato.
+
+### Fase 6: Applica Pages
+
+Verifica se GitHub Pages è abilitato tramite `GET /repos/{owner}/{repo}/pages`. Se non trovato (404), abilita Pages con il `build_type` configurato. Se trovato ma il `build_type` è disallineato, lo aggiorna tramite `PUT`.
+
+### Fase 7: Verifica
+
+Rilegge tutte le impostazioni tramite l'API GitHub e le confronta con lo stato desiderato. Verifica le impostazioni del repository, i permessi Actions, la protezione dei branch (inclusi i flag booleani) e il tipo di build Pages. Fa fallire il workflow se una qualsiasi impostazione non corrisponde dopo le fasi di applicazione.
+
+## Avanzamento Pini del Workflow Immutabili
+
+Quando i workflow riutilizzabili in docs-control cambiano, `.github/workflows/update-governed-workflow-pins.yml` attiva `scripts/update-governed-workflow-pins.sh` per aggiornare gli SHA fissati per commit nei workflow chiamanti in modo deterministico e senza intervento manuale.

@@ -1,6 +1,6 @@
 ---
 title: Settings Enforcement
-description: Seven-phase idempotent repository settings enforcement workflow for branch protection, labels, and pages.
+description: Seven-phase idempotent repository settings enforcement workflow for branch protection, labels, actions permissions, and pages.
 sidebar:
   order: 4
 ---
@@ -61,11 +61,6 @@ Checks whether GitHub Pages is enabled via `GET /repos/{owner}/{repo}/pages`. If
 
 Re-reads all settings via the GitHub API and compares them against the desired state. Verifies repository settings, Actions permissions, branch protection (including boolean flags), and Pages build type. Fails the workflow if any setting does not match after the apply phases.
 
-## Retry logic
+## Immutable Workflow Pins Roll-Forward
 
-All GitHub API calls use exponential backoff retry via two helper functions:
-
-- **`retry`** wraps any command with backoff (2s, 4s, 8s between attempts) -- used for read operations and idempotent writes (up to 3 attempts)
-- **`retry_json`** handles piped JSON input to `gh api --input -`, replaying the body on each attempt
-
-The config fetch (most critical single point of failure) retries up to 5 attempts. Non-idempotent operations (issue creation, PR creation) are not retried to avoid duplicates.
+When reusable workflows in docs-control change, `.github/workflows/update-governed-workflow-pins.yml` triggers `scripts/update-governed-workflow-pins.sh` to update commit-pinned SHAs across caller workflows deterministically without manual intervention.

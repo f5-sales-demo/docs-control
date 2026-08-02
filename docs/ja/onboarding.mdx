@@ -1,0 +1,95 @@
+---
+title: オンボーディング
+description: 新しいリポジトリを docs-control ガバナンスシステムに登録し、Antigravity AI 自動化と Astro Starlight ドキュメントを設定する手順。
+sidebar:
+  order: 7
+i18n:
+  sourceHash: "d4105fff3f9f"
+  translator: "machine"
+---
+
+このページでは、新しいリポジトリを docs-control ガバナンスシステムに登録し、ドキュメントパイプラインと Antigravity AI 自動化を設定する手順について説明します。
+
+## 前提条件
+
+- `f5-sales-demo` の組織メンバーシップ
+- `REPO_SETTINGS_TOKEN` および `REPO_SYNC_TOKEN` シークレットが組織レベルのシークレットとして設定されていること（または新しいリポジトリに個別に追加されていること）
+- 自動化された Antigravity AI コードレビューおよび言語翻訳用に設定された `ANTIGRAVITY_TOKEN` および `GCP_PROJECT_ID` シークレット
+- `ghcr.io/f5-sales-demo/docs-builder` コンテナイメージへのアクセス権
+
+## 登録手順
+
+### 1. downstream-repos.json への追加
+
+`owner/repo` 形式ではなく、リポジトリの単体名を docs-control 内の `.github/config/downstream-repos.json` に追加します。オーナー名はディスパッチ時に `GITHUB_REPOSITORY_OWNER` から先頭に付加されます。これにより、ディスパッチと適用対象として登録されます。
+
+次に、`.claude/governance.json` の `repo_classes.repos` でクラスを割り当てます。これは必須です。クラスの割り当てなしでディスパッチ用にリポジトリが登録されている場合、シェル単体テストが失敗します。
+
+### 2. docs-sites.json へのオプション追加
+
+リポジトリがドキュメントを公開する場合は、`.github/config/docs-sites.json` に以下のエントリを追加します:
+
+- `label` -- 人間が読みやすいサイト名
+- `url` -- サイトの `llms-full.txt` エンドポイントへの URL
+- `description` -- 生成される README で使用される短い説明
+
+エントリが追加されない場合、README ジェネレーターは先頭が大文字のリポジトリ名と GitHub API の説明にフォールバックします。
+
+### 3. .gitignore の統合
+
+適用ワークフローは、ダウンストリームの `.gitignore` を完全に**上書き**します。オンボーディングの前に、リポジトリ固有のエントリを docs-control 内のテンプレート `.gitignore` にマージして、失われないようにしてください。
+
+### 4. 呼び出し元ワークフローのインストール
+
+docs-control の `workflows/` から呼び出し元ワークフローテンプレートを、新しいリポジトリの `.github/workflows/` ディレクトリにコピーします:
+
+- `enforce-repo-settings.yml` -- 設定適用とファイル同期をトリガー
+- `github-pages-deploy.yml` -- ドキュメントのビルドとデプロイをトリガー
+- `require-linked-issue.yml` -- PR と Issue のリンクを強制
+- `antigravity-review.yml` -- Antigravity AI PR コードレビューをトリガー
+- `antigravity-translate.yml` -- Antigravity AI 言語翻訳をトリガー
+- `super-linter.yml` -- PR 上で super-linter スイートを実行
+- `dependabot-auto-merge.yml` -- グリーンな dependabot PR を自動マージ
+
+これらのファイルは [ファイル同期ワークフロー](./file-sync/) によっても自動的に同期されますが、手動でインストールすることでプロセスがブートストラップされます。
+
+### 5. 設定適用のトリガー
+
+新しいリポジトリで設定適用ワークフローを手動で実行します:
+
+```bash
+source_sha=$(gh api repos/f5-sales-demo/docs-control/commits/main --jq '.sha')
+gh workflow run enforce-repo-settings.yml \
+  --repo f5-sales-demo/<repo-name> \
+  -f source_sha="$source_sha"
+```
+
+これにより、すべての [リポジトリ設定](./settings-enforcement/) が適用され、不足しているガバナンスファイルが作成され、必要に応じて同期 PR が作成されます。
+
+### 6. 設定の検証
+
+適用が成功したことを確認します:
+
+```bash
+gh run list --repo f5-sales-demo/<repo-name> --workflow enforce-repo-settings.yml --limit 1
+```
+
+ブランチ保護、Actions 権限、および Pages が正しく設定されていることを確認します:
+
+```bash
+gh api repos/f5-sales-demo/<repo-name>/branches/main/protection \
+  --jq '.required_status_checks.contexts'
+```
+
+### 7. ドキュメントサイトの検証
+
+リポジトリに `docs/` ディレクトリがある場合は、最初のデプロイが成功した後にドキュメントサイトにアクセスできることを確認します:
+
+```bash
+curl -sf "https://f5-sales-demo.github.io/<repo-name>/" \
+  && echo "OK" || echo "FAIL"
+```
+
+## フォークの忠実性: 管理対象ファイルからのオプトアウト
+
+統制下にあるほとんどのリポジトリはすべての管理対象ファイルをそのまま受け入れますが、アクティブなフォークは `repo-settings.json` の `managed_files` および `.claude/governance.json` の `skip_files` を使用して、特定パスの同期をオプトアウトできます。

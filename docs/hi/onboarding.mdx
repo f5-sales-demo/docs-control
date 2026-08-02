@@ -1,0 +1,95 @@
+---
+title: Onboarding
+description: docs-control गवर्नेंस सिस्टम में एक नई रिपॉजिटरी को एनरोल करने और Antigravity AI ऑटोमेशन और Astro Starlight डॉक्यूमेंटेशन को कॉन्फ़िगर करने की प्रक्रिया।
+i18n:
+  sourceHash: "d4105fff3f9f"
+  translator: "machine"
+sidebar:
+  order: 7
+---
+
+यह पृष्ठ docs-control गवर्नेंस सिस्टम में एक नई रिपॉजिटरी को एनरोल करने और डॉक्यूमेंटेशन पाइपलाइनों तथा Antigravity AI ऑटोमेशन को कॉन्फ़िगर करने की प्रक्रिया को कवर करता है।
+
+## पूर्व-आवश्यकताएं (Prerequisites)
+
+- `f5-sales-demo` में संगठन की सदस्यता
+- `REPO_SETTINGS_TOKEN` और `REPO_SYNC_TOKEN` सीक्रेट्स संगठन-स्तर के सीक्रेट्स के रूप में कॉन्फ़िगर किए गए हैं (या नई रिपॉजिटरी में व्यक्तिगत रूप से जोड़े गए हैं)
+- ऑटोमेटेड Antigravity AI कोड रिव्यू और लैंग्वेज ट्रांसलेशन के लिए `ANTIGRAVITY_TOKEN` और `GCP_PROJECT_ID` सीक्रेट्स कॉन्फ़िगर किए गए हैं
+- `ghcr.io/f5-sales-demo/docs-builder` कंटेनर इमेज तक पहुंच
+
+## एनरोलमेंट के चरण
+
+### 1. downstream-repos.json में जोड़ें
+
+रिपॉजिटरी का केवल नाम -- `owner/repo` नहीं -- docs-control में `.github/config/downstream-repos.json` में जोड़ें। Owner को `GITHUB_REPOSITORY_OWNER` से डिस्पैच समय पर प्रीपेंड किया जाता है। यह इसे डिस्पैच और एनफ़ोर्समेंट के लिए पंजीकृत करता है।
+
+फिर इसे `.claude/governance.json` में `repo_classes.repos` में एक क्लास असाइन करें। यह आवश्यक है: यदि किसी रिपॉजिटरी को क्लास असाइनमेंट के बिना डिस्पैच के लिए पंजीकृत किया जाता है तो शेल यूनिट टेस्ट विफल हो जाते हैं।
+
+### 2. वैकल्पिक रूप से docs-sites.json में जोड़ें
+
+यदि रिपॉजिटरी डॉक्यूमेंटेशन प्रकाशित करेगी, तो `.github/config/docs-sites.json` में निम्न के साथ एक प्रविष्टि जोड़ें:
+
+- `label` -- मानव-पठनीय साइट नाम
+- `url` -- साइट के `llms-full.txt` एंडपॉइंट का URL
+- `description` -- जेनरेट किए गए README में इस्तेमाल किया गया संक्षिप्त विवरण
+
+यदि कोई प्रविष्टि नहीं जोड़ी जाती है, तो README जनरेटर कैपिटलाइज़्ड रिपॉजिटरी नाम और GitHub API विवरण पर वापस आ जाता है।
+
+### 3. .gitignore को समेकित करें
+
+एनफ़ोर्समेंट वर्कफ़्लो डाउनस्ट्रीम `.gitignore` को पूरी तरह से **ओवरराइट** कर देता है। ऑनबोर्डिंग से पहले, किसी भी रिपॉजिटरी-विशिष्ट प्रविष्टि को docs-control में टेम्पलेट `.gitignore` में मर्ज करें ताकि वे खो न जाएं।
+
+### 4. कॉलर वर्कफ़्लो इंस्टॉल करें
+
+docs-control में `workflows/` से कॉलर वर्कफ़्लो टेम्पलेट्स को नई रिपॉजिटरी की `.github/workflows/` डायरेक्टरी में कॉपी करें:
+
+- `enforce-repo-settings.yml` -- एनफ़ोर्समेंट और फ़ाइल सिंक को ट्रिगर करता है
+- `github-pages-deploy.yml` -- डॉक्यूमेंटेशन बिल्ड और डिप्लॉय को ट्रिगर करता है
+- `require-linked-issue.yml` -- PR-से-इश्यू लिंकिंग लागू करता है
+- `antigravity-review.yml` -- Antigravity AI PR कोड रिव्यू को ट्रिगर करता है
+- `antigravity-translate.yml` -- Antigravity AI लैंग्वेज ट्रांसलेशन को ट्रिगर करता है
+- `super-linter.yml` -- PRs पर super-linter सूट चलाता है
+- `dependabot-auto-merge.yml` -- ग्रीन dependabot PRs को ऑटो-मर्ज करता है
+
+ये फ़ाइलें [फ़ाइल सिंक वर्कफ़्लो](./file-sync/) द्वारा स्वचालित रूप से भी सिंक की जाती हैं, लेकिन उन्हें मैन्युअल रूप से इंस्टॉल करने से प्रक्रिया बूटस्ट्रैप होती है।
+
+### 5. एनफ़ोर्समेंट ट्रिगर करें
+
+नई रिपॉजिटरी में एनफ़ोर्समेंट वर्कफ़्लो को मैन्युअल रूप से चलाएं:
+
+```bash
+source_sha=$(gh api repos/f5-sales-demo/docs-control/commits/main --jq '.sha')
+gh workflow run enforce-repo-settings.yml \
+  --repo f5-sales-demo/<repo-name> \
+  -f source_sha="$source_sha"
+```
+
+यह सभी [रिपॉजिटरी सेटिंग्स](./settings-enforcement/) लागू करता है, किसी भी गायब गवर्नेंस फ़ाइल को बनाता है, और आवश्यकता होने पर एक सिंक PR खोलता है।
+
+### 6. सेटिंग्स सत्यापित करें
+
+पुष्टि करें कि एनफ़ोर्समेंट सफल रहा:
+
+```bash
+gh run list --repo f5-sales-demo/<repo-name> --workflow enforce-repo-settings.yml --limit 1
+```
+
+जांचें कि ब्रांच प्रोटेक्शन, Actions अनुमतियां, और Pages सही तरीके से कॉन्फ़िगर किए गए हैं:
+
+```bash
+gh api repos/f5-sales-demo/<repo-name>/branches/main/protection \
+  --jq '.required_status_checks.contexts'
+```
+
+### 7. डॉक्यूमेंटेशन साइट सत्यापित करें
+
+यदि रिपॉजिटरी में एक `docs/` डायरेक्टरी है, तो पहले सफल डिप्लॉयमेंट के बाद पुष्टि करें कि डॉक्यूमेंटेशन साइट सुलभ है:
+
+```bash
+curl -sf "https://f5-sales-demo.github.io/<repo-name>/" \
+  && echo "OK" || echo "FAIL"
+```
+
+## फ़ोर्क-फिडेलिटी: मैनेज्ड फ़ाइलों से बाहर निकलना (opting out)
+
+अधिकांश शासित रिपॉजिटरी प्रत्येक मैनेज्ड फ़ाइल को जैसा है वैसा ही स्वीकार करती हैं, लेकिन सक्रिय फ़ोर्क `repo-settings.json` में `managed_files` के तहत और `.claude/governance.json` में `skip_files` का उपयोग करके विशिष्ट पथों पर सिंक से बाहर निकल सकते हैं।

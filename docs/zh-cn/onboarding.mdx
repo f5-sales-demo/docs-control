@@ -1,0 +1,95 @@
+---
+title: Onboarding
+description: 将新存储库注册到 docs-control 治理体系并配置 Antigravity AI 自动化和 Astro Starlight 文档的步骤。
+i18n:
+  sourceHash: "d4105fff3f9f"
+  translator: "machine"
+sidebar:
+  order: 7
+---
+
+本页介绍了将新存储库注册到 docs-control 治理体系并配置文档流水线及 Antigravity AI 自动化的步骤。
+
+## 先决条件
+
+- 拥有 `f5-sales-demo` 的组织成员身份
+- 已配置为组织级 Secret（或单独添加到新存储库）的 `REPO_SETTINGS_TOKEN` 和 `REPO_SYNC_TOKEN` Secret
+- 为自动化的 Antigravity AI 代码审查和语言翻译配置的 `ANTIGRAVITY_TOKEN` 和 `GCP_PROJECT_ID` Secret
+- 拥有对 `ghcr.io/f5-sales-demo/docs-builder` 容器镜像的访问权限
+
+## 注册步骤
+
+### 1. 添加到 downstream-repos.json
+
+将存储库的裸名称（而非 `owner/repo`）添加到 docs-control 中的 `.github/config/downstream-repos.json` 中。Owner 在分发时通过 `GITHUB_REPOSITORY_OWNER` 自动前置。这会将其注册以进行分发和强制执行。
+
+然后在 `.claude/governance.json` 的 `repo_classes.repos` 中为其分配一个类。这是必需的：如果存储库已注册分发但未指定类分配，则 shell 单元测试将失败。
+
+### 2. 可选添加到 docs-sites.json
+
+如果存储库将发布文档，请在 `.github/config/docs-sites.json` 中添加一个条目，包含：
+
+- `label` -- 可读的站点名称
+- `url` -- 指向站点 `llms-full.txt` 端点的 URL
+- `description` -- 在生成的 README 中使用的简短描述
+
+如果未添加条目，README 生成器将退而使用首字母大写的存储库名称和 GitHub API 描述。
+
+### 3. 整合 .gitignore
+
+强制执行工作流会完全 **覆盖** 下游的 `.gitignore`。在注册之前，请将任何特定于存储库的条目合并到 docs-control 中的模板 `.gitignore` 中，以免丢失。
+
+### 4. 安装调用方工作流
+
+将 docs-control 中 `workflows/` 目录下的调用方工作流模板复制到新存储库的 `.github/workflows/` 目录中：
+
+- `enforce-repo-settings.yml` -- 触发强制执行和文件同步
+- `github-pages-deploy.yml` -- 触发文档构建和部署
+- `require-linked-issue.yml` -- 强制执行 PR 与 issue 的关联
+- `antigravity-review.yml` -- 触发 Antigravity AI PR 代码审查
+- `antigravity-translate.yml` -- 触发 Antigravity AI 语言翻译
+- `super-linter.yml` -- 在 PR 上运行 super-linter 套件
+- `dependabot-auto-merge.yml` -- 自动合并通过测试的 dependabot PR
+
+这些文件也会由 [文件同步工作流](./file-sync/) 自动同步，但手动安装它们可以引导启动该过程。
+
+### 5. 触发强制执行
+
+在新存储库中手动运行强制执行工作流：
+
+```bash
+source_sha=$(gh api repos/f5-sales-demo/docs-control/commits/main --jq '.sha')
+gh workflow run enforce-repo-settings.yml \
+  --repo f5-sales-demo/<repo-name> \
+  -f source_sha="$source_sha"
+```
+
+这将应用所有 [存储库设置](./settings-enforcement/)，创建任何缺失的治理文件，并在需要时打开同步 PR。
+
+### 6. 验证设置
+
+确认强制执行成功：
+
+```bash
+gh run list --repo f5-sales-demo/<repo-name> --workflow enforce-repo-settings.yml --limit 1
+```
+
+检查分支保护、Actions 权限和 Pages 是否配置正确：
+
+```bash
+gh api repos/f5-sales-demo/<repo-name>/branches/main/protection \
+  --jq '.required_status_checks.contexts'
+```
+
+### 7. 验证文档站点
+
+如果存储库包含 `docs/` 目录，请在首次成功部署后确认文档站点可访问：
+
+```bash
+curl -sf "https://f5-sales-demo.github.io/<repo-name>/" \
+  && echo "OK" || echo "FAIL"
+```
+
+## Fork 保真度：选择退出托管文件
+
+大多数受治理的存储库都会原样接收每个托管文件，但活跃的 Fork 可以通过在 `managed_files` 和 `.claude/governance.json` 下的 `repo-settings.json` 中使用 `skip_files` 来选择退出特定路径的同步。

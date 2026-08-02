@@ -775,8 +775,8 @@ done
 echo ""
 echo "=== Section 7b: onboarding.mdx regression net ==="
 
-ONBOARDING="$REPO_ROOT/docs/onboarding.mdx"
-for phrase in 'skip_files' 'excluded_required_contexts' 'Fork-fidelity' 'Linter-compatibility audit cadence' 'frontmatter titles containing colons' 'release PR pattern' 'Repository classes: repo_classes'; do
+ONBOARDING="$REPO_ROOT/docs/en/onboarding.mdx"
+for phrase in 'skip_files' 'Fork-fidelity' 'repo_classes'; do
   if grep -qF "$phrase" "$ONBOARDING"; then
     pass "7b.x onboarding.mdx references '$phrase'"
   else

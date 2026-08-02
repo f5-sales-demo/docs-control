@@ -1,0 +1,39 @@
+---
+title: File Synchronization
+description: Managed file synchronization, dynamic dependabot.yml generation, and README templating across the ecosystem.
+sidebar:
+  order: 5
+---
+
+The file sync workflow at `.github/workflows/sync-managed-files.yml` runs as a parallel job alongside [settings enforcement](./settings-enforcement/), using the `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read).
+
+It skips execution when running on the source repository itself (docs-control), since the canonical files already live here.
+
+## Static file sync
+
+The workflow iterates the `managed_files.files` array from the [central config](./configuration/). For each entry, it fetches the canonical content from docs-control and compares it against the downstream copy. Files that are missing or have drifted are flagged for sync.
+
+The managed files manifest includes:
+
+- Caller workflows (`enforce-repo-settings.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`, `antigravity-review.yml`, `antigravity-translate.yml`)
+- Agent skills (`.agents/skills/demo-components/SKILL.md`, `.agents/skills/i18n-translate/SKILL.md`)
+- Issue and PR templates
+- `CONTRIBUTING.md`, `CLAUDE.md`, `AGENTS.md`, `STYLE_GUIDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
+- `.pre-commit-config.yaml`
+
+## Dynamic dependabot.yml generation
+
+The workflow detects which package ecosystems exist in the downstream repository:
+
+- `npm` -- `package.json` exists
+- `pip` -- `requirements.txt`, `pyproject.toml`, or `setup.py` exists
+- `docker` -- `Dockerfile` exists
+
+It generates a `.github/dependabot.yml` with a `github-actions` ecosystem entry (always included) plus entries for each detected ecosystem. All ecosystems use weekly Monday schedules with conventional commit prefixes and minor/patch grouping.
+
+## Dynamic README.md generation
+
+Each downstream repository receives a generated `README.md` built from two sources:
+
+- **`README.md.tpl`** -- a template in the docs-control root with placeholders (`__TITLE__`, `__DESCRIPTION__`, `__REPO_NAME__`, `__DOCS_URL__`)
+- **`docs-sites.json`** -- provides the human-readable label and description for each repository by matching the repository name against the URL field

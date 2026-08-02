@@ -1,0 +1,95 @@
+---
+title: Intégration
+description: Procédure pour inscrire un nouveau dépôt dans le système de gouvernance docs-control et configurer l'automatisation IA Antigravity et la documentation Astro Starlight.
+sidebar:
+  order: 7
+i18n:
+  sourceHash: "d4105fff3f9f"
+  translator: "machine"
+---
+
+Cette page couvre la procédure d'inscription d'un nouveau dépôt dans le système de gouvernance docs-control et la configuration des pipelines de documentation et de l'automatisation IA Antigravity.
+
+## Prérequis
+
+- Appartenance à l'organisation `f5-sales-demo`
+- Secrets `REPO_SETTINGS_TOKEN` et `REPO_SYNC_TOKEN` configurés au niveau de l'organisation (ou ajoutés individuellement au nouveau dépôt)
+- Secrets `ANTIGRAVITY_TOKEN` et `GCP_PROJECT_ID` configurés pour la revue de code et la traduction linguistique automatisées par IA Antigravity
+- Accès à l'image de conteneur `ghcr.io/f5-sales-demo/docs-builder`
+
+## Étapes d'inscription
+
+### 1. Ajouter à downstream-repos.json
+
+Ajoutez le nom simple du dépôt -- pas `owner/repo` -- à `.github/config/downstream-repos.json` dans docs-control. Le propriétaire est préfixé au moment du dispatch depuis `GITHUB_REPOSITORY_OWNER`. Cela l'enregistre pour le dispatch et l'application.
+
+Attribuez-lui ensuite une classe dans `repo_classes.repos` dans `.claude/governance.json`. Cela est obligatoire : les tests unitaires shell échouent si un dépôt est enregistré pour le dispatch sans attribution de classe.
+
+### 2. Facultativement, ajouter à docs-sites.json
+
+Si le dépôt doit publier de la documentation, ajoutez une entrée à `.github/config/docs-sites.json` avec :
+
+- `label` -- nom du site lisible par l'homme
+- `url` -- URL vers le point de terminaison `llms-full.txt` du site
+- `description` -- description courte utilisée dans le README généré
+
+Si aucune entrée n'est ajoutée, le générateur de README utilise par défaut le nom du dépôt en majuscule et la description de l'API GitHub.
+
+### 3. Consolider .gitignore
+
+Le workflow d'application **écrase** entièrement le fichier `.gitignore` en aval. Avant l'intégration, fusionnez toutes les entrées spécifiques au dépôt dans le modèle `.gitignore` dans docs-control afin qu'elles ne soient pas perdues.
+
+### 4. Installer les workflows appelants
+
+Copiez les modèles de workflows appelants depuis `workflows/` dans docs-control vers le répertoire `.github/workflows/` du nouveau dépôt :
+
+- `enforce-repo-settings.yml` -- déclenche l'application et la synchronisation de fichiers
+- `github-pages-deploy.yml` -- déclenche le build et le déploiement de la doc
+- `require-linked-issue.yml` -- applique la liaison entre PR et ticket
+- `antigravity-review.yml` -- déclenche la revue de code de PR par IA Antigravity
+- `antigravity-translate.yml` -- déclenche la traduction linguistique par IA Antigravity
+- `super-linter.yml` -- exécute la suite super-linter sur les PRs
+- `dependabot-auto-merge.yml` -- fusionne automatiquement les PRs dependabot au vert
+
+Ces fichiers sont également synchronisés automatiquement par le [workflow de synchronisation de fichiers](./file-sync/), mais les installer manuellement amorce le processus.
+
+### 5. Déclencher l'application
+
+Exécutez le workflow d'application manuellement dans le nouveau dépôt :
+
+```bash
+source_sha=$(gh api repos/f5-sales-demo/docs-control/commits/main --jq '.sha')
+gh workflow run enforce-repo-settings.yml \
+  --repo f5-sales-demo/<repo-name> \
+  -f source_sha="$source_sha"
+```
+
+Ceci applique tous les [paramètres de dépôt](./settings-enforcement/), crée tous les fichiers de gouvernance manquants et ouvre une PR de synchronisation si nécessaire.
+
+### 6. Vérifier les paramètres
+
+Confirmez que l'application a réussi :
+
+```bash
+gh run list --repo f5-sales-demo/<repo-name> --workflow enforce-repo-settings.yml --limit 1
+```
+
+Vérifiez que la protection des branches, les permissions Actions et Pages sont correctement configurées :
+
+```bash
+gh api repos/f5-sales-demo/<repo-name>/branches/main/protection \
+  --jq '.required_status_checks.contexts'
+```
+
+### 7. Vérifier le site de doc
+
+Si le dépôt possède un répertoire `docs/`, confirmez que le site de doc est accessible après le premier déploiement réussi :
+
+```bash
+curl -sf "https://f5-sales-demo.github.io/<repo-name>/" \
+  && echo "OK" || echo "FAIL"
+```
+
+## Fidélité des forks : exclusion des fichiers gérés
+
+La plupart des dépôts gouvernés prennent chaque fichier géré tel quel, mais les forks actifs peuvent refuser la synchronisation sur des chemins spécifiques en utilisant `skip_files` dans `repo-settings.json` sous `managed_files` et `.claude/governance.json`.

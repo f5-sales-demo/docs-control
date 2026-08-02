@@ -1,0 +1,69 @@
+---
+title: Settings Enforcement
+description: 用于分支保护、标签、Actions 权限和 Pages 的七阶段幂等存储库设置强制执行工作流。
+i18n:
+  sourceHash: "9c98278db684"
+  translator: "machine"
+sidebar:
+  order: 4
+---
+
+位于 `.github/workflows/enforce-repo-settings.yml` 的强制执行工作流是一个可重用的、幂等的工作流，它将期望的存储库状态与当前状态进行比较，并修补任何漂移。下游存储库通过 [调用方工作流](./dispatch/) 调用它。Docs-control 也会在推送到 `.github/config/repo-settings.json` 时直接运行它。
+
+## 触发器
+
+- **`workflow_call`** -- 由下游调用方工作流调用（每 6 小时计划运行一次、配置推送时运行或手动分发）
+- **`push`** -- 当 `repo-settings.json` 在 docs-control 的 `main` 分支上发生变更时触发
+
+## 并行执行
+
+强制执行分为两个可重用工作流，作为调用方中的并行任务运行，每个工作流都有自己的最小权限 Token：
+
+- **`enforce-repo-settings.yml`** 使用 `REPO_SETTINGS_TOKEN`（Administration R/W, Pages R/W, Contents Read, Metadata Read）
+- **`sync-managed-files.yml`** 使用 `REPO_SYNC_TOKEN`（Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read）
+
+本页涵盖设置强制执行工作流。有关托管文件工作流，请参阅 [文件同步](./file-sync/)。
+
+## 7 个阶段
+
+每个阶段都是幂等的：它将期望状态与当前状态进行比较，并且仅在检测到漂移时进行更改。
+
+### 阶段 1：验证
+
+通过 GitHub API 从 docs-control 获取中央 [配置](./configuration/)（重试 5 次）。验证 `jq` 和 `gh` 可用且已身份验证。如果配置值为空，则自动计算 `homepage` URL。
+
+通过比较 `managed_files.source_repo` 与 `github.repository` 来检测工作流是否在源存储库本身上运行。如果在自身上运行，则针对阶段 4 激活 `self_contexts` 覆盖。
+
+### 阶段 2：应用存储库设置
+
+通过 `GET /repos/{owner}/{repo}` 将 `repository` 对象中的每个键与存储库的当前设置进行比较。构建仅包含漂移键的补丁对象，并通过 `PATCH /repos/{owner}/{repo}` 应用它。
+
+### 阶段 3：应用 Actions 权限
+
+通过 `GET /repos/{owner}/{repo}/actions/permissions/workflow` 将 `actions_permissions` 对象（默认工作流权限、PR 审查批准）与当前 Actions 工作流权限进行比较。如果有任何键发生漂移，则通过 `PUT` 进行更新。
+
+### 阶段 4：应用分支保护
+
+遍历 `branch_protection` 数组。对于每个分支：
+
+1. 如果在自身上运行，将 `self_contexts` 替换到 `contexts` 中
+2. 从 Payload 中剥离 `self_contexts`（不属于 GitHub API 的一部分）
+3. 通过 `GET /repos/{owner}/{repo}/branches/{branch}/protection` 获取当前保护设置
+4. 比较：`enforce_admins`、`required_status_checks`（strict + contexts）、`required_pull_request_reviews`、`restrictions` 以及布尔标志（`required_linear_history`、`allow_force_pushes`、`allow_deletions`、`block_creations`、`required_conversation_resolution`、`lock_branch`、`allow_fork_syncing`）
+5. 如果检测到任何漂移，通过 `PUT` 创建或更新保护规则
+
+### 阶段 5：应用 Topic
+
+通过 `GET /repos/{owner}/{repo}/topics` 将 `topics` 数组与存储库的当前 Topic 进行比较。如果发生漂移，通过 `PUT` 进行替换。
+
+### 阶段 6：应用 Pages
+
+通过 `GET /repos/{owner}/{repo}/pages` 检查是否已启用 GitHub Pages。如果未找到 (404)，则使用配置的 `build_type` 启用 Pages。如果已找到但 `build_type` 发生漂移，则通过 `PUT` 进行更新。
+
+### 阶段 7：验证
+
+通过 GitHub API 重新读取所有设置，并将其与期望状态进行比较。验证存储库设置、Actions 权限、分支保护（包括布尔标志）和 Pages 构建类型。如果应用阶段后有任何设置不匹配，则使工作流失败。
+
+## 不可变工作流 Pin 向前推进 (Roll-Forward)
+
+当 docs-control 中的可重用工作流发生变更时，`.github/workflows/update-governed-workflow-pins.yml` 会触发 `scripts/update-governed-workflow-pins.sh`，在无需人工干预的情况下确定性地更新整个调用方工作流中 Commit Pin 的 SHA。

@@ -1,0 +1,42 @@
+---
+title: مزامنة الملفات
+description: مزامنة الملفات المدارة، والإنشاء الديناميكي لملف dependabot.yml، وقوالب README عبر منظومة العمل.
+sidebar:
+  order: 5
+i18n:
+  sourceHash: "a389f6cb3ad7"
+  translator: "machine"
+---
+
+يعمل سير عمل مزامنة الملفات في `.github/workflows/sync-managed-files.yml` كمهمة موازية إلى جانب [إنفاذ الإعدادات](./settings-enforcement/)، باستخدام `REPO_SYNC_TOKEN` (قراءة/كتابة المحتويات، قراءة/كتابة المشكلات، قراءة/كتابة طلبات السحب، قراءة البيانات الوصفية).
+
+ويتخطى التنفيذ عند تشغيله على المستودع المصدر نفسه (docs-control)، نظرًا لأن الملفات المعتمدة توجد هنا بالفعل.
+
+## مزامنة الملفات الثابتة
+
+يتنقل سير العمل عبر مصفوفة `managed_files.files` من [التكوين المركزي](./configuration/). لكل إدخال، يجلب المحتوى المعتمد من docs-control ويقارنه بالنسخة التابعة. يتم تحديد الملفات المفقودة أو المنحرفة للمزامنة.
+
+يتضمن بيان الملفات المدارة:
+
+- مسارات العمل المستدعية (`enforce-repo-settings.yml` و `github-pages-deploy.yml` و `require-linked-issue.yml` و `antigravity-review.yml` و `antigravity-translate.yml`)
+- مهارات الوكيل (`.agents/skills/demo-components/SKILL.md` و `.agents/skills/i18n-translate/SKILL.md`)
+- قوالب المشكلات وطلبات السحب
+- `CONTRIBUTING.md` و `CLAUDE.md` و `AGENTS.md` و `STYLE_GUIDE.md` و `.editorconfig` و `.gitignore` و `LICENSE`
+- `.pre-commit-config.yaml`
+
+## الإنشاء الديناميكي لملف dependabot.yml
+
+يكتشف سير العمل أنظمة تعريف الحزم الموجودة في المستودع التابع:
+
+- `npm` -- `package.json` موجود
+- `pip` -- `requirements.txt` أو `pyproject.toml` أو `setup.py` موجود
+- `docker` -- `Dockerfile` موجود
+
+ينشئ ملف `.github/dependabot.yml` مع إدخال لنظام `github-actions` (مضمن دائماً) بالإضافة إلى إدخالات لكل نظام بيئي مكتشف. تستخدم جميع الأنظمة جداول أسبوعية يوم الاثنين مع بادئات الالتزام التقليدية وتجميع التحديثات الفرعية/التصحيحية.
+
+## الإنشاء الديناميكي لملف README.md
+
+يتلقى كل مستودع تابع ملف `README.md` منشأً ومبنياً من مصدرين:
+
+- **`README.md.tpl`** -- قالب في جذر docs-control يحتوي على عناصر نائبة (`__TITLE__` و `__DESCRIPTION__` و `__REPO_NAME__` و `__DOCS_URL__`)
+- **`docs-sites.json`** -- يوفر التسمية القابلة للقراءة والوصف لكل مستودع عن طريق مطابقة اسم المستودع مع حقل URL

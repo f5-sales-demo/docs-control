@@ -1,0 +1,74 @@
+---
+title: Architecture
+description: Architecture de pipeline de documentation à trois dépôts couvrant docs-control, docs-builder et docs-theme, avec automatisation IA Antigravity et gouvernance de flotte.
+sidebar:
+  order: 2
+i18n:
+  sourceHash: "c7a6eb5a25d8"
+  translator: "machine"
+---
+
+## Pipeline à trois dépôts
+
+Le système de documentation et de gouvernance s'étend sur trois dépôts, chacun ayant une responsabilité distincte :
+
+| Dépôt | Rôle |
+| --- | --- |
+| **docs-control** | Hub de gouvernance centralisé -- paramètres de dépôt, configuration de protection des branches, manifeste des fichiers gérés, workflows CI réutilisables, workflows IA Antigravity, modèles de workflows appelants, compétences d'agent et dispatch en aval |
+| **docs-builder** | Image de build Docker -- orchestration du build Astro + Starlight, dépendances npm, génération de PDF Puppeteer, composants interactifs |
+| **docs-theme** | Plugin Astro Starlight -- image de marque partagée, CSS, polices, logos, composants de mise en page, `astro.config.mjs` et `content.config.ts` |
+
+Les dépôts de contenu ont seulement besoin d'un répertoire `docs/`. Le conteneur de build et le workflow s'occupent du reste.
+
+## Flux de données
+
+Lorsqu'un fichier modèle ou un workflow change dans docs-control sur `main` :
+
+1. Le [workflow de dispatch](./dispatch/) s'exécute et déclenche l'application des règles dans chaque dépôt en aval
+2. Le [workflow d'application](./settings-enforcement/) compare l'état souhaité à l'état actuel et corrige toute dérive
+3. Le [workflow de synchronisation de fichiers](./file-sync/) détecte les fichiers gérés ayant dérivé, crée une PR avec le contenu canonique et la fusionne automatiquement
+4. Les workflows IA Antigravity réutilisables (`antigravity-review.yml` et `antigravity-translate.yml`) s'exécutent sur les pull requests à travers les dépôts inscrits
+
+## Automatisation IA Antigravity
+
+La flotte intègre l'automatisation IA **Antigravity (`agy`)** s'exécutant sur les runners GitHub Actions :
+
+| Workflow | Objectif | Déclencheur et exécution |
+| --- | --- | --- |
+| **Revue de code Antigravity** (`antigravity-review.yml`) | Revue de code automatique par IA pour les pull requests | S'exécute lors de la création ou mise à jour d'une PR. Utilise Gemini 3.6 Flash (High) pour auditer les diffs à la recherche de vulnérabilités de sécurité, secrets codés en dur, fuites de PII et qualité du code, en publiant des commentaires sur la PR. |
+| **Traduction linguistique Antigravity** (`antigravity-translate.yml`) | Traduction automatique de la documentation par IA | S'exécute sur les PRs modifiant `docs/en/**/*.md[x]`. Exécute la compétence `.agents/skills/i18n-translate/SKILL.md` pour mettre à jour 12 paramètres régionaux cibles (`fr`, `es`, `de`, `pt-br`, `ja`, `ko`, `zh-cn`, `zh-tw`, `ar`, `it`, `hi`, `th`), mettre à jour `i18n.sourceHash` et commiter automatiquement sur la branche de la PR. |
+
+## Modèle de jetons et d'identifiants
+
+Trois ensembles d'identifiants assurent la séparation selon le principe du moindre privilège :
+
+| Jeton / Secret | Permissions / Portée | Utilisé par |
+| --- | --- | --- |
+| `REPO_SETTINGS_TOKEN` | Administration R/W, Pages R/W, Contents Read, Metadata Read | `enforce-repo-settings.yml`, `dispatch-downstream.yml`, `update-governed-workflow-pins.yml` |
+| `REPO_SYNC_TOKEN` | Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read | `sync-managed-files.yml` |
+| `ANTIGRAVITY_TOKEN` & `GCP_PROJECT_ID` | Authentification Antigravity AI et accès au projet GCP | `antigravity-review.yml`, `antigravity-translate.yml` |
+
+Le workflow d'application nécessite un accès administrateur pour modifier la protection des branches et les paramètres Pages. Le workflow de synchronisation a besoin des accès au contenu et aux PRs pour créer des branches, commiter des fichiers et fusionner des PRs. Les workflows IA Antigravity utilisent des identifiants de projet dédiés pour s'authentifier auprès de Gemini 3.6 Flash.
+
+## Détection automatique
+
+Docs-control est à la fois le fournisseur et le consommateur de sa propre configuration de gouvernance. Lorsque `enforce-repo-settings.yml` s'exécute sur docs-control lui-même (via le déclencheur `push`), il le détecte en comparant `managed_files.source_repo` à `github.repository`. Cela déclenche le remplacement `self_contexts` dans la protection des branches -- docs-control utilise les workflows directement (par exemple, `Shell Unit Tests`), tandis que les dépôts en aval utilisent des conteneurs appelants (par exemple, `lint / Shell Unit Tests`). Consultez la [page de configuration](./configuration/) pour plus de détails sur `contexts` par rapport à `self_contexts`.
+
+## Structure du dépôt
+
+| Répertoire / Fichier | Objectif |
+| --- | --- |
+| `.github/config/repo-settings.json` | Configuration centrale : paramètres de dépôt, protection des branches, permissions Actions, configuration Pages et manifeste des fichiers gérés |
+| `.github/config/downstream-repos.json` | Registre des dépôts en aval inscrits |
+| `.github/config/docs-sites.json` | Métadonnées pour chaque site de doc en aval (étiquette, URL, description) utilisées par le modèle README |
+| `.github/workflows/` | Workflows réutilisables : application, synchronisation de fichiers, déploiement pages, vérification des tickets liés, dispatch, revue antigravity et traduction antigravity |
+| `.agents/skills/` | Gouvernance des compétences d'agent : `demo-components`, `i18n-translate` |
+| `workflows/` | Modèles appelants que les dépôts en aval installent dans `.github/workflows/` |
+| `docs/` | Source de la documentation (construite et déployée via Astro Starlight) |
+| `CONTRIBUTING.md` | Règles de workflow de contribution (synchronisées sur tous les dépôts en aval) |
+| `CLAUDE.md` | Instructions pour l'assistant IA (synchronisées sur tous les dépôts en aval) |
+| `AGENTS.md` | Instructions pour les agents du dépôt et politiques de gouvernance |
+| `README.md.tpl` | Modèle pour les fichiers README générés dynamiquement en aval |
+| `.pre-commit-config.yaml` | Configuration des crochets de pré-commit (synchronisée sur tous les dépôts en aval) |
+| `.markdownlint.json` | Règles du linter Markdown |
+| `.yamllint.yaml` | Règles du linter YAML |

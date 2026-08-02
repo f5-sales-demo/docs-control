@@ -1,0 +1,42 @@
+---
+title: ファイル同期
+description: エコシステム全体における管理対象ファイルの同期、動的な dependabot.yml 生成、および README テンプレート化。
+sidebar:
+  order: 5
+i18n:
+  sourceHash: "a389f6cb3ad7"
+  translator: "machine"
+---
+
+`.github/workflows/sync-managed-files.yml` にあるファイル同期ワークフローは、`REPO_SYNC_TOKEN`（Contents R/W、Issues R/W、Pull Requests R/W、Metadata Read）を使用して、[設定適用](./settings-enforcement/)と並列ジョブとして実行されます。
+
+ソースリポジトリ自体（docs-control）で実行される場合は、正規のファイルが既にここに存在するため、実行をスキップします。
+
+## 静的ファイル同期
+
+ワークフローは、[中央設定](./configuration/) から `managed_files.files` 配列を反復処理します。各エントリについて、docs-control から正規のコンテンツを取得し、ダウンストリームのコピーと比較します。存在しないファイルや差異（ドリフト）があるファイルは同期対象としてフラグが立てられます。
+
+管理対象ファイルのマニフェストには以下が含まれます:
+
+- 呼び出し元ワークフロー（`enforce-repo-settings.yml`、`github-pages-deploy.yml`、`require-linked-issue.yml`、`antigravity-review.yml`、`antigravity-translate.yml`）
+- エージェントスキル（`.agents/skills/demo-components/SKILL.md`、`.agents/skills/i18n-translate/SKILL.md`）
+- Issue および PR テンプレート
+- `CONTRIBUTING.md`、`CLAUDE.md`、`AGENTS.md`、`STYLE_GUIDE.md`、`.editorconfig`、`.gitignore`、`LICENSE`
+- `.pre-commit-config.yaml`
+
+## 動的 dependabot.yml 生成
+
+ワークフローは、ダウンストリームリポジトリにどのパッケージエコシステムが存在するかを検出します:
+
+- `npm` -- `package.json` が存在
+- `pip` -- `requirements.txt`、`pyproject.toml`、または `setup.py` が存在
+- `docker` -- `Dockerfile` が存在
+
+常に含まれる `github-actions` エコシステムエントリに加えて、検出された各エコシステムのエントリを含む `.github/dependabot.yml` を生成します。すべてのエコシステムは、コンベンショナルコミットの接頭辞とマイナー/パッチのグループ化を使用して、毎週月曜日のスケジュールを使用します。
+
+## 動的 README.md 生成
+
+各ダウンストリームリポジトリは、以下の 2 つのソースから構築された生成済み `README.md` を受け取ります:
+
+- **`README.md.tpl`** -- プレースホルダー（`__TITLE__`、`__DESCRIPTION__`、`__REPO_NAME__`、`__DOCS_URL__`）を含む docs-control ルート内のテンプレート
+- **`docs-sites.json`** -- リポジトリ名を URL フィールドと照合することにより、各リポジトリの人間が読みやすいラベルと説明を提供

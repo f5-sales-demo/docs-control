@@ -1,6 +1,6 @@
 ---
 title: Configuration Reference
-description: Central repo-settings.json configuration reference for enforcement, sync, and dispatch behavior.
+description: Central repo-settings.json configuration reference for enforcement, sync, Antigravity AI automation, and dispatch behavior.
 sidebar:
   order: 3
 ---
@@ -68,6 +68,8 @@ The central configuration file drives all enforcement, sync, and dispatch behavi
       {"src": "workflows/github-pages-deploy.yml", "dest": ".github/workflows/github-pages-deploy.yml"},
       {"src": "workflows/enforce-repo-settings.yml", "dest": ".github/workflows/enforce-repo-settings.yml"},
       {"src": "workflows/require-linked-issue.yml", "dest": ".github/workflows/require-linked-issue.yml"},
+      {"src": "workflows/antigravity-review.yml", "dest": ".github/workflows/antigravity-review.yml"},
+      {"src": "workflows/antigravity-translate.yml", "dest": ".github/workflows/antigravity-translate.yml"},
       {"src": ".github/PULL_REQUEST_TEMPLATE.md", "dest": ".github/PULL_REQUEST_TEMPLATE.md"},
       {"src": ".github/ISSUE_TEMPLATE/bug_report.md", "dest": ".github/ISSUE_TEMPLATE/bug_report.md"},
       {"src": ".github/ISSUE_TEMPLATE/feature_request.md", "dest": ".github/ISSUE_TEMPLATE/feature_request.md"},
@@ -76,6 +78,9 @@ The central configuration file drives all enforcement, sync, and dispatch behavi
 
       {"src": "CONTRIBUTING.md", "dest": "CONTRIBUTING.md"},
       {"src": "CLAUDE.md", "dest": "CLAUDE.md"},
+      {"src": "AGENTS.md", "dest": "AGENTS.md"},
+      {"src": ".agents/skills/demo-components/SKILL.md", "dest": ".agents/skills/demo-components/SKILL.md"},
+      {"src": ".agents/skills/i18n-translate/SKILL.md", "dest": ".agents/skills/i18n-translate/SKILL.md"},
       {"src": ".editorconfig", "dest": ".editorconfig"},
       {"src": ".gitignore", "dest": ".gitignore"},
       {"src": "LICENSE", "dest": "LICENSE"},

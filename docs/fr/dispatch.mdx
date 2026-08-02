@@ -1,0 +1,24 @@
+---
+title: Dispatch en aval
+description: Mécanisme de dispatch de workflow automatisé déclenchant l'application des paramètres et la synchronisation de fichiers des dépôts en aval.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: "293c484ec19d"
+  translator: "machine"
+---
+
+Le workflow de dispatch dans `.github/workflows/dispatch-downstream.yml` déclenche l'application automatisée des paramètres sur tous les dépôts inscrits dès que la configuration centrale ou les fichiers gérés changent sur `main` dans docs-control.
+
+## Déclencheurs de dispatch
+
+Le workflow de dispatch se déclenche sous deux conditions :
+
+1. **`push` sur `main`** : Se déclenche automatiquement lorsque des modifications sont commitées sur `.github/config/repo-settings.json`, `.github/config/downstream-repos.json`, ou tout fichier dans `workflows/` ou `templates/`.
+2. **`workflow_dispatch`** : Déclencheur manuel permettant aux administrateurs d'exécuter l'application à l'échelle de la flotte à la demande.
+
+## Matrice d'exécution
+
+Le workflow lit le registre des dépôts inscrits depuis `.github/config/downstream-repos.json` et utilise une matrice de jobs GitHub Actions pour distribuer les appels `enforce-repo-settings.yml` de manière concurrente sur tous les dépôts en aval.
+
+Chaque job de la matrice invoque `gh workflow run enforce-repo-settings.yml` en utilisant les identifiants `REPO_SETTINGS_TOKEN`, en passant le SHA de commit `source_sha` déclencheur pour garantir que tous les dépôts en aval se synchronisent par rapport au commit exact.

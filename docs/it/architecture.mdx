@@ -1,0 +1,80 @@
+---
+title: Architettura
+description: Architettura della pipeline di documentazione a tre repository che comprende docs-control, docs-builder e docs-theme, con automazione IA Antigravity e governance della flotta.
+sidebar:
+  order: 2
+i18n:
+  sourceHash: "c7a6eb5a25d8"
+  translator: "machine"
+---
+
+## Pipeline a tre repository
+
+Il sistema di documentazione e governance si estende su tre repository, ciascuno con una responsabilità distinta:
+
+| Repository | Ruolo |
+| --- | --- |
+| **docs-control** | Hub centrale di governance -- impostazioni del repository, config di protezione dei branch, manifesto dei file gestiti, workflow CI riutilizzabili, workflow IA Antigravity, template di workflow chiamante, skill dell'agente e dispatch downstream |
+| **docs-builder** | Immagine di build Docker -- orchestrazione della build Astro + Starlight, dipendenze npm, generazione PDF con Puppeteer, componenti interattivi |
+| **docs-theme** | Plugin Astro Starlight -- branding condiviso, CSS, font, loghi, componenti di layout, `astro.config.mjs` e `content.config.ts` |
+
+I repository di contenuto necessitano solo di una directory `docs/`. Il container di build e il workflow gestiscono tutto il resto.
+
+## Flusso dati
+
+Quando un file template o un workflow cambia in docs-control su `main`:
+
+1. Il [workflow di dispatch](./dispatch/) si attiva e avvia l'enforcement in ogni repository downstream
+2. Il [workflow di enforcement](./settings-enforcement/) confronta lo stato desiderato con quello attuale e corregge eventuali disallineamenti
+3. Il [workflow di sincronizzazione file](./file-sync/) rileva i file gestiti disallineati, crea una PR con il contenuto canonico ed esegue l'auto-merge
+4. I workflow riutilizzabili di IA Antigravity (`antigravity-review.yml` e `antigravity-translate.yml`) vengono eseguiti sulle pull request nei repository registrati
+
+## Automazione IA Antigravity
+
+La flotta integra l'automazione IA **Antigravity (`agy`)** eseguita sui runner di GitHub Actions:
+
+| Workflow | Scopo | Trigger ed Esecuzione |
+| --- | --- | --- |
+| **Revisione Codice Antigravity** (`antigravity-review.yml`) | Revisione automatizzata del codice delle pull request tramite IA | Viene eseguito alla creazione o aggiornamento della PR. Utilizza Gemini 3.6 Flash (High) per analizzare i diff alla ricerca di vulnerabilità di sicurezza, segreti hardcoded, fughe di PII e qualità del codice, pubblicando commenti sulla PR. |
+| **Traduzione Linguistica Antigravity** (`antigravity-translate.yml`) | Traduzione automatizzata della documentazione tramite IA | Viene eseguito sulle PR che modificano `docs/en/**/*.md[x]`. Esegue la skill `.agents/skills/i18n-translate/SKILL.md` per aggiornare 12 locale di destinazione (`fr`, `es`, `de`, `pt-br`, `ja`, `ko`, `zh-cn`, `zh-tw`, `ar`, `it`, `hi`, `th`), aggiornare `i18n.sourceHash` e fare l'auto-commit sulla branch della PR. |
+
+## Modello Token e Credenziali
+
+Tre set di credenziali forniscono la separazione a minimo privilegio:
+
+| Token / Secret | Permessi / Ambito | Utilizzato da |
+| --- | --- | --- |
+| `REPO_SETTINGS_TOKEN` | Amministrazione R/W, Pages R/W, Lettura Contenuti, Lettura Metadati | `enforce-repo-settings.yml`, `dispatch-downstream.yml`, `update-governed-workflow-pins.yml` |
+| `REPO_SYNC_TOKEN` | Contenuti R/W, Issues R/W, Pull Requests R/W, Lettura Metadati | `sync-managed-files.yml` |
+| `ANTIGRAVITY_TOKEN` & `GCP_PROJECT_ID` | Autenticazione Antigravity AI e Accesso al Progetto GCP | `antigravity-review.yml`, `antigravity-translate.yml` |
+
+Il workflow di enforcement necessita dell'accesso di amministrazione per modificare la protezione dei branch e le impostazioni di Pages. Il workflow di sincronizzazione necessita dell'accesso ai contenuti e alle PR per creare branch, fare commit dei file ed eseguire il merge delle PR. I workflow di IA Antigravity utilizzano credenziali di progetto dedicate per autenticarsi con Gemini 3.6 Flash.
+
+## Auto-rilevamento
+
+Docs-control è sia fornitore sia consumatore della propria configurazione di governance. Quando
+`enforce-repo-settings.yml` viene eseguito su docs-control stesso (tramite il trigger `push`), rileva
+questo confrontando `managed_files.source_repo` con `github.repository`. Questo attiva il
+matching di `self_contexts` nella protezione dei branch -- docs-control usa direttamente i workflow (per
+esempio, `Shell Unit Tests`), mentre i repository downstream usano wrapper chiamanti (per
+esempio, `lint / Shell Unit Tests`). Vedere la [pagina di configurazione](./configuration/) per i dettagli su
+`contexts` rispetto a `self_contexts`.
+
+## Struttura del repository
+
+| Directory / File | Scopo |
+| --- | --- |
+| `.github/config/repo-settings.json` | Configurazione centrale: impostazioni repository, protezione branch, permessi Actions, config Pages e manifesto dei file gestiti |
+| `.github/config/downstream-repos.json` | Registro dei repository downstream iscritti |
+| `.github/config/docs-sites.json` | Metadati per ciascun sito di documentazione downstream (etichetta, URL, descrizione) usati per i template README |
+| `.github/workflows/` | Workflow riutilizzabili: enforcement, sincronizzazione file, deploy Pages, verifica issue collegate, dispatch, revisione Antigravity e traduzione Antigravity |
+| `.agents/skills/` | Governance delle skill dell'agente: `demo-components`, `i18n-translate` |
+| `workflows/` | Template chiamanti che i repository downstream installano in `.github/workflows/` |
+| `docs/` | Sorgente della documentazione (costruita e distribuita tramite Astro Starlight) |
+| `CONTRIBUTING.md` | Regole del workflow per i contributori (sincronizzate su tutti i repository downstream) |
+| `CLAUDE.md` | Istruzioni per l'assistente IA (sincronizzate su tutti i repository downstream) |
+| `AGENTS.md` | Istruzioni per l'agente del repository e politiche di governance |
+| `README.md.tpl` | Template per i file README downstream generati dinamicamente |
+| `.pre-commit-config.yaml` | Configurazione hook pre-commit (sincronizzata su tutti i repository downstream) |
+| `.markdownlint.json` | Regole del linter Markdown |
+| `.yamllint.yaml` | Regole del linter YAML |

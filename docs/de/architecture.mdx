@@ -1,0 +1,74 @@
+---
+title: Architektur
+description: Drei-Repository-Dokumentations-Pipeline-Architektur über docs-control, docs-builder und docs-theme, mit Antigravity AI-Automatisierung und Flotten-Governance.
+sidebar:
+  order: 2
+i18n:
+  sourceHash: "c7a6eb5a25d8"
+  translator: "machine"
+---
+
+## Drei-Repository-Pipeline
+
+Das Dokumentations- und Governance-System erstreckt sich über drei Repositories, jedes mit einer spezifischen Verantwortung:
+
+| Repository | Rolle |
+| --- | --- |
+| **docs-control** | Zentraler Governance-Hub -- Repository-Einstellungen, Branch-Protection-Konfiguration, Manifest verwalteter Dateien, wiederverwendbare CI-Workflows, Antigravity AI-Workflows, Aufrufer-Workflow-Vorlagen, Agent-Skills und nachgelagerter Dispatch |
+| **docs-builder** | Docker-Build-Image -- Astro + Starlight Build-Orchestrierung, npm-Abhängigkeiten, Puppeteer PDF-Generierung, interaktive Komponenten |
+| **docs-theme** | Astro Starlight Plugin -- gemeinsames Branding, CSS, Schriftarten, Logos, Layout-Komponenten, `astro.config.mjs` und `content.config.ts` |
+
+Inhalts-Repositories benötigen lediglich ein `docs/`-Verzeichnis. Der Build-Container und der Workflow übernehmen alles weitere.
+
+## Datenfluss
+
+Wenn sich eine Vorlagendatei oder ein Workflow in docs-control auf `main` ändert:
+
+1. Der [Dispatch-Workflow](./dispatch/) wird ausgelöst und startet die Durchsetzung in jedem nachgelagerten Repository
+2. Der [Durchsetzungs-Workflow](./settings-enforcement/) vergleicht den Soll-Zustand mit dem Ist-Zustand und behebt etwaige Abweichungen
+3. Der [Datei-Synchronisierungs-Workflow](./file-sync/) erkennt abweichende verwaltete Dateien, erstellt einen PR mit kanonischem Inhalt und führt diesen automatisch zusammen
+4. Wiederverwendbare Antigravity AI-Workflows (`antigravity-review.yml` und `antigravity-translate.yml`) werden bei Pull Requests über alle registrierten Repositories hinweg ausgeführt
+
+## Antigravity AI-Automatisierung
+
+Die Flotte integriert **Antigravity (`agy`)** AI-Automatisierung auf GitHub Actions Runnern:
+
+| Workflow | Zweck | Auslöser & Ausführung |
+| --- | --- | --- |
+| **Antigravity Code Review** (`antigravity-review.yml`) | Automatisierte AI-Pull-Request-Code-Überprüfung | Läuft bei Erstellung oder Aktualisierung eines PRs. Nutzt Gemini 3.6 Flash (High), um Diffs auf Sicherheitslücken, hartcodierte Geheimnisse, PII-Lecks und Codequalität zu prüfen und Feedback über PR-Kommentare zu veröffentlichen. |
+| **Antigravity Sprachübersetzung** (`antigravity-translate.yml`) | Automatisierte AI-Dokumentationsübersetzung | Läuft bei PRs, die `docs/en/**/*.md[x]` ändern. Führt den `.agents/skills/i18n-translate/SKILL.md`-Skill aus, um 12 Ziel-Gebietsschemata (`fr`, `es`, `de`, `pt-br`, `ja`, `ko`, `zh-cn`, `zh-tw`, `ar`, `it`, `hi`, `th`) zu aktualisieren, `i18n.sourceHash` zu aktualisieren und automatisch auf den PR-Branch zu committen. |
+
+## Token- & Anmeldedaten-Modell
+
+Drei Sätze von Anmeldedaten bieten eine Trennung nach dem Prinzip der geringsten Rechte:
+
+| Token / Secret | Berechtigungen / Umfang | Verwendet von |
+| --- | --- | --- |
+| `REPO_SETTINGS_TOKEN` | Administration R/W, Pages R/W, Contents Read, Metadata Read | `enforce-repo-settings.yml`, `dispatch-downstream.yml`, `update-governed-workflow-pins.yml` |
+| `REPO_SYNC_TOKEN` | Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read | `sync-managed-files.yml` |
+| `ANTIGRAVITY_TOKEN` & `GCP_PROJECT_ID` | Antigravity AI-Authentifizierung & GCP-Projektzugriff | `antigravity-review.yml`, `antigravity-translate.yml` |
+
+Der Durchsetzungs-Workflow benötigt Administratorzugriff zur Änderung des Branch-Schutzes und der Pages-Einstellungen. Der Synchronisierungs-Workflow benötigt Inhalts- und PR-Zugriff, um Branches zu erstellen, Dateien zu committen und PRs zusammenzuführen. Antigravity AI-Workflows verwenden dedizierte Projekt-Anmeldedaten zur Authentifizierung bei Gemini 3.6 Flash.
+
+## Selbsterkennung
+
+Docs-control ist sowohl Bereitsteller als auch Konsument seiner eigenen Governance-Konfiguration. Wenn `enforce-repo-settings.yml` auf docs-control selbst ausgeführt wird (über den `push`-Auslöser), erkennt es dies durch den Vergleich von `managed_files.source_repo` mit `github.repository`. Dies löst die `self_contexts`-Überschreibung beim Branch-Schutz aus -- docs-control verwendet Workflows direkt (z. B. `Shell Unit Tests`), während nachgelagerte Repositories Aufrufer-Wrapper verwenden (z. B. `lint / Shell Unit Tests`). Siehe die [Konfigurationsseite](./configuration/) für Details zu `contexts` vs. `self_contexts`.
+
+## Repository-Layout
+
+| Verzeichnis / Datei | Zweck |
+| --- | --- |
+| `.github/config/repo-settings.json` | Zentrale Konfiguration: Repository-Einstellungen, Branch-Schutz, Actions-Berechtigungen, Pages-Konfiguration und das Manifest verwalteter Dateien |
+| `.github/config/downstream-repos.json` | Register registrierter nachgelagerter Repositories |
+| `.github/config/docs-sites.json` | Metadaten für jede nachgelagerte Dokumentationsseite (Label, URL, Beschreibung) zur Verwendung beim README-Templating |
+| `.github/workflows/` | Wiederverwendbare Workflows: Durchsetzung, Dateisynchronisierung, Pages-Bereitstellung, Prüfung verknüpfter Issues, Dispatch, Antigravity-Review und Antigravity-Übersetzung |
+| `.agents/skills/` | Agent-Skills-Governance: `demo-components`, `i18n-translate` |
+| `workflows/` | Aufrufer-Vorlagen, die nachgelagerte Repositories in `.github/workflows/` installieren |
+| `docs/` | Dokumentationsquelle (erstellt und bereitgestellt über Astro Starlight) |
+| `CONTRIBUTING.md` | Mitwirkungs-Workflow-Regeln (synchronisiert mit allen nachgelagerten Repositories) |
+| `CLAUDE.md` | Anweisungen für den AI-Assistenten (synchronisiert mit allen nachgelagerten Repositories) |
+| `AGENTS.md` | Repository-Agent-Anweisungen und Governance-Richtlinien |
+| `README.md.tpl` | Vorlage für dynamisch generierte nachgelagerte README-Dateien |
+| `.pre-commit-config.yaml` | Pre-commit-Hooks-Konfiguration (synchronisiert mit allen nachgelagerten Repositories) |
+| `.markdownlint.json` | Markdown-Linter-Regeln |
+| `.yamllint.yaml` | YAML-Linter-Regeln |

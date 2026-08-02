@@ -1,0 +1,24 @@
+---
+title: Downstream Dispatch
+description: 觸發下游儲存庫設定強制執行和檔案同步的自動化工作流分發機制。
+i18n:
+  sourceHash: "293c484ec19d"
+  translator: "machine"
+sidebar:
+  order: 6
+---
+
+位於 `.github/workflows/dispatch-downstream.yml` 的分發工作流會在 docs-control 的 `main` 分支上的中央設定或託管檔案發生變更時，觸發所有已註冊儲存庫的自動化設定強制執行。
+
+## 分發觸發器
+
+分發工作流在以下兩種情況下觸發：
+
+1. **`push` 到 `main`**：當變更提交到 `.github/config/repo-settings.json`、`.github/config/downstream-repos.json` 或 `workflows/`、`templates/` 中的任何檔案時自動觸發。
+2. **`workflow_dispatch`**：允許管理員根據需要手動按需執行全 fleet 範圍的強制執行。
+
+## 執行矩陣
+
+工作流從 `.github/config/downstream-repos.json` 讀取已註冊的儲存庫註冊表，並使用 GitHub Actions 任務矩陣在所有下游儲存庫中並發分發 `enforce-repo-settings.yml` 呼叫。
+
+每個矩陣任務使用 `REPO_SETTINGS_TOKEN` 憑證呼叫 `gh workflow run enforce-repo-settings.yml`，並傳遞觸發的 `source_sha` 提交 SHA，以確保所有下游儲存庫都針對確切的提交進行同步。

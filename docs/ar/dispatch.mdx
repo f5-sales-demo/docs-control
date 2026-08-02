@@ -1,0 +1,24 @@
+---
+title: التوزيع للمستودعات التابعة
+description: آلية تواريخ سير العمل الآلية التي تتسبب في تطبيق إعدادات المستودع التابع ومزامنة الملفات.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: "293c484ec19d"
+  translator: "machine"
+---
+
+يتسبب سير عمل التوزيع في `.github/workflows/dispatch-downstream.yml` في الإنفاذ الآلي للإعدادات عبر كافة المستودعات المسجلة كلما تغير التكوين المركزي أو الملفات المدارة على الفرع `main` في docs-control.
+
+## مشغلات التوزيع
+
+يعمل سير عمل التوزيع تحت شرطين:
+
+1. **`push` إلى `main`**: يعمل تلقائياً عند الالتزام بالتغييرات في `.github/config/repo-settings.json` أو `.github/config/downstream-repos.json` أو أي ملف في `workflows/` أو `templates/`.
+2. **`workflow_dispatch`**: مشغل يدوي يسمح للمسؤولين بتشغيل الإنفاذ على مستوى الأسطول عند الطلب.
+
+## مصفوفة التنفيذ
+
+يقرأ سير العمل سجل المستودعات التابعة المسجلة من `.github/config/downstream-repos.json` ويستخدم مصفوفة مهام GitHub Actions لتوزيع استدعاءات `enforce-repo-settings.yml` بالتزامن عبر كافة المستودعات التابعة.
+
+تستدعي كل مهمة في المصفوفة `gh workflow run enforce-repo-settings.yml` باستخدام أوراق اعتماد `REPO_SETTINGS_TOKEN`، مع تمرير الالتزام المسبب `source_sha` لضمان مزامنة كافة المستودعات التابعة مقابل الالتزام المحدد تماماً.

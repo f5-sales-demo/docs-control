@@ -1,0 +1,24 @@
+---
+title: Dispatch Downstream
+description: Meccanismo di dispatch automatizzato del workflow che attiva l'enforcement delle impostazioni del repository e la sincronizzazione dei file nei repository downstream.
+sidebar:
+  order: 6
+i18n:
+  sourceHash: "293c484ec19d"
+  translator: "machine"
+---
+
+Il workflow di dispatch in `.github/workflows/dispatch-downstream.yml` attiva l'enforcement automatizzato delle impostazioni su tutti i repository iscritti ogni volta che la configurazione centrale o i file gestiti cambiano su `main` in docs-control.
+
+## Trigger di dispatch
+
+Il workflow di dispatch si attiva in due condizioni:
+
+1. **`push` su `main`**: Si attiva automaticamente quando i cambiamenti vengono inviati a `.github/config/repo-settings.json`, `.github/config/downstream-repos.json` o a qualsiasi file in `workflows/` o `templates/`.
+2. **`workflow_dispatch`**: Trigger manuale che consente agli amministratori di eseguire l'enforcement sull'intera flotta su richiesta.
+
+## Matrice di esecuzione
+
+Il workflow legge il registro dei repository iscritti da `.github/config/downstream-repos.json` e utilizza una matrice di job di GitHub Actions per inviare chiamate a `enforce-repo-settings.yml` in modo concorrente a tutti i repository downstream.
+
+Ogni job della matrice invoca `gh workflow run enforce-repo-settings.yml` utilizzando le credenziali `REPO_SETTINGS_TOKEN`, passando lo SHA del commit scatenante `source_sha` per garantire che tutti i repository downstream si sincronizzino rispetto all'esatto commit.

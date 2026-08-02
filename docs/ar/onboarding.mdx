@@ -1,0 +1,91 @@
+---
+title: تسجيل المستودعات الجديدة
+description: إجراءات تسجيل مستودع جديد في نظام حوكمة docs-control وتكوين أتمتة Antigravity الذكية وتوثيق Astro Starlight.
+sidebar:
+  order: 7
+i18n:
+  sourceHash: "d4105fff3f9f"
+  translator: "machine"
+---
+
+تغطي هذه الصفحة إجراءات تسجيل مستودع جديد في نظام حوكمة docs-control وتكوين أنابيب التوثيق وأتمتة Antigravity الذكية.
+
+## المتطلبات الأساسية
+
+- العضوية في المؤسسة `f5-sales-demo`
+- أسرار `REPO_SETTINGS_TOKEN` و `REPO_SYNC_TOKEN` مكونة كأسرار على مستوى المؤسسة (أو مضافة إلى المستودع الجديد بشكل فردي)
+- أسرار `ANTIGRAVITY_TOKEN` و `GCP_PROJECT_ID` مكونة لمراجعة كود طلبات السحب الآلية وترجمة اللغات بواسطة Antigravity الذكية
+- الوصول إلى صورة الحاوية `ghcr.io/f5-sales-demo/docs-builder`
+
+## خطوات التسجيل
+
+### 1. الإضافة إلى downstream-repos.json
+
+أضف الاسم المباشر للمستودع -- وليس `owner/repo` -- في `.github/config/downstream-repos.json` في docs-control. يتم إضافة المالك عند وقت التوزيع من `GITHUB_REPOSITORY_OWNER`. يضمن ذلك تسجيله للتوزيع والإنفاذ.
+
+ثم قم بتعيين فئة له في `repo_classes.repos` في `.claude/governance.json`. هذا إلزامي: تفشل اختبارات وحدة shell إذا تم تسجيل مستودع للتوزيع بدون تعيين فئة.
+
+### 2. الإضافة الاختيارية إلى docs-sites.json
+
+إذا كان المستودع سينشر توثيقاً، أضف إدخالاً إلى `.github/config/docs-sites.json` مع:
+
+- `label` -- اسم الموقع القابل للقراءة
+- `url` -- الرابط لنقطة نهاية `llms-full.txt` الخاصة بالموقع
+- `description` -- وصف قصير مستخدم في ملف README المنشأ
+
+إذا لم يتم إضافة أي إدخال، يعود منشئ README إلى اسم مستودع بحروف كبيرة ووصف GitHub API.
+
+### 3. دمج .gitignore
+
+يقوم سير عمل الإنفاذ **بإعادة كتابة** ملف `.gitignore` التابع بالكامل. قبل التسجيل، ادمج أي إدخالات خاصة بالمستودع في قالب `.gitignore` في docs-control حتى لا تفقد.
+
+### 4. تثبيت مسارات العمل المستدعية
+
+انسخ قوالب سير العمل المستدعي من `workflows/` في docs-control إلى دليل `.github/workflows/` الخاص بالمستودع الجديد:
+
+- `enforce-repo-settings.yml` -- يتسبب في إنفاذ الإعدادات ومزامنة الملفات
+- `github-pages-deploy.yml` -- يتسبب في بناء التوثيق ونشره
+- `require-linked-issue.yml` -- ينفذ ربط طلب السحب بالمشكلة
+- `antigravity-review.yml` -- يتسبب في مراجعة كود طلب السحب بواسطة Antigravity الذكية
+- `antigravity-translate.yml` -- يتسبب في ترجمة اللغات بواسطة Antigravity الذكية
+- `super-linter.yml` -- يشغل مجموعة super-linter على طلبات السحب
+- `dependabot-auto-merge.yml` -- يدمج تلقائياً طلبات سحب dependabot المعتمدة
+
+يتم مزامنة هذه الملفات تلقائياً أيضاً بواسطة [سير عمل مزامنة الملفات](./file-sync/)، ولكن تثبيتها يدوياً يبدأ العملية.
+
+### 5. تشغيل الإنفاذ
+
+شغل سير عمل الإنفاذ يدوياً في المستودع الجديد:
+
+```bash
+source_sha=$(gh api repos/f5-sales-demo/docs-control/commits/main --jq '.sha')
+gh workflow run enforce-repo-settings.yml   --repo f5-sales-demo/<repo-name>   -f source_sha="$source_sha"
+```
+
+يطبق هذا جميع [إعدادات المستودع](./settings-enforcement/)، وينشئ أي ملفات حوكمة مفقودة، ويفتح طلب سحب للمزامنة إذا لزم الأمر.
+
+### 6. التحقق من الإعدادات
+
+تأكد من نجاح الإنفاذ:
+
+```bash
+gh run list --repo f5-sales-demo/<repo-name> --workflow enforce-repo-settings.yml --limit 1
+```
+
+تحقق من تكوين حماية الفروع، وصلاحيات Actions، و Pages بشكل صحيح:
+
+```bash
+gh api repos/f5-sales-demo/<repo-name>/branches/main/protection   --jq '.required_status_checks.contexts'
+```
+
+### 7. التحقق من موقع التوثيق
+
+إذا كان المستودع يحتوي على دليل `docs/`، تأكد من إمكانية الوصول إلى موقع التوثيق بعد أول نشر ناجح:
+
+```bash
+curl -sf "https://f5-sales-demo.github.io/<repo-name>/"   && echo "OK" || echo "FAIL"
+```
+
+## دقة الفروع (Forks): إلغاء الاشتراك من الملفات المدارة
+
+تقبل معظم المستودعات الخاضعة للحوكمة كل ملف مدار كما هو، ولكن يمكن للفروع النشطة إلغاء الاشتراك من المزامنة في مسارات معينة باستخدام `skip_files` في `repo-settings.json` تحت `managed_files` و `.claude/governance.json`.

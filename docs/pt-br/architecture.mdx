@@ -1,0 +1,80 @@
+---
+title: Arquitetura
+description: Arquitetura de pipeline de documentação de três repositórios abrangendo docs-control, docs-builder e docs-theme, contando com automação de IA Antigravity e governança da frota.
+sidebar:
+  order: 2
+i18n:
+  sourceHash: "c7a6eb5a25d8"
+  translator: "machine"
+---
+
+## Pipeline de três repositórios
+
+O sistema de documentação e governança abrange três repositórios, cada um com uma responsabilidade distinta:
+
+| Repositório | Função |
+| --- | --- |
+| **docs-control** | Hub central de governança -- configurações de repositório, config de proteção de branch, manifesto de arquivos gerenciados, fluxos de trabalho CI reutilizáveis, fluxos de trabalho de IA Antigravity, modelos de fluxo de trabalho chamador, skills de agente e disparo para repositórios downstream |
+| **docs-builder** | Imagem de build Docker -- orquestração de build Astro + Starlight, dependências npm, geração de PDF com Puppeteer, componentes interativos |
+| **docs-theme** | Plugin Astro Starlight -- identidade visual compartilhada, CSS, fontes, logotipos, componentes de layout, `astro.config.mjs` e `content.config.ts` |
+
+Repositórios de conteúdo só precisam de um diretório `docs/`. O contêiner de build e o fluxo de trabalho cuidam de todo o resto.
+
+## Fluxo de dados
+
+Quando um arquivo de modelo ou fluxo de trabalho é alterado no docs-control na `main`:
+
+1. O [fluxo de trabalho de disparo](./dispatch/) é executado e aciona a aplicação de regras em cada repositório downstream
+2. O [fluxo de trabalho de aplicação](./settings-enforcement/) compara o estado desejado com o estado atual e corrige qualquer desvio
+3. O [fluxo de trabalho de sincronização de arquivos](./file-sync/) detecta arquivos gerenciados com desvio, cria um PR com o conteúdo canônico e realiza o auto-merge
+4. Fluxos de trabalho reutilizáveis de IA Antigravity (`antigravity-review.yml` e `antigravity-translate.yml`) executam em pull requests em todos os repositórios inscritos
+
+## Automação de IA Antigravity
+
+A frota incorpora a automação de IA **Antigravity (`agy`)** executada em runners do GitHub Actions:
+
+| Fluxo de trabalho | Finalidade | Gatilho e Execução |
+| --- | --- | --- |
+| **Revisão de Código Antigravity** (`antigravity-review.yml`) | Revisão automatizada de código de pull request por IA | Executado na criação ou atualização de PR. Usa o Gemini 3.6 Flash (High) para auditar diffs em busca de vulnerabilidades de segurança, segredos hardcoded, vazamento de PII e qualidade de código, publicando comentários no PR. |
+| **Tradução de Idiomas Antigravity** (`antigravity-translate.yml`) | Tradução automatizada de documentação por IA | Executado em PRs que modificam `docs/en/**/*.md[x]`. Executa a skill `.agents/skills/i18n-translate/SKILL.md` para atualizar 12 locales de destino (`fr`, `es`, `de`, `pt-br`, `ja`, `ko`, `zh-cn`, `zh-tw`, `ar`, `it`, `hi`, `th`), atualizar `i18n.sourceHash` e realizar auto-commit de volta na branch do PR. |
+
+## Modelo de Tokens e Credenciais
+
+Três conjuntos de credenciais fornecem separação de privilégio mínimo:
+
+| Token / Secret | Permissões / Escopo | Usado por |
+| --- | --- | --- |
+| `REPO_SETTINGS_TOKEN` | Administração R/W, Pages R/W, Leitura de Conteúdo, Leitura de Metadados | `enforce-repo-settings.yml`, `dispatch-downstream.yml`, `update-governed-workflow-pins.yml` |
+| `REPO_SYNC_TOKEN` | Conteúdo R/W, Issues R/W, Pull Requests R/W, Leitura de Metadados | `sync-managed-files.yml` |
+| `ANTIGRAVITY_TOKEN` & `GCP_PROJECT_ID` | Autenticação Antigravity AI e Acesso ao Projeto GCP | `antigravity-review.yml`, `antigravity-translate.yml` |
+
+O fluxo de trabalho de aplicação precisa de acesso de administrador para modificar a proteção de branch e as configurações do Pages. O fluxo de trabalho de sincronização precisa de acesso a conteúdos e PRs para criar branches, fazer commit de arquivos e mesclar PRs. Os fluxos de trabalho de IA Antigravity usam credenciais de projeto dedicadas para autenticar com o Gemini 3.6 Flash.
+
+## Autodetecção
+
+O docs-control é tanto provedor quanto consumidor de sua própria configuração de governança. Quando
+`enforce-repo-settings.yml` é executado no próprio docs-control (via gatilho `push`), ele detecta
+isso comparando `managed_files.source_repo` com `github.repository`. Isso ativa a
+substituição de `self_contexts` na proteção de branch -- o docs-control usa fluxos de trabalho diretamente (por
+exemplo, `Shell Unit Tests`), enquanto repositórios downstream usam wrappers chamadores (por exemplo,
+`lint / Shell Unit Tests`). Veja a [página de configuração](./configuration/) para detalhes sobre
+`contexts` vs `self_contexts`.
+
+## Estrutura do repositório
+
+| Diretório / Arquivo | Finalidade |
+| --- | --- |
+| `.github/config/repo-settings.json` | Configuração central: configurações de repositório, proteção de branch, permissões de Actions, config do Pages e manifesto de arquivos gerenciados |
+| `.github/config/downstream-repos.json` | Registro de repositórios downstream inscritos |
+| `.github/config/docs-sites.json` | Metadados de cada site de documentação downstream (rótulo, URL, descrição) usados pelo modelo de README |
+| `.github/workflows/` | Fluxos de trabalho reutilizáveis: aplicação, sincronização de arquivos, deploy do Pages, verificação de issue vinculada, disparo, revisão Antigravity e tradução Antigravity |
+| `.agents/skills/` | Governança de skills do agente: `demo-components`, `i18n-translate` |
+| `workflows/` | Modelos chamadores que repositórios downstream instalam em `.github/workflows/` |
+| `docs/` | Origem da documentação (construída e implantada via Astro Starlight) |
+| `CONTRIBUTING.md` | Regras do fluxo de trabalho de contribuidores (sincronizadas com todos os repositórios downstream) |
+| `CLAUDE.md` | Instruções do assistente de IA (sincronizadas com todos os repositórios downstream) |
+| `AGENTS.md` | Instruções do agente do repositório e políticas de governança |
+| `README.md.tpl` | Modelo para arquivos README downstream gerados dinamicamente |
+| `.pre-commit-config.yaml` | Configuração de hooks do pre-commit (sincronizada com todos os repositórios downstream) |
+| `.markdownlint.json` | Regras do linter Markdown |
+| `.yamllint.yaml` | Regras do linter YAML |

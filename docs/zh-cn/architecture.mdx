@@ -1,0 +1,74 @@
+---
+title: Architecture
+description: 涵盖 docs-control、docs-builder 和 docs-theme 的三存储库文档流水线架构，具备 Antigravity AI 自动化和 fleet 治理功能。
+i18n:
+  sourceHash: "c7a6eb5a25d8"
+  translator: "machine"
+sidebar:
+  order: 2
+---
+
+## 三存储库流水线
+
+文档和治理系统涵盖三个存储库，每个存储库承担不同的职责：
+
+| 存储库 | 角色 |
+| --- | --- |
+| **docs-control** | 中央治理中心 -- 存储库设置、分支保护配置、托管文件清单、可重用 CI 工作流、Antigravity AI 工作流、调用方工作流模板、agent skills 和下游分发 |
+| **docs-builder** | Docker 构建镜像 -- Astro + Starlight 构建编排、npm 依赖项、Puppeteer PDF 生成、交互式组件 |
+| **docs-theme** | Astro Starlight 插件 -- 共享品牌、CSS、字体、Logo、布局组件、`astro.config.mjs` 和 `content.config.ts` |
+
+内容存储库仅需要一个 `docs/` 目录。构建容器和工作流负责处理其余所有事务。
+
+## 数据流
+
+当模板文件或工作流在 docs-control 的 `main` 分支上发生变更时：
+
+1. [分发工作流](./dispatch/) 触发并启动每个下游存储库中的强制执行
+2. [强制执行工作流](./settings-enforcement/) 将期望状态与当前状态进行比较，并修复任何漂移
+3. [文件同步工作流](./file-sync/) 检测发生漂移的托管文件，创建一个包含规范内容的 PR，并对其自动合并
+4. 可重用的 Antigravity AI 工作流（`antigravity-review.yml` 和 `antigravity-translate.yml`）在已注册存储库的拉取请求上执行
+
+## Antigravity AI 自动化
+
+整个 Fleet 包含运行在 GitHub Actions runner 上的 **Antigravity (`agy`)** AI 自动化：
+
+| 工作流 | 目的 | 触发与执行 |
+| --- | --- | --- |
+| **Antigravity Code Review** (`antigravity-review.yml`) | 自动化的 AI 拉取请求代码审查 | 在创建或更新 PR 时运行。使用 Gemini 3.6 Flash (High) 审计 diff 以发现安全漏洞、硬编码密钥、PII 泄露和代码质量问题，并通过 PR 评论发布反馈。 |
+| **Antigravity Language Translation** (`antigravity-translate.yml`) | 自动化的 AI 文档语言翻译 | 在修改 `docs/en/**/*.md[x]` 的 PR 上运行。执行 `.agents/skills/i18n-translate/SKILL.md` skill 以更新 12 个目标语言环境（`fr`, `es`, `de`, `pt-br`, `ja`, `ko`, `zh-cn`, `zh-tw`, `ar`, `it`, `hi`, `th`），更新 `i18n.sourceHash`，并自动提交回 PR 分支。 |
+
+## Token 与凭据模型
+
+三组凭据提供最小权限隔离：
+
+| Token / Secret | 权限 / 作用域 | 使用者 |
+| --- | --- | --- |
+| `REPO_SETTINGS_TOKEN` | Administration R/W, Pages R/W, Contents Read, Metadata Read | `enforce-repo-settings.yml`, `dispatch-downstream.yml`, `update-governed-workflow-pins.yml` |
+| `REPO_SYNC_TOKEN` | Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read | `sync-managed-files.yml` |
+| `ANTIGRAVITY_TOKEN` & `GCP_PROJECT_ID` | Antigravity AI Authentication & GCP Project Access | `antigravity-review.yml`, `antigravity-translate.yml` |
+
+强制执行工作流需要管理员权限来修改分支保护和 Pages 设置。同步工作流需要内容和 PR 权限来创建分支、提交文件和合并 PR。Antigravity AI 工作流使用专用项目凭据向 Gemini 3.6 Flash 进行身份验证。
+
+## 自检测
+
+Docs-control 既是自身治理配置的提供者，也是使用者。当 `enforce-repo-settings.yml` 在 docs-control 本身运行（通过 `push` 触发器）时，它通过比较 `managed_files.source_repo` 与 `github.repository` 来检测到这一点。这会触发分支保护中的 `self_contexts` 覆盖 -- docs-control 直接使用工作流（例如 `Shell Unit Tests`），而下游存储库使用调用方包装器（例如 `lint / Shell Unit Tests`）。有关 `contexts` 与 `self_contexts` 的详细信息，请参阅[配置页面](./configuration/)。
+
+## 存储库布局
+
+| 目录 / 文件 | 目的 |
+| --- | --- |
+| `.github/config/repo-settings.json` | 中央配置：存储库设置、分支保护、Actions 权限、Pages 配置以及托管文件清单 |
+| `.github/config/downstream-repos.json` | 已注册下游存储库的注册表 |
+| `.github/config/docs-sites.json` | 每个下游文档站点的元数据（标签、URL、描述），供 README 模板化使用 |
+| `.github/workflows/` | 可重用工作流：强制执行、文件同步、pages 部署、关联 issue 检查、分发、antigravity 审查和 antigravity 翻译 |
+| `.agents/skills/` | Agent skills 治理：`demo-components`、`i18n-translate` |
+| `workflows/` | 下游存储库安装到 `.github/workflows/` 中的调用方模板 |
+| `docs/` | 文档源码（通过 Astro Starlight 构建和部署） |
+| `CONTRIBUTING.md` | 贡献者工作流规则（同步到所有下游存储库） |
+| `CLAUDE.md` | AI 助手指令（同步到所有下游存储库） |
+| `AGENTS.md` | 存储库 agent 指令和治理策略 |
+| `README.md.tpl` | 动态生成的下游 README 文件的模板 |
+| `.pre-commit-config.yaml` | Pre-commit hooks 配置（同步到所有下游存储库） |
+| `.markdownlint.json` | Markdown linter 规则 |
+| `.yamllint.yaml` | YAML linter 规则 |

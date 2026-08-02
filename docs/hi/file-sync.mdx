@@ -1,0 +1,42 @@
+---
+title: File Synchronization
+description: पूरे पारिस्थितिकी तंत्र में मैनेज्ड फ़ाइल सिंक, डायनेमिक dependabot.yml जनरेशन, और README टेम्पलेटिंग।
+i18n:
+  sourceHash: "a389f6cb3ad7"
+  translator: "machine"
+sidebar:
+  order: 5
+---
+
+`.github/workflows/sync-managed-files.yml` पर फ़ाइल सिंक वर्कफ़्लो `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read) का उपयोग करते हुए [सेटिंग्स एनफ़ोर्समेंट](./settings-enforcement/) के साथ एक समानांतर जॉब के रूप में चलता है।
+
+जब यह स्वयं सोर्स रिपॉजिटरी (docs-control) पर चलता है तो यह निष्पादन को छोड़ देता है, क्योंकि प्रामाणिक फ़ाइलें पहले से ही यहां मौजूद हैं।
+
+## स्टैटिक फ़ाइल सिंक
+
+वर्कफ़्लो [केंद्रीय कॉन्फ़िग](./configuration/) से `managed_files.files` एरे को दोहराता है। प्रत्येक प्रविष्टि के लिए, यह docs-control से प्रामाणिक सामग्री प्राप्त करता है और डाउनस्ट्रीम प्रति के खिलाफ इसकी तुलना करता है। जो फ़ाइलें गायब हैं या ड्रिफ्ट हुई हैं उन्हें सिंक के लिए फ़्लैग किया जाता है।
+
+मैनेज्ड फ़ाइल मैनिफ़ेस्ट में शामिल हैं:
+
+- कॉलर वर्कफ़्लो (`enforce-repo-settings.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`, `antigravity-review.yml`, `antigravity-translate.yml`)
+- Agent skills (`.agents/skills/demo-components/SKILL.md`, `.agents/skills/i18n-translate/SKILL.md`)
+- इश्यू और PR टेम्पलेट्स
+- `CONTRIBUTING.md`, `CLAUDE.md`, `AGENTS.md`, `STYLE_GUIDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
+- `.pre-commit-config.yaml`
+
+## डायनेमिक dependabot.yml जनरेशन
+
+वर्कफ़्लो पहचानता है कि डाउनस्ट्रीम रिपॉजिटरी में कौन से पैकेज इकोसिस्टम मौजूद हैं:
+
+- `npm` -- `package.json` मौजूद है
+- `pip` -- `requirements.txt`, `pyproject.toml`, या `setup.py` मौजूद है
+- `docker` -- `Dockerfile` मौजूद है
+
+यह `github-actions` इकोसिस्टम प्रविष्टि (हमेशा शामिल) के साथ-साथ प्रत्येक पहचाने गए इकोसिस्टम के लिए प्रविष्टियों के साथ एक `.github/dependabot.yml` जेनरेट करता है। सभी इकोसिस्टम पारंपरिक कमिट प्रीफ़िक्स और माइनर/पैच ग्रुपिंग के साथ साप्ताहिक सोमवार के शेड्यूल का उपयोग करते हैं।
+
+## डायनेमिक README.md जनरेशन
+
+प्रत्येक डाउनस्ट्रीम रिपॉजिटरी को दो स्रोतों से निर्मित एक जेनरेट किया गया `README.md` प्राप्त होता है:
+
+- **`README.md.tpl`** -- प्लेसहोल्डर्स (`__TITLE__`, `__DESCRIPTION__`, `__REPO_NAME__`, `__DOCS_URL__`) के साथ docs-control रूट में एक टेम्पलेट
+- **`docs-sites.json`** -- URL फ़ील्ड के विरुद्ध रिपॉजिटरी नाम का मिलान करके प्रत्येक रिपॉजिटरी के लिए मानव-पठनीय लेबल और विवरण प्रदान करता है

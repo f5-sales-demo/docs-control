@@ -1,0 +1,74 @@
+---
+title: Architecture
+description: docs-control, docs-builder, और docs-theme में फैला हुआ तीन-रिपॉजिटरी डॉक्यूमेंटेशन पाइपलाइन आर्किटेक्चर, जिसमें Antigravity AI ऑटोमेशन और फ़्लीट गवर्नेंस शामिल है।
+i18n:
+  sourceHash: "c7a6eb5a25d8"
+  translator: "machine"
+sidebar:
+  order: 2
+---
+
+## तीन-रिपॉजिटरी पाइपलाइन
+
+डॉक्यूमेंटेशन और गवर्नेंस सिस्टम तीन रिपॉजिटरी में फैला हुआ है, जिनमें से प्रत्येक की एक अलग जिम्मेदारी है:
+
+| रिपॉजिटरी | भूमिका |
+| --- | --- |
+| **docs-control** | केंद्रीय गवर्नेंस हब -- रिपॉजिटरी सेटिंग्स, ब्रांच प्रोटेक्शन कॉन्फ़िग, मैनेज्ड फ़ाइल मैनिफ़ेस्ट, रीयूज़ेबल CI वर्कफ़्लो, Antigravity AI वर्कफ़्लो, कॉलर वर्कफ़्लो टेम्पलेट, agent skills, और डाउनस्ट्रीम डिस्पैच |
+| **docs-builder** | Docker बिल्ड इमेज -- Astro + Starlight बिल्ड ऑकेस्ट्रेशन, npm डिपेंडेंसी, Puppeteer PDF जनरेशन, इंटरैक्टिव कंपोनेंट्स |
+| **docs-theme** | Astro Starlight प्लगइन -- शेयर की गई ब्रांडिंग, CSS, फ़ॉन्ट्स, लोगो, लेआउट कंपोनेंट्स, `astro.config.mjs`, और `content.config.ts` |
+
+कंटेंट रिपॉजिटरी को केवल एक `docs/` डायरेक्टरी की आवश्यकता होती है। बिल्ड कंटेनर और वर्कफ़्लो बाकी सब कुछ संभालते हैं।
+
+## डेटा फ़्लो
+
+जब docs-control में `main` पर कोई टेम्पलेट फ़ाइल या वर्कफ़्लो बदलता है:
+
+1. [डिस्पैच वर्कफ़्लो](./dispatch/) फ़ायर होता है और हर डाउनस्ट्रीम रिपॉजिटरी में एनफ़ोर्समेंट को ट्रिगर करता है
+2. [एनफ़ोर्समेंट वर्कफ़्लो](./settings-enforcement/) वांछित स्थिति की तुलना वर्तमान स्थिति से करता है और किसी भी ड्रिफ्ट को पैच करता है
+3. [फ़ाइल सिंक वर्कफ़्लो](./file-sync/) ड्रिफ्ट की गई मैनेज्ड फ़ाइलों का पता लगाता है, प्रामाणिक सामग्री के साथ एक PR बनाता है, और इसे ऑटो-मर्ज करता है
+4. रीयूज़ेबल Antigravity AI वर्कफ़्लो (`antigravity-review.yml` और `antigravity-translate.yml`) एनरोल की गई रिपॉजिटरी में पुल रिक्वेस्ट पर निष्पादित होते हैं
+
+## Antigravity AI ऑटोमेशन
+
+फ़्लीट में GitHub Actions रनर पर चलने वाला **Antigravity (`agy`)** AI ऑटोमेशन शामिल है:
+
+| वर्कफ़्लो | उद्देश्य | ट्रिगर और निष्पादन |
+| --- | --- | --- |
+| **Antigravity Code Review** (`antigravity-review.yml`) | ऑटोमेटेड AI पुल रिक्वेस्ट कोड रिव्यू | PR निर्माण या अपडेट पर चलता है। सुरक्षा कमजोरियों, हार्डकोडेड सीक्रेट्स, PII लीक और कोड गुणवत्ता के लिए डिफ्स का ऑडिट करने के लिए Gemini 3.6 Flash (High) का उपयोग करता है, PR टिप्पणियों के माध्यम से फ़ीडबैक पोस्ट करता है। |
+| **Antigravity Language Translation** (`antigravity-translate.yml`) | ऑटोमेटed AI डॉक्यूमेंटेशन ट्रांसलेशन | `docs/en/**/*.md[x]` को संशोधित करने वाले PRs पर चलता है। 12 लक्षित लोकेल्स (`fr`, `es`, `de`, `pt-br`, `ja`, `ko`, `zh-cn`, `zh-tw`, `ar`, `it`, `hi`, `th`) को अपडेट करने, `i18n.sourceHash` को अपडेट करने और PR ब्रांच में वापस ऑटो-कमिट करने के लिए `.agents/skills/i18n-translate/SKILL.md` skill निष्पादित करता है। |
+
+## टोकन और क्रेडेंशियल मॉडल
+
+क्रेडेंशियल के तीन सेट न्यूनतम-विशेषधिकार (least-privilege) पृथक्करण प्रदान करते हैं:
+
+| Token / Secret | अनुमति / स्कोप | द्वारा प्रयुक्त |
+| --- | --- | --- |
+| `REPO_SETTINGS_TOKEN` | Administration R/W, Pages R/W, Contents Read, Metadata Read | `enforce-repo-settings.yml`, `dispatch-downstream.yml`, `update-governed-workflow-pins.yml` |
+| `REPO_SYNC_TOKEN` | Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read | `sync-managed-files.yml` |
+| `ANTIGRAVITY_TOKEN` & `GCP_PROJECT_ID` | Antigravity AI Authentication & GCP Project Access | `antigravity-review.yml`, `antigravity-translate.yml` |
+
+एनफ़ोर्समेंट वर्कफ़्लो को ब्रांच प्रोटेक्शन और Pages सेटिंग्स को संशोधित करने के लिए व्यवस्थापक पहुंच (admin access) की आवश्यकता होती है। सिंक वर्कफ़्लो को ब्रांच बनाने, फ़ाइलें कमिट करने और PRs को मर्ज करने के लिए कंटेंट और PR एक्सेस की आवश्यकता होती है। Antigravity AI वर्कफ़्लो Gemini 3.6 Flash के साथ प्रमाणित करने के लिए समर्पित प्रोजेक्ट क्रेडेंशियल्स का उपयोग करते हैं।
+
+## सेल्फ़-डिटेक्शन
+
+Docs-control अपने स्वयं के गवर्नेंस कॉन्फ़िग का प्रदाता और उपभोक्ता दोनों है। जब `enforce-repo-settings.yml` स्वयं docs-control पर चलता है (`push` ट्रिगर के माध्यम से), तो यह `managed_files.source_repo` की तुलना `github.repository` से करके इसका पता लगाता है। यह ब्रांच प्रोटेक्शन में `self_contexts` ओवरराइड को ट्रिगर करता है -- docs-control सीधे वर्कफ़्लो का उपयोग करता है (उदाहरण के लिए, `Shell Unit Tests`), जबकि डाउनस्ट्रीम रिपॉजिटरी कॉलर रैपर्स का उपयोग करते हैं (उदाहरण के लिए, `lint / Shell Unit Tests`)। `contexts` बनाम `self_contexts` पर विवरण के लिए [कॉन्फ़िगरेशन पृष्ठ](./configuration/) देखें।
+
+## रिपॉजिटरी लेआउट
+
+| डायरेक्टरी / फ़ाइल | उद्देश्य |
+| --- | --- |
+| `.github/config/repo-settings.json` | केंद्रीय कॉन्फ़िग: रिपॉजिटरी सेटिंग्स, ब्रांच प्रोटेक्शन, Actions अनुमतियां, Pages कॉन्फ़िग, और मैनेज्ड फ़ाइल मैनिफ़ेस्ट |
+| `.github/config/downstream-repos.json` | एनरोल की गई डाउनस्ट्रीम रिपॉजिटरी की रजिस्ट्री |
+| `.github/config/docs-sites.json` | प्रत्येक डाउनस्ट्रीम डॉक्यूमेंटेशन साइट के लिए मेटाडेटा (लेबल, URL, विवरण) जो README टेम्पलेटिंग द्वारा उपयोग किया जाता है |
+| `.github/workflows/` | रीयूज़ेबल वर्कफ़्लो: एनफ़ोर्समेंट, फ़ाइल सिंक, पेजेस डिप्लॉय, लिंक्ड-इश्यू चेक, डिस्पैच, antigravity रिव्यू, और antigravity ट्रांसलेशन |
+| `.agents/skills/` | Agent skills गवर्नेंस: `demo-components`, `i18n-translate` |
+| `workflows/` | कॉलर टेम्पलेट्स जो डाउनस्ट्रीम रिपॉजिटरी `.github/workflows/` में इंस्टॉल करती हैं |
+| `docs/` | डॉक्यूमेंटेशन स्रोत (Astro Starlight के माध्यम से निर्मित और तैनात) |
+| `CONTRIBUTING.md` | योगदानकर्ता वर्कफ़्लो नियम (सभी डाउनस्ट्रीम रिपॉजिटरी में सिंक किए गए) |
+| `CLAUDE.md` | AI असिस्टेंट निर्देश (सभी डाउनस्ट्रीम रिपॉजिटरी में सिंक किए गए) |
+| `AGENTS.md` | रिपॉजिटरी एजेंट निर्देश और गवर्नेंस नीतियां |
+| `README.md.tpl` | डायनेमिक रूप से जेनरेट की गई डाउनस्ट्रीम README फ़ाइलों के लिए टेम्पलेट |
+| `.pre-commit-config.yaml` | Pre-commit hooks कॉन्फ़िगरेशन (सभी डाउनस्ट्रीम रिपॉजिटरी में सिंक किया गया) |
+| `.markdownlint.json` | Markdown linter नियम |
+| `.yamllint.yaml` | YAML linter नियम |
