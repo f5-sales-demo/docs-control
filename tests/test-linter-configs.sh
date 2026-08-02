@@ -648,10 +648,20 @@ else
     "$disabled_count rules disabled: $(jq -r '[to_entries[] | select(.value == false) | .key] | join(", ")' "$REPO_ROOT/.markdownlint.json")"
 fi
 
+# MD060 is disabled by default in the markdownlint version used by CI. Unlike the
+# other rules in this group, omitting it does not enable it, so require an explicit
+# true value. This catches the regression where removing `"MD060": false` made the
+# configuration look enabled while markdownlint continued to skip the rule.
+if jq -e '.MD060 == true' "$REPO_ROOT/.markdownlint.json" >/dev/null; then
+  pass "5b.x .markdownlint.json explicitly enables MD060"
+else
+  fail "5b.x .markdownlint.json explicitly enables MD060" "MD060 must be set to true"
+fi
+
 # Every rule below is ENFORCED. Each was previously disabled; the assertions exist
 # so a bypass cannot quietly return the way MD040's did — it was not only switched
 # off in the configuration, it was pinned there by this test.
-for rule in MD029 MD041 MD060 MD025 MD024 MD007; do
+for rule in MD029 MD041 MD025 MD024 MD007; do
   if jq -e --arg r "$rule" 'has($r) | not' "$REPO_ROOT/.markdownlint.json" >/dev/null ||
     jq -e --arg r "$rule" '.[$r] != false' "$REPO_ROOT/.markdownlint.json" >/dev/null; then
     pass "5b.x .markdownlint.json enforces $rule"
