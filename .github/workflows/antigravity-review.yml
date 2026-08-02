@@ -35,13 +35,14 @@ jobs:
       - name: Install Antigravity CLI
         run: |
           curl -fsSL https://antigravity.google/cli/install.sh | bash
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Configure Keyring and Execute Antigravity AI Reviewer
         env:
           ANTIGRAVITY_TOKEN: ${{ secrets.ANTIGRAVITY_TOKEN }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
         run: |
           dbus-run-session -- bash -c '
             # 1. Unlock gnome-keyring in headless session
@@ -58,7 +59,7 @@ jobs:
             
             # 4. Automate workspace trust with Gemini 3.6 Flash (High) and global endpoint
             mkdir -p ~/.gemini/antigravity-cli
-            echo "{\"gcp\": {\"project\": \"$GCP_PROJECT_ID\", \"location\": \"global\"}, \"model\": \"Gemini 3.6 Flash (High)\", \"trustedWorkspaces\": [\"/home/runner/work/${{ github.event.repository.name }}/${{ github.event.repository.name }}\"]}" > ~/.gemini/antigravity-cli/settings.json
+            echo "{\"gcp\": {\"project\": \"$GCP_PROJECT_ID\", \"location\": \"global\"}, \"model\": \"Gemini 3.6 Flash (High)\", \"trustedWorkspaces\": [\"/home/runner/work/$REPOSITORY_NAME/$REPOSITORY_NAME\"]}" > ~/.gemini/antigravity-cli/settings.json
             
             # 5. Run the Antigravity Agentic PR Reviewer. Using --dangerously-skip-permissions to allow execution of git and gh tools in headless mode.
             /home/runner/.local/bin/agy --project "$GCP_PROJECT_ID" --dangerously-skip-permissions --print "You are Antigravity, an elite agentic AI coding assistant. Review this Pull Request. First, run '\''gh pr diff'\'' to retrieve the code modifications. Meticulously inspect the changes for security issues, hardcoded tokens/secrets, PII leakage (such as email addresses, user names, phone numbers), or bad architectural patterns. Finally, use '\''gh pr comment'\'' to post a constructive, high-quality review summary directly on the PR."
