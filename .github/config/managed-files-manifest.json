@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-02T19:49:33Z",
-  "source_commit": "2a26e426aeb1f6ea0354f112fbbc3246aa784060",
+  "generated_at": "2026-08-02T21:47:30Z",
+  "source_commit": "766c47f772954b4f49469bafd68427ebbbda267c",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -287,8 +287,8 @@
     "tests/test-lint-mdx-prose.sh": {
       "src": "tests/test-lint-mdx-prose.sh",
       "dest": "tests/test-lint-mdx-prose.sh",
-      "sha": "51781e2b3f3d0a913f6cb02d71a8e481c90bc7a0",
-      "size": 6903
+      "sha": "a5105574f7782c6e9c42203a4826c1f42102ed54",
+      "size": 8361
     },
     ".claude/governance.json": {
       "src": ".claude/governance.json",
