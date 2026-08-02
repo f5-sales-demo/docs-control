@@ -7,6 +7,7 @@ set -euo pipefail
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WF="${REPO_ROOT}/.github/workflows/dispatch-downstream.yml"
 CONFIG="${REPO_ROOT}/.github/config/downstream-repos.json"
+ROLLOUT="${REPO_ROOT}/.github/config/governance-rollout.json"
 
 FAIL=0
 check() {
@@ -39,6 +40,8 @@ check "aggregates FAIL_COUNT" "grep -q 'FAIL_COUNT' '$WF'"
 # Config still drives the fan-out.
 check "consumes downstream-repos.json" "grep -q 'downstream-repos.json' '$WF'"
 check "config is JSON array" "jq -e 'type == \"array\" and length > 0' '$CONFIG' > /dev/null"
+check "production governance rollout is active" \
+  "jq -e '.state == \"active\"' '$ROLLOUT' > /dev/null"
 
 # Trigger: dispatch must run when the regenerated manifest LANDS on main (the
 # auto-merging sync/manifest PR merges), not when the manifest build completes.
