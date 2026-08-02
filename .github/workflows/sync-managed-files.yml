@@ -222,6 +222,49 @@ jobs:
             return 1
           }
 
+          # --- Helper: file-backed Git tree payloads ---------------------------
+          normalize_tree_content() {
+            local source_file="$1"
+            local normalized_file="$2"
+
+            # Command substitution strips every trailing newline from fetched
+            # content, while generated files already carry one. Normalize both
+            # sources to exactly one without ever placing the content in argv.
+            perl -0pe 's/\n*\z/\n/' "$source_file" >"$normalized_file"
+          }
+
+          append_tree_item() {
+            local tree_items_file="$1"
+            local dest_file="$2"
+            local content_file="$3"
+            local next_items_file
+            next_items_file=$(mktemp "${tree_items_file}.next.XXXXXX")
+
+            # Both the existing tree and managed content are unbounded payloads.
+            # Read them from files so exec never encounters ARG_MAX or Linux's
+            # smaller per-argument MAX_ARG_STRLEN limit.
+            if ! jq \
+              --arg path "$dest_file" \
+              --rawfile content "$content_file" \
+              '. + [{"path": $path, "mode": "100644", "type": "blob", "content": $content}]' \
+              "$tree_items_file" >"$next_items_file"; then
+              rm -f "$next_items_file"
+              return 1
+            fi
+            mv "$next_items_file" "$tree_items_file"
+          }
+
+          write_tree_request() {
+            local base_tree="$1"
+            local tree_items_file="$2"
+            local tree_json_file="$3"
+
+            jq -n \
+              --arg base "$base_tree" \
+              --slurpfile tree "$tree_items_file" \
+              '{"base_tree": $base, "tree": $tree[0]}' >"$tree_json_file"
+          }
+
           # --- Helper: atomic commit via Git Trees API -------------------------
           commit_tree() {
             local branch="$1"
@@ -257,50 +300,49 @@ jobs:
             base_tree=$(retry 3 gh api "repos/${repo_slug}/git/commits/${ref_sha}" --jq '.tree.sha')
             require_sha "base_tree for ${branch}" "$base_tree" || return 1
 
-            local tree_items="[]"
+            local payload_dir tree_items_file
+            payload_dir=$(mktemp -d)
+            tree_items_file="${payload_dir}/tree-items.json"
+            printf '[]\n' >"$tree_items_file"
+
+            local item_index=0
             for dest_file in $(printf '%b' "$DRIFT_FILES" | sed '/^$/d'); do
-              local content=""
+              local source_file=""
+              local normalized_file
               local key
               key=$(echo "$dest_file" | tr '/' '__')
 
               if [ "$dest_file" = ".github/dependabot.yml" ] && [ "$DEPENDABOT_DRIFT" = true ]; then
-                content="$GENERATED_DEPENDABOT"
+                source_file="/tmp/generated_dependabot.yml"
               elif [ "$dest_file" = "README.md" ] && [ "$README_DRIFT" = true ]; then
-                content="$GENERATED_README"
+                source_file="/tmp/generated_readme.md"
               elif [ -f "/tmp/drift_content/${key}" ]; then
-                content=$(cat "/tmp/drift_content/${key}")
+                source_file="/tmp/drift_content/${key}"
               else
                 echo "[WARN] No cached content for ${dest_file} -- skipping"
                 continue
               fi
 
-              # Restore exactly one trailing newline. The content above is
-              # captured via bash $(...) / $(cat ...), which strips trailing
-              # newlines. biome, yamllint and editorconfig-checker all require
-              # a final newline, so the stripped blob fails Lint Code Base in
-              # every downstream sync PR; the missing newline also makes the
-              # committed blob's SHA never match the source, causing perpetual
-              # drift. Normalizing to a single trailing newline fixes both.
-              content="${content%$'\n'}"$'\n'
-
-              tree_items=$(echo "$tree_items" | jq \
-                --arg path "$dest_file" \
-                --arg content "$content" \
-                '. + [{"path": $path, "mode": "100644", "type": "blob", "content": $content}]')
+              item_index=$((item_index + 1))
+              normalized_file="${payload_dir}/content-${item_index}"
+              normalize_tree_content "$source_file" "$normalized_file"
+              append_tree_item "$tree_items_file" "$dest_file" "$normalized_file"
             done
 
             local item_count
-            item_count=$(echo "$tree_items" | jq 'length')
+            item_count=$(jq 'length' "$tree_items_file")
             if [ "$item_count" -eq 0 ]; then
               echo "[SKIP] No files to commit"
+              rm -r "$payload_dir"
               return 0
             fi
 
-            local tree_json
-            tree_json=$(jq -n --arg base "$base_tree" --argjson tree "$tree_items" \
-              '{"base_tree": $base, "tree": $tree}')
+            local tree_json_file
+            tree_json_file="${payload_dir}/tree.json"
+            write_tree_request "$base_tree" "$tree_items_file" "$tree_json_file"
             local new_tree_sha
-            new_tree_sha=$(echo "$tree_json" | retry 3 gh api "repos/${repo_slug}/git/trees" --method POST --input - --jq '.sha')
+            new_tree_sha=$(retry 3 gh api "repos/${repo_slug}/git/trees" \
+              --method POST --input "$tree_json_file" --jq '.sha')
             require_sha "new_tree_sha for ${branch}" "$new_tree_sha" || return 1
 
             local commit_json
@@ -314,6 +356,7 @@ jobs:
               '{"sha": $sha, "force": $force}')
             retry_json 3 "$ref_update" "repos/${repo_slug}/git/refs/heads/${branch}" --method PATCH >/dev/null
 
+            rm -r "$payload_dir"
             echo "[OK] Atomic commit ${new_commit_sha:0:8} (${item_count} files)"
           }
 
@@ -501,7 +544,6 @@ jobs:
               DEPBOT="${DEPBOT}\n"
               # Write generated dependabot.yml to temp file (preserves trailing newline)
               printf '%b' "$DEPBOT" > /tmp/generated_dependabot.yml
-              GENERATED_DEPENDABOT=$(cat /tmp/generated_dependabot.yml)
 
               # Compare with current dependabot.yml in target repo (local disk,
               # no API call -- file was checked out by actions/checkout@v6).
@@ -617,8 +659,6 @@ jobs:
                 # existing case and any optional placeholder added later.
                 cat -s /tmp/generated_readme.md > /tmp/generated_readme.squeezed
                 mv /tmp/generated_readme.squeezed /tmp/generated_readme.md
-
-                GENERATED_README=$(cat /tmp/generated_readme.md)
 
                 # Compare with current README.md in target repo (local disk, no API).
                 if [ -f README.md ]; then
