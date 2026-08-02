@@ -1,16 +1,4 @@
-🌐 English |
-[日本語](https://__ORG_NAME__.github.io/__REPO_NAME__/ja/) |
-[한국어](https://__ORG_NAME__.github.io/__REPO_NAME__/ko/) |
-[简体中文](https://__ORG_NAME__.github.io/__REPO_NAME__/zh-cn/) |
-[繁體中文](https://__ORG_NAME__.github.io/__REPO_NAME__/zh-tw/) |
-[Español](https://__ORG_NAME__.github.io/__REPO_NAME__/es/) |
-[Português](https://__ORG_NAME__.github.io/__REPO_NAME__/pt-br/) |
-[Français](https://__ORG_NAME__.github.io/__REPO_NAME__/fr/) |
-[Deutsch](https://__ORG_NAME__.github.io/__REPO_NAME__/de/) |
-[Italiano](https://__ORG_NAME__.github.io/__REPO_NAME__/it/) |
-[العربية](https://__ORG_NAME__.github.io/__REPO_NAME__/ar/) |
-[हिन्दी](https://__ORG_NAME__.github.io/__REPO_NAME__/hi/) |
-[ไทย](https://__ORG_NAME__.github.io/__REPO_NAME__/th/)
+__LANGUAGE_NAV__
 
 # __TITLE__
 

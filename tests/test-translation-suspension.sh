@@ -115,26 +115,94 @@ echo "=== Section 2: generation is opt-in, not opt-out ==="
 # unconditional requirement would fail the moment someone follows the documented
 # procedure — forcing an undocumented test edit in the middle of a recovery.
 #
-# Testing the negative form ("!= true") rather than any mention of the variable,
-# because a hook that merely names it could still run by default.
-if grep -qE 'TRANSLATIONS_ENABLED:-.*\!=\s*"true"' "$PRE_COMMIT"; then
-  HOOK_GATED=true
-else
-  HOOK_GATED=false
-fi
-
 if [ "$GATED" = "true" ]; then
-  if [ "$HOOK_GATED" = "true" ]; then
-    pass "2.1 while suspended, the docs-translate hook requires TRANSLATIONS_ENABLED=true"
+  # Exercise the actual hook command. The previous string-only assertion accepted
+  # a dangerous state where enabled generation silently skipped when its tool or
+  # credential was missing.
+  HOOK_WORK=$(mktemp -d)
+  if python3 - "$PRE_COMMIT" "$HOOK_WORK" <<'PY'; then
+import os
+from pathlib import Path
+import shlex
+import stat
+import subprocess
+import sys
+
+import yaml
+
+config_path = Path(sys.argv[1])
+work = Path(sys.argv[2])
+config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+entries = [
+    hook["entry"]
+    for repo in config["repos"]
+    if repo["repo"] == "local"
+    for hook in repo["hooks"]
+    if hook["id"] == "docs-translate"
+]
+if len(entries) != 1:
+    raise SystemExit(f"expected one docs-translate hook, got {len(entries)}")
+
+def run(enabled, api_key, path):
+    env = os.environ.copy()
+    env["PATH"] = path
+    if enabled is None:
+        env.pop("TRANSLATIONS_ENABLED", None)
+    else:
+        env["TRANSLATIONS_ENABLED"] = enabled
+    if api_key is None:
+        env.pop("ANTHROPIC_API_KEY", None)
+    else:
+        env["ANTHROPIC_API_KEY"] = api_key
+    return subprocess.run(
+        shlex.split(entries[0]), env=env, text=True, capture_output=True, check=False
+    )
+
+base_path = "/usr/bin:/bin"
+disabled = run(None, None, base_path)
+if disabled.returncode or "translations suspended" not in disabled.stdout:
+    raise SystemExit(f"unset switch did not suspend cleanly: {disabled}")
+
+invalid = run("enabled", None, base_path)
+if invalid.returncode == 0 or "must be true or false" not in invalid.stderr:
+    raise SystemExit(f"invalid switch did not fail closed: {invalid}")
+
+missing_tool = run("true", "EXAMPLE_API_KEY", base_path)
+if missing_tool.returncode == 0 or "requires docs-translate" not in missing_tool.stderr:
+    raise SystemExit(f"missing tool did not fail closed: {missing_tool}")
+
+tool = work / "docs-translate"
+marker = work / "args"
+tool.write_text(f"#!/bin/sh\nprintf '%s' \"$*\" > '{marker}'\n", encoding="utf-8")
+tool.chmod(tool.stat().st_mode | stat.S_IEXEC)
+tool_path = f"{work}:{base_path}"
+
+missing_key = run("true", None, tool_path)
+if missing_key.returncode == 0 or "requires ANTHROPIC_API_KEY" not in missing_key.stderr:
+    raise SystemExit(f"missing API key did not fail closed: {missing_key}")
+
+enabled = run("true", "EXAMPLE_API_KEY", tool_path)
+if enabled.returncode or marker.read_text(encoding="utf-8") != "--staged":
+    raise SystemExit(f"enabled hook did not execute generator: {enabled}")
+PY
+    pass "2.1 suspended translation generation is opt-in and fails closed when enabled"
   else
-    fail "2.1 while suspended, the docs-translate hook requires TRANSLATIONS_ENABLED=true" \
-      "the audit is suspended but generation is not gated — unset must mean no generation, or money is spent by accident"
+    fail "2.1 suspended translation generation is opt-in and fails closed when enabled" \
+      "unset, invalid, missing-tool, missing-key, or enabled execution behavior is wrong"
   fi
-elif [ "$HOOK_GATED" = "false" ]; then
+  rm -rf "$HOOK_WORK"
+elif ! grep -q 'TRANSLATIONS_ENABLED' "$PRE_COMMIT"; then
   pass "2.1 while restored, the docs-translate hook runs unconditionally"
 else
   fail "2.1 while restored, the docs-translate hook runs unconditionally" \
     "the audit is active but generation is still gated — translations would go stale while the audit demands freshness"
+fi
+
+if grep -qF "docs-control's \`tests/test-translation-suspension.sh\`" "$CONTRIBUTING"; then
+  pass "2.3 CONTRIBUTING identifies the canonical translation guard without naming a consumer-local test"
+else
+  fail "2.3 CONTRIBUTING identifies the canonical translation guard" \
+    "the managed document must qualify the docs-control-only test path"
 fi
 
 # The hook must still exist and still be scoped to English sources — a suspension

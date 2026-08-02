@@ -91,6 +91,8 @@
     "label": "API Specs Enriched",
     "url": "https://f5-sales-demo.github.io/api-specs-enriched/llms-full.txt",
     "description": "Enriched OpenAPI specifications for F5 Distributed Cloud",
+    "readme_english_only": true,
+    "readme_content": "## Role in the API supply chain\n\n[`api-specs`](https://github.com/f5-sales-demo/api-specs) is the correction\nlayer for the source API specifications. This repository consumes an immutable\n`api-specs` release, applies deterministic enrichment, and publishes the\ncanonical enriched specification bundle used by\n[`terraform-provider-xcsh`](https://github.com/f5-sales-demo/terraform-provider-xcsh)\nand other downstream projects.\n\nChanges advance in that order: source corrections land in `api-specs`,\nenrichment lands and publishes here, and consumers update to the exact enriched\nrelease. The specification leads provider implementation.\n\nDocumentation publication is English-only until the production release.\nTranslation generation is deliberately suspended during pre-release iteration.",
     "badges": [
       { "name": "Tests", "workflow": "tests.yml" },
       { "name": "Sync and Enrich", "workflow": "sync-and-enrich.yml" }

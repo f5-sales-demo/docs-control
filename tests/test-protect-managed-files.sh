@@ -216,6 +216,20 @@ else
     "settings=$SETTINGS_SKIP governance=$GOV_SKIP"
 fi
 
+# api-specs-enriched publishes a release-bound, English-only Pages artifact.
+# Its workflow cannot be the generic governed caller without losing that contract.
+for config in "$REPO_SETTINGS" "$GOVERNANCE_JSON"; do
+  if jq -e '
+    ((.managed_files.skip_files // .skip_files)["api-specs-enriched"] // [])
+    | index(".github/workflows/github-pages-deploy.yml") != null
+  ' "$config" >/dev/null; then
+    pass "3.5a api-specs-enriched owns its specialized Pages workflow in $(basename "$config")"
+  else
+    fail "3.5a api-specs-enriched owns its specialized Pages workflow in $(basename "$config")" \
+      "missing .github/workflows/github-pages-deploy.yml from skip_files"
+  fi
+done
+
 # Test 3.6: every skip_files[repo] entry references a real managed file. A repo
 # may opt out of a STATIC managed file (managed_files.files[].dest) OR a
 # DYNAMICALLY managed file (README.md, .github/dependabot.yml — generated per
