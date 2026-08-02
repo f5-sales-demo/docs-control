@@ -9,20 +9,20 @@ This skill guides `agy` in translating English Markdown and MDX documentation (`
 
 ## Target Locales Registry
 
-| Locale Code | Language Name |
-| ----------- | ------------- |
-| `fr`        | French        |
-| `es`        | Spanish       |
-| `de`        | German        |
-| `pt-br`     | Portuguese (Brazil) |
-| `ja`        | Japanese      |
-| `ko`        | Korean        |
-| `zh-cn`     | Chinese (Simplified) |
+| Locale Code | Language Name         |
+| ----------- | --------------------- |
+| `fr`        | French                |
+| `es`        | Spanish               |
+| `de`        | German                |
+| `pt-br`     | Portuguese (Brazil)   |
+| `ja`        | Japanese              |
+| `ko`        | Korean                |
+| `zh-cn`     | Chinese (Simplified)  |
 | `zh-tw`     | Chinese (Traditional) |
-| `ar`        | Arabic        |
-| `it`        | Italian       |
-| `hi`        | Hindi         |
-| `th`        | Thai          |
+| `ar`        | Arabic                |
+| `it`        | Italian               |
+| `hi`        | Hindi                 |
+| `th`        | Thai                  |
 
 ---
 
