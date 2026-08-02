@@ -317,8 +317,8 @@
     ".github/workflows/antigravity-review.yml": {
       "src": "workflows/antigravity-review.yml",
       "dest": ".github/workflows/antigravity-review.yml",
-      "sha": "fab921ab8512a8c7be2ab7de9597b12844bee50e",
-      "size": 1571
+      "sha": "6ecd1b4d0eb34d73c88bdfa4ece665558911150f",
+      "size": 1602
     },
     ".github/workflows/code-review.yml": {
       "src": "workflows/code-review.yml",
