@@ -10,7 +10,7 @@ sidebar:
 The documentation and governance system spans three repositories, each with a distinct responsibility:
 
 | Repository | Role |
-|---|---|
+| --- | --- |
 | **docs-control** | Central governance hub -- repository settings, branch protection config, managed files manifest, reusable CI workflows, caller workflow templates, and downstream dispatch |
 | **docs-builder** | Docker build image -- Astro + Starlight build orchestration, npm dependencies, Puppeteer PDF generation, interactive components |
 | **docs-theme** | Astro Starlight plugin -- shared branding, CSS, fonts, logos, layout components, `astro.config.mjs`, and `content.config.ts` |
@@ -30,7 +30,7 @@ When a template file changes in docs-control on `main`:
 Two fine-grained personal access tokens provide least-privilege separation:
 
 | Token | Permissions | Used by |
-|---|---|---|
+| --- | --- | --- |
 | `REPO_SETTINGS_TOKEN` | Administration R/W, Pages R/W, Contents Read, Metadata Read | `enforce-repo-settings.yml`, `dispatch-downstream.yml` |
 | `REPO_SYNC_TOKEN` | Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read | `sync-managed-files.yml` |
 
@@ -38,12 +38,18 @@ The enforcement workflow needs admin access to modify branch protection and Page
 
 ## Self-detection
 
-Docs-control is both the provider and consumer of its own governance config. When `enforce-repo-settings.yml` runs on docs-control itself (via the `push` trigger), it detects this by comparing `managed_files.source_repo` against `github.repository`. This triggers the `self_contexts` override in branch protection -- docs-control uses workflows directly (for example, `Shell Unit Tests`), while downstream repositories use caller wrappers (for example, `lint / Shell Unit Tests`). See the [configuration page](./configuration/) for details on `contexts` vs `self_contexts`.
+Docs-control is both the provider and consumer of its own governance config. When
+`enforce-repo-settings.yml` runs on docs-control itself (via the `push` trigger), it detects
+this by comparing `managed_files.source_repo` against `github.repository`. This triggers the
+`self_contexts` override in branch protection -- docs-control uses workflows directly (for
+example, `Shell Unit Tests`), while downstream repositories use caller wrappers (for example,
+`lint / Shell Unit Tests`). See the [configuration page](./configuration/) for details on
+`contexts` vs `self_contexts`.
 
 ## Repository layout
 
 | Directory / File | Purpose |
-|---|---|
+| --- | --- |
 | `.github/config/repo-settings.json` | Central config: repository settings, branch protection, Actions permissions, Pages config, and the managed files manifest |
 | `.github/config/downstream-repos.json` | Registry of enrolled downstream repositories |
 | `.github/config/docs-sites.json` | Metadata for each downstream docs site (label, URL, description) used by README templating |

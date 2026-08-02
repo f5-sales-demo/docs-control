@@ -48,7 +48,7 @@ this document governs how a change gets reviewed and merged.
 
 Every change follows this path:
 
-```
+```text
 Issue → Branch → PR (linked to issue) → CI passes → auto-merge when green → Branch auto-deleted
 ```
 

@@ -14,6 +14,7 @@ It skips execution when running on the source repository itself (docs-control), 
 The workflow iterates the `managed_files.files` array from the [central config](./configuration/). For each entry, it fetches the canonical content from docs-control and compares it against the downstream copy. Files that are missing or have drifted are flagged for sync.
 
 The managed files manifest includes:
+
 - Caller workflows (`enforce-repo-settings.yml`, `github-pages-deploy.yml`, `require-linked-issue.yml`)
 - Issue and PR templates
 - `CONTRIBUTING.md`, `CLAUDE.md`, `STYLE_GUIDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
@@ -22,6 +23,7 @@ The managed files manifest includes:
 ## Dynamic dependabot.yml generation
 
 The workflow detects which package ecosystems exist in the downstream repository:
+
 - **npm** -- `package.json` exists
 - **pip** -- `requirements.txt`, `pyproject.toml`, or `setup.py` exists
 - **docker** -- `Dockerfile` exists

@@ -620,21 +620,35 @@ done
 echo ""
 echo "=== Section 5b: .markdownlint.json opinionated-rule disables ==="
 
-# Each entry below is a rule docs-control disables based on real audit
-# findings against governed repos. Removing the disable would re-introduce
-# hundreds of noise violations on fork/reference-style docs.
-# MD029  ordered-list-style    — allow mixed 1. + 1) styles
-# MD033  no-inline-html        — MDX components and HTML embed
-# MD041  first-line-h1         — Starlight frontmatter supplies the H1 implicitly
-# MD060  table-column-style    — tables are content-first, not pipe-aligned
-# MD025  single-title          — multi-H1 is used in reference docs
-# MD024  no-duplicate-heading  — repeated section names in reference docs
-# MD007  ul-indent             — indent preference varies by fork style
-for rule in MD029 MD033 MD041 MD060 MD025 MD024 MD007; do
+# MD033 no-inline-html is the ONLY rule this configuration disables, and it is a
+# genuine engineering requirement rather than a preference: MDX *is* JSX, so every
+# component in every .mdx page is inline HTML to markdownlint. Measured across the
+# fleet's English documentation: 67,167 violations, none of them fixable without
+# abandoning MDX.
+#
+# The six rules that used to sit beside it here were re-enabled. Each had been
+# disabled to avoid "hundreds of noise violations on fork/reference-style docs",
+# which is a cost argument, not a requirement — and the measurements did not
+# support it either. MD041 was justified as "Starlight frontmatter supplies the H1
+# implicitly"; markdownlint already honours a frontmatter title, and the whole
+# fleet had six violations.
+for rule in MD033; do
   if jq -e --arg r "$rule" '.[$r] == false' "$REPO_ROOT/.markdownlint.json" >/dev/null; then
     pass "5b.x .markdownlint.json disables $rule"
   else
     fail "5b.x .markdownlint.json disables $rule" "not set to false"
+  fi
+done
+
+# Every rule below is ENFORCED. Each was previously disabled; the assertions exist
+# so a bypass cannot quietly return the way MD040's did — it was not only switched
+# off in the configuration, it was pinned there by this test.
+for rule in MD029 MD041 MD060 MD025 MD024 MD007; do
+  if jq -e --arg r "$rule" 'has($r) | not' "$REPO_ROOT/.markdownlint.json" >/dev/null ||
+    jq -e --arg r "$rule" '.[$r] != false' "$REPO_ROOT/.markdownlint.json" >/dev/null; then
+    pass "5b.x .markdownlint.json enforces $rule"
+  else
+    fail "5b.x .markdownlint.json enforces $rule" "$rule is disabled — fix the documents instead"
   fi
 done
 

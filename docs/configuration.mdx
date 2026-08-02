@@ -92,6 +92,7 @@ The central configuration file drives all enforcement, sync, and dispatch behavi
 Standard GitHub repository settings applied via `PATCH /repos/{owner}/{repo}`. Each key maps directly to the GitHub API field. The [enforcement workflow](./settings-enforcement/) compares each key against the repository's current value and only patches keys that have drifted.
 
 Notable settings:
+
 - `delete_branch_on_merge: true` -- automatically cleans up merged PR branches
 - `allow_update_branch: true` -- enables the "Update branch" button on PRs
 - `homepage: ""` -- auto-computed at runtime as `https://f5-sales-demo.github.io/{repo}/`
@@ -99,6 +100,7 @@ Notable settings:
 ### `actions_permissions`
 
 Controls GitHub Actions workflow permissions for the repository:
+
 - `default_workflow_permissions: "write"` -- workflows get read/write access to the repository by default
 - `can_approve_pull_request_reviews: true` -- allows workflows to approve PRs
 
@@ -107,6 +109,7 @@ Controls GitHub Actions workflow permissions for the repository:
 An array of branch protection rules. Each entry specifies a `branch` name and the desired protection settings. Currently only `main` is protected.
 
 Key fields:
+
 - `enforce_admins: true` -- protection rules apply to repository administrators too
 - `required_status_checks.strict: false` -- branches don't need to be up-to-date before merging
 - `required_status_checks.contexts` -- the check names downstream repositories must pass (for example, `check / Check linked issues` and `lint / Shell Unit Tests`)
@@ -131,11 +134,19 @@ Each profile classifies the complete matching inventory:
 - `unit` entries contain a test `path` and an `args` array. The runner passes each argument literally, without shell evaluation.
 - `environment` entries contain a test `path` and a non-empty `reason` explaining why the bare-runner unit gate cannot execute it.
 
-The reusable workflow fetches the selector and configuration from the same docs-control `main` revision, logs that revision, and validates the inventory before running anything. Missing configuration, unsafe paths or arguments, duplicate paths, and unclassified or missing tests fail the required context. This makes a profile an audited classification contract rather than an ignore list. Repositories without a profile keep the broad default.
+The reusable workflow fetches the selector and configuration from the same docs-control `main`
+revision, logs that revision, and validates the inventory before running anything. Missing
+configuration, unsafe paths or arguments, duplicate paths, and unclassified or missing tests
+fail the required context. This makes a profile an audited classification contract rather than
+an ignore list. Repositories without a profile keep the broad default.
 
 The `xcsh` override excludes both Super-Linter contexts because that repository does not call the reusable Super-Linter workflow; its native `check`, `pii-guard`, and `test` contexts remain required. Live verification must prove an exclusion is necessary before it is added.
 
-Do not require a context from a workflow with `paths` or `paths-ignore` filters. GitHub leaves that context pending when the workflow does not start. Broad security tools must run in an unfiltered pull-request workflow or in a scheduled full-tree audit; the managed workflow-security audit uses the latter model for `zizmor`. A job-level condition is safe because a skipped job still reports a successful check.
+Do not require a context from a workflow with `paths` or `paths-ignore` filters. GitHub leaves
+that context pending when the workflow does not start. Broad security tools must run in an
+unfiltered pull-request workflow or in a scheduled full-tree audit; the managed
+workflow-security audit uses the latter model for `zizmor`. A job-level condition is safe
+because a skipped job still reports a successful check.
 
 ### `topics`
 
@@ -144,12 +155,14 @@ An array of GitHub topics to apply to the repository. Currently empty -- topics 
 ### `pages`
 
 GitHub Pages configuration:
+
 - `enabled: true` -- ensures Pages is enabled on every enrolled repository
 - `build_type: "workflow"` -- uses GitHub Actions for the Pages build (not legacy branch-based builds)
 
 ### `managed_files`
 
 Defines the file synchronization manifest:
+
 - `source_repo` -- the repository that holds canonical versions of managed files (`f5-sales-demo/docs-control`)
 - `files` -- an array of `{src, dest}` objects mapping source paths in docs-control to destination paths in downstream repositories
 

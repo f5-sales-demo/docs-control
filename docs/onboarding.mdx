@@ -284,7 +284,7 @@ Every `.mdx` file needs YAML frontmatter with at least a `title` field. Remove a
 MkDocs Material uses `!!! type "Title"` with indented content. Starlight uses fenced directives:
 
 | MkDocs syntax | Starlight syntax |
-|---|---|
+| --- | --- |
 | `!!! note "Title"` | `:::note[Title]` ... `:::` |
 | `!!! tip "Title"` | `:::tip[Title]` ... `:::` |
 | `!!! warning "Title"` | `:::caution[Title]` ... `:::` |
@@ -294,7 +294,7 @@ MkDocs Material uses `!!! type "Title"` with indented content. Starlight uses fe
 **Type mapping**:
 
 | MkDocs type | Starlight directive |
-|---|---|
+| --- | --- |
 | `note`, `info`, `abstract`, `summary`, `tldr`, `quote`, `cite`, `question`, `help`, `faq` | `:::note` |
 | `tip`, `hint`, `success`, `check`, `example` | `:::tip` |
 | `warning`, `attention` | `:::caution` |
@@ -307,7 +307,7 @@ Remove the 4-space content indentation that MkDocs requires -- Starlight directi
 MkDocs Material uses `:material-icon-name:` syntax. Replace with emoji or plain text:
 
 | Material icon | Replacement |
-|---|---|
+| --- | --- |
 | `:material-check:` | &#10003; |
 | `:material-close:` | &#10007; |
 | `:material-arrow-right:` | &#8594; |
