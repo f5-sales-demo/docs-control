@@ -22,6 +22,38 @@ printf '["example"]\n' >"$WORK/repos.json"
 printf '{"revision":"%s"}\n' "$PIN_SHA" >"$WORK/pin.json"
 printf '{"state":"active"}\n' >"$WORK/rollout.json"
 
+for run_status in queued in_progress waiting requested pending; do
+  if ! grep -Fq "status=${run_status}" "$SOURCE"; then
+    echo "[FAIL] bootstrap does not query bounded ${run_status} workflow runs"
+    exit 1
+  fi
+done
+if ! grep -Fq 'actions/runs?${state_filter}' "$SOURCE" ||
+  ! grep -Fq 'select(.path == ".github/workflows/enforce-repo-settings.yml")' "$SOURCE"; then
+  echo "[FAIL] repository-wide active-run inventory is not filtered to the exact workflow path"
+  exit 1
+fi
+if grep -Fq 'actions/workflows/enforce-repo-settings.yml/runs?' "$SOURCE"; then
+  echo "[FAIL] bootstrap cannot inventory legacy runs after the workflow file is deleted"
+  exit 1
+fi
+if grep -Fq 'runs?per_page=100' "$SOURCE"; then
+  echo "[FAIL] bootstrap still paginates complete workflow-run history"
+  exit 1
+fi
+echo "[OK] bootstrap inventories only bounded active workflow-run states"
+
+if ! grep -q -- '--match-head-commit "$verified_head"' "$SOURCE"; then
+  echo "[FAIL] bootstrap auto-merge is not bound to the verified PR head"
+  exit 1
+fi
+enable_failure_block=$(sed -n '/if \[ "$enable_failures" -gt 0 \]; then/,/^fi$/p' "$SOURCE")
+if ! grep -q 'quiesce_fleet' <<<"$enable_failure_block"; then
+  echo "[FAIL] partial enable failure does not return the fleet to quiescence"
+  exit 1
+fi
+echo "[OK] merge and enable transitions retain exact safe ownership"
+
 cat >"$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$FAKE_LOG"
@@ -74,8 +106,75 @@ case "$1 $endpoint" in
       touch "$FAKE_STATE/advance-main"
     fi
     ;;
-  'api repos/f5-sales-demo/example/actions/workflows/enforce-repo-settings.yml/runs?per_page=100')
-    if [ -f "$FAKE_STATE/active-run" ] && [ ! -f "$FAKE_STATE/canceled" ]; then
+  'api repos/f5-sales-demo/example-two/commits/main') printf '%s\n' "$BASE_SHA" ;;
+  'api repos/f5-sales-demo/example-two/actions/workflows/enforce-repo-settings.yml')
+    if [ -f "$FAKE_STATE/disabled-example-two" ]; then
+      printf 'disabled_manually\n'
+    else
+      printf 'active\n'
+    fi
+    ;;
+  'api repos/f5-sales-demo/example-two/actions/workflows/enforce-repo-settings.yml/disable')
+    touch "$FAKE_STATE/disabled-example-two"
+    ;;
+  'api repos/f5-sales-demo/example-two/actions/workflows/enforce-repo-settings.yml/enable')
+    if [ "${FAKE_FAIL_ENABLE_REPO:-}" = example-two ]; then
+      exit 1
+    fi
+    rm -f "$FAKE_STATE/disabled-example-two"
+    ;;
+  'api repos/f5-sales-demo/example-two/actions/runs?status='*) printf '\n' ;;
+  'api repos/f5-sales-demo/example-two/contents/.github/workflows/enforce-repo-settings.yml?ref='*)
+    printf '%s\n' "$DOWNSTREAM_BLOB"
+    ;;
+  'api repos/f5-sales-demo/example/actions/runs?status='*)
+    if [ -n "${FAKE_RUN_QUERY_FAIL_STATUS:-}" ] &&
+      [[ "$endpoint" == *"status=${FAKE_RUN_QUERY_FAIL_STATUS}"* ]]; then
+      echo 'gh: synthetic active-run query failure (HTTP 500)' >&2
+      exit 1
+    fi
+    if [ "${FAKE_MALFORMED_RUN_ID:-}" = 1 ] && [[ "$endpoint" == *'status=queued'* ]]; then
+      printf 'not-a-run-id\n'
+    elif [ "${FAKE_UNRELATED_RUN:-}" = 1 ] &&
+      [[ "$*" != *'select(.path == ".github/workflows/enforce-repo-settings.yml")'* ]] &&
+      [[ "$endpoint" == *'status=queued'* ]]; then
+      printf '903\n'
+    elif [ "${FAKE_TRANSITIONAL_RUN:-}" = 1 ] && [[ "$endpoint" == *'status=queued'* ]]; then
+      if [ ! -f "$FAKE_STATE/transition-started" ]; then
+        touch "$FAKE_STATE/transition-started"
+        printf '\n'
+      elif [ ! -f "$FAKE_STATE/transition-canceled" ]; then
+        printf '901\n'
+      else
+        printf '\n'
+      fi
+    elif [[ "$endpoint" == *'status=in_progress'* ]] &&
+      [ "${FAKE_LEGACY_RUN:-}" = 1 ] && [ ! -f "$FAKE_STATE/legacy-canceled" ]; then
+      printf '902\n'
+    elif [[ "$endpoint" == *'status=in_progress'* ]] &&
+      [ -f "$FAKE_STATE/active-run" ] && [ ! -f "$FAKE_STATE/canceled" ]; then
+      printf '900\n'
+    else
+      printf '\n'
+    fi
+    ;;
+  'api repos/f5-sales-demo/example/actions/workflows/enforce-repo-settings.yml/runs?status='*)
+    if [ -n "${FAKE_RUN_QUERY_FAIL_STATUS:-}" ] &&
+      [[ "$endpoint" == *"status=${FAKE_RUN_QUERY_FAIL_STATUS}"* ]]; then
+      echo 'gh: synthetic active-run query failure (HTTP 500)' >&2
+      exit 1
+    fi
+    if [ "${FAKE_TRANSITIONAL_RUN:-}" = 1 ] && [[ "$endpoint" == *'status=queued'* ]]; then
+      if [ ! -f "$FAKE_STATE/transition-started" ]; then
+        touch "$FAKE_STATE/transition-started"
+        printf '\n'
+      elif [ ! -f "$FAKE_STATE/transition-canceled" ]; then
+        printf '901\n'
+      else
+        printf '\n'
+      fi
+    elif [[ "$endpoint" == *'status=in_progress'* ]] &&
+      [ -f "$FAKE_STATE/active-run" ] && [ ! -f "$FAKE_STATE/canceled" ]; then
       printf '900\n'
     else
       printf '\n'
@@ -83,6 +182,15 @@ case "$1 $endpoint" in
     ;;
   'api repos/f5-sales-demo/example/actions/runs/900/cancel')
     touch "$FAKE_STATE/canceled"
+    ;;
+  'api repos/f5-sales-demo/example/actions/runs/901/cancel')
+    touch "$FAKE_STATE/transition-canceled"
+    ;;
+  'api repos/f5-sales-demo/example/actions/runs/902/cancel')
+    touch "$FAKE_STATE/legacy-canceled"
+    ;;
+  'api repos/f5-sales-demo/example/actions/runs/903/cancel')
+    touch "$FAKE_STATE/unrelated-canceled"
     ;;
   'api repos/f5-sales-demo/example/contents/.github/workflows/enforce-repo-settings.yml?ref='*)
     if [ "${FAKE_READ_ERROR:-}" = 403 ]; then
@@ -220,6 +328,12 @@ run_bootstrap() {
     FAKE_MISSING_WORKFLOW="${FAKE_MISSING_WORKFLOW:-}" \
     FAKE_MERGE_LANDS="${FAKE_MERGE_LANDS:-}" \
     FAKE_ADVANCE_AFTER_ENABLE="${FAKE_ADVANCE_AFTER_ENABLE:-}" \
+    FAKE_FAIL_ENABLE_REPO="${FAKE_FAIL_ENABLE_REPO:-}" \
+    FAKE_RUN_QUERY_FAIL_STATUS="${FAKE_RUN_QUERY_FAIL_STATUS:-}" \
+    FAKE_TRANSITIONAL_RUN="${FAKE_TRANSITIONAL_RUN:-}" \
+    FAKE_LEGACY_RUN="${FAKE_LEGACY_RUN:-}" \
+    FAKE_UNRELATED_RUN="${FAKE_UNRELATED_RUN:-}" \
+    FAKE_MALFORMED_RUN_ID="${FAKE_MALFORMED_RUN_ID:-}" \
     REPO_SETTINGS_TOKEN=settings-token \
     "$SOURCE"
 }
@@ -309,6 +423,59 @@ if [ "$rc" = 0 ] || grep -qE 'git/refs --method POST| --method PUT|^pr (create|m
   exit 1
 fi
 echo "[OK] non-404 read failure causes zero mutations"
+
+state="$WORK/state-run-query-failure"
+mkdir -p "$state"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+FAKE_RUN_QUERY_FAIL_STATUS=queued
+set +e
+run_bootstrap "$state" >/dev/null 2>&1
+rc=$?
+set -e
+unset FAKE_RUN_QUERY_FAIL_STATUS
+if [ "$rc" = 0 ] ||
+  grep -qE 'git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' "$WORK/gh.log"; then
+  echo "[FAIL] partial active-run inventory was treated as fleet quiescence"
+  exit 1
+fi
+echo "[OK] any active-run status query failure blocks caller mutation"
+
+state="$WORK/state-malformed-run-inventory"
+mkdir -p "$state"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+FAKE_MALFORMED_RUN_ID=1
+set +e
+run_bootstrap "$state" >/dev/null 2>&1
+rc=$?
+set -e
+unset FAKE_MALFORMED_RUN_ID
+if [ "$rc" = 0 ] || grep -q 'actions/runs/not-a-run-id' "$WORK/gh.log" ||
+  grep -qE 'git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' "$WORK/gh.log"; then
+  echo "[FAIL] malformed active-run inventory was used as a cancellation target"
+  exit 1
+fi
+echo "[OK] malformed active-run inventory fails before cancellation or caller mutation"
+
+state="$WORK/state-transitioning-run"
+mkdir -p "$state"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+FAKE_TRANSITIONAL_RUN=1
+set +e
+run_bootstrap "$state" >/dev/null 2>&1
+rc=$?
+set -e
+unset FAKE_TRANSITIONAL_RUN
+if [ "$rc" != 83 ] ||
+  ! grep -q 'actions/runs/901/cancel --method POST' "$WORK/gh.log" ||
+  [ ! -f "$state/transition-canceled" ] ||
+  [ "$(grep -c 'runs?status=queued' "$WORK/gh.log")" -lt 4 ]; then
+  echo "[FAIL] status transition escaped the settled quiescence proof"
+  exit 1
+fi
+echo "[OK] repeated empty inventories catch and cancel status transitions"
 
 state="$WORK/state-newer"
 mkdir -p "$state"
@@ -491,6 +658,71 @@ if [ "$rc" != 78 ] || ! grep -q '/enable --method PUT' "$WORK/gh.log" ||
   exit 1
 fi
 echo "[OK] source advancement during enable re-quiesces the fleet"
+
+printf '["example","example-two"]\n' >"$WORK/repos-two.json"
+state="$WORK/state-partial-enable-failure"
+mkdir -p "$state"
+touch "$state/disabled" "$state/disabled-example-two"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+FAKE_FAIL_ENABLE_REPO=example-two
+set +e
+TEST_DOWNSTREAM_CONFIG="$WORK/repos-two.json" run_bootstrap "$state" \
+  >"$WORK/partial-enable.out" 2>"$WORK/partial-enable.err"
+rc=$?
+set -e
+unset FAKE_FAIL_ENABLE_REPO TEST_DOWNSTREAM_CONFIG
+example_enable_line=$(grep -n \
+  'example/actions/workflows/enforce-repo-settings.yml/enable --method PUT' \
+  "$WORK/gh.log" | tail -1 | cut -d: -f1)
+example_rollback_line=$(grep -n \
+  'example/actions/workflows/enforce-repo-settings.yml/disable --method PUT' \
+  "$WORK/gh.log" | tail -1 | cut -d: -f1)
+second_enable_attempts=$(grep -c \
+  'example-two/actions/workflows/enforce-repo-settings.yml/enable --method PUT' \
+  "$WORK/gh.log" || true)
+second_enable_first_line=$(grep -n \
+  'example-two/actions/workflows/enforce-repo-settings.yml/enable --method PUT' \
+  "$WORK/gh.log" | head -1 | cut -d: -f1)
+second_enable_last_line=$(grep -n \
+  'example-two/actions/workflows/enforce-repo-settings.yml/enable --method PUT' \
+  "$WORK/gh.log" | tail -1 | cut -d: -f1)
+if [ "$rc" = 0 ] || [ -z "$example_enable_line" ] ||
+  [ -z "$example_rollback_line" ] ||
+  [ "$example_rollback_line" -le "$example_enable_line" ] ||
+  [ "$second_enable_attempts" -ne 3 ] ||
+  [ -z "$second_enable_first_line" ] || [ -z "$second_enable_last_line" ] ||
+  [ "$second_enable_first_line" -le "$example_enable_line" ] ||
+  [ "$second_enable_last_line" -ge "$example_rollback_line" ] ||
+  ! grep -q '\[FAIL\] Could not enable exact enforcement for example-two' \
+    "$WORK/partial-enable.err" ||
+  [ ! -f "$state/disabled" ] || [ ! -f "$state/disabled-example-two" ]; then
+  echo "[FAIL] a later enable failure left part of the fleet active"
+  sed 's/^/  /' "$WORK/partial-enable.err"
+  exit 1
+fi
+echo "[OK] partial enable failure behaviorally returns the whole fleet to quiescence"
+
+state="$WORK/state-missing-workflow-active-run"
+mkdir -p "$state"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+FAKE_MISSING_WORKFLOW=1
+FAKE_MERGE_LANDS=1
+FAKE_LEGACY_RUN=1
+FAKE_UNRELATED_RUN=1
+set +e
+run_bootstrap "$state" >/dev/null 2>&1
+rc=$?
+set -e
+unset FAKE_MISSING_WORKFLOW FAKE_MERGE_LANDS FAKE_LEGACY_RUN FAKE_UNRELATED_RUN
+if [ "$rc" != 0 ] || [ ! -f "$state/legacy-canceled" ] ||
+  ! grep -q 'actions/runs/902/cancel --method POST' "$WORK/gh.log" ||
+  grep -q 'actions/runs/903/cancel' "$WORK/gh.log" || [ -f "$state/unrelated-canceled" ]; then
+  echo "[FAIL] active legacy run escaped quiescence after its workflow file was deleted"
+  exit 1
+fi
+echo "[OK] missing current workflow still inventories and cancels active legacy runs"
 
 state="$WORK/state-missing-workflow"
 mkdir -p "$state"

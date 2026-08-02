@@ -460,6 +460,14 @@ jobs:
         if: hashFiles('tests/test-source-receipt-ordering.sh') != ''
         run: bash tests/test-source-receipt-ordering.sh
 
+      - name: Run source mutation guard test
+        if: hashFiles('tests/test-source-mutation-guard.sh') != ''
+        run: bash tests/test-source-mutation-guard.sh
+
+      - name: Run downstream sync receipt test
+        if: hashFiles('tests/test-sync-downstream-receipt.sh') != ''
+        run: bash tests/test-sync-downstream-receipt.sh
+
       - name: Run check-review-deps test
         if: hashFiles('tests/test-check-review-deps.sh') != ''
         run: bash tests/test-check-review-deps.sh

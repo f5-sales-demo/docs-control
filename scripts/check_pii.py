@@ -125,7 +125,7 @@ PHONE_FIELD_RE = re.compile(
 PERSON_FIELD_RE = re.compile(
     r"(?i)(?:^|[,{\s])['\"]?"
     r"(?P<key>full_name|first_name|last_name|given_name|family_name|display_name)"
-    r"['\"]?\s*[:=]\s*(?P<quote>['\"`]?)"
+    r"['\"]?\s*(?P<separator>[:=])\s*(?P<quote>['\"`]?)"
     r"(?P<value>(?:(?!\\[rn])[^'\"`#,\r\n}\]])+)"
 )
 LOCALIZATION_BUNDLE_RE = re.compile(

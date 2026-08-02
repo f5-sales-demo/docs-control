@@ -21,6 +21,7 @@ on:
       - '.github/config/governed-workflow-pin.json'
       - '.github/config/governance-rollout.json'
       - '.github/workflows/dispatch-downstream.yml'
+      - 'workflows/enforce-repo-settings.yml'
       - 'README.md.tpl'
   schedule:
     - cron: '17 */6 * * *'
@@ -31,7 +32,9 @@ permissions:
 
 concurrency:
   group: dispatch-downstream
-  cancel-in-progress: true
+  # Bootstrap mutates downstream PR state. Queue newer receipts so an in-flight
+  # exact transition can defer monotonically instead of being killed mid-write.
+  cancel-in-progress: false
 
 jobs:
   dispatch:

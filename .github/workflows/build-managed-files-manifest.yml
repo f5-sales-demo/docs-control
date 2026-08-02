@@ -73,18 +73,49 @@ jobs:
 
       - name: Build manifest
         env:
+          GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
           SOURCE_COMMIT: ${{ github.sha }}
           CONFIG_PATH: .github/config/repo-settings.json
           MANIFEST_PATH: .github/config/managed-files-manifest.json
         run: |
           set -euo pipefail
 
+          PROTECTED_MAIN_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
+          CHECKED_OUT_SHA=$(git rev-parse HEAD)
+          if ! printf '%s\n%s\n%s\n' \
+            "$SOURCE_COMMIT" "$CHECKED_OUT_SHA" "$PROTECTED_MAIN_SHA" |
+            awk '/^[0-9a-f]{40}$/ { valid++ } END { exit valid != 3 }'; then
+            echo "[ERROR] Manifest source identities are invalid" >&2
+            exit 1
+          fi
+          if [ "$SOURCE_COMMIT" != "$PROTECTED_MAIN_SHA" ] ||
+            [ "$CHECKED_OUT_SHA" != "$PROTECTED_MAIN_SHA" ]; then
+            echo "[ERROR] Manifest generation requires the exact current protected main" >&2
+            exit 1
+          fi
+
           if [ ! -f "$CONFIG_PATH" ]; then
             echo "[ERROR] $CONFIG_PATH not found" >&2
             exit 1
           fi
-
-          GENERATED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          if ! jq -e '
+            .managed_files.files | type == "array" and length > 0 and
+            all(.[];
+              (.src | type == "string" and length > 0) and
+              (.dest | type == "string" and length > 0))
+          ' "$CONFIG_PATH" >/dev/null; then
+            echo "[ERROR] managed_files.files must be a non-empty src/dest array" >&2
+            exit 1
+          fi
+          DUPLICATE_DESTS=$(jq -r '
+            [.managed_files.files[].dest] | sort | group_by(.) |
+            .[] | select(length > 1) | .[0]
+          ' "$CONFIG_PATH")
+          if [ -n "$DUPLICATE_DESTS" ]; then
+            echo "[ERROR] Duplicate managed-file destinations:" >&2
+            printf '%s\n' "$DUPLICATE_DESTS" | sed 's/^/  - /' >&2
+            exit 1
+          fi
 
           ENTRIES=$(jq -c '.managed_files.files[]' "$CONFIG_PATH")
           if [ -z "$ENTRIES" ]; then
@@ -94,6 +125,7 @@ jobs:
 
           FILES_JSON="{}"
           MISSING=""
+          INVALID_MODES=""
           while IFS= read -r entry; do
             src=$(echo "$entry" | jq -r '.src')
             dest=$(echo "$entry" | jq -r '.dest')
@@ -103,12 +135,18 @@ jobs:
             fi
             sha=$(git hash-object "$src")
             size=$(wc -c <"$src" | tr -d ' ')
+            mode=$(git ls-files -s -- "$src" | awk 'NR == 1 { print $1 }')
+            if ! printf '%s' "$mode" | grep -qE '^100(644|755)$'; then
+              INVALID_MODES="${INVALID_MODES}${src}:${mode:-missing}\n"
+              continue
+            fi
             FILES_JSON=$(echo "$FILES_JSON" | jq \
               --arg dest "$dest" \
               --arg src "$src" \
               --arg sha "$sha" \
+              --arg mode "$mode" \
               --argjson size "$size" \
-              '.[$dest] = {src: $src, dest: $dest, sha: $sha, size: $size}')
+              '.[$dest] = {src: $src, dest: $dest, sha: $sha, size: $size, mode: $mode}')
           done <<<"$ENTRIES"
 
           if [ -n "$MISSING" ]; then
@@ -116,12 +154,16 @@ jobs:
             printf '%b' "$MISSING" | sed 's/^/  - /' >&2
             exit 1
           fi
+          if [ -n "$INVALID_MODES" ]; then
+            echo "[ERROR] Managed-file sources have invalid Git modes:" >&2
+            printf '%b' "$INVALID_MODES" | sed 's/^/  - /' >&2
+            exit 1
+          fi
 
           jq -n \
-            --arg generated_at "$GENERATED_AT" \
             --arg source_commit "$SOURCE_COMMIT" \
             --argjson files "$FILES_JSON" \
-            '{generated_at: $generated_at, source_commit: $source_commit, files: $files}' \
+            '{source_commit: $source_commit, files: $files}' \
             >"$MANIFEST_PATH"
 
           echo "[OK] Wrote manifest with $(echo "$FILES_JSON" | jq 'length') entries"
@@ -131,22 +173,140 @@ jobs:
         # direct push of the manifest is rejected. Instead route the manifest
         # through an auto-merging PR on a sync/* branch (excluded from the
         # require-linked-issue gate). The PR is only opened/updated when the
-        # `files` map actually changes — generated_at/source_commit churn is
-        # ignored — so there is no per-run PR spam. The manifest is excluded
-        # from biome, so the PR's Lint Code Base passes. Falls back to today's
-        # per-file sync behavior if anything here is skipped.
+        # `files` map actually changes — source_commit churn is ignored — so
+        # there is no per-run PR spam. The manifest is excluded
+        # from biome, so the PR's Lint Code Base passes. Downstream sync fails
+        # closed until this exact manifest evidence lands.
         env:
           # PAT (not GITHUB_TOKEN) so the PR triggers CI and auto-merge can proceed.
           GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
+          SOURCE_COMMIT: ${{ github.sha }}
           MANIFEST_PATH: .github/config/managed-files-manifest.json
           BRANCH: sync/manifest
         run: |
           set -euo pipefail
 
-          # Compare only the files map (ignore volatile generated_at/source_commit).
-          NEW_FILES=$(jq -S '.files' "$MANIFEST_PATH")
-          CURRENT_FILES=$(gh api "repos/${GITHUB_REPOSITORY}/contents/${MANIFEST_PATH}?ref=main" \
-            --jq '.content' 2>/dev/null | base64 -d 2>/dev/null | jq -S '.files' 2>/dev/null || echo '{}')
+          PROTECTED_MAIN_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
+          CHECKED_OUT_SHA=$(git rev-parse HEAD)
+          if ! printf '%s\n%s\n%s\n' \
+            "$SOURCE_COMMIT" "$CHECKED_OUT_SHA" "$PROTECTED_MAIN_SHA" |
+            awk '/^[0-9a-f]{40}$/ { valid++ } END { exit valid != 3 }'; then
+            echo "[ERROR] Manifest publication identities are invalid" >&2
+            exit 1
+          fi
+          if [ "$SOURCE_COMMIT" != "$PROTECTED_MAIN_SHA" ] ||
+            [ "$CHECKED_OUT_SHA" != "$PROTECTED_MAIN_SHA" ]; then
+            echo "[ERROR] Manifest publication requires the exact current protected main" >&2
+            exit 1
+          fi
+
+          read_manifest_prs() {
+            local destination="$1"
+            if ! gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" \
+              --paginate --slurp >"$destination"; then
+              echo "[ERROR] Could not inventory open manifest PRs" >&2
+              return 1
+            fi
+            if ! jq -e --arg branch "$BRANCH" '
+              type == "array" and all(.[]; type == "array") and
+              all(.[][] | select(.head.ref == $branch);
+                (.number | type == "number" and floor == . and . >= 1) and
+                (.head.ref | type == "string") and
+                (.head.sha | type == "string" and test("^[0-9a-f]{40}$")) and
+                (.head.repo.full_name | type == "string") and
+                (.base.ref | type == "string"))
+            ' "$destination" >/dev/null; then
+              echo "[ERROR] Open manifest PR inventory is invalid" >&2
+              return 1
+            fi
+          }
+
+          select_owned_manifest_pr() {
+            local inventory="$1" count row pr_num pr_repo pr_base pr_head
+            count=$(jq --arg branch "$BRANCH" '
+              [.[][] | select(.head.ref == $branch)] | length
+            ' "$inventory")
+            case "$count" in
+              0) return 0 ;;
+              1)
+                row=$(jq -r --arg branch "$BRANCH" '
+                  .[][] | select(.head.ref == $branch) |
+                  [.number, .head.repo.full_name, .base.ref, .head.sha] | @tsv
+                ' "$inventory")
+                IFS=$'\t' read -r pr_num pr_repo pr_base pr_head <<<"$row"
+                if [ "$pr_repo" != "$GITHUB_REPOSITORY" ] || [ "$pr_base" != "main" ]; then
+                  echo "[ERROR] Open manifest PR is not owned by protected ${GITHUB_REPOSITORY} main" >&2
+                  return 1
+                fi
+                printf '%s\t%s\n' "$pr_num" "$pr_head"
+                ;;
+              *)
+                echo "[ERROR] Multiple open manifest PRs claim ${BRANCH}" >&2
+                return 1
+                ;;
+            esac
+          }
+
+          assert_manifest_pr_head() {
+            local pr_num="$1" expected_sha="$2" response
+            if ! printf '%s' "$pr_num" | grep -qE '^[1-9][0-9]*$' ||
+              ! printf '%s' "$expected_sha" | grep -qE '^[0-9a-f]{40}$'; then
+              echo "[ERROR] Invalid manifest PR receipt" >&2
+              return 1
+            fi
+            response=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${pr_num}")
+            if ! echo "$response" | jq -e \
+              --arg repo "${GITHUB_REPOSITORY}" \
+              --arg branch "$BRANCH" \
+              --arg sha "$expected_sha" '
+                .state == "open" and
+                .head.repo.full_name == $repo and
+                .head.ref == $branch and
+                .head.sha == $sha and
+                .base.ref == "main"
+              ' >/dev/null; then
+              echo "[ERROR] Manifest PR ownership or exact head changed before auto-merge" >&2
+              return 1
+            fi
+          }
+
+          assert_manifest_pr_diff() {
+            local expected_head="$1" response
+            if ! printf '%s' "$expected_head" | grep -qE '^[0-9a-f]{40}$'; then
+              echo "[ERROR] Invalid manifest diff receipt" >&2
+              return 1
+            fi
+            response=$(gh api \
+              "repos/${GITHUB_REPOSITORY}/compare/${PROTECTED_MAIN_SHA}...${expected_head}")
+            if ! printf '%s' "$response" | jq -e \
+              --arg expected_head "$expected_head" \
+              --arg manifest_path "$MANIFEST_PATH" '
+                .status == "ahead" and
+                .ahead_by == 1 and
+                .total_commits == 1 and
+                (.commits | length) == 1 and
+                .commits[0].sha == $expected_head and
+                (.files | length) == 1 and
+                .files[0].filename == $manifest_path
+              ' >/dev/null; then
+              echo "[ERROR] Manifest PR is not one exact manifest-only commit on protected main" >&2
+              return 1
+            fi
+          }
+
+          # Compare only the files map (ignore source_commit churn).
+          NEW_FILES=$(jq -eS '.files | select(type == "object")' "$MANIFEST_PATH")
+          CURRENT_MANIFEST=$(mktemp)
+          if ! git show "HEAD:${MANIFEST_PATH}" >"$CURRENT_MANIFEST"; then
+            echo "[ERROR] Current checkout lacks a committed manifest receipt" >&2
+            exit 1
+          fi
+          if ! CURRENT_FILES=$(jq -eS '.files | select(type == "object")' "$CURRENT_MANIFEST"); then
+            echo "[ERROR] Current committed manifest is invalid" >&2
+            rm -f "$CURRENT_MANIFEST"
+            exit 1
+          fi
+          rm -f "$CURRENT_MANIFEST"
 
           if [ "$NEW_FILES" = "$CURRENT_FILES" ]; then
             echo "[OK] Managed-file set unchanged - no manifest PR needed"
@@ -154,17 +314,124 @@ jobs:
           fi
           echo "[INFO] Managed-file set changed - opening/updating manifest PR"
 
+          # Inventory ownership and the exact remote ref before any mutation.
+          MANIFEST_PR_INVENTORY=$(mktemp)
+          read_manifest_prs "$MANIFEST_PR_INVENTORY"
+          MANIFEST_PR_ROW=$(select_owned_manifest_pr "$MANIFEST_PR_INVENTORY")
+          rm -f "$MANIFEST_PR_INVENTORY"
+          PR_NUM=""
+          INVENTORIED_HEAD=""
+          if [ -n "$MANIFEST_PR_ROW" ]; then
+            IFS=$'\t' read -r PR_NUM INVENTORIED_HEAD <<<"$MANIFEST_PR_ROW"
+          fi
+
+          set +e
+          REMOTE_BRANCH_ROW=$(git ls-remote --exit-code --heads origin "refs/heads/$BRANCH")
+          REMOTE_BRANCH_RC=$?
+          set -e
+          case "$REMOTE_BRANCH_RC" in
+            0)
+              REMOTE_BRANCH_SHA=$(printf '%s' "$REMOTE_BRANCH_ROW" |
+                awk -v ref="refs/heads/$BRANCH" '
+                  $2 == ref && $1 ~ /^[0-9a-f]{40}$/ { print $1; valid++ }
+                  END { exit valid != 1 }
+                ')
+              if [ -z "$PR_NUM" ] || [ "$REMOTE_BRANCH_SHA" != "$INVENTORIED_HEAD" ]; then
+                echo "[ERROR] Remote manifest branch is not owned by the inventoried PR" >&2
+                exit 1
+              fi
+              ;;
+            2)
+              REMOTE_BRANCH_SHA=""
+              if [ -n "$PR_NUM" ]; then
+                echo "[ERROR] Inventoried manifest PR has no exact remote branch" >&2
+                exit 1
+              fi
+              ;;
+            *)
+              echo "[ERROR] Could not prove the remote manifest branch state" >&2
+              exit 1
+              ;;
+          esac
+
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -C "$BRANCH"
+          git switch --create "$BRANCH"
           git add "$MANIFEST_PATH"
-          git commit -m "chore(governance): regenerate managed-files-manifest.json"
-          git push --force origin "$BRANCH"
-
-          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number')" ]; then
-            gh pr create --base main --head "$BRANCH" \
-              --title "chore(governance): regenerate managed-files-manifest.json" \
-              --body "Automated managed-files manifest refresh. Auto-merges once checks pass; sync reads this to take the fast path instead of per-file API fetches."
+          if [ "$(git diff --cached --name-only)" != "$MANIFEST_PATH" ]; then
+            echo "[ERROR] Manifest commit stages paths outside ${MANIFEST_PATH}" >&2
+            exit 1
           fi
-          gh pr merge "$BRANCH" --squash --auto --delete-branch || true
+          git commit -m "chore(governance): regenerate managed-files-manifest.json"
+
+          EXPECTED_HEAD=$(git rev-parse HEAD)
+          if ! printf '%s' "$EXPECTED_HEAD" | grep -qE '^[0-9a-f]{40}$'; then
+            echo "[ERROR] Local manifest branch head is invalid" >&2
+            exit 1
+          fi
+          CURRENT_MAIN_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
+          if [ "$CURRENT_MAIN_SHA" != "$PROTECTED_MAIN_SHA" ]; then
+            echo "[ERROR] Protected main changed before manifest publication" >&2
+            exit 1
+          fi
+
+          if [ -n "$REMOTE_BRANCH_SHA" ]; then
+            git push \
+              "--force-with-lease=refs/heads/$BRANCH:$REMOTE_BRANCH_SHA" \
+              origin "HEAD:refs/heads/$BRANCH"
+          else
+            git push \
+              "--force-with-lease=refs/heads/$BRANCH:" \
+              origin "HEAD:refs/heads/$BRANCH"
+          fi
+
+          # Re-inventory after the lease-protected push. A concurrent PR or
+          # head change must be proved before it can be selected.
+          MANIFEST_PR_INVENTORY=$(mktemp)
+          read_manifest_prs "$MANIFEST_PR_INVENTORY"
+          MANIFEST_PR_ROW=$(select_owned_manifest_pr "$MANIFEST_PR_INVENTORY")
+          if [ -z "$MANIFEST_PR_ROW" ]; then
+            if [ -n "$PR_NUM" ]; then
+              echo "[ERROR] Inventoried manifest PR disappeared after the exact push" >&2
+              rm -f "$MANIFEST_PR_INVENTORY"
+              exit 1
+            fi
+            rm -f "$MANIFEST_PR_INVENTORY"
+            PR_URL=$(gh pr create --repo "$GITHUB_REPOSITORY" \
+              --base main --head "$BRANCH" \
+              --title "chore(governance): regenerate managed-files-manifest.json" \
+              --body "Automated managed-files manifest refresh. Auto-merges once checks pass; sync reads this to take the fast path instead of per-file API fetches.")
+            PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
+            if ! printf '%s' "$PR_NUM" | grep -qE '^[1-9][0-9]*$'; then
+              echo "[ERROR] Manifest PR creation returned an invalid URL" >&2
+              exit 1
+            fi
+            MANIFEST_PR_INVENTORY=$(mktemp)
+            read_manifest_prs "$MANIFEST_PR_INVENTORY"
+            MANIFEST_PR_ROW=$(select_owned_manifest_pr "$MANIFEST_PR_INVENTORY")
+          else
+            IFS=$'\t' read -r ACTUAL_PR_NUM ACTUAL_HEAD <<<"$MANIFEST_PR_ROW"
+            if [ "$ACTUAL_HEAD" != "$EXPECTED_HEAD" ] ||
+              { [ -n "$PR_NUM" ] && [ "$ACTUAL_PR_NUM" != "$PR_NUM" ]; }; then
+              echo "[ERROR] Manifest PR ownership or head changed after the exact push" >&2
+              rm -f "$MANIFEST_PR_INVENTORY"
+              exit 1
+            fi
+            PR_NUM="$ACTUAL_PR_NUM"
+          fi
+          rm -f "$MANIFEST_PR_INVENTORY"
+
+          if [ -z "$MANIFEST_PR_ROW" ]; then
+            echo "[ERROR] Manifest PR was not present after creation" >&2
+            exit 1
+          fi
+          IFS=$'\t' read -r FINAL_PR_NUM FINAL_HEAD <<<"$MANIFEST_PR_ROW"
+          if [ "$FINAL_PR_NUM" != "$PR_NUM" ] || [ "$FINAL_HEAD" != "$EXPECTED_HEAD" ]; then
+            echo "[ERROR] Manifest PR does not own the exact pushed head" >&2
+            exit 1
+          fi
+          assert_manifest_pr_head "$PR_NUM" "$EXPECTED_HEAD"
+          assert_manifest_pr_diff "$EXPECTED_HEAD"
+          gh pr merge "$PR_NUM" --repo "$GITHUB_REPOSITORY" \
+            --squash --auto --delete-branch --match-head-commit "$EXPECTED_HEAD"
           echo "[OK] Manifest PR open with auto-merge enabled"

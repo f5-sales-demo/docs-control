@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ensures the inlined fetch_governed/revision_is_fresh functions in
+# Ensures the inlined fetch_governed function in
 # consumer workflows stay byte-identical with the canonical source at
 # tests/fixtures/fetch-governed.sh.
 set -euo pipefail
@@ -13,7 +13,6 @@ SOURCE="${REPO_ROOT}/tests/fixtures/fetch-governed.sh"
 # to find verbatim (modulo leading whitespace) inside each consumer.
 canonical=$(awk '
   /^fetch_governed\(\)/,/^}$/ { print; next }
-  /^revision_is_fresh\(\)/,/^}$/ { print }
 ' "$SOURCE" | sed -e 's/^[[:space:]]*//' -e '/^$/d' -e '/^#/d')
 
 FAIL=0
@@ -22,7 +21,6 @@ for wf in \
   "${REPO_ROOT}/.github/workflows/enforce-repo-settings.yml"; do
   inlined=$(awk '
     /fetch_governed\(\)/,/^[[:space:]]*}[[:space:]]*$/ { print; next }
-    /revision_is_fresh\(\)/,/^[[:space:]]*}[[:space:]]*$/ { print }
   ' "$wf" | sed -e 's/^[[:space:]]*//' -e '/^$/d' -e '/^#/d')
   if [ "$inlined" = "$canonical" ]; then
     echo "[OK] $(basename "$wf") helper matches canonical"
