@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-02T00:40:22Z",
-  "source_commit": "0524d7afbb3674475f999c4b4796af46a5997961",
+  "generated_at": "2026-08-02T00:45:32Z",
+  "source_commit": "6aeaac158d47a8dc038b0633c4f4bbf176245249",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -101,8 +101,8 @@
     ".pre-commit-config.yaml": {
       "src": ".pre-commit-config.yaml",
       "dest": ".pre-commit-config.yaml",
-      "sha": "7b137fa7ecf63681b87ddd15d67a118e43a50257",
-      "size": 12174
+      "sha": "7901012ddce669aa617b2063bce5b1dce05a6f02",
+      "size": 12225
     },
     ".yamllint.yaml": {
       "src": ".yamllint.yaml",
@@ -173,8 +173,8 @@
     ".codespellrc": {
       "src": ".codespellrc",
       "dest": ".codespellrc",
-      "sha": "0beda3781857fb48328f24fee7d608ab5a4f1115",
-      "size": 764
+      "sha": "f4f49eb91da74e001942d029ec339205728a8ec1",
+      "size": 774
     },
     ".gitleaks.toml": {
       "src": ".gitleaks.toml",
