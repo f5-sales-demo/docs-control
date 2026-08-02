@@ -106,6 +106,27 @@ case "$1 $endpoint" in
       touch "$FAKE_STATE/advance-main"
     fi
     ;;
+  'api repos/f5-sales-demo/example-two/commits/main') printf '%s\n' "$BASE_SHA" ;;
+  'api repos/f5-sales-demo/example-two/actions/workflows/enforce-repo-settings.yml')
+    if [ -f "$FAKE_STATE/disabled-example-two" ]; then
+      printf 'disabled_manually\n'
+    else
+      printf 'active\n'
+    fi
+    ;;
+  'api repos/f5-sales-demo/example-two/actions/workflows/enforce-repo-settings.yml/disable')
+    touch "$FAKE_STATE/disabled-example-two"
+    ;;
+  'api repos/f5-sales-demo/example-two/actions/workflows/enforce-repo-settings.yml/enable')
+    if [ "${FAKE_FAIL_ENABLE_REPO:-}" = example-two ]; then
+      exit 1
+    fi
+    rm -f "$FAKE_STATE/disabled-example-two"
+    ;;
+  'api repos/f5-sales-demo/example-two/actions/runs?status='*) printf '\n' ;;
+  'api repos/f5-sales-demo/example-two/contents/.github/workflows/enforce-repo-settings.yml?ref='*)
+    printf '%s\n' "$DOWNSTREAM_BLOB"
+    ;;
   'api repos/f5-sales-demo/example/actions/runs?status='*)
     if [ -n "${FAKE_RUN_QUERY_FAIL_STATUS:-}" ] &&
       [[ "$endpoint" == *"status=${FAKE_RUN_QUERY_FAIL_STATUS}"* ]]; then
@@ -307,6 +328,7 @@ run_bootstrap() {
     FAKE_MISSING_WORKFLOW="${FAKE_MISSING_WORKFLOW:-}" \
     FAKE_MERGE_LANDS="${FAKE_MERGE_LANDS:-}" \
     FAKE_ADVANCE_AFTER_ENABLE="${FAKE_ADVANCE_AFTER_ENABLE:-}" \
+    FAKE_FAIL_ENABLE_REPO="${FAKE_FAIL_ENABLE_REPO:-}" \
     FAKE_RUN_QUERY_FAIL_STATUS="${FAKE_RUN_QUERY_FAIL_STATUS:-}" \
     FAKE_TRANSITIONAL_RUN="${FAKE_TRANSITIONAL_RUN:-}" \
     FAKE_LEGACY_RUN="${FAKE_LEGACY_RUN:-}" \
@@ -636,6 +658,50 @@ if [ "$rc" != 78 ] || ! grep -q '/enable --method PUT' "$WORK/gh.log" ||
   exit 1
 fi
 echo "[OK] source advancement during enable re-quiesces the fleet"
+
+printf '["example","example-two"]\n' >"$WORK/repos-two.json"
+state="$WORK/state-partial-enable-failure"
+mkdir -p "$state"
+touch "$state/disabled" "$state/disabled-example-two"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+FAKE_FAIL_ENABLE_REPO=example-two
+set +e
+TEST_DOWNSTREAM_CONFIG="$WORK/repos-two.json" run_bootstrap "$state" \
+  >"$WORK/partial-enable.out" 2>"$WORK/partial-enable.err"
+rc=$?
+set -e
+unset FAKE_FAIL_ENABLE_REPO TEST_DOWNSTREAM_CONFIG
+example_enable_line=$(grep -n \
+  'example/actions/workflows/enforce-repo-settings.yml/enable --method PUT' \
+  "$WORK/gh.log" | tail -1 | cut -d: -f1)
+example_rollback_line=$(grep -n \
+  'example/actions/workflows/enforce-repo-settings.yml/disable --method PUT' \
+  "$WORK/gh.log" | tail -1 | cut -d: -f1)
+second_enable_attempts=$(grep -c \
+  'example-two/actions/workflows/enforce-repo-settings.yml/enable --method PUT' \
+  "$WORK/gh.log" || true)
+second_enable_first_line=$(grep -n \
+  'example-two/actions/workflows/enforce-repo-settings.yml/enable --method PUT' \
+  "$WORK/gh.log" | head -1 | cut -d: -f1)
+second_enable_last_line=$(grep -n \
+  'example-two/actions/workflows/enforce-repo-settings.yml/enable --method PUT' \
+  "$WORK/gh.log" | tail -1 | cut -d: -f1)
+if [ "$rc" = 0 ] || [ -z "$example_enable_line" ] ||
+  [ -z "$example_rollback_line" ] ||
+  [ "$example_rollback_line" -le "$example_enable_line" ] ||
+  [ "$second_enable_attempts" -ne 3 ] ||
+  [ -z "$second_enable_first_line" ] || [ -z "$second_enable_last_line" ] ||
+  [ "$second_enable_first_line" -le "$example_enable_line" ] ||
+  [ "$second_enable_last_line" -ge "$example_rollback_line" ] ||
+  ! grep -q '\[FAIL\] Could not enable exact enforcement for example-two' \
+    "$WORK/partial-enable.err" ||
+  [ ! -f "$state/disabled" ] || [ ! -f "$state/disabled-example-two" ]; then
+  echo "[FAIL] a later enable failure left part of the fleet active"
+  sed 's/^/  /' "$WORK/partial-enable.err"
+  exit 1
+fi
+echo "[OK] partial enable failure behaviorally returns the whole fleet to quiescence"
 
 state="$WORK/state-missing-workflow-active-run"
 mkdir -p "$state"

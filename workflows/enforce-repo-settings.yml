@@ -263,6 +263,7 @@ jobs:
     uses: f5-sales-demo/docs-control/.github/workflows/sync-managed-files.yml@db1ad6247a857c7b47e5b2cf6cc1046143041fcc
     with:
       source_sha: ${{ needs.resolve-source.outputs.source_sha }}
+      downstream_sha: ${{ github.sha }}
     secrets:
       repo-sync-token: ${{ secrets.REPO_SYNC_TOKEN }}
       repo-settings-token: ${{ secrets.REPO_SETTINGS_TOKEN }}

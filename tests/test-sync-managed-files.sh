@@ -386,26 +386,26 @@ if [ -s "$WORK/select-owned-sync-pr.sh" ]; then
   REPO=consumer
   PR_SHA=0123456789abcdef0123456789abcdef01234567
 
-  jq -n --arg sha "$PR_SHA" '
+  jq -n --arg sha "$PR_SHA" --arg repo "$OWNER/$REPO" '
     [[{number: 17,
        head: {ref: "governance/sync-managed-files", sha: $sha,
-              repo: {full_name: "example/consumer"}},
+              repo: {full_name: $repo}},
        base: {ref: "main"}}]]
   ' >"$WORK/sync-owned.json"
-  jq -n --arg sha "$PR_SHA" '
+  jq -n --arg sha "$PR_SHA" --arg repo "attacker/$REPO" '
     [[{number: 18,
        head: {ref: "governance/sync-managed-files", sha: $sha,
-              repo: {full_name: "attacker/consumer"}},
+              repo: {full_name: $repo}},
        base: {ref: "main"}}]]
   ' >"$WORK/sync-fork.json"
-  jq -n --arg sha "$PR_SHA" '
+  jq -n --arg sha "$PR_SHA" --arg repo "$OWNER/$REPO" '
     [[{number: 19,
        head: {ref: "governance/sync-managed-files", sha: $sha,
-              repo: {full_name: "example/consumer"}},
+              repo: {full_name: $repo}},
        base: {ref: "main"}},
       {number: 20,
        head: {ref: "governance/sync-managed-files", sha: $sha,
-              repo: {full_name: "example/consumer"}},
+              repo: {full_name: $repo}},
        base: {ref: "main"}}]]
   ' >"$WORK/sync-duplicate.json"
 
@@ -448,26 +448,26 @@ if [ -s "$WORK/select-owned-manifest-pr.sh" ]; then
   BRANCH=sync/manifest
   PR_SHA=89abcdef0123456789abcdef0123456789abcdef
 
-  jq -n --arg sha "$PR_SHA" '
+  jq -n --arg sha "$PR_SHA" --arg repo "$GITHUB_REPOSITORY" '
     [[{number: 21,
        head: {ref: "sync/manifest", sha: $sha,
-              repo: {full_name: "example/docs-control"}},
+              repo: {full_name: $repo}},
        base: {ref: "main"}}]]
   ' >"$WORK/manifest-owned.json"
-  jq -n --arg sha "$PR_SHA" '
+  jq -n --arg sha "$PR_SHA" --arg repo "attacker/${GITHUB_REPOSITORY#*/}" '
     [[{number: 22,
        head: {ref: "sync/manifest", sha: $sha,
-              repo: {full_name: "attacker/docs-control"}},
+              repo: {full_name: $repo}},
        base: {ref: "main"}}]]
   ' >"$WORK/manifest-fork.json"
-  jq -n --arg sha "$PR_SHA" '
+  jq -n --arg sha "$PR_SHA" --arg repo "$GITHUB_REPOSITORY" '
     [[{number: 23,
        head: {ref: "sync/manifest", sha: $sha,
-              repo: {full_name: "example/docs-control"}},
+              repo: {full_name: $repo}},
        base: {ref: "main"}},
       {number: 24,
        head: {ref: "sync/manifest", sha: $sha,
-              repo: {full_name: "example/docs-control"}},
+              repo: {full_name: $repo}},
        base: {ref: "main"}}]]
   ' >"$WORK/manifest-duplicate.json"
 

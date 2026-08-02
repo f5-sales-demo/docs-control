@@ -688,6 +688,23 @@ git -C "$repo" add fixture.mdx
 git -C "$repo" commit -qm jq-options
 assert_clean "jq indentation and option arguments preserve filter context" "$repo" --scope head --mode enforce
 
+repo=$(new_repo jq-person-field-expression)
+cat >"${repo}/fixture.sh" <<'EOF'
+jq -n --arg repo "$repo_name" '{full_name: $repo}'
+EOF
+git -C "$repo" add fixture.sh
+git -C "$repo" commit -qm jq-person-field-expression
+assert_clean "computed person fields inside jq filters do not crash the scanner" "$repo" --scope head --mode enforce
+
+repo=$(new_repo jq-person-field-literal)
+cat >"${repo}/fixture.sh" <<'EOF'
+jq -n '{full_name: "Literal Person"}'
+EOF
+git -C "$repo" add fixture.sh
+git -C "$repo" commit -qm jq-person-field-literal
+assert_single_finding "literal person fields inside jq filters remain enforced" \
+  "$repo" person-name high --scope head --mode enforce
+
 repo=$(new_repo jq-numeric-literal)
 cat >"${repo}/fixture.mdx" <<'EOF'
 ```bash

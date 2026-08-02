@@ -8,6 +8,10 @@ on:
         description: 'Exact docs-control commit receipt for every governed read.'
         required: true
         type: string
+      downstream_sha:
+        description: 'Exact protected-main commit receipt for the calling repository.'
+        required: true
+        type: string
     secrets:
       repo-sync-token:
         description: 'PAT with contents, issues, and pull-request permissions for file sync'
@@ -26,12 +30,15 @@ jobs:
     steps:
       - name: Checkout calling repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.downstream_sha }}
 
       - name: Sync managed files
         env:
           GH_TOKEN: ${{ secrets.repo-sync-token }}
           REPO_SETTINGS_TOKEN: ${{ secrets.repo-settings-token }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          DOWNSTREAM_SHA: ${{ inputs.downstream_sha }}
         run: |
           set -euo pipefail
 
@@ -92,11 +99,20 @@ jobs:
             done
           }
 
-          # Retry with JSON body (for gh api --input - calls)
-          retry_json() {
-            local max="$1"; shift
-            local json="$1"; shift
-            retry "$max" bash -c 'printf "%s" "$0" | gh api "$@" --input -' "$json" "$@"
+          current_json_request() {
+            local json="$1"
+            shift
+            require_current_source_main
+            require_current_downstream_main
+            printf '%s' "$json" | gh api "$@" --input -
+          }
+
+          retry_current_json() {
+            local max="$1"
+            shift
+            local json="$1"
+            shift
+            retry "$max" current_json_request "$json" "$@"
           }
 
           api_value_or_404() {
@@ -199,43 +215,115 @@ jobs:
             mv "$temp_file" "$output_file"
           }
 
+          require_sha() {
+            local label="$1" value="$2"
+            if ! printf '%s' "$value" | grep -qE '^[0-9a-f]{40}$'; then
+              echo "[ERROR] ${label} is not a commit SHA" >&2
+              return 1
+            fi
+          }
+
+          ensure_current_source_main() {
+            local current_source_sha source_status
+            if ! current_source_sha=$(retry 3 gh api \
+              "repos/${GITHUB_REPOSITORY_OWNER}/docs-control/commits/main" --jq '.sha'); then
+              echo "[ERROR] Could not resolve protected docs-control main" >&2
+              return 1
+            fi
+            require_sha "protected docs-control main" "$current_source_sha" || return 1
+            if [ "$expected_source_sha" = "$current_source_sha" ]; then
+              return 0
+            fi
+            if ! source_status=$(retry 3 gh api \
+              "repos/${GITHUB_REPOSITORY_OWNER}/docs-control/compare/${expected_source_sha}...${current_source_sha}" \
+              --jq '.status'); then
+              echo "[ERROR] Could not prove the source receipt is on protected docs-control main" >&2
+              return 1
+            fi
+            if [ "$source_status" != "ahead" ]; then
+              echo "[ERROR] Source receipt is not an approved protected-main commit" >&2
+              return 1
+            fi
+            if ! GH_TOKEN="$REPO_SETTINGS_TOKEN" gh workflow run \
+              enforce-repo-settings.yml --repo "$GITHUB_REPOSITORY" --ref main \
+              -f source_sha="$current_source_sha"; then
+              echo "[ERROR] Could not enqueue the current protected-main receipt" >&2
+              return 1
+            fi
+            echo "[DEFER] Docs-control protected main advanced; enqueued its exact receipt"
+            return 78
+          }
+
+          require_current_source_main() {
+            local receipt_rc=0
+            ensure_current_source_main || receipt_rc=$?
+            case "$receipt_rc" in
+              0) return 0 ;;
+              78) exit 0 ;;
+              *) exit 1 ;;
+            esac
+          }
+
+          ensure_current_downstream_main() {
+            local current_downstream_sha downstream_status
+            if ! current_downstream_sha=$(retry 3 gh api \
+              "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha'); then
+              echo "[ERROR] Could not resolve downstream protected main" >&2
+              return 1
+            fi
+            require_sha "downstream protected main" "$current_downstream_sha" || return 1
+            if [ "$expected_downstream_sha" = "$current_downstream_sha" ]; then
+              return 0
+            fi
+            if ! downstream_status=$(retry 3 gh api \
+              "repos/${GITHUB_REPOSITORY}/compare/${expected_downstream_sha}...${current_downstream_sha}" \
+              --jq '.status'); then
+              echo "[ERROR] Could not prove the downstream receipt is on protected main" >&2
+              return 1
+            fi
+            if [ "$downstream_status" != "ahead" ]; then
+              echo "[ERROR] Downstream receipt is not an approved protected-main commit" >&2
+              return 1
+            fi
+            if ! GH_TOKEN="$REPO_SETTINGS_TOKEN" gh workflow run \
+              enforce-repo-settings.yml --repo "$GITHUB_REPOSITORY" --ref main \
+              -f source_sha="$expected_source_sha"; then
+              echo "[ERROR] Could not enqueue current downstream protected main" >&2
+              return 1
+            fi
+            echo "[DEFER] Downstream protected main advanced; enqueued the exact current caller"
+            return 78
+          }
+
+          require_current_downstream_main() {
+            local receipt_rc=0
+            ensure_current_downstream_main || receipt_rc=$?
+            case "$receipt_rc" in
+              0) return 0 ;;
+              78) exit 0 ;;
+              *) exit 1 ;;
+            esac
+          }
+
           expected_source_sha="${SOURCE_SHA:-}"
+          expected_downstream_sha="${DOWNSTREAM_SHA:-}"
 
           if ! printf '%s' "$expected_source_sha" | grep -qE '^[0-9a-f]{40}$'; then
             echo "[ERROR] Could not resolve an exact docs-control source commit" >&2
             exit 1
           fi
-          if ! current_source_sha=$(retry 3 gh api \
-            "repos/${GITHUB_REPOSITORY_OWNER}/docs-control/commits/main" --jq '.sha'); then
-            echo "[ERROR] Could not resolve protected docs-control main" >&2
-            exit 1
-          fi
-          if ! printf '%s' "$current_source_sha" | grep -qE '^[0-9a-f]{40}$'; then
-            echo "[ERROR] Protected docs-control main returned an invalid commit" >&2
-            exit 1
-          fi
-          if [ "$expected_source_sha" != "$current_source_sha" ]; then
-            if ! source_status=$(retry 3 gh api \
-              "repos/${GITHUB_REPOSITORY_OWNER}/docs-control/compare/${expected_source_sha}...${current_source_sha}" \
-              --jq '.status'); then
-              echo "[ERROR] Could not prove the source receipt is on protected docs-control main" >&2
-              exit 1
-            fi
-            if [ "$source_status" = "ahead" ]; then
-              echo "[DEFER] Historical protected-main receipt; enqueueing current main"
-              if ! GH_TOKEN="$REPO_SETTINGS_TOKEN" gh workflow run \
-                enforce-repo-settings.yml \
-                --repo "$GITHUB_REPOSITORY" \
-                -f source_sha="$current_source_sha"; then
-                echo "[ERROR] Could not enqueue the current protected-main receipt" >&2
-                exit 1
-              fi
-              exit 0
-            fi
-            echo "[ERROR] Source receipt is not an approved protected-main commit" >&2
-            exit 1
-          fi
+          require_current_source_main
           echo "[OK] Governed reads bound to source ${expected_source_sha:0:8}"
+
+          require_sha "expected downstream receipt" "$expected_downstream_sha"
+          CHECKED_OUT_SHA=$(git rev-parse HEAD)
+          require_sha "checked-out downstream receipt" "$CHECKED_OUT_SHA"
+          if [ "$CHECKED_OUT_SHA" != "$expected_downstream_sha" ]; then
+            echo "[ERROR] Downstream checkout does not match its exact receipt" >&2
+            exit 1
+          fi
+          require_current_downstream_main
+          echo "[OK] Downstream reads bound to protected main ${expected_downstream_sha:0:8}"
 
           OWNER="${GITHUB_REPOSITORY_OWNER}"
           REPO="${GITHUB_REPOSITORY#*/}"
@@ -247,14 +335,6 @@ jobs:
             exit 1
           fi
           SYNC_BRANCH="governance/sync-managed-files-${expected_source_sha:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-
-          require_sha() {
-            local label="$1" value="$2"
-            if ! printf '%s' "$value" | grep -qE '^[0-9a-f]{40}$'; then
-              echo "[ERROR] ${label} is not a commit SHA" >&2
-              return 1
-            fi
-          }
 
           read_sync_prs() {
             local destination="$1"
@@ -395,29 +475,28 @@ jobs:
             '
           }
 
-          # --- Helper: enable auto-merge (replaces polling) -----------------
+          # --- Helper: merge only while both receipts remain current --------
           auto_merge() {
             local pr_num="$1"
             local repo_slug="$2"
             local expected_sha="$3"
             require_sha "expected auto-merge head" "$expected_sha" || return 1
 
-            echo "[INFO] Enabling auto-merge for PR #${pr_num}..."
-
-            if gh pr merge "${pr_num}" --repo "${repo_slug}" --auto --squash \
-              --delete-branch --match-head-commit "$expected_sha" 2>/dev/null; then
-              echo "[OK] Auto-merge enabled for PR #${pr_num} -- will merge when checks pass"
-              return 0
-            fi
-
-            echo "[WARN] Auto-merge not available for ${repo_slug} -- falling back to poll-and-merge"
+            echo "[INFO] Waiting to merge PR #${pr_num} while exact receipts remain current..."
+            require_current_source_main
+            require_current_downstream_main
             local elapsed=0
-            local max_wait=300
+            # api-specs-enriched's required pytest context is measured at
+            # 13:47. Allow a full hour so a healthy slow fleet check converges
+            # instead of timing out, replacing its PR, and restarting CI.
+            local max_wait=3600
             local poll_interval=60
 
             while [ "$elapsed" -lt "$max_wait" ]; do
               sleep "$poll_interval"
               elapsed=$((elapsed + poll_interval))
+              require_current_source_main
+              require_current_downstream_main
 
               BUCKET=$(gh pr checks "${pr_num}" --repo "${repo_slug}" \
                 --json bucket --jq '[.[].bucket] | unique |
@@ -426,12 +505,15 @@ jobs:
                   else "pending" end' 2>/dev/null) || BUCKET="pending"
 
               if [ "$BUCKET" = "pass" ]; then
+                retry 3 assert_sync_pr_head "$pr_num" "$SYNC_BRANCH" "$expected_sha"
+                require_current_source_main
+                require_current_downstream_main
                 if gh pr merge "${pr_num}" --repo "${repo_slug}" --squash \
                   --delete-branch --match-head-commit "$expected_sha" 2>/dev/null; then
                   echo "[OK] Merged sync PR #${pr_num}"
                   return 0
                 fi
-                echo "[WARN] Failed to merge PR #${pr_num} -- may need manual merge"
+                echo "[ERROR] Failed to merge exact sync PR #${pr_num}" >&2
                 return 1
               elif [ "$BUCKET" = "fail" ]; then
                 echo "[WARN] CI checks failed on PR #${pr_num} -- skipping merge"
@@ -439,7 +521,7 @@ jobs:
               fi
             done
 
-            echo "[WARN] Timed out waiting for CI on PR #${pr_num} -- skipping merge"
+            echo "[ERROR] Timed out waiting for CI on exact sync PR #${pr_num}" >&2
             return 1
           }
 
@@ -573,7 +655,9 @@ jobs:
 
             local ref_update
             ref_update=$(jq -n --arg sha "$new_commit_sha" '{"sha": $sha}')
-            retry_json 3 "$ref_update" "repos/${repo_slug}/git/refs/heads/${branch}" --method PATCH >/dev/null
+            require_current_source_main
+            require_current_downstream_main
+            retry_current_json 3 "$ref_update" "repos/${repo_slug}/git/refs/heads/${branch}" --method PATCH >/dev/null
 
             rm -r "$payload_dir"
             LAST_COMMIT_SHA="$new_commit_sha"
@@ -997,6 +1081,12 @@ jobs:
                 fi
               fi
 
+              # The reusable jobs run independently. Re-prove the exact
+              # downstream receipt after every local comparison and before a
+              # clean result or any issue, branch, or PR mutation.
+              require_current_source_main
+              require_current_downstream_main
+
               if [ "$DRIFT_COUNT" -eq 0 ]; then
                 echo "[OK] All managed files match canonical"
               else
@@ -1016,6 +1106,8 @@ jobs:
                 if [ -n "$EXISTING_PR" ]; then
                   retry 3 assert_sync_pr_head \
                     "$EXISTING_PR" "$EXISTING_BRANCH" "$EXISTING_HEAD"
+                  require_current_source_main
+                  require_current_downstream_main
                   gh pr close "$EXISTING_PR" --repo "${OWNER}/${REPO}" \
                     --comment "Superseded by exact managed-file receipt ${expected_source_sha:0:12} on run-owned branch ${SYNC_BRANCH}."
                   echo "[OK] Closed superseded sync PR #${EXISTING_PR} without deleting its branch"
@@ -1038,6 +1130,8 @@ jobs:
                 fi
                 rm -f "$STALE_ISSUE_INVENTORY"
                 for stale_num in $STALE_ISSUES; do
+                  require_current_source_main
+                  require_current_downstream_main
                   gh issue close "$stale_num" --repo "${OWNER}/${REPO}" \
                     --comment "Superseded by exact managed-file receipt ${expected_source_sha:0:12}."
                   echo "[OK] Closed stale owned sync issue #${stale_num}"
@@ -1046,6 +1140,8 @@ jobs:
                 DRIFT_LIST=$(printf '%b' "$DRIFT_FILES" | sed '/^$/d' | sed 's/^/- /')
                 ISSUE_BODY=$(printf 'The following managed files have drifted from the canonical source in `%s`:\n\n%s\n\nThis issue was created automatically by the governance enforcement workflow.' \
                   "$SOURCE_REPO" "$DRIFT_LIST")
+                require_current_source_main
+                require_current_downstream_main
                 ISSUE_NUM=$(gh issue create --repo "${OWNER}/${REPO}" \
                   --title "chore: sync managed files from governance template" \
                   --body "$ISSUE_BODY" | grep -o '[0-9]*$')
@@ -1057,8 +1153,7 @@ jobs:
 
                 # The run-owned branch must be absent. Never move or reuse an
                 # unproved ref, even if an earlier attempt used the same name.
-                MAIN_SHA=$(retry 3 gh api "repos/${OWNER}/${REPO}/git/ref/heads/main" --jq '.object.sha')
-                require_sha "protected main" "$MAIN_SHA"
+                MAIN_SHA="$expected_downstream_sha"
                 set +e
                 EXISTING_BRANCH_SHA=$(api_value_or_404 \
                   "repos/${OWNER}/${REPO}/git/ref/heads/${SYNC_BRANCH}" \
@@ -1074,7 +1169,9 @@ jobs:
                   44)
                     BRANCH_CREATE_JSON=$(jq -n --arg sha "$MAIN_SHA" --arg branch "$SYNC_BRANCH" \
                       '{"ref":("refs/heads/" + $branch),"sha":$sha}')
-                    retry_json 3 "$BRANCH_CREATE_JSON" \
+                    require_current_source_main
+                    require_current_downstream_main
+                    retry_current_json 3 "$BRANCH_CREATE_JSON" \
                       "repos/${OWNER}/${REPO}/git/refs" --method POST >/dev/null
                     ;;
                   *) exit 1 ;;
@@ -1086,6 +1183,8 @@ jobs:
 
                 PR_BODY=$(printf 'Closes #%s\n\nSynced managed files from `%s` canonical source:\n\n%s' \
                   "$ISSUE_NUM" "$SOURCE_REPO" "$DRIFT_LIST")
+                require_current_source_main
+                require_current_downstream_main
                 PR_URL=$(gh pr create --repo "${OWNER}/${REPO}" \
                   --base main --head "$SYNC_BRANCH" \
                   --title "chore: sync managed files from governance template" \
@@ -1107,6 +1206,9 @@ jobs:
           # --- Phase 3: Verify --------------------------------------------------
           echo ""
           echo "=== Phase 3: Verify ==="
+
+          require_current_source_main
+          require_current_downstream_main
 
           if [ -n "$MANAGED_FILES" ] && [ "${OWNER}/${REPO}" != "$SOURCE_REPO" ]; then
             if [ "$SYNC_PR_CREATED" = true ]; then

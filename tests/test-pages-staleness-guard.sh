@@ -7,6 +7,7 @@ DEPLOY_WORKFLOW="$REPO_ROOT/.github/workflows/github-pages-deploy.yml"
 SELF_CALLER="$REPO_ROOT/.github/workflows/docs-site-deploy.yml"
 PAGES_CALLER="$REPO_ROOT/workflows/github-pages-deploy.yml"
 GOVERNANCE_CALLER="$REPO_ROOT/workflows/enforce-repo-settings.yml"
+SYNC_WORKFLOW="$REPO_ROOT/.github/workflows/sync-managed-files.yml"
 FAIL=0
 
 ok() { echo "[OK] $1"; }
@@ -120,7 +121,7 @@ for workflow_file in \
   fi
 
   if grep -q 'compare/${expected_source_sha}...${current_source_sha}' "$workflow_file" &&
-    grep -q 'Historical protected-main receipt; enqueueing current main' "$workflow_file" &&
+    grep -q 'Docs-control protected main advanced; enqueued its exact receipt' "$workflow_file" &&
     grep -q 'gh workflow run' "$workflow_file"; then
     ok "$workflow_name independently enforces monotonic protected-main delivery"
   else
@@ -145,6 +146,17 @@ if grep -q 'DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}' "$GOV
   ok "managed caller accepts only current downstream protected main"
 else
   bad "manual or historical downstream refs can feed reusable governance jobs"
+fi
+
+downstream_input=$(sed -n '/^      downstream_sha:/,/^        type: string/p' "$SYNC_WORKFLOW")
+if grep -q '^        required: true$' <<<"$downstream_input" &&
+  grep -qF 'ref: ${{ inputs.downstream_sha }}' "$SYNC_WORKFLOW" &&
+  grep -qF 'downstream_sha: ${{ github.sha }}' "$GOVERNANCE_CALLER" &&
+  grep -q 'CHECKED_OUT_SHA=$(git rev-parse HEAD)' "$SYNC_WORKFLOW" &&
+  [ "$(grep -c 'require_current_downstream_main' "$SYNC_WORKFLOW")" -ge 3 ]; then
+  ok "managed sync binds comparisons and mutations to one downstream protected-main receipt"
+else
+  bad "managed sync can compare one downstream commit and mutate another"
 fi
 
 exit "$FAIL"

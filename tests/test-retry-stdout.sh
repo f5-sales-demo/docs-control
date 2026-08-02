@@ -322,8 +322,8 @@ fi
 # phase, and a 404 after apply must fail verification rather than be downgraded to
 # a warning that still permits the final success message.
 pages_apply_block=$(sed -n '/# --- Phase 6: Apply Pages/,/# --- Phase 7: Enforce secrets/p' "$ENFORCE_WF")
-if grep -qE 'retry_json .*--method POST' <<<"$pages_apply_block" &&
-  ! grep -qE 'retry_json .*--method POST.*\|\| true' <<<"$pages_apply_block"; then
+if grep -qE 'retry_current_json .*--method POST' <<<"$pages_apply_block" &&
+  ! grep -qE 'retry_current_json .*--method POST.*\|\| true' <<<"$pages_apply_block"; then
   pass "Pages creation failure is fatal"
 else
   fail "Pages creation failure is fatal" "the required POST is absent or its failure is suppressed"
