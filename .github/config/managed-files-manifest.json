@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-02T21:47:30Z",
-  "source_commit": "766c47f772954b4f49469bafd68427ebbbda267c",
+  "generated_at": "2026-08-02T22:30:27Z",
+  "source_commit": "4eee15c790fdfc223c47a3f8fd0f6e150645334e",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -29,8 +29,8 @@
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
       "dest": ".github/workflows/translation-audit.yml",
-      "sha": "537b8d39238da18ae2509bc2dc1c154d61ca9516",
-      "size": 1796
+      "sha": "de3bea808069f9dfb0564c7e02ed63be428a64bc",
+      "size": 1800
     },
     ".github/PULL_REQUEST_TEMPLATE.md": {
       "src": ".github/PULL_REQUEST_TEMPLATE.md",
@@ -65,8 +65,8 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "1c76834ca7b289411bbeac4cec22ae4b066af710",
-      "size": 41034
+      "sha": "a8532902241e701d1b69cd76425cf6eaca32bfb2",
+      "size": 40841
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
@@ -269,8 +269,8 @@
     "scripts/lint-mdx-prose.sh": {
       "src": "scripts/lint-mdx-prose.sh",
       "dest": "scripts/lint-mdx-prose.sh",
-      "sha": "4269c29cc8bf86e6ccd210dc55e302e78f6cb627",
-      "size": 4749
+      "sha": "2b8c300b3f27a0c914f5d975212b9b6527a728e7",
+      "size": 4953
     },
     "tests/test-check-repo-hygiene.sh": {
       "src": "tests/test-check-repo-hygiene.sh",
@@ -293,8 +293,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "5f2d508ecf45ee63d67ff70eff56b8e835f539bc",
-      "size": 5041
+      "sha": "b29c4d7db44b1a83b14b0fb57e94a2bd949c1652",
+      "size": 5138
     },
     ".claude/settings.json": {
       "src": ".claude/settings.json",
