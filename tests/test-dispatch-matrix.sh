@@ -29,6 +29,19 @@ check "no read-config job (consolidated)" "! grep -q '^  read-config:$' '$WF'"
 # Parallelism cap stays at 5 via batched dispatch loop.
 check "BATCH_SIZE=5 for parallelism cap" "grep -q 'BATCH_SIZE=5' '$WF'"
 
+# The repository runner cancels jobs at five minutes. Keep at least 60 seconds
+# for preflight, API calls, and retry backoff instead of spending the entire
+# budget in deterministic inter-batch sleeps.
+BATCH_SIZE_VALUE=$(sed -nE 's/^[[:space:]]*BATCH_SIZE=([0-9]+)$/\1/p' "$WF")
+BATCH_DELAY_VALUE=$(sed -nE 's/^[[:space:]]*BATCH_DELAY=([0-9]+)$/\1/p' "$WF")
+FLEET_SIZE=$(jq 'length' "$CONFIG")
+BATCH_COUNT=$(((FLEET_SIZE + BATCH_SIZE_VALUE - 1) / BATCH_SIZE_VALUE))
+SCHEDULED_SLEEP_SECONDS=$(((BATCH_COUNT - 1) * BATCH_DELAY_VALUE))
+RUNNER_BUDGET_SECONDS=300
+RUNNER_RESERVE_SECONDS=60
+check "inter-batch sleeps leave 60s of the runner budget" \
+  "[ '$SCHEDULED_SLEEP_SECONDS' -le '$((RUNNER_BUDGET_SECONDS - RUNNER_RESERVE_SECONDS))' ]"
+
 # Retry-with-backoff preserved (2s → 4s → 8s).
 check "retry max=3 attempts" "grep -Eq 'max=3' '$WF'"
 check "backoff delay starts at 2s" "grep -Eq 'delay=2' '$WF'"
