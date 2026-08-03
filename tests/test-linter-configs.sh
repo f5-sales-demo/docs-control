@@ -985,9 +985,12 @@ echo "SECTION 8: .gitignore Go vendor rule is root-anchored"
 GI_TMP=$(mktemp -d /tmp/test-linter-configs-gitignore-XXXXXX)
 git -C "$GI_TMP" init -q
 cp "$REPO_ROOT/.gitignore" "$GI_TMP/.gitignore"
-mkdir -p "$GI_TMP/vendor" "$GI_TMP/src/vendor/chat-ui"
+mkdir -p "$GI_TMP/vendor" "$GI_TMP/src/vendor/chat-ui" "$GI_TMP/plugins/example" "$GI_TMP/packages/example"
 : >"$GI_TMP/vendor/modules.txt"
 : >"$GI_TMP/src/vendor/chat-ui/index.ts"
+: >"$GI_TMP/bun.lock"
+: >"$GI_TMP/plugins/example/bun.lock"
+: >"$GI_TMP/packages/example/bun.lock"
 ln -s /tmp/example-venv "$GI_TMP/.venv"
 
 # A top-level vendor/ tree must still be ignored — that is the rule's purpose.
@@ -1012,6 +1015,22 @@ else
   fail "8.3 a .venv symlink is ignored as well as a .venv directory" \
     ".venv can be staged accidentally because only the directory form is ignored"
 fi
+
+# The fleet policy ignores a repository-root Bun lock, but nested packages and
+# plugins own independent dependency graphs whose frozen locks must be committed.
+if git -C "$GI_TMP" check-ignore -q bun.lock; then
+  pass "8.4 repository-root bun.lock remains ignored"
+else
+  fail "8.4 repository-root bun.lock remains ignored" "the root lock policy changed"
+fi
+
+for nested_lock in plugins/example/bun.lock packages/example/bun.lock; do
+  if git -C "$GI_TMP" check-ignore -q "$nested_lock"; then
+    fail "8.5 nested bun.lock files are NOT ignored" "$nested_lock is ignored"
+  else
+    pass "8.5 nested bun.lock is trackable ($nested_lock)"
+  fi
+done
 
 rm -rf "$GI_TMP"
 
