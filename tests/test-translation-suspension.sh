@@ -22,6 +22,7 @@ AUDIT_STUB="$REPO_ROOT/workflows/translation-audit.yml"
 ANTIGRAVITY_REUSABLE="$REPO_ROOT/.github/workflows/antigravity-translate.yml"
 ANTIGRAVITY_STUB="$REPO_ROOT/workflows/antigravity-translate.yml"
 PRE_COMMIT="$REPO_ROOT/.pre-commit-config.yaml"
+TRANSLATION_SCRIPT="$REPO_ROOT/scripts/antigravity-translate-staged.sh"
 CONTRIBUTING="$REPO_ROOT/CONTRIBUTING.md"
 
 CONTEXT="audit / Translation freshness"
@@ -107,14 +108,13 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 2: generation cannot spend money by default
+# SECTION 2: GitHub generation is opt-in; local generation is mandatory
 # ════════════════════════════════════════════════════════════════════
 echo ""
-echo "=== Section 2: generation is opt-in, not opt-out ==="
+echo "=== Section 2: GitHub generation is opt-in and local generation is always active ==="
 
 for translation_workflow in "$ANTIGRAVITY_REUSABLE" "$ANTIGRAVITY_STUB"; do
-  if grep -qF "vars.TRANSLATIONS_ENABLED == 'true'" "$translation_workflow" &&
-    grep -q 'SUSPENDED:' "$translation_workflow"; then
+  if grep -qF "vars.TRANSLATIONS_ENABLED == 'true'" "$translation_workflow"; then
     pass "2.0 Antigravity $(basename "$translation_workflow") shares the positive translation gate"
   else
     fail "2.0 Antigravity $(basename "$translation_workflow") shares the positive translation gate" \
@@ -122,92 +122,21 @@ for translation_workflow in "$ANTIGRAVITY_REUSABLE" "$ANTIGRAVITY_STUB"; do
   fi
 done
 
-# Assert against the current state rather than assuming suspension forever.
-# Restoration removes this branch from the hook (CONTRIBUTING step 4), so an
-# unconditional requirement would fail the moment someone follows the documented
-# procedure — forcing an undocumented test edit in the middle of a recovery.
-#
-if [ "$GATED" = "true" ]; then
-  # Exercise the actual hook command. The previous string-only assertion accepted
-  # a dangerous state where enabled generation silently skipped when its tool or
-  # credential was missing.
-  HOOK_WORK=$(mktemp -d)
-  if python3 - "$PRE_COMMIT" "$HOOK_WORK" <<'PY'; then
-import os
-from pathlib import Path
-import shlex
-import stat
-import subprocess
-import sys
+HOOK_BLOCK=$(awk '
+  /^      - id: antigravity-translate$/ { capture = 1 }
+  capture && /^ci:/ { exit }
+  capture { print }
+' "$PRE_COMMIT")
 
-import yaml
-
-config_path = Path(sys.argv[1])
-work = Path(sys.argv[2])
-config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-entries = [
-    hook["entry"]
-    for repo in config["repos"]
-    if repo["repo"] == "local"
-    for hook in repo["hooks"]
-    if hook["id"] == "docs-translate"
-]
-if len(entries) != 1:
-    raise SystemExit(f"expected one docs-translate hook, got {len(entries)}")
-
-def run(enabled, api_key, path):
-    env = os.environ.copy()
-    env["PATH"] = path
-    if enabled is None:
-        env.pop("TRANSLATIONS_ENABLED", None)
-    else:
-        env["TRANSLATIONS_ENABLED"] = enabled
-    if api_key is None:
-        env.pop("ANTHROPIC_API_KEY", None)
-    else:
-        env["ANTHROPIC_API_KEY"] = api_key
-    return subprocess.run(
-        shlex.split(entries[0]), env=env, text=True, capture_output=True, check=False
-    )
-
-base_path = "/usr/bin:/bin"
-disabled = run(None, None, base_path)
-if disabled.returncode or "translations suspended" not in disabled.stdout:
-    raise SystemExit(f"unset switch did not suspend cleanly: {disabled}")
-
-invalid = run("enabled", None, base_path)
-if invalid.returncode == 0 or "must be true or false" not in invalid.stderr:
-    raise SystemExit(f"invalid switch did not fail closed: {invalid}")
-
-missing_tool = run("true", "EXAMPLE_API_KEY", base_path)
-if missing_tool.returncode == 0 or "requires docs-translate" not in missing_tool.stderr:
-    raise SystemExit(f"missing tool did not fail closed: {missing_tool}")
-
-tool = work / "docs-translate"
-marker = work / "args"
-tool.write_text(f"#!/bin/sh\nprintf '%s' \"$*\" > '{marker}'\n", encoding="utf-8")
-tool.chmod(tool.stat().st_mode | stat.S_IEXEC)
-tool_path = f"{work}:{base_path}"
-
-missing_key = run("true", None, tool_path)
-if missing_key.returncode == 0 or "requires ANTHROPIC_API_KEY" not in missing_key.stderr:
-    raise SystemExit(f"missing API key did not fail closed: {missing_key}")
-
-enabled = run("true", "EXAMPLE_API_KEY", tool_path)
-if enabled.returncode or marker.read_text(encoding="utf-8") != "--staged":
-    raise SystemExit(f"enabled hook did not execute generator: {enabled}")
-PY
-    pass "2.1 suspended translation generation is opt-in and fails closed when enabled"
-  else
-    fail "2.1 suspended translation generation is opt-in and fails closed when enabled" \
-      "unset, invalid, missing-tool, missing-key, or enabled execution behavior is wrong"
-  fi
-  rm -rf "$HOOK_WORK"
-elif ! grep -q 'TRANSLATIONS_ENABLED' "$PRE_COMMIT"; then
-  pass "2.1 while restored, the docs-translate hook runs unconditionally"
+if grep -q 'entry: bash scripts/antigravity-translate-staged.sh' <<<"$HOOK_BLOCK" &&
+  ! grep -qE 'ANTHROPIC_API_KEY|docs-translate|TRANSLATIONS_ENABLED' <<<"$HOOK_BLOCK" &&
+  grep -qE 'agy .*--sandbox .*--mode accept-edits' <(tr '\n' ' ' <"$TRANSLATION_SCRIPT") &&
+  ! grep -qE 'ANTHROPIC_API_KEY|docs-translate|TRANSLATIONS_ENABLED|dangerously-skip-permissions' \
+    "$TRANSLATION_SCRIPT"; then
+  pass "2.1 local translation is always-active Antigravity generation"
 else
-  fail "2.1 while restored, the docs-translate hook runs unconditionally" \
-    "the audit is active but generation is still gated — translations would go stale while the audit demands freshness"
+  fail "2.1 local translation is always-active Antigravity generation" \
+    "the hook is missing, locally gated, or still invokes the Anthropic docs-translate path"
 fi
 
 if grep -qF "docs-control's \`tests/test-translation-suspension.sh\`" "$CONTRIBUTING"; then
@@ -217,14 +146,12 @@ else
     "the managed document must qualify the docs-control-only test path"
 fi
 
-# The hook must still exist and still be scoped to English sources — a suspension
-# that deleted the hook would be harder to restore and would lose the trigger.
-if grep -q 'id: docs-translate' "$PRE_COMMIT" &&
-  grep -qE '^\s*files:\s*\^docs/en/\.\*\\\.mdx\?\$' "$PRE_COMMIT"; then
-  pass "2.2 the hook is suspended rather than deleted, still scoped to docs/en"
+# Both supported layouts must reach the same managed hook.
+if grep -qF 'files: ^(docs/en|src/content/docs/en)/.*\.mdx?$' "$PRE_COMMIT"; then
+  pass "2.2 the hook covers both English documentation layouts"
 else
-  fail "2.2 the hook is suspended rather than deleted, still scoped to docs/en" \
-    "suspension should gate the hook, not remove it"
+  fail "2.2 the hook covers both English documentation layouts" \
+    "docs/en or src/content/docs/en is outside the hook selector"
 fi
 
 # ════════════════════════════════════════════════════════════════════
@@ -246,18 +173,16 @@ for repo in terraform-provider-xcsh code-review; do
   fi
 done
 
-# TRANSLATIONS_ENABLED is one name for two independent switches, and conflating
-# them silently half-restores the system. The organisation variable reaches only
-# the Actions `vars` context, so it enables the audit workflow; the pre-commit
-# hook reads the developer's local process environment, which no organisation
-# variable sets. A procedure that mentions only the variable leaves generation off
-# — the first `--force` run works, then every later English edit silently skips
-# translation, and the failure surfaces only once the audit is required again.
-if grep -q 'export TRANSLATIONS_ENABLED' "$CONTRIBUTING"; then
-  pass "3.2 restore procedure sets TRANSLATIONS_ENABLED locally, not just as an org variable"
+# The organisation variable controls Actions only. Local generation is an
+# unconditional developer-environment contract and must not drift back to a
+# second persistent switch.
+if grep -q 'Actions controls only' "$CONTRIBUTING" &&
+  grep -q 'always-active' "$CONTRIBUTING" &&
+  ! grep -q 'export TRANSLATIONS_ENABLED' "$CONTRIBUTING"; then
+  pass "3.2 documentation separates the Actions switch from always-active local generation"
 else
-  fail "3.2 restore procedure sets TRANSLATIONS_ENABLED locally, not just as an org variable" \
-    "the org variable reaches Actions only; the pre-commit hook reads the local environment"
+  fail "3.2 documentation separates Actions and local generation" \
+    "local translation still appears to depend on the organisation variable or an exported copy"
 fi
 
 # Section 1 keys on the SUSPENDED marker, so restoring must remove it. A

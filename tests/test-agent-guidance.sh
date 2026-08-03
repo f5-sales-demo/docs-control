@@ -64,7 +64,7 @@ else
 fi
 
 for token in "CONTRIBUTING.md" "DEVELOPING.md" ".claude/governance.json" \
-  "origin/<default-branch>" "normal defaults"; do
+  "origin/<default-branch>" "normal defaults" "verified-code-review"; do
   assert_contains "$AGENTS_MD" "$token" "AGENTS.md retains ecosystem routing: $token"
 done
 
