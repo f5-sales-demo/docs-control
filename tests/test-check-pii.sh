@@ -2287,6 +2287,30 @@ git -C "$repo" commit -qm remove
 assert_clean "removed PII is absent from HEAD" "$repo" --scope head --mode enforce
 assert_violation "reachable historical blob is scanned" "$repo" --scope history --mode enforce
 
+repo=$(new_repo history-path-alias)
+printf 'synthetic pixels\n' >"${repo}/a-safe.txt"
+cp "${repo}/a-safe.txt" "${repo}/z-review.png"
+git -C "$repo" add a-safe.txt z-review.png
+git -C "$repo" commit -qm aliases
+git -C "$repo" rm -q z-review.png
+git -C "$repo" commit -qm remove-media-alias
+assert_clean \
+  "removed media alias is absent from HEAD" \
+  "$repo" --scope head --mode audit
+assert_single_finding \
+  "history scans removed aliases of still-reachable blobs" \
+  "$repo" media-review review --scope history --mode audit
+
+repo=$(new_repo history-tree-ref)
+printf 'synthetic pixels\n' >"${repo}/a-safe.txt"
+cp "${repo}/a-safe.txt" "${repo}/z-review.png"
+git -C "$repo" add a-safe.txt z-review.png
+tree=$(git -C "$repo" write-tree)
+git -C "$repo" update-ref refs/tags/tree-only "$tree"
+assert_single_finding \
+  "history scans every path in a tree-only ref" \
+  "$repo" media-review review --scope history --mode audit
+
 repo=$(new_repo commit-message)
 printf 'change\n' >>"${repo}/README.md"
 git -C "$repo" add README.md
@@ -2333,12 +2357,18 @@ printf 'email: person@customer.local\n' >"${repo}/- odd name.yaml"
 git -C "$repo" add -- '- odd name.yaml'
 git -C "$repo" commit -qm odd
 assert_violation "option-like filename containing spaces" "$repo" --scope head --mode enforce
+assert_violation \
+  "history preserves option-like filenames containing spaces" \
+  "$repo" --scope history --mode enforce
 
 repo=$(new_repo symlink)
 ln -s "/Users/${SYNTHETIC_USER}/private" "${repo}/linked"
 git -C "$repo" add linked
 git -C "$repo" commit -qm symlink
 assert_clean "scanner does not dereference symlinks" "$repo" --scope head --mode enforce
+assert_clean \
+  "history scanner does not dereference symlinks" \
+  "$repo" --scope history --mode enforce
 
 repo=$(new_repo json-output)
 printf 'email: person@customer.local\n' >"${repo}/fixture.yaml"
