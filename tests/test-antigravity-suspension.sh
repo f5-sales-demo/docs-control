@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Proves quota-backed Antigravity automation is fail-closed and governed.
+# Proves quota-backed Antigravity automation has fail-closed central controls.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -29,15 +29,13 @@ assert_contains() {
   fi
 }
 
-echo "Antigravity suspension guards"
+echo "Antigravity runtime-control guards"
 
 for file in \
   "$REPO_ROOT/.github/workflows/antigravity-review.yml" \
   "$REPO_ROOT/workflows/antigravity-review.yml"; do
   assert_contains "$file" "vars.ANTIGRAVITY_REVIEW_ENABLED == 'true'" \
     "review workflow $(basename "$file") is positive-gated"
-  assert_contains "$file" "SUSPENDED:" \
-    "review workflow $(basename "$file") records suspension intent"
 done
 
 for file in \
@@ -45,8 +43,6 @@ for file in \
   "$REPO_ROOT/workflows/antigravity-translate.yml"; do
   assert_contains "$file" "vars.TRANSLATIONS_ENABLED == 'true'" \
     "translation workflow $(basename "$file") shares the translation gate"
-  assert_contains "$file" "SUSPENDED:" \
-    "translation workflow $(basename "$file") records suspension intent"
 done
 
 for mapping in \
@@ -84,11 +80,15 @@ else
 fi
 
 assert_contains "$CONTRIBUTING" "ANTIGRAVITY_REVIEW_ENABLED" \
-  "CONTRIBUTING documents the review restore switch"
-assert_contains "$CONTRIBUTING" "Translations (suspended)" \
-  "CONTRIBUTING identifies translations as suspended"
-assert_contains "$CONTRIBUTING" "enable the reusable workflow" \
-  "CONTRIBUTING documents workflow-state restoration order"
+  "CONTRIBUTING documents the review runtime switch"
+assert_contains "$CONTRIBUTING" "TRANSLATIONS_ENABLED" \
+  "CONTRIBUTING documents the translation runtime switch"
+assert_contains "$CONTRIBUTING" "same-named repository variables" \
+  "CONTRIBUTING forbids repository variables that shadow central controls"
+assert_contains "$CONTRIBUTING" "do not manually disable" \
+  "CONTRIBUTING keeps workflows active after the security hold"
+assert_contains "$CONTRIBUTING" "Local translation generation is always active" \
+  "CONTRIBUTING keeps local translation independent of Actions controls"
 
 printf '\nResults: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

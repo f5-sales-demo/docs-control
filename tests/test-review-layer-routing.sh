@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Regression harness for the two-layer review split (issue #799).
+# Regression harness for review routing (issues #799 and #1083).
 #
-# The local layer reviews specs, plans, and unpushed branches and is advisory;
-# the CI layer reviews the pull-request diff and is the merge gate. An agent that
+# Document review is advisory, local branch review is a required Antigravity
+# pre-push step, and CI reviewers remain a separate merge layer. An agent that
 # picks a PR-diff reviewer for a spec gets the wrong review, and in the case of
 # code-review-f5 also gets a write-capable, gh/az/terraform-capable tool pointed
 # at local work. These assertions keep the enforcement honest: every reviewer
@@ -31,6 +31,8 @@ fail() {
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SETTINGS="$REPO_ROOT/.claude/settings.json"
 CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
+AGENTS_MD="$REPO_ROOT/AGENTS.md"
+AGY_REVIEW="$REPO_ROOT/scripts/agy-pre-push-review.sh"
 F5_CMD="$REPO_ROOT/plugins/f5-review/code-review-f5/commands/code-review.md"
 
 # ════════════════════════════════════════════════════════════════════
@@ -96,13 +98,39 @@ fi
 echo ""
 echo "=== Section 3: CLAUDE.md names the tool to use and the tools not to use ==="
 
-for token in "codex:verified-code-review" "review-doc"; do
+for token in "verified-review:verified-code-review" "document --kind"; do
   if grep -qF "$token" "$CLAUDE_MD"; then
     pass "3.1 CLAUDE.md names $token"
   else
     fail "3.1 CLAUDE.md names $token" "local-layer routing target missing"
   fi
 done
+
+if grep -qF 'verified-code-review' "$AGENTS_MD"; then
+  pass "3.1a AGENTS.md names the cross-platform verified review workflow"
+else
+  fail "3.1a AGENTS.md names the cross-platform verified review workflow" \
+    "generic skill name missing"
+fi
+
+for document in "$CLAUDE_MD" "$AGENTS_MD"; do
+  if grep -qF 'bash scripts/agy-pre-push-review.sh' "$document" &&
+    grep -qiE 'before (any|every|a) push|before every PR push' "$document"; then
+    pass "3.1b $(basename "$document") requires the managed agy review before push"
+  else
+    fail "3.1b $(basename "$document") requires the managed agy review before push" \
+      "command or ordering requirement missing"
+  fi
+done
+
+if grep -q -- '--sandbox' "$AGY_REVIEW" &&
+  grep -q -- '--mode plan' "$AGY_REVIEW" &&
+  ! grep -q -- '--dangerously-skip-permissions' "$AGY_REVIEW"; then
+  pass "3.1c managed agy review is sandboxed and read-only"
+else
+  fail "3.1c managed agy review is sandboxed and read-only" \
+    "sandbox/plan flags are missing or permission bypass is present"
+fi
 
 # Every prohibited reviewer must be named explicitly. Prose that says "do not use
 # a PR-diff reviewer" without naming them loses the routing contest to their own
@@ -164,7 +192,7 @@ echo "=== Section 3b: CLAUDE.md attributes each enforcement mechanism correctly 
 # CONTRIBUTING.md from xcsh, whose own copy contains none of this content, so a
 # pointer there resolves to nothing in that repo. An unconditional "use the
 # skill" can stall work, or push an agent toward a prohibited PR-diff reviewer.
-LOCAL_LINE=$(grep -F 'codex:verified-code-review' "$CLAUDE_MD" | head -1)
+LOCAL_LINE=$(grep -F 'verified-review:verified-code-review' "$CLAUDE_MD" | head -1)
 if printf '%s' "$LOCAL_LINE" | grep -qiE 'when (it is )?(installed|available|present)|skip|absent|not installed'; then
   pass "3b.0 CLAUDE.md itself says the local layer is skipped when the tooling is absent"
 else

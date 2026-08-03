@@ -205,6 +205,10 @@
         "dest": ".agents/skills/demo-components/agents/openai.yaml"
       },
       {
+        "src": ".agents/skills/i18n-translate/SKILL.md",
+        "dest": ".agents/skills/i18n-translate/SKILL.md"
+      },
+      {
         "src": "STYLE_GUIDE.md",
         "dest": "STYLE_GUIDE.md"
       },
@@ -307,6 +311,18 @@
       {
         "src": "scripts/locale-lint.sh",
         "dest": "scripts/locale-lint.sh"
+      },
+      {
+        "src": "scripts/parse-translation-trigger.sh",
+        "dest": "scripts/parse-translation-trigger.sh"
+      },
+      {
+        "src": "scripts/antigravity-translate-staged.sh",
+        "dest": "scripts/antigravity-translate-staged.sh"
+      },
+      {
+        "src": "scripts/agy-pre-push-review.sh",
+        "dest": "scripts/agy-pre-push-review.sh"
       },
       {
         "src": "scripts/check-repo-hygiene.sh",
