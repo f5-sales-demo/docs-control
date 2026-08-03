@@ -167,4 +167,25 @@ set -e
 check "bootstrap source supersession enqueues current main and succeeds" \
   "[ '$recovery_rc' -eq 0 ] && grep -q 'workflow run dispatch-downstream.yml.*--ref main' '$WORK/gh.log'"
 
+rm -f "$WORK/.preflight-count"
+: >"$WORK/gh.log"
+set +e
+(
+  cd "$WORK"
+  env \
+    PATH="$WORK/bin:$PATH" \
+    FAKE_GH_LOG="$WORK/gh.log" \
+    FAKE_BOOTSTRAP_RC=84 \
+    GITHUB_REPOSITORY=f5-sales-demo/docs-control \
+    GITHUB_REPOSITORY_OWNER=f5-sales-demo \
+    SOURCE_SHA=1111111111111111111111111111111111111111 \
+    REPO_SETTINGS_TOKEN=settings-token \
+    REPO_SYNC_TOKEN=sync-token \
+    bash "$WORK/dispatch.sh"
+)
+recovery_rc=$?
+set -e
+check "bootstrap API rate exhaustion defers to scheduled recovery" \
+  "[ '$recovery_rc' -eq 0 ] && ! grep -q 'workflow run dispatch-downstream.yml' '$WORK/gh.log'"
+
 exit "$FAIL"

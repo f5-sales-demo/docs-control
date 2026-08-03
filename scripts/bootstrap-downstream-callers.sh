@@ -53,6 +53,24 @@ fi
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
+gh() {
+  local err_file rc
+  err_file=$(mktemp "$work/gh-err.XXXXXX")
+  if command gh "$@" 2>"$err_file"; then
+    rm -f "$err_file"
+    return 0
+  else
+    rc=$?
+  fi
+  cat "$err_file" >&2
+  if grep -qiE 'rate limit|\(HTTP 429\)$' "$err_file"; then
+    rm -f "$err_file"
+    return 84
+  fi
+  rm -f "$err_file"
+  return "$rc"
+}
+
 api_value_or_404() {
   local endpoint="$1" jq_filter="$2" token="${3:-${GH_TOKEN:-}}"
   local out_file err_file rc value
@@ -72,6 +90,11 @@ api_value_or_404() {
     rm -f "$out_file" "$err_file"
     return 44
   fi
+  if [ "$rc" -eq 84 ]; then
+    cat "$err_file" >&2
+    rm -f "$out_file" "$err_file"
+    return 84
+  fi
   echo "[ERROR] GitHub API read failed closed" >&2
   sed -E 's/(Request-Id:).*/\1 [redacted]/I' "$err_file" >&2
   rm -f "$out_file" "$err_file"
@@ -89,7 +112,8 @@ retry() {
       "$@"
     )
     rc=$?
-    if [ "$rc" -eq 0 ] || [ "$rc" -eq 74 ] || [ "$rc" -eq 75 ]; then
+    if [ "$rc" -eq 0 ] || [ "$rc" -eq 74 ] || [ "$rc" -eq 75 ] ||
+      [ "$rc" -eq 84 ]; then
       return "$rc"
     fi
     if [ "$attempt" -ge "$max" ]; then
@@ -102,21 +126,30 @@ retry() {
 }
 
 active_run_ids() {
-  local slug="$1" state_filter
+  local slug="$1" state_filter rc
   # Filter server-side so quiescence is proportional to active work, not the
   # repository's unbounded workflow history. Inventory repository-wide runs
   # and select the exact workflow path locally: the workflow-scoped endpoint
   # returns 404 after the file is deleted even while a legacy run remains active.
+  # Query non-terminal states in forward lifecycle order so a run that advances
+  # during one sweep is observed by a later query in that same sweep.
   for state_filter in \
-    status=queued \
-    status=in_progress \
-    status=waiting \
     status=requested \
-    status=pending; do
-    if ! GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
+    status=waiting \
+    status=pending \
+    status=queued \
+    status=in_progress; do
+    set +e
+    GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
       "repos/${slug}/actions/runs?${state_filter}&per_page=100" \
       --paginate --jq \
-      '.workflow_runs[] | select(.path == ".github/workflows/enforce-repo-settings.yml") | .id'; then
+      '.workflow_runs[] | select(.path == ".github/workflows/enforce-repo-settings.yml") | .id'
+    rc=$?
+    set -e
+    if [ "$rc" -eq 84 ]; then
+      return 84
+    fi
+    if [ "$rc" -ne 0 ]; then
       echo "[ERROR] Could not inventory ${state_filter#status=} enforcement runs for ${slug}" >&2
       return 1
     fi
@@ -144,10 +177,18 @@ decimal_greater_than() {
 }
 
 read_bootstrap_prs() {
-  local slug="$1" destination="$2" response
+  local slug="$1" destination="$2" response rc
   response=$(mktemp "$work/bootstrap-pr-pages.XXXXXX")
-  if ! gh api "repos/${slug}/pulls?state=open&per_page=100" \
-    --paginate --slurp >"$response"; then
+  set +e
+  gh api "repos/${slug}/pulls?state=open&per_page=100" \
+    --paginate --slurp >"$response"
+  rc=$?
+  set -e
+  if [ "$rc" -eq 84 ]; then
+    rm -f "$response"
+    return 84
+  fi
+  if [ "$rc" -ne 0 ]; then
     echo "[ERROR] Could not inventory exact-caller PRs for ${slug}" >&2
     rm -f "$response"
     return 1
@@ -167,9 +208,13 @@ reconcile_bootstrap_prs() {
   bootstrap_pr_number=""
   bootstrap_pr_head_oid=""
   open_prs=$(mktemp "$work/bootstrap-prs.XXXXXX")
-  if ! read_bootstrap_prs "$slug" "$open_prs"; then
+  set +e
+  read_bootstrap_prs "$slug" "$open_prs"
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
     rm -f "$open_prs"
-    return 1
+    return "$rc"
   fi
   if ! jq -e --arg prefix 'sync/exact-caller-' '
     all(.[] | select(.head.ref | startswith($prefix));
@@ -225,17 +270,26 @@ reconcile_bootstrap_prs() {
   while IFS=$'\t' read -r number head_ref head_oid head_repo base_ref; do
     [ -n "$number" ] || continue
     [ "$head_ref" != "$current_branch" ] || continue
-    if ! gh pr close "$number" --repo "$slug" --delete-branch \
-      --comment "Superseded by a newer exact managed-caller receipt."; then
+    set +e
+    gh pr close "$number" --repo "$slug" --delete-branch \
+      --comment "Superseded by a newer exact managed-caller receipt."
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ]; then
+      [ "$rc" -ne 84 ] || return 84
       echo "[ERROR] Could not close superseded exact-caller PR for ${slug}" >&2
       rm -f "$open_prs"
       return 1
     fi
   done <<<"$rows"
 
-  if ! read_bootstrap_prs "$slug" "$open_prs"; then
+  set +e
+  read_bootstrap_prs "$slug" "$open_prs"
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
     rm -f "$open_prs"
-    return 1
+    return "$rc"
   fi
   if ! jq -e --arg prefix 'sync/exact-caller-' '
     all(.[] | select(.head.ref | startswith($prefix));
@@ -287,6 +341,7 @@ reconcile_bootstrap_prs() {
 
 quiesce_one() {
   local name="$1" slug state runs run_id status attempt rc workflow_present=true empty_sweeps=0
+  local required_empty_sweeps=1
   slug="${owner}/${name}"
   set +e
   state=$(api_value_or_404 \
@@ -297,43 +352,62 @@ quiesce_one() {
   case "$rc" in
   0) ;;
   44) workflow_present=false ;;
+  84) return 84 ;;
   *) return 1 ;;
   esac
   if [ "$workflow_present" = true ] && [ "$state" != "disabled_manually" ]; then
+    set +e
     GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
       "repos/${slug}/actions/workflows/enforce-repo-settings.yml/disable" \
       --method PUT >/dev/null
+    rc=$?
+    set -e
+    [ "$rc" -eq 0 ] || return "$rc"
+    required_empty_sweeps=2
   fi
 
   # A run may change status between filtered API queries and escape one sweep.
-  # Require two consecutive empty inventories after disabling, and cancel every
-  # run found in every sweep, before certifying quiescence.
+  # Require two consecutive empty inventories when this invocation disabled an
+  # active workflow. A workflow already disabled before this invocation cannot
+  # start new runs, so one bounded inventory is sufficient. Cancel every run
+  # found in each required sweep before certifying quiescence.
   for attempt in 1 2 3 4 5 6 7 8 9 10; do
-    if ! runs=$(active_run_ids "$slug"); then
-      return 1
-    fi
+    set +e
+    runs=$(active_run_ids "$slug")
+    rc=$?
+    set -e
+    [ "$rc" -eq 0 ] || return "$rc"
     while IFS= read -r run_id; do
       [ -n "$run_id" ] || continue
       if [[ ! "$run_id" =~ ^[1-9][0-9]*$ ]]; then
         echo "[ERROR] Active-run inventory returned an invalid run ID for ${slug}" >&2
         return 1
       fi
-      if ! GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
-        "repos/${slug}/actions/runs/${run_id}/cancel" --method POST >/dev/null 2>&1; then
+      set +e
+      GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
+        "repos/${slug}/actions/runs/${run_id}/cancel" --method POST >/dev/null
+      rc=$?
+      set -e
+      if [ "$rc" -ne 0 ]; then
+        [ "$rc" -ne 84 ] || return 84
+        set +e
         status=$(GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
           "repos/${slug}/actions/runs/${run_id}" --jq '.status')
+        rc=$?
+        set -e
+        [ "$rc" -eq 0 ] || return "$rc"
         [ "$status" = "completed" ] || return 1
       fi
     done <<<"$runs"
     if [ -z "$runs" ]; then
       empty_sweeps=$((empty_sweeps + 1))
-      [ "$empty_sweeps" -ge 2 ] && break
+      [ "$empty_sweeps" -ge "$required_empty_sweeps" ] && break
     else
       empty_sweeps=0
     fi
     sleep "$((attempt < 5 ? attempt : 5))"
   done
-  [ "$empty_sweeps" -ge 2 ] || return 1
+  [ "$empty_sweeps" -ge "$required_empty_sweeps" ] || return 1
   set +e
   state=$(api_value_or_404 \
     "repos/${slug}/actions/workflows/enforce-repo-settings.yml" '.state' \
@@ -343,6 +417,7 @@ quiesce_one() {
   case "$rc" in
   0) [ "$state" = "disabled_manually" ] ;;
   44) return 0 ;;
+  84) return 84 ;;
   *) return 1 ;;
   esac
 }
@@ -354,6 +429,10 @@ quiesce_fleet() {
     retry 3 quiesce_one "$name"
     rc=$?
     set -e
+    if [ "$rc" -eq 84 ]; then
+      echo "[DEFER] GitHub API rate capacity was exhausted while quiescing ${name}" >&2
+      return 84
+    fi
     if [ "$rc" -ne 0 ]; then
       echo "[FAIL] Could not quiesce ${name} after 3 attempts" >&2
       failures=$((failures + 1))
@@ -398,9 +477,16 @@ case "$preflight_rc" in
   ;;
 esac
 
-if ! gh api \
+set +e
+gh api \
   "repos/${repository}/contents/workflows/enforce-repo-settings.yml?ref=${source_sha}" \
-  >"$work/caller.json"; then
+  >"$work/caller.json"
+rc=$?
+set -e
+if [ "$rc" -eq 84 ]; then
+  exit 84
+fi
+if [ "$rc" -ne 0 ]; then
   echo "[ERROR] Could not fetch the exact managed caller" >&2
   exit 1
 fi
@@ -431,7 +517,14 @@ set -e
 if [ "$source_rc" -eq 74 ]; then exit 78; fi
 [ "$source_rc" -eq 0 ] || exit "$source_rc"
 
-if ! quiesce_fleet; then
+set +e
+quiesce_fleet
+rc=$?
+set -e
+if [ "$rc" -eq 84 ]; then
+  exit 84
+fi
+if [ "$rc" -ne 0 ]; then
   echo "[ERROR] Fleet quiescence failed; no caller mutation was attempted" >&2
   exit 1
 fi
@@ -463,6 +556,7 @@ bootstrap_one() {
     [ "$actual_blob" != "$expected_blob" ] || return 0
     ;;
   44) ;;
+  84) return 84 ;;
   *) return 1 ;;
   esac
 
@@ -497,6 +591,7 @@ bootstrap_one() {
       --input "$work/ref-${name}.json" >/dev/null
     branch_head="$base_sha"
     ;;
+  84) return 84 ;;
   *) return 1 ;;
   esac
 
@@ -513,6 +608,7 @@ bootstrap_one() {
     fi
     ;;
   44) branch_blob="" ;;
+  84) return 84 ;;
   *) return 1 ;;
   esac
 
@@ -624,6 +720,9 @@ while IFS= read -r name; do
     newer_owner=true
     break
   fi
+  if [ "$rc" -eq 84 ]; then
+    exit 84
+  fi
   if [ "$rc" -ne 0 ]; then
     echo "[FAIL] Could not bootstrap ${name} after 3 attempts" >&2
     failures=$((failures + 1))
@@ -666,6 +765,7 @@ while true; do
       [ "$live_blob" = "$expected_blob" ] || pending=$((pending + 1))
       ;;
     44) pending=$((pending + 1)) ;;
+    84) exit 84 ;;
     *) exit 1 ;;
     esac
   done < <(jq -r '.[]' "$downstream_config")
@@ -689,7 +789,14 @@ if [ "$source_rc" -eq 74 ]; then exit 78; fi
 [ "$source_rc" -eq 0 ] || exit "$source_rc"
 
 if [ "$rollout_state" = "quiesced" ]; then
-  if ! quiesce_fleet; then
+  set +e
+  quiesce_fleet
+  rc=$?
+  set -e
+  if [ "$rc" -eq 84 ]; then
+    exit 84
+  fi
+  if [ "$rc" -ne 0 ]; then
     echo "[ERROR] Exact callers landed but fleet quiescence could not be verified" >&2
     exit 1
   fi
@@ -708,13 +815,23 @@ while IFS= read -r name; do
     source_superseded=true
     break
   fi
+  if [ "$rc" -eq 84 ]; then
+    exit 84
+  fi
   if [ "$rc" -ne 0 ]; then
     echo "[FAIL] Could not enable exact enforcement for ${name}" >&2
     enable_failures=$((enable_failures + 1))
   fi
 done < <(jq -r '.[]' "$downstream_config")
 if [ "$source_superseded" = true ]; then
-  if ! quiesce_fleet; then
+  set +e
+  quiesce_fleet
+  rc=$?
+  set -e
+  if [ "$rc" -eq 84 ]; then
+    exit 84
+  fi
+  if [ "$rc" -ne 0 ]; then
     echo "[ERROR] Source advanced during enable and fleet rollback failed" >&2
     exit 1
   fi
@@ -722,7 +839,14 @@ if [ "$source_superseded" = true ]; then
   exit 78
 fi
 if [ "$enable_failures" -gt 0 ]; then
-  if ! quiesce_fleet; then
+  set +e
+  quiesce_fleet
+  rc=$?
+  set -e
+  if [ "$rc" -eq 84 ]; then
+    exit 84
+  fi
+  if [ "$rc" -ne 0 ]; then
     echo "[ERROR] Enable failed and fleet rollback could not be verified" >&2
     exit 1
   fi
@@ -735,7 +859,14 @@ assert_source_current
 source_rc=$?
 set -e
 if [ "$source_rc" -eq 74 ]; then
-  if ! quiesce_fleet; then
+  set +e
+  quiesce_fleet
+  rc=$?
+  set -e
+  if [ "$rc" -eq 84 ]; then
+    exit 84
+  fi
+  if [ "$rc" -ne 0 ]; then
     echo "[ERROR] Source advanced after enable and fleet rollback failed" >&2
     exit 1
   fi

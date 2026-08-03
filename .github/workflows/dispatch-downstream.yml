@@ -131,6 +131,10 @@ jobs:
                   echo "[DEFER] exact-caller PRs or a newer bootstrap owner remain pending; scheduled recovery is active"
                   exit 0
                   ;;
+                84)
+                  echo "[DEFER] GitHub API rate capacity was exhausted; scheduled recovery is active"
+                  exit 0
+                  ;;
                 81)
                   echo "[DEFER] exact callers are installed and enforcement remains deliberately quiesced"
                   exit 0

@@ -128,12 +128,27 @@ case "$1 $endpoint" in
     printf '%s\n' "$DOWNSTREAM_BLOB"
     ;;
   'api repos/f5-sales-demo/example/actions/runs?status='*)
+    if [ -n "${FAKE_RATE_LIMIT_STATUS:-}" ] &&
+      [[ "$endpoint" == *"status=${FAKE_RATE_LIMIT_STATUS}"* ]]; then
+      echo 'gh: API rate limit exceeded for user ID 123. (HTTP 403)' >&2
+      exit 1
+    fi
     if [ -n "${FAKE_RUN_QUERY_FAIL_STATUS:-}" ] &&
       [[ "$endpoint" == *"status=${FAKE_RUN_QUERY_FAIL_STATUS}"* ]]; then
       echo 'gh: synthetic active-run query failure (HTTP 500)' >&2
       exit 1
     fi
-    if [ "${FAKE_MALFORMED_RUN_ID:-}" = 1 ] && [[ "$endpoint" == *'status=queued'* ]]; then
+    if [ "${FAKE_FORWARD_TRANSITIONAL_RUN:-}" = 1 ] &&
+      [[ "$endpoint" == *'status=requested'* ]] &&
+      [ ! -f "$FAKE_STATE/forward-transition-started" ]; then
+      touch "$FAKE_STATE/forward-transition-started"
+      printf '\n'
+    elif [ "${FAKE_FORWARD_TRANSITIONAL_RUN:-}" = 1 ] &&
+      [[ "$endpoint" == *'status=queued'* ]] &&
+      [ -f "$FAKE_STATE/forward-transition-started" ] &&
+      [ ! -f "$FAKE_STATE/forward-transition-canceled" ]; then
+      printf '904\n'
+    elif [ "${FAKE_MALFORMED_RUN_ID:-}" = 1 ] && [[ "$endpoint" == *'status=queued'* ]]; then
       printf 'not-a-run-id\n'
     elif [ "${FAKE_UNRELATED_RUN:-}" = 1 ] &&
       [[ "$*" != *'select(.path == ".github/workflows/enforce-repo-settings.yml")'* ]] &&
@@ -191,6 +206,9 @@ case "$1 $endpoint" in
     ;;
   'api repos/f5-sales-demo/example/actions/runs/903/cancel')
     touch "$FAKE_STATE/unrelated-canceled"
+    ;;
+  'api repos/f5-sales-demo/example/actions/runs/904/cancel')
+    touch "$FAKE_STATE/forward-transition-canceled"
     ;;
   'api repos/f5-sales-demo/example/contents/.github/workflows/enforce-repo-settings.yml?ref='*)
     if [ "${FAKE_READ_ERROR:-}" = 403 ]; then
@@ -329,7 +347,9 @@ run_bootstrap() {
     FAKE_MERGE_LANDS="${FAKE_MERGE_LANDS:-}" \
     FAKE_ADVANCE_AFTER_ENABLE="${FAKE_ADVANCE_AFTER_ENABLE:-}" \
     FAKE_FAIL_ENABLE_REPO="${FAKE_FAIL_ENABLE_REPO:-}" \
+    FAKE_RATE_LIMIT_STATUS="${FAKE_RATE_LIMIT_STATUS:-}" \
     FAKE_RUN_QUERY_FAIL_STATUS="${FAKE_RUN_QUERY_FAIL_STATUS:-}" \
+    FAKE_FORWARD_TRANSITIONAL_RUN="${FAKE_FORWARD_TRANSITIONAL_RUN:-}" \
     FAKE_TRANSITIONAL_RUN="${FAKE_TRANSITIONAL_RUN:-}" \
     FAKE_LEGACY_RUN="${FAKE_LEGACY_RUN:-}" \
     FAKE_UNRELATED_RUN="${FAKE_UNRELATED_RUN:-}" \
@@ -389,7 +409,26 @@ touch "$state/disabled"
 DOWNSTREAM_BLOB="$CALLER_BLOB"
 run_bootstrap "$state" >"$WORK/enable.out"
 grep -q 'actions/workflows/enforce-repo-settings.yml/enable --method PUT' "$WORK/gh.log"
+if [ "$(grep -c 'actions/runs?status=' "$WORK/gh.log")" -ne 5 ]; then
+  echo "[FAIL] a workflow disabled before bootstrap required more than one bounded run inventory"
+  exit 1
+fi
 echo "[OK] active rollout enables only the verified exact caller"
+
+state="$WORK/state-disabled-forward-transition"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+FAKE_FORWARD_TRANSITIONAL_RUN=1
+run_bootstrap "$state" >"$WORK/disabled-forward-transition.out"
+unset FAKE_FORWARD_TRANSITIONAL_RUN
+if [ ! -f "$state/forward-transition-canceled" ] ||
+  ! grep -q 'actions/runs/904/cancel --method POST' "$WORK/gh.log"; then
+  echo "[FAIL] one bounded disabled-workflow inventory missed a forward status transition"
+  exit 1
+fi
+echo "[OK] bounded disabled-workflow inventory catches forward status transitions"
 
 printf '{"state":"quiesced"}\n' >"$WORK/rollout-quiesced.json"
 state="$WORK/state-quiesced"
@@ -440,6 +479,26 @@ if [ "$rc" = 0 ] ||
   exit 1
 fi
 echo "[OK] any active-run status query failure blocks caller mutation"
+
+state="$WORK/state-run-query-rate-limit"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+FAKE_RATE_LIMIT_STATUS=requested
+set +e
+run_bootstrap "$state" >"$WORK/rate-limit.out" 2>"$WORK/rate-limit.err"
+rc=$?
+set -e
+unset FAKE_RATE_LIMIT_STATUS
+if [ "$rc" != 84 ] ||
+  [ "$(grep -c 'API rate limit exceeded' "$WORK/rate-limit.err")" -ne 1 ] ||
+  [ "$(grep -c 'runs?status=' "$WORK/gh.log")" -ne 1 ] ||
+  grep -qE 'git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' "$WORK/gh.log"; then
+  echo "[FAIL] API rate exhaustion did not defer immediately before caller mutation"
+  exit 1
+fi
+echo "[OK] API rate exhaustion returns a bounded recoverable defer"
 
 state="$WORK/state-malformed-run-inventory"
 mkdir -p "$state"
