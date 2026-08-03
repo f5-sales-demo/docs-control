@@ -32,7 +32,7 @@ jobs:
         startsWith(github.head_ref, 'auto-generate/') ||
         startsWith(github.head_ref, 'autoresearch/') ||
         (startsWith(github.head_ref, 'dependabot/') && github.event.pull_request.user.id == 49699333))
-    uses: f5-sales-demo/docs-control/.github/workflows/antigravity-review.yml@69ad2be64ca4c2b0e608bef54a867d3820fa0311
+    uses: f5-sales-demo/docs-control/.github/workflows/antigravity-review.yml@c671a2355d6130d816f8be2d8683d75b07a245b6
     permissions:
       contents: read # inspect trusted same-repository pull request content
       pull-requests: write # publish the generated review on the pull request
