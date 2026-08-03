@@ -1,5 +1,5 @@
 {
-  "source_commit": "5b2d5ffad848773427e2ebb0abb0055a5f0dec56",
+  "source_commit": "591d4e746164ac3943029fba399a48cc8cb283aa",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -34,6 +34,20 @@
       "dest": ".github/workflows/translation-audit.yml",
       "sha": "ad888aa93ce946ac3c8c7620d3729b64cebc4d60",
       "size": 1800,
+      "mode": "100644"
+    },
+    ".github/workflows/antigravity-review.yml": {
+      "src": "workflows/antigravity-review.yml",
+      "dest": ".github/workflows/antigravity-review.yml",
+      "sha": "35e7fa844b42dbf453d2e0dcc623c74bdd77d56d",
+      "size": 1769,
+      "mode": "100644"
+    },
+    ".github/workflows/antigravity-translate.yml": {
+      "src": "workflows/antigravity-translate.yml",
+      "dest": ".github/workflows/antigravity-translate.yml",
+      "sha": "c2ace91b2d8663c59305c419c43045137f23923c",
+      "size": 1976,
       "mode": "100644"
     },
     ".github/PULL_REQUEST_TEMPLATE.md": {
@@ -74,15 +88,15 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "a8532902241e701d1b69cd76425cf6eaca32bfb2",
-      "size": 40841,
+      "sha": "2907665634635630236f581909179978b07d7a6c",
+      "size": 41874,
       "mode": "100644"
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "af9250d12082876d7f01dda78acd79df99b9a1e0",
-      "size": 8465,
+      "sha": "437a68e5eb20a9f96ad3a00282d23f62d19f33ef",
+      "size": 8487,
       "mode": "100644"
     },
     "AGENTS.md": {
@@ -340,8 +354,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "fe60b7d0d460bcbea3d0da61ab530b0369eeb7f5",
-      "size": 5414,
+      "sha": "27f42751193e56425a579a6dfb81c6f93bfc5a71",
+      "size": 5462,
       "mode": "100644"
     },
     ".claude/settings.json": {
