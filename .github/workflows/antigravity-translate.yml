@@ -10,8 +10,7 @@ on:
   workflow_dispatch:
   pull_request:
     paths:
-      - "docs/en/**"
-      - "src/content/docs/en/**"
+      - "**"
 
 permissions:
   contents: write
@@ -33,6 +32,18 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Parse Translation Triggers and Conventional Commits
+        id: parse_trigger
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          # Fetch changed files in the branch
+          git diff --name-only origin/main...HEAD > changed_files.txt || git diff --name-only HEAD~1 > changed_files.txt || touch changed_files.txt
+          
+          # Execute the trigger parser script
+          bash scripts/parse-translation-trigger.sh "$PR_TITLE" changed_files.txt "$EVENT_NAME"
+
       - name: Install System Dependencies for Headless Keyring
         run: |
           sudo apt-get update
@@ -44,11 +55,13 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Configure Keyring and Execute Antigravity AI Translator
+        if: steps.parse_trigger.outputs.should_run == 'true'
         env:
           ANTIGRAVITY_TOKEN: ${{ secrets.ANTIGRAVITY_TOKEN }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY_NAME: ${{ github.event.repository.name }}
+          FORCE_RECONCILE: ${{ steps.parse_trigger.outputs.force_reconcile }}
         run: |
           dbus-run-session -- bash -c '
             # 1. Unlock gnome-keyring in headless session
@@ -71,6 +84,17 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
 
-            # 6. Run the Antigravity Agentic Language Translator using --dangerously-skip-permissions
-            /home/runner/.local/bin/agy --project "$GCP_PROJECT_ID" --dangerously-skip-permissions --print-timeout 25m --print "You are Antigravity, an elite agentic AI coding assistant and language translator. Your task is to maintain language translations for documentation under '\''docs/en/'\'' or '\''src/content/docs/en/'\'' across all 12 ecosystem target locales (fr, es, de, pt-br, ja, ko, zh-cn, zh-tw, ar, it, hi, th). Read .agents/skills/i18n-translate/SKILL.md for instructions. First, identify any created, modified, or deleted English documentation. For each created or modified file, check if target locale files exist and translate or update them. For each deleted English file under '\''docs/en/'\'' or '\''src/content/docs/en/'\'', identify and delete its corresponding target translation files under all 12 target locales (e.g., '\''docs/<locale>/path/to/file.md[x]'\'' or '\''src/content/docs/<locale>/path/to/file.md[x]'\''). Finally, stage all updated and deleted files, commit them with '\''chore(i18n): update translations via Antigravity [skip ci]'\'' and push them back to the PR branch."
+            # 6. Build the dynamic Antigravity Agentic Language Translator prompt
+            PROMPT_INSTRUCTION="You are Antigravity, an elite agentic AI coding assistant and language translator. Your task is to maintain language translations for documentation under '\''docs/en/'\'' or '\''src/content/docs/en/'\'' across all 12 ecosystem target locales (fr, es, de, pt-br, ja, ko, zh-cn, zh-tw, ar, it, hi, th). Read .agents/skills/i18n-translate/SKILL.md for instructions."
+
+            if [ "$FORCE_RECONCILE" == "true" ]; then
+              PROMPT_INSTRUCTION="$PROMPT_INSTRUCTION FIRST, PERFORM A FULL RECONCILIATION: force re-translation of all English documentation from scratch, completely overwriting all target locale translation files and ignoring any existing i18n.sourceHash matches."
+            else
+              PROMPT_INSTRUCTION="$PROMPT_INSTRUCTION FIRST, identify any created, modified, or deleted English documentation. For each created or modified file, check if target locale files exist and translate or update them. For each deleted English file under '\''docs/en/'\'' or '\''src/content/docs/en/'\'', identify and delete its corresponding target translation files under all 12 target locales."
+            fi
+
+            PROMPT_INSTRUCTION="$PROMPT_INSTRUCTION Finally, stage all updated and deleted files, commit them with '\''chore(i18n): update translations via Antigravity [skip ci]'\'' and push them back to the PR branch."
+
+            # 7. Run the Antigravity Agentic Language Translator using --dangerously-skip-permissions
+            /home/runner/.local/bin/agy --project "$GCP_PROJECT_ID" --dangerously-skip-permissions --print-timeout 25m --print "$PROMPT_INSTRUCTION"
           '
