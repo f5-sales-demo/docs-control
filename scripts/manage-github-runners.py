@@ -293,13 +293,14 @@ def health_check(org, base_dir: Path, gov_path: Path = DOCS_CONTROL_GOVERNANCE_P
 
             data = json.loads(res.stdout)
             runners = data.get("runners", [])
-            if not runners:
+            target_runner_name = f"runner-ubuntu-{repo}"
+            target_runner = next((r for r in runners if r.get("name") == target_runner_name), runners[0] if runners else None)
+            if not target_runner:
                 print(f"⚠️ {repo:30s} Unregistered")
                 summary["unregistered"] += 1
             else:
-                r = runners[0]
-                status = r.get("status", "unknown")
-                busy = r.get("busy", False)
+                status = target_runner.get("status", "unknown")
+                busy = target_runner.get("busy", False)
                 busy_str = " (Busy)" if busy else " (Idle)"
                 if status == "online":
                     print(f"✅ {repo:30s} Online{busy_str}")

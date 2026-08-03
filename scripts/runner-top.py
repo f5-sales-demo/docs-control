@@ -33,11 +33,11 @@ def get_disk_info(mount_point):
         return "N/A"
 
 
-def get_governed_repos():
-    if not GOVERNANCE_PATH.exists():
+def get_governed_repos(gov_path=GOVERNANCE_PATH):
+    if not gov_path.exists():
         return []
     try:
-        with open(GOVERNANCE_PATH, "r", encoding="utf-8") as f:
+        with open(gov_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return sorted(list(data.get("repo_classes", {}).get("repos", {}).keys()))
     except Exception:
@@ -98,14 +98,14 @@ def get_running_processes():
     return procs
 
 
-def fetch_gh_runner_statuses(org="f5-sales-demo"):
+def fetch_gh_runner_statuses(gov_path=GOVERNANCE_PATH, base_dir=DEFAULT_BASE_DIR):
     """
     Aggregate local runner process status across governed repositories.
     """
-    repos = get_governed_repos()
+    repos = get_governed_repos(gov_path)
     statuses = {}
     for repo in repos:
-        repo_dir = DEFAULT_BASE_DIR / repo
+        repo_dir = base_dir / repo
         statuses[repo] = {"status": "offline", "busy": False, "pid": "-", "cpu": 0.0, "mem_mb": 0.0}
 
     # Aggregate process stats per repo
@@ -118,17 +118,18 @@ def fetch_gh_runner_statuses(org="f5-sales-demo"):
         repo_procs[r].append(p)
 
     for r, plist in repo_procs.items():
-        total_cpu = sum(p["cpu"] for p in plist)
-        total_mem = sum(p["mem_mb"] for p in plist)
-        main_pid = plist[0]["pid"] if plist else "-"
-        is_worker_active = any(p["type"] == "Worker" for p in plist)
-        statuses[r] = {
-            "status": "online",
-            "busy": is_worker_active,
-            "pid": main_pid,
-            "cpu": total_cpu,
-            "mem_mb": total_mem
-        }
+        if r in statuses:
+            total_cpu = sum(p["cpu"] for p in plist)
+            total_mem = sum(p["mem_mb"] for p in plist)
+            main_pid = plist[0]["pid"] if plist else "-"
+            is_worker_active = any(p["type"] == "Worker" for p in plist)
+            statuses[r] = {
+                "status": "online",
+                "busy": is_worker_active,
+                "pid": main_pid,
+                "cpu": total_cpu,
+                "mem_mb": total_mem
+            }
 
     return statuses
 
@@ -186,11 +187,13 @@ def main():
     parser = argparse.ArgumentParser(description="Real-time process monitor for GitHub Self-Hosted Runners")
     parser.add_argument("--once", action="store_true", help="Print stats once and exit")
     parser.add_argument("--interval", type=int, default=3, help="Refresh interval in seconds (default: 3)")
+    parser.add_argument("--base-dir", type=Path, default=DEFAULT_BASE_DIR, help="Base directory for runners")
+    parser.add_argument("--governance-path", type=Path, default=GOVERNANCE_PATH, help="Path to docs-control governance.json")
     args = parser.parse_args()
 
     try:
         while True:
-            statuses = fetch_gh_runner_statuses()
+            statuses = fetch_gh_runner_statuses(gov_path=args.governance_path, base_dir=args.base_dir)
             render_top_view(statuses, once=args.once)
             if args.once:
                 break
