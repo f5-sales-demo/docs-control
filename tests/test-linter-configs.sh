@@ -511,79 +511,47 @@ for pair in "5f.11:HYG:check-repo-hygiene.sh" "5f.12:LOC:locale-lint.sh"; do
 done
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 6: zizmor.yaml suppressions are complete enough for caller
-#            workflows + typical downstream CI patterns to scan clean
+# SECTION 6: zizmor audits are unsuppressed and fail on every finding
 # ════════════════════════════════════════════════════════════════════
 echo ""
-echo "=== Section 6: zizmor suppression coverage ==="
+echo "=== Section 6: unsuppressed zizmor coverage ==="
 
-# Rationale: without these suppressions, zizmor reports 100+ findings on a
-# typical downstream repo (e.g., xcsh reports 185 before config, 27 with
-# config). Each rule below represents a deliberate docs-control decision
-# — removing one here would re-introduce noise across every governed repo.
-for rule in \
-  artipacked \
-  cache-poisoning \
-  secrets-inherit \
-  secrets-outside-env \
-  bot-conditions \
-  dependabot-cooldown; do
-  if python3 -c "
-import sys, yaml
-with open('$REPO_ROOT/zizmor.yaml') as f:
-  cfg = yaml.safe_load(f)
-sys.exit(0 if cfg.get('rules', {}).get('$rule', {}).get('disable') else 1)
-" 2>/dev/null; then
-    pass "6.x zizmor.yaml disables '$rule' (governed-repo noise suppression)"
-  else
-    fail "6.x zizmor.yaml disables '$rule'" "rule not disabled"
-  fi
-done
-
-# Remote actions and reusable workflows are required to use immutable commit
-# revisions. This must stay enabled now that the canonical workflows are clean.
 if python3 -c "
 import sys, yaml
 with open('$REPO_ROOT/zizmor.yaml') as f:
   cfg = yaml.safe_load(f)
-sys.exit(1 if cfg.get('rules', {}).get('unpinned-uses', {}).get('disable') else 0)
+sys.exit(0 if cfg.get('rules') == {} else 1)
 " 2>/dev/null; then
-  pass "6.x zizmor.yaml keeps 'unpinned-uses' enabled (immutable workflow dependencies)"
+  pass "6.1 zizmor.yaml disables and ignores no audits"
 else
-  fail "6.x zizmor.yaml keeps 'unpinned-uses' enabled" "rule is globally disabled"
+  fail "6.1 zizmor.yaml disables and ignores no audits" "rules must be an empty map"
 fi
 
-# Security-relevant audits stay ENABLED fleet-wide (never globally disabled).
-# Intentional instances are handled with justified inline `# zizmor: ignore`
-# comments or root-cause fixes, so new occurrences elsewhere are still caught.
-for rule in \
-  dangerous-triggers \
-  excessive-permissions \
-  template-injection; do
-  if python3 -c "
-import sys, yaml
-with open('$REPO_ROOT/zizmor.yaml') as f:
-  cfg = yaml.safe_load(f)
-sys.exit(1 if cfg.get('rules', {}).get('$rule', {}).get('disable') else 0)
-" 2>/dev/null; then
-    pass "6.x zizmor.yaml keeps '$rule' enabled (security audit active)"
+if grep -R -Fq 'zizmor: ignore' \
+  "$REPO_ROOT/.github/workflows" "$REPO_ROOT/workflows"; then
+  fail "6.2 workflows contain no inline zizmor ignores" "remove the ignore and fix its finding"
+else
+  pass "6.2 workflows contain no inline zizmor ignores"
+fi
+
+ZIZMOR_GATE="$REPO_ROOT/workflows/workflow-security-audit.yml"
+for required in \
+  '--no-config' \
+  '--no-ignores' \
+  '--persona=auditor' \
+  '.github/workflows/' \
+  'workflows/*.yml'; do
+  if grep -Fq -- "$required" "$ZIZMOR_GATE"; then
+    pass "6.3 audit gate contains '$required'"
   else
-    fail "6.x zizmor.yaml keeps '$rule' enabled" "rule is globally disabled"
+    fail "6.3 audit gate contains '$required'" "full unsuppressed coverage is required"
   fi
 done
 
-# template-injection is scoped-ignored ONLY for the trusted, push:main-only
-# github-pages-deploy.yml (no untrusted-data path); it stays active elsewhere.
-if python3 -c "
-import sys, yaml
-with open('$REPO_ROOT/zizmor.yaml') as f:
-  cfg = yaml.safe_load(f)
-ig = cfg.get('rules', {}).get('template-injection', {}).get('ignore', [])
-sys.exit(0 if 'github-pages-deploy.yml' in ig else 1)
-" 2>/dev/null; then
-  pass "6.x template-injection scoped-ignores github-pages-deploy.yml only"
+if grep -Eq '\|\|[[:space:]]*true|--min-severity' "$ZIZMOR_GATE"; then
+  fail "6.4 audit gate fails on every finding" "found a swallowed or severity-filtered audit"
 else
-  fail "6.x template-injection scoped-ignores github-pages-deploy.yml" "scoped ignore missing"
+  pass "6.4 audit gate fails on every finding"
 fi
 
 # ════════════════════════════════════════════════════════════════════

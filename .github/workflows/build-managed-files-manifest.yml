@@ -50,9 +50,7 @@ on:
       - '.claude/hooks/**'
   workflow_dispatch:
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 concurrency:
   group: build-managed-files-manifest
@@ -60,15 +58,18 @@ concurrency:
 
 jobs:
   build:
+    name: Build managed-files manifest
     runs-on: ubuntu-latest
+    environment: repository-settings
+    permissions:
+      contents: read # check out the protected governance source
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
-          # The exact-main guards query origin directly instead of consuming a
-          # rate-limited REST request. Keep the checkout token for those reads.
-          persist-credentials: true
+          # Remote reads authenticate explicitly through gh in the build step.
+          persist-credentials: false
           # Use a PAT so the manifest PR (and its branch push) are attributed
           # to a real user — PRs opened with the default GITHUB_TOKEN do not
           # trigger CI, leaving required checks unreported and auto-merge stuck.
@@ -82,6 +83,7 @@ jobs:
           MANIFEST_PATH: .github/config/managed-files-manifest.json
         run: |
           set -euo pipefail
+          gh auth setup-git
 
           resolve_protected_main_sha() {
             local framed sha

@@ -25,7 +25,9 @@ concurrency:
 
 jobs:
   resolve-source:
+    name: Resolve protected governance source
     runs-on: ubuntu-latest
+    environment: repository-settings
     outputs:
       source_sha: ${{ steps.resolve.outputs.source_sha }}
       ready: ${{ steps.resolve.outputs.ready }}

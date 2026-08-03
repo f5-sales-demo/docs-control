@@ -6,14 +6,15 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  packages: read
-  pages: write
-  id-token: write
+permissions: {}
 
 jobs:
   docs:
     uses: ./.github/workflows/github-pages-deploy.yml
+    permissions:
+      contents: read # read the protected documentation source
+      packages: read # pull the approved documentation builder
+      pages: write # publish the verified Pages artifact
+      id-token: write # authenticate the Pages deployment
     with:
       content-ref: ${{ github.sha }}

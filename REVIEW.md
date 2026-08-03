@@ -63,8 +63,9 @@ false positives here erode trust). Never let these block the merge:
 
 ## Verification you must perform
 
-- Run the repo's authenticated verification (e.g. `terraform init` with the
-  partial azurerm backend, then `terraform plan`; relevant `az`/`gh` read calls).
+- Run the repo's trusted, default-branch-pinned verification when available. On
+  the ephemeral CI runner, use only credential-free checks and never claim
+  authenticated Azure/F5 verification.
 - Cite `file:line` for every behavior claim; paste the KEY line of any command
   output you rely on.
 

@@ -2,43 +2,34 @@
 name: Require Linked Issue
 
 on:
-  # zizmor: ignore[dangerous-triggers] — needs pull-requests:write to post the linked-issue check status on fork PRs; a plain `pull_request` gives forks a read-only token and the required check would deadlock. This job is GraphQL/metadata only and never checks out or executes PR code.
-  pull_request_target:
-    types: [opened, edited, reopened, synchronize]
-  workflow_call:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
-permissions:
-  issues: read
-  pull-requests: write
+permissions: {}
+
+concurrency:
+  group: require-linked-issue
+  cancel-in-progress: false
 
 jobs:
-  check-linked-issue:
-    runs-on: ubuntu-latest
+  check:
     name: Check linked issues
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write # read linked issues and publish one deduplicated guidance comment
+      pull-requests: read # enumerate open pull requests and linked-issue references
+      statuses: write # publish the existing required context on each pull request head
     steps:
-      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+      - name: Enforce linked issues
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            // Bot-authored branches whose content is derived from changes that
-            // already passed this gate. `changeset-release/**` is the Changesets
-            // release PR: a version bump plus a changelog assembled from
-            // changeset files that arrived through ordinary issue-linked PRs, so
-            // there is no new authored change for an issue to describe. Without
-            // the exemption it fails a required check and can only be merged by
-            // an administrator overriding branch protection.
             const EXCLUDE_BRANCHES = "dependabot/**,release/**,changeset-release/**,openapi-sync/**,plugin-sync/**,deps/**,sync/**,docs/update-*";
             const MARKER = "<!-- require-linked-issue -->";
             const MESSAGE = `${MARKER}\nThis PR must be linked to a GitHub issue. Use 'Closes #123' in the PR description, or link an issue from the sidebar.`;
-
-            const pr = context.payload.pull_request;
-            if (!pr) {
-              core.info("No pull_request payload; skipping.");
-              return;
-            }
-
-            const headRef = pr.head.ref;
+            const STATUS_CONTEXT = "check / Check linked issues";
             const { owner, repo } = context.repo;
-            const prNumber = pr.number;
 
             const globToRegex = (glob) => {
               const escaped = glob
@@ -48,46 +39,78 @@ jobs:
                 .replace(/__DOUBLE_STAR__/g, ".*");
               return new RegExp(`^${escaped}$`);
             };
-
-            const patterns = EXCLUDE_BRANCHES.split(",").map((p) => globToRegex(p.trim()));
-            if (patterns.some((re) => re.test(headRef))) {
-              core.info(`Head ref '${headRef}' matches exclude list; skipping.`);
-              return;
-            }
-
-            const result = await github.graphql(
-              `query($owner: String!, $repo: String!, $number: Int!) {
-                repository(owner: $owner, name: $repo) {
-                  pullRequest(number: $number) {
-                    closingIssuesReferences(first: 10) { nodes { number } }
-                  }
-                }
-              }`,
-              { owner, repo, number: prNumber }
+            const excludedBranches = EXCLUDE_BRANCHES.split(",").map((pattern) =>
+              globToRegex(pattern.trim()),
             );
 
-            const linked = result.repository.pullRequest.closingIssuesReferences.nodes;
-            if (linked.length > 0) {
-              const refs = linked.map((n) => "#" + n.number).join(", ");
-              core.info(`Found ${linked.length} linked issue(s): ${refs}`);
-              return;
-            }
-
-            const comments = await github.paginate(github.rest.issues.listComments, {
+            const pulls = await github.paginate(github.rest.pulls.list, {
               owner,
               repo,
-              issue_number: prNumber,
+              state: "open",
               per_page: 100,
             });
+            const evaluationErrors = [];
 
-            const hasMarker = comments.some((c) => c.body && c.body.includes(MARKER));
-            if (!hasMarker) {
-              await github.rest.issues.createComment({
-                owner,
-                repo,
-                issue_number: prNumber,
-                body: MESSAGE,
-              });
+            for (const pull of pulls) {
+              const headSha = pull.head.sha;
+              const postStatus = async (state, description) => {
+                await github.rest.repos.createCommitStatus({
+                  owner,
+                  repo,
+                  sha: headSha,
+                  state,
+                  context: STATUS_CONTEXT,
+                  description,
+                });
+              };
+
+              await postStatus("pending", "Checking for a linked issue");
+              try {
+                if (excludedBranches.some((pattern) => pattern.test(pull.head.ref))) {
+                  await postStatus("success", "Automated branch is exempt");
+                  continue;
+                }
+
+                const result = await github.graphql(
+                  `query($owner: String!, $repo: String!, $number: Int!) {
+                    repository(owner: $owner, name: $repo) {
+                      pullRequest(number: $number) {
+                        closingIssuesReferences(first: 10) { nodes { number } }
+                      }
+                    }
+                  }`,
+                  { owner, repo, number: pull.number },
+                );
+                const linked = result.repository.pullRequest.closingIssuesReferences.nodes;
+                if (linked.length > 0) {
+                  const refs = linked.map((node) => `#${node.number}`).join(", ");
+                  core.info(`PR #${pull.number} links ${refs}`);
+                  await postStatus("success", "Linked issue found");
+                  continue;
+                }
+
+                const comments = await github.paginate(github.rest.issues.listComments, {
+                  owner,
+                  repo,
+                  issue_number: pull.number,
+                  per_page: 100,
+                });
+                if (!comments.some((comment) => comment.body?.includes(MARKER))) {
+                  await github.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: pull.number,
+                    body: MESSAGE,
+                  });
+                }
+                await postStatus("failure", "Pull request has no linked issue");
+              } catch (error) {
+                await postStatus("failure", "Linked-issue evaluation failed");
+                core.error(`PR #${pull.number}: ${error.message}`);
+                evaluationErrors.push(pull.number);
+              }
             }
 
-            core.setFailed("PR is not linked to an issue. Add 'Closes #N' to the PR description or link an issue from the sidebar.");
+            if (evaluationErrors.length > 0) {
+              core.setFailed(`Linked-issue evaluation failed for PRs: ${evaluationErrors.join(", ")}`);
+            }

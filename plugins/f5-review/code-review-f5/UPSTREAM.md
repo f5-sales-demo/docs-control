@@ -1,7 +1,7 @@
 # Vendored plugin provenance
 
 `code-review-f5` is a **vendored, pinned** copy of Anthropic's `code-review`
-plugin, extended for the F5 self-hosted reviewer. Vendoring (not runtime
+plugin, extended for the F5 CI reviewer. Vendoring (not runtime
 marketplace fetch) keeps the reviewer closed-loop: no runtime dependency on
 github.com/anthropics, and the exact review logic is pinned by docs-control's own
 commit SHA.
@@ -22,15 +22,16 @@ Marked with `F5-EXTENSION` comments in the command so a re-sync diff is obvious:
   block merges on 🔴. Upstream is advisory-only and emits no machine-readable
   verdict; blocking is a deliberate F5 divergence.
 - **E3 — F5 rubric**: the highest-priority rules from `REVIEW.md`
-  (prompt-injection hardening, secret non-exfiltration, "prove it against the real
-  internal APIs" verification requirement, 🔴 merge-blocking severity) are baked in.
-- **E4 — verification subagent**: a 5th parallel review agent runs the allow-listed
-  `terraform init/validate/plan` + read-only `az`/`gh` calls over the VPN and flags
-  a 🔴 when a command that should succeed fails. **Security:** it must NOT execute
+  (prompt-injection hardening, secret non-exfiltration, trusted repository-local
+  verification requirement, 🔴 merge-blocking severity) are baked in.
+- **E4 — verification subagent**: a 5th parallel review agent consumes trusted
+  repository-local verification and may run credential-free Terraform checks. It
+  flags a 🔴 when a command that should succeed fails because of the change.
+  **Security:** it must NOT execute
   any script carried in the PR head (e.g. `.code-review/verify.sh`) — that would be
-  arbitrary code execution with the operator's live credentials from untrusted PR
-  content. Trusted execution of a repo's `verify.sh` is now a workflow pre-step that
-  pins the script to the PR **base** blob and runs it before the session starts; its
+  arbitrary code execution with the job token and network access from untrusted PR
+  content. Trusted execution of a repo's `verify.sh` is a workflow pre-step that
+  pins the script to the protected **default branch** and runs it before the session starts; its
   exit code + output are handed to Agent 5 via `./verify-output.txt`, which the agent
   `Read`s as authoritative evidence. Agent 5 still must never execute the PR head's
   copy of that (or any) script itself.
@@ -45,9 +46,9 @@ Marked with `F5-EXTENSION` comments in the command so a re-sync diff is obvious:
 
 - **E6 — CI-only invocation**: `disable-model-invocation: true` in the command
   frontmatter. This reviewer is the merge gate and carries elevated `allowed-tools`
-  (`Write`, `gh pr comment`, `az`, `terraform`). Upstream leaves the command
+  (`Write`, `gh pr comment`, `terraform`). Upstream leaves the command
   model-invocable, which let a local agent auto-select the gate reviewer for a spec,
-  a plan, or an unpushed branch — the wrong layer, with authenticated side effects
+  a plan, or an unpushed branch — the wrong layer, with CI side effects
   outside the controlled workflow. A `permissions.deny` rule cannot express this:
   verified A/B, `Skill(code-review-f5:code-review)` in `deny` blocks the workflow's
   own invocation too, because CI passes the command through `prompt:` and the deny

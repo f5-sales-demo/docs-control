@@ -20,18 +20,24 @@ on:
         description: 'PAT used to enqueue the current protected-main receipt'
         required: true
 
+permissions: {}
+
 concurrency:
   group: sync-managed-files-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
   sync:
+    name: Sync managed files
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # check out the exact downstream protected-main receipt
     steps:
       - name: Checkout calling repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.downstream_sha }}
+          persist-credentials: false
 
       - name: Sync managed files
         env:

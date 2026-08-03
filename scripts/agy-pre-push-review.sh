@@ -2,6 +2,11 @@
 # Run the required local Antigravity review before a branch is pushed for a PR.
 set -euo pipefail
 
+if [ "${AGY_PRE_PUSH_REVIEW_ACTIVE:-}" = "1" ]; then
+  echo "[review] nested Antigravity pre-push review refused" >&2
+  exit 1
+fi
+
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
   echo "[review] must run inside a git repository" >&2
   exit 1
@@ -37,5 +42,6 @@ prompt=$(printf '%s\n' \
   "Classify findings as blocking, medium, or nit; include file and line evidence. If there are no findings, say so explicitly.")
 
 env -u GH_TOKEN -u GITHUB_TOKEN -u REPO_SETTINGS_TOKEN -u REPO_SYNC_TOKEN \
+  AGY_PRE_PUSH_REVIEW_ACTIVE=1 \
   agy --new-project --sandbox --mode plan --disable-slash-commands \
   --print-timeout 25m --print "$prompt"

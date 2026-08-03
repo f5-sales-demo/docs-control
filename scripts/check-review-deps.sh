@@ -9,21 +9,17 @@
 # Prints one line per tool (OK / MISSING / NOEXEC / BROKEN) and a final verdict.
 # Exit 0 = every dependency usable. Exit 1 = at least one is not.
 #
-# WHY THIS EXISTS: the reviewer's stated reason to exist is proving a change works
-# against real internal APIs using the operator's live CLIs on the self-hosted
-# runner. That leg can break WITHOUT any review failing — a review then looks
-# complete while having silently skipped the one check no diff-only reviewer can
-# do. That happened: a non-executable `terraform` shim in ~/.local/bin was the ONLY
-# terraform on the runner's PATH (~/.tfenv/bin is added by interactive rc files only),
-# so every `terraform` call died with "Permission denied" while reviews kept reporting
-# success. This check exists so that degradation is always VISIBLE.
+# WHY THIS EXISTS: repository-local verification can break WITHOUT the model review
+# failing, making a review look complete while deterministic checks were silently
+# skipped. This check makes that degradation visible. The ephemeral runner carries
+# no operator cloud session, so authenticated cloud CLIs are deliberately not part
+# of this contract.
 #
 # NOTE on PATH semantics (verified, not assumed): bash SKIPS a non-executable match
 # and uses a later executable one, so a non-executable entry only breaks things when
 # it is the sole match. This check reports exactly that condition.
 #
-# The runner is started by launchd, whose environment differs from an interactive
-# shell, so this must be evaluated in the runner's own environment to be truthful.
+# Evaluate the actual job environment rather than assuming the hosted image contents.
 set -uo pipefail
 
 PROBE=0
@@ -31,9 +27,9 @@ PROBE=0
 
 # Tools the reviewer cannot function without at all.
 CORE="git jq gh"
-# Tools the AUTHENTICATED VERIFICATION leg needs. Missing these does not stop a
+# Tools the repository-local verification leg needs. Missing these does not stop a
 # review, but it must be reported so the review never implies it verified.
-VERIFY="terraform az"
+VERIFY="terraform"
 
 fail=0
 degraded=""
@@ -41,7 +37,6 @@ degraded=""
 probe_cmd() { # <tool> -> cheap, offline-ish version invocation
   case "$1" in
   terraform) terraform version ;;
-  az) az version ;;
   gh) gh --version ;;
   git) git --version ;;
   jq) jq --version ;;

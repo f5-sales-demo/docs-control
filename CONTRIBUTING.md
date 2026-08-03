@@ -52,8 +52,8 @@ Every change follows this path:
 Issue → Branch → PR (linked to issue) → CI passes → auto-merge when green → Branch auto-deleted
 ```
 
-The automated code review used to sit in that chain. It is **currently suspended** — see
-[CI review](#ci-review-suspended).
+The automated code review runs as an advisory check while fleet validation completes — see
+[CI review](#ci-review).
 
 No exceptions. PRs without a linked issue will be blocked by CI.
 
@@ -182,8 +182,8 @@ If a branch falls behind `main` while its PR is open, use the **Update branch** 
 ## Step 5: Review and Merge
 
 - All required CI checks must pass before merge.
-- The automated Claude Code review is **currently suspended** and is not a required check (see
-  [CI review](#ci-review-suspended)).
+- The automated Claude Code review runs as an advisory CI check and is not yet a required context
+  (see [CI review](#ci-review)).
 - Merging is automated: once every required check is green, auto-merge squash-merges the PR.
 - The branch is automatically deleted after merge (`delete_branch_on_merge` is enabled); clean up
   your local branch afterward.
@@ -196,21 +196,15 @@ Review uses three routes. They are not interchangeable, and none substitutes for
 | ----- | --------------- | --------- |
 | **Local document review** | A spec or implementation plan | Advisory |
 | **Local Antigravity review** | The committed branch diff before a PR push | Required workflow step |
-| **CI** | The pull-request diff | **Currently suspended** — not running, not required |
+| **CI** | The pull-request diff | Advisory until fleet validation is complete |
 
-### CI review (suspended)
+### CI review
 
-> **Suspended.** No CI job currently reviews pull-request diffs. The self-hosted Claude reviewer is
-> gated behind `REVIEWER_ENABLED` (docs-control#838), and its required context was removed first
-> (docs-control#833). The Gemini Antigravity reviewer is disabled in GitHub Actions, fail-closed
-> behind `ANTIGRAVITY_REVIEW_ENABLED`, and must not run until the credential and PR-head boundary in
-> docs-control#1016 is fixed. Do not wait for either CI review or treat its absence as a fault.
-
-The rest of this section describes the reviewer as it behaves when enabled.
-
-Every downstream pull request is reviewed by a **Claude Code reviewer** running on a self-hosted
-runner. It is a **required status check** (`review / claude-review`) — auto-merge will not merge
-until it passes.
+Human-authored, same-repository pull requests are reviewed by a **Claude Code reviewer** on an
+ephemeral GitHub-hosted runner. The check is advisory while the fleet migration is validated; it
+must complete successfully before `review / claude-review` is restored as a required context.
+The separate Gemini Antigravity reviewer remains disabled and fail-closed behind
+`ANTIGRAVITY_REVIEW_ENABLED` until docs-control#1016 is resolved.
 
 - **It enforces the [Engineering Standards](#engineering-standards) in this document** — it is not
   a separate rulebook. Meet those standards and it approves. Its reviewer persona and rubric live
