@@ -22,9 +22,20 @@ trap 'rm -rf "$TMPDIR_BASE"' EXIT
 setup_clean_repo() {
   rm -rf "$TMPDIR_BASE/repo"
   mkdir -p "$TMPDIR_BASE/repo/src"
+  git -C "$TMPDIR_BASE/repo" init -q
 }
 
 run_lint() {
+  local dir="$1"
+  local exit_code=0
+  local output
+  git -C "$dir" add -A
+  output=$(cd "$dir" && bash "$LINT_SCRIPT" 2>&1) || exit_code=$?
+  echo "$output"
+  return $exit_code
+}
+
+run_lint_untracked() {
   local dir="$1"
   local exit_code=0
   local output
@@ -154,6 +165,22 @@ if [ "$EXIT_CODE" -eq 0 ]; then
   pass "8. test files excluded"
 else
   fail "8. test files excluded" "exit $EXIT_CODE"
+fi
+
+# Pre-commit should inspect files that are actually in the repository, not an
+# unrelated untracked draft. This also proves the implementation does not walk
+# the working tree before filtering its output.
+setup_clean_repo
+cat >"$TMPDIR_BASE/repo/src/untracked.ts" <<'TS'
+const VALID_LOCALE_SLUGS = new Set(['en', 'fr']);
+TS
+OUTPUT=""
+EXIT_CODE=0
+OUTPUT=$(run_lint_untracked "$TMPDIR_BASE/repo") || EXIT_CODE=$?
+if [ "$EXIT_CODE" -eq 0 ]; then
+  pass "9. untracked source files are not scanned"
+else
+  fail "9. untracked source files are not scanned" "exit $EXIT_CODE: $OUTPUT"
 fi
 
 # The package that owns these definitions cannot import them from itself. Inside
