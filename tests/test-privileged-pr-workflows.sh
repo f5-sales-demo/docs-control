@@ -68,7 +68,16 @@ done
 for file in \
   "$REPO_ROOT/workflows/require-linked-issue.yml" \
   "$REPO_ROOT/.github/workflows/require-linked-issue.yml"; do
-  require_literal "$file" 'check / Check linked issues' "${file#"$REPO_ROOT/"} publishes the existing required context"
+  required_context=$(jq -r '
+    .branch_protection[0].required_status_checks.self_contexts[]
+    | select(endswith("Check linked issues"))
+  ' "$REPO_ROOT/.github/config/repo-settings.json")
+  published_context=$(sed -n 's/.*const STATUS_CONTEXT = "\([^"]*\)";.*/\1/p' "$file")
+  if [ -n "$required_context" ] && [ "$published_context" = "$required_context" ]; then
+    pass "${file#"$REPO_ROOT/"} publishes the exact required self-repository context"
+  else
+    fail "${file#"$REPO_ROOT/"} publishes the exact required self-repository context"
+  fi
   require_literal "$file" 'const headSha = pull.head.sha;' "${file#"$REPO_ROOT/"} publishes status on the current PR head"
   require_literal "$file" 'github.paginate(github.rest.pulls.list' "${file#"$REPO_ROOT/"} evaluates every open pull request"
   require_literal "$file" 'postStatus("pending"' "${file#"$REPO_ROOT/"} publishes a pending status before evaluation"
