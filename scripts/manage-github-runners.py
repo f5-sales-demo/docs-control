@@ -45,7 +45,9 @@ def get_latest_runner_version():
         res = run_cmd(["gh", "api", "repos/actions/runner/releases/latest", "--jq", ".tag_name"])
         tag = res.stdout.strip()
         if tag.startswith("v"):
-            return tag[1:]
+            tag = tag[1:]
+        if not tag:
+            return "2.336.0"
         return tag
     except Exception as e:
         print(f"Warning: Failed to fetch latest runner tag via gh CLI: {e}. Falling back to 2.336.0")
@@ -61,9 +63,11 @@ def download_runner_tarball(version, cache_dir: Path):
         print(f"[CACHE] Found cached runner tarball at {tarball_path}")
         return tarball_path
 
+    tmp_path = cache_dir / f"{tarball_name}.tmp"
     url = f"https://github.com/actions/runner/releases/download/v{version}/{tarball_name}"
     print(f"[DOWNLOAD] Downloading runner v{version} from {url}...")
-    urllib.request.urlretrieve(url, tarball_path)
+    urllib.request.urlretrieve(url, tmp_path)
+    tmp_path.replace(tarball_path)
     print(f"[DOWNLOAD] Saved to {tarball_path}")
     return tarball_path
 
@@ -262,7 +266,8 @@ def clean_ungoverned(org, base_dir: Path, gov_path: Path = DOCS_CONTROL_GOVERNAN
         return
 
     print(f"Auditing runner directories in {base_dir} against governed repos list...")
-    for item in base_dir.iterdir():
+    items = list(base_dir.iterdir())
+    for item in items:
         if item.is_dir() and not item.name.startswith("."):
             repo_name = item.name
             if repo_name not in governed_set:

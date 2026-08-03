@@ -72,11 +72,15 @@ def get_running_processes():
                     after_org = cmd.split("/f5-sales-demo/")[1]
                     repo = after_org.split("/")[0]
 
-                p_type = "Listener"
-                if "Runner.Worker" in cmd:
+                p_type = None
+                if "Runner.Listener" in cmd:
+                    p_type = "Listener"
+                elif "Runner.Worker" in cmd:
                     p_type = "Worker"
                 elif "runsvc.sh" in cmd:
                     p_type = "Service"
+                else:
+                    continue
 
                 mem_mb = float(rss) / 1024.0 if rss.isdigit() else 0.0
 
@@ -96,7 +100,7 @@ def get_running_processes():
 
 def fetch_gh_runner_statuses(org="f5-sales-demo"):
     """
-    Query GitHub API for runner statuses across repos or list via systemctl
+    Aggregate local runner process status across governed repositories.
     """
     repos = get_governed_repos()
     statuses = {}
@@ -150,7 +154,7 @@ def render_top_view(statuses, once=False):
   Disk /data: {disk_data:<20} Disk /: {disk_root:<20}
   Fleet: {total} Total | \033[32m{online} Online\033[0m (\033[33m{busy} Busy\033[0m, \033[36m{idle} Idle\033[0m) | \033[31m{offline} Offline\033[0m
 ================================================================================
-  {"REPO NAME":<30} {"STATUS":<12} {"PID":<8} {"CPU %":<8} {"MEM (MB)":<10}
+  {"REPO NAME":<30} {"STATUS":<15} {"PID":<8} {"CPU %":<8} {"MEM (MB)":<10}
 --------------------------------------------------------------------------------"""
     print(header)
 
@@ -158,17 +162,20 @@ def render_top_view(statuses, once=False):
         st = data["status"]
         if st == "online":
             if data["busy"]:
-                st_str = "\033[33mONLINE (BUSY)\033[0m"
+                raw_st = "ONLINE (BUSY)"
+                st_str = f"\033[33m{raw_st:<15}\033[0m"
             else:
-                st_str = "\033[32mONLINE (IDLE)\033[0m"
+                raw_st = "ONLINE (IDLE)"
+                st_str = f"\033[32m{raw_st:<15}\033[0m"
         else:
-            st_str = "\033[31mOFFLINE\033[0m"
+            raw_st = "OFFLINE"
+            st_str = f"\033[31m{raw_st:<15}\033[0m"
 
         pid_str = str(data["pid"])
         cpu_str = f"{data['cpu']:.1f}%" if data['status'] == 'online' else "-"
         mem_str = f"{data['mem_mb']:.1f} MB" if data['status'] == 'online' else "-"
 
-        print(f"  {repo:<30} {st_str:<23} {pid_str:<8} {cpu_str:<8} {mem_str:<10}")
+        print(f"  {repo:<30} {st_str} {pid_str:<8} {cpu_str:<8} {mem_str:<10}")
 
     print("================================================================================")
     if not once:
