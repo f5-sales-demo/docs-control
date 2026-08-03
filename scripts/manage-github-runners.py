@@ -12,12 +12,9 @@ Authoritative list of governed repos is obtained from .claude/governance.json in
 import argparse
 import json
 import os
-import pathlib
 from pathlib import Path
-import shutil
 import subprocess
 import sys
-import time
 import urllib.request
 
 DEFAULT_ORG = "f5-sales-demo"
@@ -92,11 +89,12 @@ def load_governed_repos(gov_path: Path = DOCS_CONTROL_GOVERNANCE_PATH):
 
 
 def validate_repo_dir(base_dir: Path, repo: str) -> Path:
-    if not repo or not repo.strip():
-        raise ValueError("Repository name cannot be empty.")
-    repo_dir = (base_dir / repo).resolve()
-    if repo_dir == base_dir.resolve():
-        raise ValueError(f"Invalid repository name: '{repo}' resolves to base directory.")
+    if not repo or not repo.strip() or "/" in repo or "\\" in repo:
+        raise ValueError(f"Invalid repository name: '{repo}'. Must be a simple repository name.")
+    resolved_base = base_dir.resolve()
+    repo_dir = (resolved_base / repo).resolve()
+    if repo_dir.parent != resolved_base:
+        raise ValueError(f"Invalid repository name: '{repo}' resolves outside base directory.")
     return repo_dir
 
 
