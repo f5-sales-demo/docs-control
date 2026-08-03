@@ -1,46 +1,46 @@
 {
-  "source_commit": "71ce8924653f2574684994e5f71d79ccc44aec46",
+  "source_commit": "c26df9674ee02df879663d5502ccb5c09aa8f310",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
       "dest": ".github/workflows/github-pages-deploy.yml",
-      "sha": "99add788a13cd83cd1b8159071f7030f45de8f2a",
+      "sha": "f127a747936a834559ab19a558d1d5b519560d4b",
       "size": 855,
       "mode": "100644"
     },
     ".github/workflows/enforce-repo-settings.yml": {
       "src": "workflows/enforce-repo-settings.yml",
       "dest": ".github/workflows/enforce-repo-settings.yml",
-      "sha": "7bd5524369dd9003a51f02bea458ec80090fc4f6",
+      "sha": "911ad6f50ee59ca1fd9cf725e4465a09a080c5e8",
       "size": 11553,
       "mode": "100644"
     },
     ".github/workflows/require-linked-issue.yml": {
       "src": "workflows/require-linked-issue.yml",
       "dest": ".github/workflows/require-linked-issue.yml",
-      "sha": "f7bea5b72d3d332182e6ef3ff887ebb437331a24",
+      "sha": "9ac8cee3fcaff621f2ecefa90a56d6f2bea99262",
       "size": 1087,
       "mode": "100644"
     },
     ".github/workflows/super-linter.yml": {
       "src": "workflows/super-linter.yml",
       "dest": ".github/workflows/super-linter.yml",
-      "sha": "bd230978537bfeb189a537b12cafaac821f71e3f",
+      "sha": "7955b3f997ba1d436fb6a7f1a5aafa1198c732d5",
       "size": 800,
       "mode": "100644"
     },
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
       "dest": ".github/workflows/translation-audit.yml",
-      "sha": "de3bea808069f9dfb0564c7e02ed63be428a64bc",
+      "sha": "c6b59755cf4ccab55f0ebd663da408534d234f54",
       "size": 1800,
       "mode": "100644"
     },
     ".github/PULL_REQUEST_TEMPLATE.md": {
       "src": ".github/PULL_REQUEST_TEMPLATE.md",
       "dest": ".github/PULL_REQUEST_TEMPLATE.md",
-      "sha": "2e152c07e5d16b1c934106f745ace6f7e0dc9f06",
-      "size": 753,
+      "sha": "8c24f1f1f5547ff6c3dae94ac71896418b177f9f",
+      "size": 799,
       "mode": "100644"
     },
     ".github/ISSUE_TEMPLATE/bug_report.md": {
@@ -151,21 +151,21 @@
     ".markdownlint.json": {
       "src": ".markdownlint.json",
       "dest": ".markdownlint.json",
-      "sha": "fa8f3a5d30a2cbc8adaaf8657dad39c2acd75d18",
-      "size": 73,
+      "sha": "194c8741f8fde0c1b6d18b9dda7046ade65a400d",
+      "size": 139,
       "mode": "100644"
     },
     ".github/workflows/dependabot-auto-merge.yml": {
       "src": "workflows/dependabot-auto-merge.yml",
       "dest": ".github/workflows/dependabot-auto-merge.yml",
-      "sha": "c11faf6f3900196b3860237fcd61bb7792487a09",
+      "sha": "7612391e174f314a6972764e78681c56ceb42d9c",
       "size": 840,
       "mode": "100644"
     },
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "a85b55f7a8144c3ffefe2b964d00b355ca6252c8",
+      "sha": "720ebcf735f19edec1d65967acfb15b80f0bbc57",
       "size": 1381,
       "mode": "100644"
     },
@@ -368,7 +368,7 @@
     ".github/workflows/code-review.yml": {
       "src": "workflows/code-review.yml",
       "dest": ".github/workflows/code-review.yml",
-      "sha": "3e9b2b6971144c5edde24a2c8bb9b5263d36cb55",
+      "sha": "f405cfe99aa6f86d197127ec78849899185abe27",
       "size": 6756,
       "mode": "100644"
     },

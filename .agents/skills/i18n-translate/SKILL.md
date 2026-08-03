@@ -43,6 +43,16 @@ Check target files at `docs/<locale>/path/to/file.md[x]`:
   - If `i18n.sourceHash != source_hash`, it is **STALE** and requires translation.
   - If `i18n.sourceHash == source_hash`, it is up to date and can be skipped (unless `--force` is specified).
 
+### 3. Handle Deleted English Documentation
+Check for English source files that have been **deleted** from `docs/en/` or `src/content/docs/en/`:
+- Locate their corresponding target translation paths:
+  - If `docs/en/path/to/file.md[x]` is deleted -> Delete `docs/<locale>/path/to/file.md[x]` for all 12 target locales.
+  - If `src/content/docs/en/path/to/file.md[x]` is deleted -> Delete `src/content/docs/<locale>/path/to/file.md[x]` for all 12 target locales.
+- Stage these deletions:
+  ```bash
+  git rm docs/<locale>/path/to/file.md[x]
+  ```
+
 ---
 
 ## Content & Formatting Guidelines
