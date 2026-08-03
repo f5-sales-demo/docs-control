@@ -1,4 +1,5 @@
 #!/bin/bash
+# Antigravity Conventional Commit Trigger Parser
 
 PR_TITLE="$1"
 CHANGED_FILES_FILE="$2"
