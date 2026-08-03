@@ -172,6 +172,22 @@ git -C "$repo" add fixture.yaml
 git -C "$repo" commit -qm synthetic
 assert_clean "reserved synthetic values" "$repo" --scope head --mode enforce
 
+repo=$(new_repo shell-positional-identities)
+cat >"${repo}/fixture.sh" <<'EOF'
+NAMESPACE=$2
+EOF
+git -C "$repo" add fixture.sh
+git -C "$repo" commit -qm shell-positional-identities
+assert_clean "shell positional identity inputs are dynamic" "$repo" --scope head --mode enforce
+
+repo=$(new_repo shell-literal-identity)
+cat >"${repo}/fixture.sh" <<'EOF'
+NAMESPACE=private-customer
+EOF
+git -C "$repo" add fixture.sh
+git -C "$repo" commit -qm shell-literal-identity
+assert_customer_identifier "unquoted shell identity literals remain enforced" "$repo" --scope head --mode enforce
+
 repo=$(new_repo localization-message-labels)
 mkdir -p "${repo}/l10n"
 cat >"${repo}/l10n/bundle.l10n.json" <<'EOF'

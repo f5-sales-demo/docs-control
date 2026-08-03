@@ -229,7 +229,7 @@ SAFE_BLOCK_PROSE_RE = re.compile(
     re.IGNORECASE,
 )
 TEMPLATE_PLACEHOLDER_RE = re.compile(
-    r"(?:\$[A-Za-z_][A-Za-z0-9_]*|\$\{[^{}\s]+\}|"
+    r"(?:\$(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+)|\$\{[^{}\s]+\}|"
     r"\{[A-Za-z_][A-Za-z0-9_.-]*\}|<[A-Za-z_][A-Za-z0-9_.-]*>|"
     r"\{\{\s*[^{}\r\n]+?\s*\}\}|\[%\s*[^%\r\n]+?\s*%\])"
 )
