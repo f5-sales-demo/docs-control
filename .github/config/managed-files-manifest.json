@@ -1,5 +1,5 @@
 {
-  "source_commit": "44f94cb950cd476c58f06a3377ce07c313c9afa2",
+  "source_commit": "2d82140509244e2a443b3fc33804043935847326",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -298,8 +298,8 @@
     "scripts/locale-lint.sh": {
       "src": "scripts/locale-lint.sh",
       "dest": "scripts/locale-lint.sh",
-      "sha": "1075c67eaa1b7974f08340e5def66b11afe17fe8",
-      "size": 2317,
+      "sha": "4c2e7bf8397e962f27c6f1e0415269f7c6cde887",
+      "size": 2851,
       "mode": "100755"
     },
     "scripts/check-repo-hygiene.sh": {
