@@ -28,7 +28,7 @@ jobs:
             const EXCLUDE_BRANCHES = "dependabot/**,release/**,changeset-release/**,openapi-sync/**,plugin-sync/**,deps/**,sync/**,docs/update-*";
             const MARKER = "<!-- require-linked-issue -->";
             const MESSAGE = `${MARKER}\nThis PR must be linked to a GitHub issue. Use 'Closes #123' in the PR description, or link an issue from the sidebar.`;
-            const STATUS_CONTEXT = "check / Check linked issues";
+            const STATUS_CONTEXT = "Check linked issues";
             const { owner, repo } = context.repo;
 
             const globToRegex = (glob) => {
