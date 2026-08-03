@@ -1,38 +1,38 @@
 {
-  "source_commit": "f84e69fcbd978ff19748094161516ed81d437fe1",
+  "source_commit": "5b2d5ffad848773427e2ebb0abb0055a5f0dec56",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
       "dest": ".github/workflows/github-pages-deploy.yml",
-      "sha": "e2cb56aa5c84ec6a1bdaded92d376e12cc519260",
+      "sha": "a0adf25720cba9d09f9064275da28528e94d6ae0",
       "size": 855,
       "mode": "100644"
     },
     ".github/workflows/enforce-repo-settings.yml": {
       "src": "workflows/enforce-repo-settings.yml",
       "dest": ".github/workflows/enforce-repo-settings.yml",
-      "sha": "22120c3f7656a9f5c952eb3395b8bc3abfe4574a",
+      "sha": "bc9cfe02ae05ed350ee8e65455b4e67661aac7c0",
       "size": 11553,
       "mode": "100644"
     },
     ".github/workflows/require-linked-issue.yml": {
       "src": "workflows/require-linked-issue.yml",
       "dest": ".github/workflows/require-linked-issue.yml",
-      "sha": "1ed7a3d869e7ce04ad35d277a679e90183ae32a4",
+      "sha": "8543cc92c8d6875e461bef5da68e80e3fe7b2bb2",
       "size": 1087,
       "mode": "100644"
     },
     ".github/workflows/super-linter.yml": {
       "src": "workflows/super-linter.yml",
       "dest": ".github/workflows/super-linter.yml",
-      "sha": "c89cf1d5efc78a8e6719b49fe51c4f45d7730eac",
+      "sha": "4d055b84fcd01262a195ca8939f541eba36e23e0",
       "size": 800,
       "mode": "100644"
     },
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
       "dest": ".github/workflows/translation-audit.yml",
-      "sha": "b2663f46e472c509cf906d1bc80ab9bf7e40b1b6",
+      "sha": "ad888aa93ce946ac3c8c7620d3729b64cebc4d60",
       "size": 1800,
       "mode": "100644"
     },
@@ -158,14 +158,14 @@
     ".github/workflows/dependabot-auto-merge.yml": {
       "src": "workflows/dependabot-auto-merge.yml",
       "dest": ".github/workflows/dependabot-auto-merge.yml",
-      "sha": "ec948487824f1dd1e3bf6951f5cfc23fa33e734b",
+      "sha": "22c252066cf1cf570c7c6baedfcd7acd14ce7b2c",
       "size": 840,
       "mode": "100644"
     },
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "23ca04fa5173863cbf8fe08de95f00d6aded0b07",
+      "sha": "5641612652a8874497e378e326c61207293916d0",
       "size": 1381,
       "mode": "100644"
     },
@@ -368,7 +368,7 @@
     ".github/workflows/code-review.yml": {
       "src": "workflows/code-review.yml",
       "dest": ".github/workflows/code-review.yml",
-      "sha": "4f3c16bacef89ead66d19070a856150a5cdb580e",
+      "sha": "6583f9544fa558eece3dc90e6b7589ef1c1d9911",
       "size": 6756,
       "mode": "100644"
     },
