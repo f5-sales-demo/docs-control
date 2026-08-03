@@ -1120,7 +1120,7 @@ echo ""
 echo "=== Section 14: reusable workflow immutable inputs ==="
 
 PAGES_WORKFLOW="$REPO_ROOT/.github/workflows/github-pages-deploy.yml"
-EXPECTED_BUILDER='ghcr.io/f5-sales-demo/docs-builder@sha256:905d2398fec15c05e828c881ab0e8b782368c30d70d97a978dc383935d7d0163'
+EXPECTED_BUILDER='ghcr.io/f5-sales-demo/docs-builder:latest'
 
 if [ "$(grep -Ec "^[[:space:]]*version:[[:space:]]*(['\"]?2\\.5\\.6['\"]?)[[:space:]]*$" "$SUPER_LINTER_WORKFLOW")" = "1" ] &&
   ! grep -Eq "^[[:space:]]*version:[[:space:]]*(['\"]?latest['\"]?)([[:space:]]|$)" "$SUPER_LINTER_WORKFLOW"; then
@@ -1137,17 +1137,16 @@ else
     "the group needs a reusable-workflow-specific prefix"
 fi
 
-# One workflow_call default is validated before use; there is no runtime
-# fallback. Callers may select a different immutable digest only in the approved
-# builder repository.
-if [ "$(grep -cF "$EXPECTED_BUILDER" "$PAGES_WORKFLOW")" = "1" ] &&
+# One workflow_call default is resolved to an immutable digest after registry
+# authentication; there is no runtime fallback or historical digest pin.
+if [ "$(grep -cF "default: '$EXPECTED_BUILDER'" "$PAGES_WORKFLOW")" = "1" ] &&
   grep -qF '^ghcr\.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$' "$PAGES_WORKFLOW" &&
-  grep -qF '${{ steps.content.outputs.builder_image }}' "$PAGES_WORKFLOW" &&
-  ! grep -Eq 'docs-builder:latest|inputs\.builder-image \|\|' "$PAGES_WORKFLOW"; then
-  pass "14.3 documentation builder identity is validated and digest-pinned"
+  grep -qF '${{ steps.builder.outputs.builder_image }}' "$PAGES_WORKFLOW" &&
+  ! grep -Eq '905d2398|inputs\.builder-image \|\|' "$PAGES_WORKFLOW"; then
+  pass "14.3 latest documentation builder resolves to an approved immutable identity"
 else
-  fail "14.3 documentation builder identity is validated and digest-pinned" \
-    "expected one measured default, approved digest validation, and no fallback"
+  fail "14.3 latest documentation builder resolves to an approved immutable identity" \
+    "expected latest selection, approved digest validation, and no historical fallback"
 fi
 
 # ════════════════════════════════════════════════════════════════════
