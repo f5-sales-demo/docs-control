@@ -1195,10 +1195,11 @@ expected_condition = (
 )
 required_fragments = (
     'workspace="${GITHUB_WORKSPACE:?}"',
-    "/data/actions-runners/f5-sales-demo/docs-control/_work/docs-control/docs-control",
-    "/home/robin/actions-runners/f5-sales-demo/docs-control/_work/docs-control/docs-control",  # repo-hygiene:allow
+    'expected_workspace="${RUNNER_WORKSPACE:?}/docs-control"',
+    '[ "$workspace" = "$expected_workspace" ]',
     'sudo -n chown -R -- "$(id -u):$(id -g)" "$workspace"',
 )
+forbidden_fragments = ("/home/", "/data/actions-runners/")
 
 for job_name in ("lint", "shell-unit-tests"):
     steps = workflow["jobs"][job_name]["steps"]
@@ -1213,6 +1214,8 @@ for job_name in ("lint", "shell-unit-tests"):
         raise SystemExit(1)
     command = repair.get("run", "")
     if any(fragment not in command for fragment in required_fragments):
+        raise SystemExit(1)
+    if any(fragment in command for fragment in forbidden_fragments):
         raise SystemExit(1)
 PY
   pass "17.1 lint and shell jobs repair only the exact docs-control workspace before checkout"
