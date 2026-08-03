@@ -68,12 +68,21 @@ done
 for file in \
   "$REPO_ROOT/workflows/require-linked-issue.yml" \
   "$REPO_ROOT/.github/workflows/require-linked-issue.yml"; do
-  required_context=$(jq -r '
+  consumer_required_context=$(jq -r '
+    .branch_protection[0].required_status_checks.contexts[]
+    | select(endswith("Check linked issues"))
+  ' "$REPO_ROOT/.github/config/repo-settings.json")
+  self_required_context=$(jq -r '
     .branch_protection[0].required_status_checks.self_contexts[]
     | select(endswith("Check linked issues"))
   ' "$REPO_ROOT/.github/config/repo-settings.json")
   published_context=$(sed -n 's/.*const STATUS_CONTEXT = "\([^"]*\)";.*/\1/p' "$file")
-  if [ -n "$required_context" ] && [ "$published_context" = "$required_context" ]; then
+  if [ -n "$consumer_required_context" ] && [ "$published_context" = "$consumer_required_context" ]; then
+    pass "${file#"$REPO_ROOT/"} publishes the exact required consumer context"
+  else
+    fail "${file#"$REPO_ROOT/"} publishes the exact required consumer context"
+  fi
+  if [ -n "$self_required_context" ] && [ "$published_context" = "$self_required_context" ]; then
     pass "${file#"$REPO_ROOT/"} publishes the exact required self-repository context"
   else
     fail "${file#"$REPO_ROOT/"} publishes the exact required self-repository context"
