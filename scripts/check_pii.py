@@ -36,7 +36,9 @@ if TYPE_CHECKING:
     from typing import BinaryIO
 
 GIT_BATCH_FIELD_COUNT = 3
+GIT_MODE_DIGITS = frozenset(b"01234567")
 GIT_MODE_LENGTH = 6
+GIT_OBJECT_ID_DIGITS = frozenset(b"0123456789abcdef")
 GIT_RAW_FIELD_COUNT = 5
 
 EXCLUDED_PATHS = {
@@ -514,9 +516,63 @@ def nul_records(path: Path) -> Iterator[bytes]:
 
 def valid_object_id(value: bytes) -> bool:
     """Return whether a Git object ID uses a supported hash format."""
-    return len(value) in {40, 64} and all(
-        character in b"0123456789abcdef" for character in value
-    )
+    return len(value) in {40, 64} and set(value) <= GIT_OBJECT_ID_DIGITS
+
+
+def history_diff_associations(
+    diff_inventory: Path,
+) -> Iterator[tuple[bytes, bytes, bytes]]:
+    """Yield validated mode, object, and path tuples from raw Git diffs."""
+    records = iter(nul_records(diff_inventory))
+    while True:
+        try:
+            metadata = next(records)
+        except StopIteration:
+            break
+        try:
+            path = next(records)
+        except StopIteration as error:
+            message = "history diff inventory is incomplete"
+            raise ValueError(message) from error
+        fields = metadata.split()
+        if len(fields) != GIT_RAW_FIELD_COUNT:
+            message = "history diff inventory is malformed"
+            raise ValueError(message)
+        if not fields[0].startswith(b":") or not fields[4].isalpha():
+            message = "history diff inventory is malformed"
+            raise ValueError(message)
+        old_mode = fields[0][1:]
+        new_mode, old_oid, new_oid = fields[1:4]
+        modes_are_octal = set(old_mode + new_mode) <= GIT_MODE_DIGITS
+        if (
+            len(old_mode) != GIT_MODE_LENGTH
+            or len(new_mode) != GIT_MODE_LENGTH
+            or not modes_are_octal
+            or not valid_object_id(old_oid)
+            or not valid_object_id(new_oid)
+        ):
+            message = "history diff inventory metadata is invalid"
+            raise ValueError(message)
+        yield new_mode, new_oid, path
+
+
+def history_tree_associations(
+    tree_inventory: Path,
+) -> Iterator[tuple[bytes, bytes, bytes]]:
+    """Yield validated mode, object, and path tuples from direct tree refs."""
+    for record in nul_records(tree_inventory):
+        try:
+            metadata, path = record.split(b"\t", 1)
+            mode, object_type, oid = metadata.split()
+        except ValueError as error:
+            message = "history tree inventory is malformed"
+            raise ValueError(message) from error
+        if object_type == b"commit" and mode == b"160000":
+            continue
+        if object_type != b"blob":
+            message = "history tree inventory contains a non-blob entry"
+            raise ValueError(message)
+        yield mode, oid, path
 
 
 def write_history_associations(
@@ -554,52 +610,10 @@ def write_history_associations(
             request_stream.write(oid + b"\n")
 
     with output.open("wb") as stream, requests.open("wb") as request_stream:
-        diff_records = iter(nul_records(diff_inventory))
-        while True:
-            try:
-                metadata = next(diff_records)
-            except StopIteration:
-                break
-            try:
-                path = next(diff_records)
-            except StopIteration as error:
-                message = "history diff inventory is incomplete"
-                raise ValueError(message) from error
-            fields = metadata.split()
-            if (
-                len(fields) != GIT_RAW_FIELD_COUNT
-                or not fields[0].startswith(b":")
-                or not fields[4].isalpha()
-            ):
-                message = "history diff inventory is malformed"
-                raise ValueError(message)
-            old_mode = fields[0][1:]
-            new_mode, old_oid, new_oid = fields[1:4]
-            if (
-                len(old_mode) != GIT_MODE_LENGTH
-                or len(new_mode) != GIT_MODE_LENGTH
-                or not all(
-                    character in b"01234567" for character in old_mode + new_mode
-                )
-                or not valid_object_id(old_oid)
-                or not valid_object_id(new_oid)
-            ):
-                message = "history diff inventory metadata is invalid"
-                raise ValueError(message)
+        for new_mode, new_oid, path in history_diff_associations(diff_inventory):
             write_association(stream, request_stream, new_mode, new_oid, path)
 
-        for record in nul_records(tree_inventory):
-            try:
-                metadata, path = record.split(b"\t", 1)
-                mode, object_type, oid = metadata.split()
-            except ValueError as error:
-                message = "history tree inventory is malformed"
-                raise ValueError(message) from error
-            if object_type == b"commit" and mode == b"160000":
-                continue
-            if object_type != b"blob":
-                message = "history tree inventory contains a non-blob entry"
-                raise ValueError(message)
+        for mode, oid, path in history_tree_associations(tree_inventory):
             write_association(stream, request_stream, mode, oid, path)
 
 
@@ -615,15 +629,12 @@ def copy_exact(source: BinaryIO, destination: BinaryIO, size: int) -> None:
         remaining -= len(chunk)
 
 
-def materialize_history_associations(
-    associations: Path,
+def materialize_history_objects(
     requests: Path,
     batch_output: Path,
-    input_dir: Path,
-    start_index: int,
-) -> int:
-    """Materialize one validated input per path/blob association."""
-    object_dir = input_dir / "history-objects"
+    object_dir: Path,
+) -> dict[bytes, Path]:
+    """Validate and materialize each uniquely requested Git blob."""
     object_dir.mkdir()
     objects: dict[bytes, Path] = {}
     requested_oids = requests.read_bytes().splitlines()
@@ -650,6 +661,19 @@ def materialize_history_associations(
         if source.read(1):
             message = "Git returned unexpected trailing blob data"
             raise ValueError(message)
+    return objects
+
+
+def materialize_history_associations(
+    associations: Path,
+    requests: Path,
+    batch_output: Path,
+    input_dir: Path,
+    start_index: int,
+) -> int:
+    """Materialize one validated input per path/blob association."""
+    object_dir = input_dir / "history-objects"
+    objects = materialize_history_objects(requests, batch_output, object_dir)
 
     index = start_index
     association_records = iter(nul_records(associations))
