@@ -23,9 +23,7 @@ on:
         required: false
         type: string
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
 
 concurrency:
   group: update-governed-workflow-pins
@@ -33,16 +31,23 @@ concurrency:
 
 jobs:
   update:
+    name: Update governed workflow pins
     runs-on: ubuntu-latest
+    environment: repository-settings
+    permissions:
+      contents: read # check out the protected governance source
     steps:
       - name: Checkout docs-control
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           token: ${{ secrets.REPO_SETTINGS_TOKEN }}
+          persist-credentials: false
 
       - name: Roll governed callers forward
         env:
           GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
           REQUESTED_REVISION: ${{ inputs.revision }}
-        run: scripts/update-governed-workflow-pins.sh
+        run: |
+          gh auth setup-git
+          scripts/update-governed-workflow-pins.sh

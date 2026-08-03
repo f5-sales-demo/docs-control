@@ -13,13 +13,15 @@ on:
     paths:
       - "**"
 
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   antigravity-translate:
+    name: Translate documentation with Antigravity
     # SUSPENDED: Gemini Antigravity translation shares the fleet translation
     # switch while its quota is exhausted. Unset or anything but "true" stays off.
     # Security: also restrict execution to trusted same-repo PR heads.
@@ -29,6 +31,10 @@ jobs:
        github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write # commit generated translations to the same-repository branch
+      pull-requests: write # update translated pull requests
+      issues: write # report translation failures through GitHub issue surfaces
 
     steps:
       - name: Checkout PR Head
@@ -37,6 +43,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
 
       - name: Parse Translation Triggers and Conventional Commits
         id: parse_trigger

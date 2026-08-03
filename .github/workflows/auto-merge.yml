@@ -17,13 +17,19 @@ on:
       REPO_SYNC_TOKEN:
         required: false
 
-permissions:
-  contents: write
-  pull-requests: write
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   auto-merge:
+    name: Enable trusted-author auto-merge
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # merge trusted same-repository pull requests
+      pull-requests: write # enable squash auto-merge
     # Candidate filter: non-draft, non-dependabot PRs only. Work-in-progress uses
     # draft PRs; dependabot PRs are handled by dependabot-auto-merge.yml. Whether
     # auto-merge is ACTUALLY enabled is further gated on author TRUST below

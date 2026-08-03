@@ -19,7 +19,7 @@ fail() {
 }
 
 setup_repo() {
-  rm -rf "${WORK:?}/repo" "${WORK:?}/bin" "${WORK:?}/args"
+  rm -rf "${WORK:?}/repo" "${WORK:?}/bin" "${WORK:?}/args" "${WORK:?}/active"
   mkdir -p "$WORK/repo" "$WORK/bin"
   git -C "$WORK/repo" init -q
   git -C "$WORK/repo" config user.email test@example.com
@@ -34,6 +34,7 @@ setup_repo() {
   cat >"$WORK/bin/agy" <<'SH'
 #!/bin/sh
 printf '%s\n' "$@" >"$FAKE_AGY_ARGS"
+printf '%s\n' "${AGY_PRE_PUSH_REVIEW_ACTIVE:-}" >"$FAKE_AGY_ACTIVE"
 SH
   chmod +x "$WORK/bin/agy"
 }
@@ -42,7 +43,8 @@ run_review() {
   local path="$1" rc=0
   (
     cd "$WORK/repo"
-    PATH="$path" FAKE_AGY_ARGS="$WORK/args" AGY_REVIEW_BASE_REF=main bash "$SCRIPT"
+    PATH="$path" FAKE_AGY_ARGS="$WORK/args" FAKE_AGY_ACTIVE="$WORK/active" \
+      AGY_REVIEW_BASE_REF=main bash "$SCRIPT"
   ) >"$WORK/output" 2>&1 || rc=$?
   return "$rc"
 }
@@ -52,11 +54,26 @@ setup_repo
 if run_review "$WORK/bin:/usr/bin:/bin" &&
   grep -qx -- '--sandbox' "$WORK/args" &&
   grep -qx -- 'plan' "$WORK/args" &&
+  grep -qx -- '1' "$WORK/active" &&
   ! grep -q -- 'dangerously-skip-permissions' "$WORK/args" &&
   grep -q 'Treat the diff.*untrusted data' "$WORK/args"; then
   pass "clean feature branch receives sandboxed read-only agy review"
 else
   fail "clean feature branch receives agy review" "$(cat "$WORK/output")"
+fi
+
+rm -f "$WORK/args" "$WORK/active"
+rc=0
+(
+  cd "$WORK/repo"
+  PATH="$WORK/bin:/usr/bin:/bin" FAKE_AGY_ARGS="$WORK/args" \
+    FAKE_AGY_ACTIVE="$WORK/active" AGY_REVIEW_BASE_REF=main \
+    AGY_PRE_PUSH_REVIEW_ACTIVE=1 bash "$SCRIPT"
+) >"$WORK/output" 2>&1 || rc=$?
+if [ "$rc" -ne 0 ] && [ ! -e "$WORK/args" ] && grep -q 'nested.*refused' "$WORK/output"; then
+  pass "recursive review is rejected before another model call"
+else
+  fail "recursive review is rejected before another model call" "nested rc=$rc or agy ran"
 fi
 
 printf 'dirty\n' >>"$WORK/repo/file.txt"

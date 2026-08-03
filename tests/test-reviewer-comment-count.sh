@@ -48,7 +48,7 @@ WITH_SUMMARY=$(w withsum.json "$(
   cat <<JSON
 [
   {"user":{"login":"$BOT"},"body":"<!-- super-linter-summary-comment -->\n# Super-linter summary"},
-  {"user":{"login":"$BOT"},"body":"## Code review\n\nNo issues found. Checked for bugs, CLAUDE.md compliance, and authenticated verification."},
+  {"user":{"login":"$BOT"},"body":"## Code review\n\nNo issues found. Checked for bugs, CLAUDE.md compliance, and repository-local verification."},
   {"user":{"login":"a-human"},"body":"thanks"}
 ]
 JSON

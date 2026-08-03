@@ -32,6 +32,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # This scanner is managed and synced verbatim. Enforce its portability
       # where it is authored; checking a downstream caller's stale copy blocks
@@ -400,6 +401,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # These tests guard docs-control's own fleet-sync machinery. They
       # live only in docs-control; consumer repos that pin this workflow
@@ -431,10 +434,6 @@ jobs:
       - name: Run downstream caller bootstrap test
         if: hashFiles('tests/test-bootstrap-downstream-callers.sh') != ''
         run: bash tests/test-bootstrap-downstream-callers.sh
-
-      - name: Run review-slot semaphore test
-        if: hashFiles('tests/test-review-slot.sh') != ''
-        run: bash tests/test-review-slot.sh
 
       - name: Run parse-verdict gate test
         if: hashFiles('tests/test-parse-verdict.sh') != ''
@@ -547,6 +546,10 @@ jobs:
       - name: Run require-linked-issue exemptions test
         if: hashFiles('tests/test-require-linked-issue-exemptions.sh') != ''
         run: bash tests/test-require-linked-issue-exemptions.sh
+
+      - name: Run privileged pull-request workflow test
+        if: hashFiles('tests/test-privileged-pr-workflows.sh') != ''
+        run: bash tests/test-privileged-pr-workflows.sh
 
       - name: Run MDX prose gate test
         if: hashFiles('tests/test-lint-mdx-prose.sh') != ''

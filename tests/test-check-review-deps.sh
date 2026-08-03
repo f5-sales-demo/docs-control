@@ -2,8 +2,7 @@
 # Hermetic test for scripts/check-review-deps.sh — the reviewer dependency preflight.
 #
 # Fully self-contained: every tool is a FAKE executable in a temp dir, so the test
-# behaves identically on a GitHub-hosted runner (no terraform/az installed) and on
-# the self-hosted macOS runner.
+# behaves identically regardless of the host's installed tools.
 #
 # Locks the failure mode that motivated the check: a PRESENT-BUT-NOT-EXECUTABLE tool
 # earlier on PATH shadows a working copy and makes every invocation fail with
@@ -24,7 +23,7 @@ mkfake() { # <dir> <name> <mode>
 
 # A directory with every dependency present and working.
 GOOD="$WORK/good"
-for t in git jq gh terraform az; do mkfake "$GOOD" "$t" 755; done
+for t in git jq gh terraform; do mkfake "$GOOD" "$t" 755; done
 
 run() { # <PATH> [args...] -> prints output, sets RC
   local p="$1"
@@ -54,7 +53,7 @@ fi
 # exists later on PATH, so the break happens only when it is the sole match — which
 # is exactly the runner case, where ~/.tfenv/bin is not on the non-interactive PATH.)
 SOLE="$WORK/sole"
-for t in git jq gh az; do mkfake "$SOLE" "$t" 755; done
+for t in git jq gh; do mkfake "$SOLE" "$t" 755; done
 mkfake "$SOLE" terraform 644 # present, NOT executable, and the only terraform
 run "$SOLE"
 if [ "$RC" -ne 0 ] && echo "$OUT" | grep -q 'NOEXEC   terraform'; then
@@ -86,7 +85,7 @@ fi
 
 # --- missing core tool ---------------------------------------------------
 NO_GH="$WORK/nogh"
-for t in git jq terraform az; do mkfake "$NO_GH" "$t" 755; done
+for t in git jq terraform; do mkfake "$NO_GH" "$t" 755; done
 run "$NO_GH"
 if [ "$RC" -ne 0 ] && echo "$OUT" | grep -q 'MISSING  gh'; then
   ok "missing core tool → MISSING, exit non-zero"
@@ -96,7 +95,7 @@ fi
 
 # --- --probe catches a resolvable but broken tool -------------------------
 BROKEN="$WORK/broken"
-for t in git jq gh az; do mkfake "$BROKEN" "$t" 755; done
+for t in git jq gh; do mkfake "$BROKEN" "$t" 755; done
 mkdir -p "$BROKEN"
 printf '#!/bin/sh\nexit 7\n' >"$BROKEN/terraform" # executable but always fails
 chmod 755 "$BROKEN/terraform"

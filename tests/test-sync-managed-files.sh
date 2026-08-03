@@ -529,15 +529,16 @@ if [ "$protected_main_remote_reads" -eq 2 ] &&
   [ -n "$first_manifest_push_line" ] &&
   [ "$manifest_commit_line" -lt "$current_main_guard_line" ] &&
   [ "$current_main_guard_line" -lt "$first_manifest_push_line" ] &&
-  grep -qF 'persist-credentials: true' "$MANIFEST_BUILDER" &&
+  grep -qF 'persist-credentials: false' "$MANIFEST_BUILDER" &&
+  grep -qF 'gh auth setup-git' "$MANIFEST_BUILDER" &&
   ! grep -qF 'gh api "repos/${GITHUB_REPOSITORY}/commits/main"' "$MANIFEST_BUILDER" &&
   grep -q 'PROTECTED_MAIN_SHA' "$MANIFEST_BUILDER" &&
   grep -q '\[ "$SOURCE_COMMIT" != "$PROTECTED_MAIN_SHA" \]' "$MANIFEST_BUILDER" &&
   grep -q 'CHECKED_OUT_SHA=$(git rev-parse HEAD)' "$MANIFEST_BUILDER"; then
-  pass "8.2 manifest guards prove exact protected main without the REST API"
+  pass "8.2 manifest guards prove exact protected main with explicit Git authentication"
 else
-  fail "8.2 manifest guards prove exact protected main without the REST API" \
-    "generation can be stranded by REST throttling or publish a stale ref"
+  fail "8.2 manifest guards prove exact protected main with explicit Git authentication" \
+    "generation can use implicit checkout credentials, be stranded by REST throttling, or publish a stale ref"
 fi
 
 extract_remote_main_helper() {
