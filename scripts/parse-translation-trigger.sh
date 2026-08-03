@@ -20,20 +20,23 @@ if [ "$EVENT_NAME" == "workflow_dispatch" ]; then
 fi
 
 # 2. Check for explicit bypass keywords in PR title
-if [[ "$PR_TITLE" =~ "\[skip i18n\]" || "$PR_TITLE" =~ "\[no i18n\]" || "$PR_TITLE" =~ "\(no-i18n\)" ]]; then
+RE_BYPASS='\[skip i18n\]|\[no i18n\]|\(no-i18n\)'
+if [[ "$PR_TITLE" =~ $RE_BYPASS ]]; then
   echo "Bypass keyword detected."
   BYPASS="true"
 fi
 
 # 3. Check for explicit reconciliation (force rebuild) keywords
-if [[ "$PR_TITLE" =~ "i18n.*reconcile" || "$PR_TITLE" =~ "reconcile.*i18n" || "$PR_TITLE" =~ "i18n-reconcile" ]]; then
+RE_RECONCILE='i18n.*reconcile|reconcile.*i18n|i18n-reconcile'
+if [[ "$PR_TITLE" =~ $RE_RECONCILE ]]; then
   echo "Force reconciliation keyword detected."
   FORCE_RECONCILE="true"
   SHOULD_RUN="true"
 fi
 
 # 4. Check for conventional i18n scope patterns in PR title
-if [[ "$PR_TITLE" =~ ^feat\(i18n\) || "$PR_TITLE" =~ ^fix\(i18n\) || "$PR_TITLE" =~ ^chore\(i18n\) || "$PR_TITLE" =~ ^docs\(i18n\) ]]; then
+RE_CONVENTIONAL='^(feat|fix|chore|docs)\(i18n\)'
+if [[ "$PR_TITLE" =~ $RE_CONVENTIONAL ]]; then
   echo "Conventional i18n scope pattern found in title."
   SHOULD_RUN="true"
 fi
