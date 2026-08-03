@@ -13,9 +13,11 @@ concurrency:
 
 jobs:
   review:
-    # Runs only if the PR head repository is the same as the base repository
-    # and is not triggered on automated branches
+    # SUSPENDED: Gemini Antigravity review is opt-in while its quota is exhausted.
+    # Runs only if explicitly enabled, the PR head repository is the same as the
+    # base repository, and the event is not triggered on an automated branch.
     if: >-
+      vars.ANTIGRAVITY_REVIEW_ENABLED == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
       !(startsWith(github.head_ref, 'governance/') ||
         startsWith(github.head_ref, 'sync/') ||

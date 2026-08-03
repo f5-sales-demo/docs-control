@@ -508,6 +508,10 @@ jobs:
         if: hashFiles('tests/test-translation-suspension.sh') != ''
         run: bash tests/test-translation-suspension.sh
 
+      - name: Run Antigravity suspension test
+        if: hashFiles('tests/test-antigravity-suspension.sh') != ''
+        run: bash tests/test-antigravity-suspension.sh
+
       - name: Run locale-lint test
         if: hashFiles('tests/test-locale-lint.sh') != ''
         run: bash tests/test-locale-lint.sh

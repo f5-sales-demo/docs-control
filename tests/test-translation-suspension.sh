@@ -19,6 +19,8 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO_SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
 AUDIT_STUB="$REPO_ROOT/workflows/translation-audit.yml"
+ANTIGRAVITY_REUSABLE="$REPO_ROOT/.github/workflows/antigravity-translate.yml"
+ANTIGRAVITY_STUB="$REPO_ROOT/workflows/antigravity-translate.yml"
 PRE_COMMIT="$REPO_ROOT/.pre-commit-config.yaml"
 CONTRIBUTING="$REPO_ROOT/CONTRIBUTING.md"
 
@@ -110,8 +112,18 @@ fi
 echo ""
 echo "=== Section 2: generation is opt-in, not opt-out ==="
 
+for translation_workflow in "$ANTIGRAVITY_REUSABLE" "$ANTIGRAVITY_STUB"; do
+  if grep -qF "vars.TRANSLATIONS_ENABLED == 'true'" "$translation_workflow" &&
+    grep -q 'SUSPENDED:' "$translation_workflow"; then
+    pass "2.0 Antigravity $(basename "$translation_workflow") shares the positive translation gate"
+  else
+    fail "2.0 Antigravity $(basename "$translation_workflow") shares the positive translation gate" \
+      "quota-backed generation must stay off unless TRANSLATIONS_ENABLED is exactly true"
+  fi
+done
+
 # Assert against the current state rather than assuming suspension forever.
-# Restoration removes this branch from the hook (CONTRIBUTING step 3), so an
+# Restoration removes this branch from the hook (CONTRIBUTING step 4), so an
 # unconditional requirement would fail the moment someone follows the documented
 # procedure — forcing an undocumented test edit in the middle of a recovery.
 #

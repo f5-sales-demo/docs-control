@@ -157,6 +157,14 @@
         "dest": ".github/workflows/translation-audit.yml"
       },
       {
+        "src": "workflows/antigravity-review.yml",
+        "dest": ".github/workflows/antigravity-review.yml"
+      },
+      {
+        "src": "workflows/antigravity-translate.yml",
+        "dest": ".github/workflows/antigravity-translate.yml"
+      },
+      {
         "src": ".github/PULL_REQUEST_TEMPLATE.md",
         "dest": ".github/PULL_REQUEST_TEMPLATE.md"
       },
