@@ -126,6 +126,9 @@ check "roll-forward script exists and is executable" test -x "$ROLLOUT_SCRIPT"
 
 BEHAVIOR="$WORK/behavior"
 mkdir -p "$BEHAVIOR/bin" "$BEHAVIOR/state"
+REAL_JQ_COMMAND=$(command -v jq)
+REAL_MKTEMP_COMMAND=$(command -v mktemp)
+export REAL_JQ_COMMAND REAL_MKTEMP_COMMAND
 cat >"$BEHAVIOR/bin/git" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$FAKE_COMMAND_LOG"
@@ -146,6 +149,10 @@ if [[ "$*" == api\ repos/*/pulls\?state=open* ]]; then
   count=$((count + 1))
   printf '%s\n' "$count" >"$count_file"
   if [ "${FAKE_INVENTORY_FAIL_AT:-0}" -eq "$count" ]; then exit 1; fi
+  if [ "${FAKE_INVENTORY_MALFORMED_AT:-0}" -eq "$count" ]; then
+    printf '[[{}]]\n'
+    exit 0
+  fi
   if [ "${FAKE_DUPLICATE_CURRENT:-}" = 1 ]; then
     jq -cn --arg branch "$FAKE_CURRENT_BRANCH" --arg repo "f5-sales-demo/docs-control" \
       '[[{number: 10, head: {ref: $branch, sha: "9999999999999999999999999999999999999999", repo: {full_name: $repo}}, base: {ref: "main"}},
@@ -155,6 +162,29 @@ if [[ "$*" == api\ repos/*/pulls\?state=open* ]]; then
     jq -cn --arg branch "$FAKE_CURRENT_BRANCH" --arg repo "f5-sales-demo-fork/docs-control" \
       '[[{number: 9, head: {ref: $branch, sha: "9999999999999999999999999999999999999999", repo: {full_name: $repo}}, base: {ref: "main"}}]]'
     exit 0
+  elif [ "${FAKE_FORK_CURRENT_AFTER_DELETE:-}" = 1 ] &&
+    [ -f "$FAKE_STATE/old-ref-deleted" ]; then
+    jq -cn --arg branch "$FAKE_CURRENT_BRANCH" --arg repo "f5-sales-demo-fork/docs-control" \
+      '[[{number: 9, head: {ref: $branch, sha: "9999999999999999999999999999999999999999", repo: {full_name: $repo}}, base: {ref: "main"}}]]'
+    exit 0
+  elif [ "${FAKE_OLD_PR:-}" = 1 ] && [ ! -f "$FAKE_STATE/old-pr-closed" ]; then
+    jq -cn --arg repo "f5-sales-demo/docs-control" \
+      '[[{number: 10, head: {ref: "sync/governed-workflow-pins-aaaaaaaaaaaa-1-1", sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", repo: {full_name: $repo}}, base: {ref: "main"}}]]'
+    exit 0
+  elif [ "${FAKE_OLD_PR:-}" = 1 ] && [ -f "$FAKE_STATE/old-pr-closed" ]; then
+    count_file="$FAKE_STATE/post-close-pr-reads"
+    count=0
+    [ ! -f "$count_file" ] || count=$(cat "$count_file")
+    count=$((count + 1))
+    printf '%s\n' "$count" >"$count_file"
+    if [ "${FAKE_PERSIST_OLD_PR:-}" = 1 ] ||
+      [ "$count" -le "${FAKE_PR_VISIBILITY_LAG_READS:-0}" ]; then
+      jq -cn --arg repo "f5-sales-demo/docs-control" \
+        '[[{number: 10, head: {ref: "sync/governed-workflow-pins-aaaaaaaaaaaa-1-1", sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", repo: {full_name: $repo}}, base: {ref: "main"}}]]'
+    else
+      printf '[[]]\n'
+    fi
+    exit 0
   fi
   printf '[[]]\n'
   exit 0
@@ -162,9 +192,33 @@ fi
 if [[ "$*" == api\ repos/*/git/matching-refs/heads/sync/governed-workflow-pins-* ]]; then
   if [ "${FAKE_OLD_REF:-}" = 1 ] && [ ! -f "$FAKE_STATE/old-ref-deleted" ]; then
     printf '[[{"ref":"refs/heads/sync/governed-workflow-pins-aaaaaaaaaaaa-1-1","object":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}]]\n'
+  elif [ "${FAKE_OLD_REF:-}" = 1 ] && [ -f "$FAKE_STATE/old-ref-deleted" ]; then
+    count_file="$FAKE_STATE/post-delete-ref-reads"
+    count=0
+    [ ! -f "$count_file" ] || count=$(cat "$count_file")
+    count=$((count + 1))
+    printf '%s\n' "$count" >"$count_file"
+    if [ "${FAKE_NEWER_REF_AFTER_DELETE:-}" = 1 ]; then
+      printf '[[{"ref":"refs/heads/sync/governed-workflow-pins-cccccccccccc-3-1","object":{"sha":"cccccccccccccccccccccccccccccccccccccccc"}}]]\n'
+    elif [ "${FAKE_UNSEEN_OLDER_REF_AFTER_DELETE:-}" = 1 ]; then
+      printf '[[{"ref":"refs/heads/sync/governed-workflow-pins-cccccccccccc-1-1","object":{"sha":"cccccccccccccccccccccccccccccccccccccccc"}}]]\n'
+    elif [ "${FAKE_EMPTY_THEN_STALE_REF:-}" = 1 ] && [ "$count" -eq 1 ]; then
+      printf '[[]]\n'
+    elif [ "${FAKE_EMPTY_THEN_STALE_REF:-}" = 1 ] && [ "$count" -eq 2 ]; then
+      printf '[[{"ref":"refs/heads/sync/governed-workflow-pins-aaaaaaaaaaaa-1-1","object":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}]]\n'
+    elif [ "${FAKE_PERSIST_OLD_REF:-}" = 1 ] ||
+      [ "$count" -le "${FAKE_REF_VISIBILITY_LAG_READS:-0}" ]; then
+      printf '[[{"ref":"refs/heads/sync/governed-workflow-pins-aaaaaaaaaaaa-1-1","object":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}]]\n'
+    else
+      printf '[[]]\n'
+    fi
   else
     printf '[[]]\n'
   fi
+  exit 0
+fi
+if [[ "$*" == pr\ close\ 10* ]]; then
+  touch "$FAKE_STATE/old-pr-closed"
   exit 0
 fi
 if [[ "$*" == *'/git/ref/heads/sync/governed-workflow-pins-aaaaaaaaaaaa-1-1'* ]]; then
@@ -181,7 +235,33 @@ if [[ "$*" == *'/branches/main/protection/required_status_checks'* ]]; then
 fi
 exit 64
 EOF
-chmod +x "$BEHAVIOR/bin/git" "$BEHAVIOR/bin/gh"
+cat >"$BEHAVIOR/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+printf 'sleep %s\n' "$*" >>"$FAKE_COMMAND_LOG"
+count_file="$FAKE_STATE/sleep-count"
+count=0
+[ ! -f "$count_file" ] || count=$(cat "$count_file")
+count=$((count + 1))
+printf '%s\n' "$count" >"$count_file"
+if [ "${FAKE_SLEEP_FAIL_AT:-0}" -eq "$count" ]; then exit 1; fi
+EOF
+cat >"$BEHAVIOR/bin/jq" <<'EOF'
+#!/usr/bin/env bash
+if [ "${FAKE_JQ_TSV_FAIL:-}" = 1 ] && [[ "$*" == *'@tsv'* ]]; then exit 42; fi
+exec "$REAL_JQ_COMMAND" "$@"
+EOF
+cat >"$BEHAVIOR/bin/mktemp" <<'EOF'
+#!/usr/bin/env bash
+count_file="$FAKE_STATE/mktemp-count"
+count=0
+[ ! -f "$count_file" ] || count=$(cat "$count_file")
+count=$((count + 1))
+printf '%s\n' "$count" >"$count_file"
+if [ "${FAKE_MKTEMP_FAIL:-}" = 1 ]; then exit 1; fi
+exec "$REAL_MKTEMP_COMMAND" "$@"
+EOF
+chmod +x "$BEHAVIOR/bin/git" "$BEHAVIOR/bin/gh" "$BEHAVIOR/bin/sleep" \
+  "$BEHAVIOR/bin/jq" "$BEHAVIOR/bin/mktemp"
 
 check "failed main fetch cannot pass against a stale local tracking ref" \
   bash -c '
@@ -211,6 +291,33 @@ check "failed second PR inventory read blocks auto-merge ownership proof" \
     repository=f5-sales-demo/docs-control; branch=sync/governed-workflow-pins-test-2-1
     run_id=2; run_attempt=1; work="$2/state"
     ! reconcile_pin_prs && ! grep -Eq "pr close|method DELETE" "$FAKE_COMMAND_LOG"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
+
+check "ownership row extraction failure cannot erase a hostile owner" \
+  bash -c '
+    expected_branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_FORK_CURRENT=1 FAKE_CURRENT_BRANCH="$expected_branch" FAKE_JQ_TSV_FAIL=1
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE/inventory-count" "$FAKE_STATE/mktemp-count"
+    source "$1"
+    repository=f5-sales-demo/docs-control; branch="$expected_branch"
+    run_id=2; run_attempt=1; work="$2/state"
+    ! reconcile_pin_prs &&
+      ! grep -Eq "pr (close|create|merge)|method (POST|PUT|PATCH|DELETE)" "$FAKE_COMMAND_LOG"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
+
+check "ownership reconciliation stops after its first allocation failure" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_MKTEMP_FAIL=1
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE/inventory-count" "$FAKE_STATE/mktemp-count"
+    source "$1"
+    repository=f5-sales-demo/docs-control; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    run_id=2; run_attempt=1; work="$2/state"
+    ! reconcile_pin_prs && test "$(cat "$FAKE_STATE/mktemp-count")" -eq 1 &&
+      ! grep -Eq "api |pr " "$FAKE_COMMAND_LOG"
   ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
 
 check "hostile same-ref fork PR blocks governed-pin mutation" \
@@ -258,6 +365,152 @@ check "orphaned older updater refs are deleted after complete paginated inventor
     run_id=2; run_attempt=1; work="$2/state"
     reconcile_pin_prs && test -f "$FAKE_STATE/old-ref-deleted" &&
       grep -q -- "--paginate --slurp" "$FAKE_COMMAND_LOG"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
+
+check "deleted updater refs may settle after bounded visibility lag" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_OLD_REF=1 FAKE_REF_VISIBILITY_LAG_READS=2
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE/inventory-count" "$FAKE_STATE/old-ref-deleted" \
+      "$FAKE_STATE/post-delete-ref-reads" "$FAKE_STATE/sleep-count"
+    source "$1"
+    repository=f5-sales-demo/docs-control; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    run_id=2; run_attempt=1; work="$2/state"
+    reconcile_pin_prs && test -f "$FAKE_STATE/old-ref-deleted" &&
+      test "$(cat "$FAKE_STATE/post-delete-ref-reads")" -eq 4 &&
+      test "$(grep "^sleep " "$FAKE_COMMAND_LOG" | cut -d " " -f 2 | paste -sd, -)" = "1,2,4"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
+
+check "persistently published deleted updater refs still fail closed" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_OLD_REF=1 FAKE_PERSIST_OLD_REF=1
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE/inventory-count" "$FAKE_STATE/old-ref-deleted" \
+      "$FAKE_STATE/post-delete-ref-reads" "$FAKE_STATE/sleep-count"
+    source "$1"
+    repository=f5-sales-demo/docs-control; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    run_id=2; run_attempt=1; work="$2/state"
+    ! reconcile_pin_prs && test -f "$FAKE_STATE/old-ref-deleted" &&
+      test "$(cat "$FAKE_STATE/post-delete-ref-reads")" -eq 6 &&
+      test "$(grep "^sleep " "$FAKE_COMMAND_LOG" | cut -d " " -f 2 | paste -sd, -)" = "1,2,4,4,4"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
+
+check "closed PR and deleted ref visibility settle only after two clear inventories" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_OLD_PR=1 FAKE_PR_VISIBILITY_LAG_READS=1
+    export FAKE_OLD_REF=1 FAKE_REF_VISIBILITY_LAG_READS=2
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE/inventory-count" "$FAKE_STATE/old-pr-closed" \
+      "$FAKE_STATE/post-close-pr-reads" "$FAKE_STATE/old-ref-deleted" \
+      "$FAKE_STATE/post-delete-ref-reads" "$FAKE_STATE/sleep-count"
+    source "$1"
+    repository=f5-sales-demo/docs-control; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    run_id=2; run_attempt=1; work="$2/state"
+    reconcile_pin_prs && test -f "$FAKE_STATE/old-pr-closed" &&
+      test -f "$FAKE_STATE/old-ref-deleted" &&
+      test "$(cat "$FAKE_STATE/post-close-pr-reads")" -eq 4 &&
+      test "$(cat "$FAKE_STATE/post-delete-ref-reads")" -eq 4 &&
+      test "$(grep "^sleep " "$FAKE_COMMAND_LOG" | cut -d " " -f 2 | paste -sd, -)" = "1,2,4"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
+
+check "an empty inventory followed by a stale deleted ref cannot pass early" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_OLD_REF=1 FAKE_EMPTY_THEN_STALE_REF=1
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE/inventory-count" "$FAKE_STATE/old-ref-deleted" \
+      "$FAKE_STATE/post-delete-ref-reads" "$FAKE_STATE/sleep-count"
+    source "$1"
+    repository=f5-sales-demo/docs-control; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    run_id=2; run_attempt=1; work="$2/state"
+    reconcile_pin_prs && test "$(cat "$FAKE_STATE/post-delete-ref-reads")" -eq 4 &&
+      test "$(grep "^sleep " "$FAKE_COMMAND_LOG" | cut -d " " -f 2 | paste -sd, -)" = "1,2,4"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
+
+check "a newer owner appearing while visibility settles defers immediately" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_OLD_REF=1 FAKE_NEWER_REF_AFTER_DELETE=1
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE/inventory-count" "$FAKE_STATE/old-ref-deleted" \
+      "$FAKE_STATE/post-delete-ref-reads" "$FAKE_STATE/sleep-count"
+    source "$1"
+    repository=f5-sales-demo/docs-control; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    run_id=2; run_attempt=1; work="$2/state"
+    set +e; reconcile_pin_prs; rc=$?; set -e
+    test "$rc" -eq 75 && test ! -f "$FAKE_STATE/sleep-count"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
+
+check "a hostile current-branch PR appearing while visibility settles fails immediately" \
+  bash -c '
+    expected_branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_OLD_REF=1 FAKE_FORK_CURRENT_AFTER_DELETE=1
+    export FAKE_CURRENT_BRANCH="$expected_branch"
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE/inventory-count" "$FAKE_STATE/old-ref-deleted" \
+      "$FAKE_STATE/post-delete-ref-reads" "$FAKE_STATE/sleep-count"
+    source "$1"
+    repository=f5-sales-demo/docs-control; branch="$expected_branch"
+    run_id=2; run_attempt=1; work="$2/state"
+    ! reconcile_pin_prs && test ! -f "$FAKE_STATE/sleep-count" &&
+      ! grep -Eq "pr (close|create|merge) 9|method (POST|PUT|PATCH)" "$FAKE_COMMAND_LOG"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
+
+check "an unseen older owner appearing while visibility settles fails immediately" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_OLD_REF=1 FAKE_UNSEEN_OLDER_REF_AFTER_DELETE=1
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE/inventory-count" "$FAKE_STATE/old-ref-deleted" \
+      "$FAKE_STATE/post-delete-ref-reads" "$FAKE_STATE/sleep-count"
+    source "$1"
+    repository=f5-sales-demo/docs-control; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    run_id=2; run_attempt=1; work="$2/state"
+    ! reconcile_pin_prs && test ! -f "$FAKE_STATE/sleep-count"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
+
+check "an API failure during visibility settling fails after no further sleeps" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_OLD_REF=1 FAKE_REF_VISIBILITY_LAG_READS=5 FAKE_INVENTORY_FAIL_AT=3
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE/inventory-count" "$FAKE_STATE/old-ref-deleted" \
+      "$FAKE_STATE/post-delete-ref-reads" "$FAKE_STATE/sleep-count"
+    source "$1"
+    repository=f5-sales-demo/docs-control; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    run_id=2; run_attempt=1; work="$2/state"
+    ! reconcile_pin_prs && test "$(grep "^sleep " "$FAKE_COMMAND_LOG")" = "sleep 1"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
+
+check "malformed inventory during visibility settling fails after no further sleeps" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_OLD_REF=1 FAKE_REF_VISIBILITY_LAG_READS=5 FAKE_INVENTORY_MALFORMED_AT=3
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE/inventory-count" "$FAKE_STATE/old-ref-deleted" \
+      "$FAKE_STATE/post-delete-ref-reads" "$FAKE_STATE/sleep-count"
+    source "$1"
+    repository=f5-sales-demo/docs-control; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    run_id=2; run_attempt=1; work="$2/state"
+    ! reconcile_pin_prs && test "$(grep "^sleep " "$FAKE_COMMAND_LOG")" = "sleep 1"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
+
+check "an interrupted settling delay fails closed immediately" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_OLD_REF=1 FAKE_REF_VISIBILITY_LAG_READS=5 FAKE_SLEEP_FAIL_AT=1
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE/inventory-count" "$FAKE_STATE/old-ref-deleted" \
+      "$FAKE_STATE/post-delete-ref-reads" "$FAKE_STATE/sleep-count"
+    source "$1"
+    repository=f5-sales-demo/docs-control; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    run_id=2; run_attempt=1; work="$2/state"
+    ! reconcile_pin_prs && test "$(grep "^sleep " "$FAKE_COMMAND_LOG")" = "sleep 1" &&
+      test "$(cat "$FAKE_STATE/post-delete-ref-reads")" -eq 1
   ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR"
 
 NOOP_ORIGIN="$WORK/noop-origin.git"
