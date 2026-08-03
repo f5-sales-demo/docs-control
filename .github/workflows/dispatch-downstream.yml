@@ -185,7 +185,9 @@ jobs:
           done
           TOTAL=${#REPOS[@]}
           BATCH_SIZE=5
-          BATCH_DELAY=45
+          # Seven gaps at the current fleet size consume 210 seconds, leaving
+          # 90 seconds of the runner's five-minute budget for API work/retries.
+          BATCH_DELAY=30
           echo "Dispatching enforce-repo-settings to ${TOTAL} repos (batches of ${BATCH_SIZE}, ${BATCH_DELAY}s delay)..."
 
           LOG=$(mktemp)
