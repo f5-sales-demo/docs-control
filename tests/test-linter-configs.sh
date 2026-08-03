@@ -1220,13 +1220,12 @@ import yaml
 with open(sys.argv[1], encoding="utf-8") as workflow_file:
     workflow = yaml.safe_load(workflow_file)
 
-expected_condition = (
-    "github.repository == 'f5-sales-demo/docs-control' && "
-    "runner.environment == 'self-hosted'"
-)
+expected_condition = "runner.environment == 'self-hosted'"
 required_fragments = (
     'workspace="${GITHUB_WORKSPACE:?}"',
-    'expected_workspace="${RUNNER_WORKSPACE:?}/docs-control"',
+    'repository="${GITHUB_REPOSITORY:?}"',
+    'repository_name="${repository##*/}"',
+    'expected_workspace="${RUNNER_WORKSPACE:?}/${repository_name}"',
     '[ "$workspace" = "$expected_workspace" ]',
     'sudo -n chown -R -- "$(id -u):$(id -g)" "$workspace"',
 )
@@ -1234,7 +1233,7 @@ forbidden_fragments = ("/home/", "/data/actions-runners/")
 
 for job_name in ("lint", "shell-unit-tests"):
     steps = workflow["jobs"][job_name]["steps"]
-    repairs = [step for step in steps if step.get("name") == "Repair docs-control runner workspace"]
+    repairs = [step for step in steps if step.get("name") == "Repair self-hosted runner workspace"]
     checkouts = [step for step in steps if step.get("name") == "Checkout"]
     if len(repairs) != 1 or len(checkouts) != 1:
         raise SystemExit(1)
@@ -1249,9 +1248,9 @@ for job_name in ("lint", "shell-unit-tests"):
     if any(fragment in command for fragment in forbidden_fragments):
         raise SystemExit(1)
 PY
-  pass "17.1 lint and shell jobs repair only the exact docs-control workspace before checkout"
+  pass "17.1 lint and shell jobs repair only the exact calling repository workspace before checkout"
 else
-  fail "17.1 lint and shell jobs repair only the exact docs-control workspace before checkout" \
+  fail "17.1 lint and shell jobs repair only the exact calling repository workspace before checkout" \
     "both jobs need the guarded ownership repair before actions/checkout"
 fi
 

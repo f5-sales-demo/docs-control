@@ -18,6 +18,9 @@ BRANCH_HEAD=7777777777777777777777777777777777777777
 CALLER_TEXT='name: Enforce Repository Settings'
 CALLER_CONTENT=$(printf '%s\n' "$CALLER_TEXT" | base64 | tr -d '\n')
 CALLER_BLOB=$(printf '%s\n' "$CALLER_TEXT" | git hash-object --stdin)
+LINT_CALLER_TEXT='name: Super-Linter'
+LINT_CALLER_CONTENT=$(printf '%s\n' "$LINT_CALLER_TEXT" | base64 | tr -d '\n')
+LINT_CALLER_BLOB=$(printf '%s\n' "$LINT_CALLER_TEXT" | git hash-object --stdin)
 printf '["example"]\n' >"$WORK/repos.json"
 printf '{"revision":"%s"}\n' "$PIN_SHA" >"$WORK/pin.json"
 printf '{"state":"active"}\n' >"$WORK/rollout.json"
@@ -54,6 +57,13 @@ if ! grep -q 'quiesce_fleet' <<<"$enable_failure_block"; then
 fi
 echo "[OK] merge and enable transitions retain exact safe ownership"
 
+if ! grep -Fq 'contents/workflows/super-linter.yml?ref=${source_sha}' "$SOURCE" ||
+  ! grep -Fq '.github/workflows/super-linter.yml' "$SOURCE"; then
+  echo "[FAIL] exact-caller bootstrap does not carry the current Super-Linter caller"
+  exit 1
+fi
+echo "[OK] bootstrap carries the lint caller that validates its own PR"
+
 cat >"$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$FAKE_LOG"
@@ -87,6 +97,14 @@ case "$1 $endpoint" in
     else
       printf '{"type":"file","encoding":"base64","sha":"%s","content":"%s"}\n' \
         "$CALLER_BLOB" "$CALLER_CONTENT"
+    fi
+    ;;
+  'api repos/f5-sales-demo/docs-control/contents/workflows/super-linter.yml?ref='*)
+    if [[ "$*" == *'--jq .sha'* ]]; then
+      printf '%s\n' "$LINT_CALLER_BLOB"
+    else
+      printf '{"type":"file","encoding":"base64","sha":"%s","content":"%s"}\n' \
+        "$LINT_CALLER_BLOB" "$LINT_CALLER_CONTENT"
     fi
     ;;
   'api repos/f5-sales-demo/example/commits/main') printf '%s\n' "$BASE_SHA" ;;
@@ -126,6 +144,9 @@ case "$1 $endpoint" in
   'api repos/f5-sales-demo/example-two/actions/runs?status='*) printf '\n' ;;
   'api repos/f5-sales-demo/example-two/contents/.github/workflows/enforce-repo-settings.yml?ref='*)
     printf '%s\n' "$DOWNSTREAM_BLOB"
+    ;;
+  'api repos/f5-sales-demo/example-two/contents/.github/workflows/super-linter.yml?ref='*)
+    printf '%s\n' "$DOWNSTREAM_LINT_BLOB"
     ;;
   'api repos/f5-sales-demo/example/actions/runs?status='*)
     if [ -n "${FAKE_RATE_LIMIT_STATUS:-}" ] &&
@@ -223,11 +244,23 @@ case "$1 $endpoint" in
     elif [ "$ref" = "$BRANCH_HEAD" ] && [ -f "$FAKE_STATE/updated" ]; then
       printf '%s\n' "$CALLER_BLOB"
     elif [ "$ref" = "$BRANCH_HEAD" ]; then
-      printf '%s\n' "$OLD_BLOB"
+      printf '%s\n' "$DOWNSTREAM_BLOB"
     elif [ -f "$FAKE_STATE/merged" ]; then
       printf '%s\n' "$CALLER_BLOB"
     else
       printf '%s\n' "$DOWNSTREAM_BLOB"
+    fi
+    ;;
+  'api repos/f5-sales-demo/example/contents/.github/workflows/super-linter.yml?ref='*)
+    ref=${endpoint##*ref=}
+    if [ "$ref" = "$BRANCH_HEAD" ] && [ -f "$FAKE_STATE/lint-updated" ]; then
+      printf '%s\n' "$LINT_CALLER_BLOB"
+    elif [ "$ref" = "$BRANCH_HEAD" ]; then
+      printf '%s\n' "$DOWNSTREAM_LINT_BLOB"
+    elif [ -f "$FAKE_STATE/merged" ]; then
+      printf '%s\n' "$LINT_CALLER_BLOB"
+    else
+      printf '%s\n' "$DOWNSTREAM_LINT_BLOB"
     fi
     ;;
   'api repos/f5-sales-demo/example') printf 'main\n' ;;
@@ -236,7 +269,7 @@ case "$1 $endpoint" in
     if [ -f "$FAKE_STATE/branch" ]; then
       if [ -f "$FAKE_STATE/corrupt" ]; then
         printf '%s\n' '8888888888888888888888888888888888888888'
-      elif [ -f "$FAKE_STATE/updated" ]; then
+      elif [ -f "$FAKE_STATE/updated" ] || [ -f "$FAKE_STATE/lint-updated" ]; then
         printf '%s\n' "$BRANCH_HEAD"
       else
         printf '%s\n' "$BASE_SHA"
@@ -250,8 +283,24 @@ case "$1 $endpoint" in
   'api repos/f5-sales-demo/example/contents/.github/workflows/enforce-repo-settings.yml')
     touch "$FAKE_STATE/updated"
     ;;
+  'api repos/f5-sales-demo/example/contents/.github/workflows/super-linter.yml')
+    touch "$FAKE_STATE/lint-updated"
+    ;;
   'api repos/f5-sales-demo/example/compare/'*)
-    printf '{"status":"ahead","ahead_by":1,"total_commits":1,"commits":[{}],"files":[{"filename":".github/workflows/enforce-repo-settings.yml","sha":"%s","status":"modified"}]}\n' "$CALLER_BLOB"
+    files='[]'
+    count=0
+    if [ "$DOWNSTREAM_BLOB" != "$CALLER_BLOB" ]; then
+      files=$(jq -cn --argjson files "$files" --arg sha "$CALLER_BLOB" \
+        '$files + [{filename:".github/workflows/enforce-repo-settings.yml",sha:$sha,status:"modified"}]')
+      count=$((count + 1))
+    fi
+    if [ "$DOWNSTREAM_LINT_BLOB" != "$LINT_CALLER_BLOB" ]; then
+      files=$(jq -cn --argjson files "$files" --arg sha "$LINT_CALLER_BLOB" \
+        '$files + [{filename:".github/workflows/super-linter.yml",sha:$sha,status:"modified"}]')
+      count=$((count + 1))
+    fi
+    jq -cn --argjson count "$count" --argjson files "$files" \
+      '{status:"ahead",ahead_by:$count,total_commits:$count,commits:[range(0;$count)|{}],files:$files}'
     ;;
   'api repos/f5-sales-demo/example/pulls?state=open&per_page=100')
     if [ -f "$FAKE_STATE/duplicate-current-open" ]; then
@@ -296,8 +345,19 @@ case "$1 $endpoint" in
     printf 'https://github.com/f5-sales-demo/example/pull/42\n'
     ;;
   'pr view')
-    printf '{"baseRefName":"main","headRefName":"%s","headRefOid":"%s","commits":[{}],"files":[{"path":".github/workflows/enforce-repo-settings.yml"}]}\n' \
-      "$EXPECTED_BRANCH" "$BRANCH_HEAD"
+    files='[]'
+    count=0
+    if [ "$DOWNSTREAM_BLOB" != "$CALLER_BLOB" ]; then
+      files=$(jq -cn --argjson files "$files" '$files + [{path:".github/workflows/enforce-repo-settings.yml"}]')
+      count=$((count + 1))
+    fi
+    if [ "$DOWNSTREAM_LINT_BLOB" != "$LINT_CALLER_BLOB" ]; then
+      files=$(jq -cn --argjson files "$files" '$files + [{path:".github/workflows/super-linter.yml"}]')
+      count=$((count + 1))
+    fi
+    jq -cn --arg branch "$EXPECTED_BRANCH" --arg sha "$BRANCH_HEAD" \
+      --argjson count "$count" --argjson files "$files" \
+      '{baseRefName:"main",headRefName:$branch,headRefOid:$sha,commits:[range(0;$count)|{}],files:$files}'
     ;;
   'pr merge')
     if [ -f "$FAKE_STATE/fail-merge" ]; then
@@ -336,10 +396,13 @@ run_bootstrap() {
     ENFORCE_BLOB="$ENFORCE_BLOB" \
     SYNC_BLOB="$SYNC_BLOB" \
     BRANCH_HEAD="$BRANCH_HEAD" \
-    EXPECTED_BRANCH="sync/exact-caller-${CALLER_BLOB:0:12}-12345-1" \
+    EXPECTED_BRANCH="sync/exact-caller-${CALLER_BLOB:0:6}${LINT_CALLER_BLOB:0:6}-12345-1" \
     CALLER_BLOB="$CALLER_BLOB" \
     CALLER_CONTENT="$CALLER_CONTENT" \
+    LINT_CALLER_BLOB="$LINT_CALLER_BLOB" \
+    LINT_CALLER_CONTENT="$LINT_CALLER_CONTENT" \
     DOWNSTREAM_BLOB="$DOWNSTREAM_BLOB" \
+    DOWNSTREAM_LINT_BLOB="${DOWNSTREAM_LINT_BLOB:-$LINT_CALLER_BLOB}" \
     FAKE_READ_ERROR="${FAKE_READ_ERROR:-}" \
     FAKE_MAIN_ADVANCE_AT="${FAKE_MAIN_ADVANCE_AT:-}" \
     FAKE_MALFORMED_CALLER="${FAKE_MALFORMED_CALLER:-}" \
@@ -389,7 +452,28 @@ if grep -qE '(^|[[:space:]])--force([[:space:]]|$)|"force"[[:space:]]*:[[:space:
   echo "[FAIL] bootstrap used a non-monotonic force update"
   exit 1
 fi
-echo "[OK] stale caller closes older PRs and queues one exact one-file PR"
+echo "[OK] stale callers close older PRs and queue one exact bounded PR"
+
+state="$WORK/state-stale-lint-only"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+set +e
+run_bootstrap "$state" >"$WORK/stale-lint-only.out" 2>"$WORK/stale-lint-only.err"
+rc=$?
+set -e
+unset DOWNSTREAM_LINT_BLOB
+if [ "$rc" != 83 ] ||
+  grep -q 'contents/.github/workflows/enforce-repo-settings.yml --method PUT' "$WORK/gh.log" ||
+  ! grep -q 'contents/.github/workflows/super-linter.yml --method PUT' "$WORK/gh.log" ||
+  grep -q 'actions/workflows/enforce-repo-settings.yml/enable --method PUT' "$WORK/gh.log"; then
+  echo "[FAIL] stale lint-only caller was not kept quiesced behind its exact bounded PR"
+  cat "$WORK/stale-lint-only.err"
+  exit 1
+fi
+echo "[OK] exact enforcement with stale lint updates only lint and remains quiesced"
 
 state="$WORK/state-exact"
 mkdir -p "$state"

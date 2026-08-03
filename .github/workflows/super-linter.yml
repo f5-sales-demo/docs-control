@@ -33,13 +33,15 @@ jobs:
       # paths and destroys its partial .git directory before failing. Repair
       # ownership only inside the exact disposable Actions workspace; checkout
       # then performs its normal bounded clean.
-      - name: Repair docs-control runner workspace
-        if: github.repository == 'f5-sales-demo/docs-control' && runner.environment == 'self-hosted'
+      - name: Repair self-hosted runner workspace
+        if: runner.environment == 'self-hosted'
         shell: bash
         run: |
           set -euo pipefail
           workspace="${GITHUB_WORKSPACE:?}"
-          expected_workspace="${RUNNER_WORKSPACE:?}/docs-control"
+          repository="${GITHUB_REPOSITORY:?}"
+          repository_name="${repository##*/}"
+          expected_workspace="${RUNNER_WORKSPACE:?}/${repository_name}"
           if ! [ "$workspace" = "$expected_workspace" ]; then
             echo "::error::Refusing to repair unexpected workspace: ${workspace}"
             exit 1
@@ -417,13 +419,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Repair docs-control runner workspace
-        if: github.repository == 'f5-sales-demo/docs-control' && runner.environment == 'self-hosted'
+      - name: Repair self-hosted runner workspace
+        if: runner.environment == 'self-hosted'
         shell: bash
         run: |
           set -euo pipefail
           workspace="${GITHUB_WORKSPACE:?}"
-          expected_workspace="${RUNNER_WORKSPACE:?}/docs-control"
+          repository="${GITHUB_REPOSITORY:?}"
+          repository_name="${repository##*/}"
+          expected_workspace="${RUNNER_WORKSPACE:?}/${repository_name}"
           if ! [ "$workspace" = "$expected_workspace" ]; then
             echo "::error::Refusing to repair unexpected workspace: ${workspace}"
             exit 1
