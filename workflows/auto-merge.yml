@@ -17,7 +17,7 @@ jobs:
     if: >-
       github.event.pull_request.draft == false &&
       github.actor != 'dependabot[bot]'
-    uses: f5-sales-demo/docs-control/.github/workflows/auto-merge.yml@5e4a98383368a299c95dae39f9b77ae0ca37cf4b
+    uses: f5-sales-demo/docs-control/.github/workflows/auto-merge.yml@7eef31c9028c56a504757a33d1d476badd80c436
     permissions:
       contents: write # fallback GITHUB_TOKEN must be able to complete the merge
       pull-requests: write # enable auto-merge and update the pull request
