@@ -17,6 +17,7 @@ bad() {
 }
 
 input_block=$(sed -n '/^      content-ref:/,/^        type: string/p' "$DEPLOY_WORKFLOW")
+builder_input_block=$(sed -n '/^      builder-image:/,/^        type: string/p' "$DEPLOY_WORKFLOW")
 checkout_block=$(sed -n '/^      - name: Checkout content repo/,/^      - name: Login to GHCR/p' "$DEPLOY_WORKFLOW")
 validation_block=$(sed -n '/^      - name: Resolve immutable content commit/,/^      - name: Checkout content repo/p' "$DEPLOY_WORKFLOW")
 revision_block=$(sed -n '/^      - name: Stage governance assets for \/api\//,/^      - name: Upload artifact/p' "$DEPLOY_WORKFLOW")
@@ -36,12 +37,114 @@ else
   bad "Pages deploy has a mutable or fallback content identity"
 fi
 
-if grep -qF 'BUILDER_IMAGE="$REQUESTED_IMAGE"' <<<"$validation_block" &&
-  grep -qF '^ghcr\.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$' <<<"$validation_block" &&
-  grep -qF 'builder_image=$BUILDER_IMAGE' <<<"$validation_block"; then
-  ok "Pages deploy accepts only the approved digest-pinned builder"
+if grep -qF "default: 'ghcr.io/f5-sales-demo/docs-builder:latest'" <<<"$builder_input_block" &&
+  ! grep -qF '@sha256:' <<<"$builder_input_block"; then
+  ok "Pages deploy selects the latest approved builder release"
 else
-  bad "Pages deploy permits a mutable or unapproved builder image"
+  bad "Pages deploy does not select the latest approved builder release"
+fi
+
+if python3 - "$DEPLOY_WORKFLOW" <<'PY'; then
+import sys
+
+import yaml
+
+with open(sys.argv[1], encoding="utf-8") as workflow_file:
+    workflow = yaml.safe_load(workflow_file)
+
+steps = workflow["jobs"]["build"]["steps"]
+names = [step.get("name") for step in steps]
+login = names.index("Login to GHCR")
+resolve = names.index("Resolve latest documentation builder")
+if resolve != login + 1:
+    raise SystemExit(1)
+PY
+  ok "Pages deploy authenticates immediately before resolving latest"
+else
+  bad "Pages deploy can resolve the builder before registry authentication"
+fi
+
+resolver_script=$(mktemp)
+resolver_tmp=$(mktemp -d)
+trap 'rm -f "$resolver_script"; rm -rf "$resolver_tmp"' EXIT
+if python3 - "$DEPLOY_WORKFLOW" "$resolver_script" <<'PY'; then
+import sys
+
+import yaml
+
+workflow_path, script_path = sys.argv[1:]
+with open(workflow_path, encoding="utf-8") as workflow_file:
+    workflow = yaml.safe_load(workflow_file)
+
+matching = [
+    step
+    for step in workflow["jobs"]["build"]["steps"]
+    if step.get("name") == "Resolve latest documentation builder"
+]
+if len(matching) != 1 or not isinstance(matching[0].get("run"), str):
+    raise SystemExit(1)
+with open(script_path, "w", encoding="utf-8") as script_file:
+    script_file.write(matching[0]["run"])
+PY
+  :
+else
+  bad "Pages deploy has no executable latest-builder resolver"
+fi
+
+mkdir -p "$resolver_tmp/bin"
+cat >"$resolver_tmp/bin/docker" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = "pull" ]; then
+  printf '%s\n' "$2" >>"$DOCKER_CALLS"
+  exit 0
+fi
+if [ "$1" = "image" ] && [ "$2" = "inspect" ]; then
+  printf '%s\n' "$STUB_RESOLVED_IMAGE"
+  exit 0
+fi
+echo "unexpected docker invocation: $*" >&2
+exit 2
+STUB
+chmod +x "$resolver_tmp/bin/docker"
+
+approved_tag='ghcr.io/f5-sales-demo/docs-builder:latest'
+approved_digest='ghcr.io/f5-sales-demo/docs-builder@sha256:1111111111111111111111111111111111111111111111111111111111111111'
+export DOCKER_CALLS="$resolver_tmp/docker-calls"
+export STUB_RESOLVED_IMAGE="$approved_digest"
+
+if PATH="$resolver_tmp/bin:$PATH" \
+  REQUESTED_IMAGE="$approved_tag" \
+  GITHUB_OUTPUT="$resolver_tmp/approved-output" \
+  bash "$resolver_script" >/dev/null 2>&1 &&
+  grep -qxF "$approved_tag" "$DOCKER_CALLS" &&
+  grep -qxF "builder_image=$approved_digest" "$resolver_tmp/approved-output"; then
+  ok "Pages deploy resolves latest to one immutable approved digest"
+else
+  bad "Pages deploy does not resolve latest to the digest it records"
+fi
+
+for rejected_image in \
+  'ghcr.io/unapproved/docs-builder:latest' \
+  'ghcr.io/f5-sales-demo/docs-builder:older'; do
+  if PATH="$resolver_tmp/bin:$PATH" \
+    REQUESTED_IMAGE="$rejected_image" \
+    GITHUB_OUTPUT="$resolver_tmp/rejected-output" \
+    bash "$resolver_script" >/dev/null 2>&1; then
+    bad "Pages deploy accepts unapproved builder selector: $rejected_image"
+  else
+    ok "Pages deploy rejects unapproved builder selector: $rejected_image"
+  fi
+done
+
+export STUB_RESOLVED_IMAGE='ghcr.io/unapproved/docs-builder@sha256:2222222222222222222222222222222222222222222222222222222222222222'
+if PATH="$resolver_tmp/bin:$PATH" \
+  REQUESTED_IMAGE="$approved_tag" \
+  GITHUB_OUTPUT="$resolver_tmp/unapproved-output" \
+  bash "$resolver_script" >/dev/null 2>&1; then
+  bad "Pages deploy accepts a resolved digest from an unapproved repository"
+else
+  ok "Pages deploy rejects a resolved digest from an unapproved repository"
 fi
 
 if grep -qF 'ref: ${{ steps.content.outputs.content_ref }}' <<<"$checkout_block" &&
@@ -60,7 +163,7 @@ else
   bad "manual Pages dispatch can publish an unmerged commit"
 fi
 
-if grep -qF '${{ steps.content.outputs.builder_image }}' "$DEPLOY_WORKFLOW" &&
+if grep -qF '${{ steps.builder.outputs.builder_image }}' "$DEPLOY_WORKFLOW" &&
   ! grep -qF 'inputs.builder-image ||' "$DEPLOY_WORKFLOW"; then
   ok "Pages build uses the validated builder identity without fallback"
 else
@@ -77,7 +180,7 @@ else
 fi
 
 if grep -qF 'CONTENT_REF: ${{ steps.content.outputs.content_ref }}' <<<"$revision_block" &&
-  grep -qF 'BUILDER_IMAGE: ${{ steps.content.outputs.builder_image }}' <<<"$revision_block" &&
+  grep -qF 'BUILDER_IMAGE: ${{ steps.builder.outputs.builder_image }}' <<<"$revision_block" &&
   grep -qF 'CHECKED_OUT_SHA=$(git rev-parse HEAD)' <<<"$revision_block" &&
   grep -qF -- '--arg content_ref "${CONTENT_REF}"' <<<"$revision_block" &&
   grep -qF -- '--arg commit "${CHECKED_OUT_SHA}"' <<<"$revision_block" &&

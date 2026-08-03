@@ -13,9 +13,9 @@ on:
         default: 'docs'
         type: string
       builder-image:
-        description: 'Builder Docker image URI'
+        description: 'Approved builder Docker image selector'
         required: false
-        default: 'ghcr.io/f5-sales-demo/docs-builder@sha256:905d2398fec15c05e828c881ab0e8b782368c30d70d97a978dc383935d7d0163'
+        default: 'ghcr.io/f5-sales-demo/docs-builder:latest'
         type: string
       docs-title:
         description: 'Documentation site title (overrides frontmatter)'
@@ -41,7 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read # checkout the documentation source
-      packages: read # authenticate the pinned builder image pull from GHCR
+      packages: read # authenticate and resolve the latest builder image from GHCR
     outputs:
       build-status: ${{ job.status }}
     steps:
@@ -49,20 +49,13 @@ jobs:
         id: content
         env:
           REQUESTED_REF: ${{ inputs.content-ref }}
-          REQUESTED_IMAGE: ${{ inputs.builder-image }}
         run: |
           CONTENT_REF="$REQUESTED_REF"
           if [[ ! "$CONTENT_REF" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::content-ref must be a full lowercase 40-character commit SHA"
             exit 1
           fi
-          BUILDER_IMAGE="$REQUESTED_IMAGE"
-          if [[ ! "$BUILDER_IMAGE" =~ ^ghcr\.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$ ]]; then
-            echo "::error::builder-image must use the approved repository and an immutable SHA-256 digest"
-            exit 1
-          fi
           echo "content_ref=$CONTENT_REF" >> "$GITHUB_OUTPUT"
-          echo "builder_image=$BUILDER_IMAGE" >> "$GITHUB_OUTPUT"
 
       - name: Checkout content repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -97,6 +90,27 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve latest documentation builder
+        id: builder
+        env:
+          REQUESTED_IMAGE: ${{ inputs.builder-image }}
+        run: |
+          if [[ ! "$REQUESTED_IMAGE" =~ ^ghcr\.io/f5-sales-demo/docs-builder:latest$ ]]; then
+            echo "::error::builder-image must be ghcr.io/f5-sales-demo/docs-builder:latest"
+            exit 1
+          fi
+
+          docker pull "$REQUESTED_IMAGE"
+          RESOLVED_BUILDER_IMAGE=$(
+            docker image inspect "$REQUESTED_IMAGE" \
+              --format '{{range .RepoDigests}}{{println .}}{{end}}'
+          )
+          if [[ ! "$RESOLVED_BUILDER_IMAGE" =~ ^ghcr\.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::builder-image did not resolve to exactly one approved repository digest"
+            exit 1
+          fi
+          echo "builder_image=$RESOLVED_BUILDER_IMAGE" >> "$GITHUB_OUTPUT"
 
       - name: Stage imported files for documentation
         run: |
@@ -144,7 +158,7 @@ jobs:
             -e DOCS_SITE="${{ inputs.docs-site || format('https://{0}.github.io', github.repository_owner) }}" \
             -e GITHUB_REPOSITORY="${{ github.repository }}" \
             ${{ inputs.docs-title && format('-e DOCS_TITLE="{0}"', inputs.docs-title) || '' }} \
-            ${{ steps.content.outputs.builder_image }}
+            ${{ steps.builder.outputs.builder_image }}
 
           echo "✅ Build completed successfully"
           ls -lah ${{ runner.temp }}/docs-output/
@@ -165,7 +179,7 @@ jobs:
       - name: Stage governance assets for /api/
         env:
           CONTENT_REF: ${{ steps.content.outputs.content_ref }}
-          BUILDER_IMAGE: ${{ steps.content.outputs.builder_image }}
+          BUILDER_IMAGE: ${{ steps.builder.outputs.builder_image }}
         run: |
           OUTPUT_DIR="${{ runner.temp }}/docs-output"
           API_DIR="${OUTPUT_DIR}/api"
