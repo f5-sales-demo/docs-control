@@ -1,5 +1,5 @@
 {
-  "source_commit": "1ef7d57960914e80f1c5724433d2fab6282f5ee4",
+  "source_commit": "30293ee5009329b86fc85e9725694d7b822dc96e",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -354,8 +354,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "27f42751193e56425a579a6dfb81c6f93bfc5a71",
-      "size": 5462,
+      "sha": "73073204d8d82e077762a09b2b04e7b9615b866c",
+      "size": 5446,
       "mode": "100644"
     },
     ".claude/settings.json": {
