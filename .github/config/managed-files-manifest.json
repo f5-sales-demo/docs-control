@@ -1,5 +1,5 @@
 {
-  "source_commit": "fe58b259097837254d6f7349abaa5546608c05ff",
+  "source_commit": "d8e029e3d0d5604ddb427c1cde735dffad9bd90e",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -242,8 +242,8 @@
     ".gitleaks.toml": {
       "src": ".gitleaks.toml",
       "dest": ".gitleaks.toml",
-      "sha": "cacca1884f541a3a55fbb5d9d18469e76bc694ee",
-      "size": 100,
+      "sha": "b239ea9c3030926328bb71e2f0eb39c7cfd34163",
+      "size": 67,
       "mode": "100644"
     },
     ".prettierignore": {
