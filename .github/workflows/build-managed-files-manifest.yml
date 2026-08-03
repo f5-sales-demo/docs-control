@@ -66,6 +66,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
+          # The exact-main guards query origin directly instead of consuming a
+          # rate-limited REST request. Keep the checkout token for those reads.
+          persist-credentials: true
           # Use a PAT so the manifest PR (and its branch push) are attributed
           # to a real user — PRs opened with the default GITHUB_TOKEN do not
           # trigger CI, leaving required checks unreported and auto-merge stuck.
@@ -80,7 +83,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          PROTECTED_MAIN_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
+          resolve_protected_main_sha() {
+            local framed sha
+            if ! framed=$(git ls-remote --exit-code --heads origin refs/heads/main &&
+              printf '\034'); then
+              echo "[ERROR] Could not resolve protected main from the Git remote" >&2
+              return 1
+            fi
+            sha=${framed%%$'\t'*}
+            if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]] ||
+              [ "$framed" != "${sha}"$'\trefs/heads/main\n\034' ]; then
+              echo "[ERROR] Protected main Git remote receipt is invalid" >&2
+              return 1
+            fi
+            printf '%s' "$sha"
+          }
+
+          PROTECTED_MAIN_SHA=$(resolve_protected_main_sha)
           CHECKED_OUT_SHA=$(git rev-parse HEAD)
           if ! printf '%s\n%s\n%s\n' \
             "$SOURCE_COMMIT" "$CHECKED_OUT_SHA" "$PROTECTED_MAIN_SHA" |
@@ -186,7 +205,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          PROTECTED_MAIN_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
+          resolve_protected_main_sha() {
+            local framed sha
+            if ! framed=$(git ls-remote --exit-code --heads origin refs/heads/main &&
+              printf '\034'); then
+              echo "[ERROR] Could not resolve protected main from the Git remote" >&2
+              return 1
+            fi
+            sha=${framed%%$'\t'*}
+            if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]] ||
+              [ "$framed" != "${sha}"$'\trefs/heads/main\n\034' ]; then
+              echo "[ERROR] Protected main Git remote receipt is invalid" >&2
+              return 1
+            fi
+            printf '%s' "$sha"
+          }
+
+          PROTECTED_MAIN_SHA=$(resolve_protected_main_sha)
           CHECKED_OUT_SHA=$(git rev-parse HEAD)
           if ! printf '%s\n%s\n%s\n' \
             "$SOURCE_COMMIT" "$CHECKED_OUT_SHA" "$PROTECTED_MAIN_SHA" |
@@ -369,7 +404,7 @@ jobs:
             echo "[ERROR] Local manifest branch head is invalid" >&2
             exit 1
           fi
-          CURRENT_MAIN_SHA=$(gh api "repos/${GITHUB_REPOSITORY}/commits/main" --jq '.sha')
+          CURRENT_MAIN_SHA=$(resolve_protected_main_sha)
           if [ "$CURRENT_MAIN_SHA" != "$PROTECTED_MAIN_SHA" ]; then
             echo "[ERROR] Protected main changed before manifest publication" >&2
             exit 1
