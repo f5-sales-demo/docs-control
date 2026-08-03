@@ -91,8 +91,17 @@ def load_governed_repos(gov_path: Path = DOCS_CONTROL_GOVERNANCE_PATH):
     return sorted(list(repos_dict.keys()))
 
 
+def validate_repo_dir(base_dir: Path, repo: str) -> Path:
+    if not repo or not repo.strip():
+        raise ValueError("Repository name cannot be empty.")
+    repo_dir = (base_dir / repo).resolve()
+    if repo_dir == base_dir.resolve():
+        raise ValueError(f"Invalid repository name: '{repo}' resolves to base directory.")
+    return repo_dir
+
+
 def setup_runner(org, repo, base_dir: Path, user):
-    repo_dir = base_dir / repo
+    repo_dir = validate_repo_dir(base_dir, repo)
     cache_dir = base_dir / ".cache"
 
     print(f"\n==========================================")
@@ -155,7 +164,7 @@ def setup_runner(org, repo, base_dir: Path, user):
 
 
 def status_runner(org, repo, base_dir: Path):
-    repo_dir = base_dir / repo
+    repo_dir = validate_repo_dir(base_dir, repo)
     print(f"\n--- Status for {org}/{repo} ---")
 
     # GitHub API Status
@@ -191,7 +200,7 @@ def status_runner(org, repo, base_dir: Path):
 
 
 def restart_runner(org, repo, base_dir: Path):
-    repo_dir = base_dir / repo
+    repo_dir = validate_repo_dir(base_dir, repo)
     if not repo_dir.exists():
         print(f"Error: {repo_dir} does not exist.")
         return
@@ -201,7 +210,7 @@ def restart_runner(org, repo, base_dir: Path):
 
 
 def stop_runner(org, repo, base_dir: Path):
-    repo_dir = base_dir / repo
+    repo_dir = validate_repo_dir(base_dir, repo)
     if not repo_dir.exists():
         print(f"Error: {repo_dir} does not exist.")
         return
@@ -211,7 +220,7 @@ def stop_runner(org, repo, base_dir: Path):
 
 
 def remove_runner(org, repo, base_dir: Path):
-    repo_dir = base_dir / repo
+    repo_dir = validate_repo_dir(base_dir, repo)
     if not repo_dir.exists():
         print(f"Directory {repo_dir} does not exist. Nothing to remove.")
         return
