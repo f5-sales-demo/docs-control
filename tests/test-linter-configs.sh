@@ -776,13 +776,16 @@ for cfg in .ruff.toml .python-lint .mypy.ini; do
   fi
 done
 
-if jq -e '.managed_files.skip_files.console | index(".python-lint") == null' \
-  "$REPO_SETTINGS" >/dev/null; then
-  pass "7.x console receives .python-lint for the managed PII scanner"
-else
-  fail "7.x console receives .python-lint for the managed PII scanner" \
-    ".python-lint is skipped, so Pylint defaults reject scripts/check_pii.py"
-fi
+for repo in console i18n-core; do
+  if jq -e --arg repo "$repo" \
+    '(.managed_files.skip_files[$repo] // []) | index(".python-lint") == null' \
+    "$REPO_SETTINGS" >/dev/null; then
+    pass "7.x $repo receives .python-lint for the managed PII scanner"
+  else
+    fail "7.x $repo receives .python-lint for the managed PII scanner" \
+      ".python-lint is skipped, so Pylint defaults reject scripts/check_pii.py"
+  fi
+done
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5c: .checkov.yaml skips the install-test harness dockerfiles
