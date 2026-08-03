@@ -213,6 +213,29 @@ else
     "dispatch-downstream.yml omits a dynamic README input"
 fi
 
+awk '
+  /^          readme_english_only\(\) \{/ { found=1 }
+  found {
+    line=$0
+    sub(/^          /, "")
+    print
+    if (line == "          }") exit
+  }
+' "$SYNC_WORKFLOW" >"$WORK/readme-english-only.sh"
+if [ -s "$WORK/readme-english-only.sh" ] && (
+  # shellcheck source=/dev/null
+  source "$WORK/readme-english-only.sh"
+  [ "$(printf '%s' '{}' | readme_english_only)" = false ] &&
+    [ "$(printf '%s' '{"readme_english_only":false}' | readme_english_only)" = false ] &&
+    [ "$(printf '%s' '{"readme_english_only":true}' | readme_english_only)" = true ] &&
+    ! printf '%s' '{"readme_english_only":"false"}' | readme_english_only >/dev/null 2>&1
+); then
+  pass "4.7 README language policy accepts both booleans and defaults to multilingual"
+else
+  fail "4.7 README language policy accepts both booleans and defaults to multilingual" \
+    "the production extractor must return false successfully and reject non-booleans"
+fi
+
 echo ""
 echo "=== Section 3: the workflow performs the same normalisation ==="
 
