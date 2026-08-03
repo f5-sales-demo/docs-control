@@ -28,6 +28,27 @@ jobs:
       statuses: write # publish the lint status context
       pull-requests: write # annotate pull requests with lint findings
     steps:
+      # Super-Linter's container writes github_conf/ and super-linter-output/ as
+      # root on this self-hosted runner. The next checkout cannot clean those
+      # paths and destroys its partial .git directory before failing. Repair
+      # ownership only inside the exact disposable Actions workspace; checkout
+      # then performs its normal bounded clean.
+      - name: Repair docs-control runner workspace
+        if: github.repository == 'f5-sales-demo/docs-control' && runner.environment == 'self-hosted'
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="${GITHUB_WORKSPACE:?}"
+          case "$workspace" in
+            /data/actions-runners/f5-sales-demo/docs-control/_work/docs-control/docs-control | \
+              /home/robin/actions-runners/f5-sales-demo/docs-control/_work/docs-control/docs-control) ;; # repo-hygiene:allow
+            *)
+              echo "::error::Refusing to repair unexpected workspace: ${workspace}"
+              exit 1
+              ;;
+          esac
+          sudo -n chown -R -- "$(id -u):$(id -g)" "$workspace"
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -399,6 +420,22 @@ jobs:
     permissions:
       contents: read
     steps:
+      - name: Repair docs-control runner workspace
+        if: github.repository == 'f5-sales-demo/docs-control' && runner.environment == 'self-hosted'
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="${GITHUB_WORKSPACE:?}"
+          case "$workspace" in
+            /data/actions-runners/f5-sales-demo/docs-control/_work/docs-control/docs-control | \
+              /home/robin/actions-runners/f5-sales-demo/docs-control/_work/docs-control/docs-control) ;; # repo-hygiene:allow
+            *)
+              echo "::error::Refusing to repair unexpected workspace: ${workspace}"
+              exit 1
+              ;;
+          esac
+          sudo -n chown -R -- "$(id -u):$(id -g)" "$workspace"
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

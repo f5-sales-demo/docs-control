@@ -1176,6 +1176,52 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 17: self-hosted docs-control jobs repair Docker-owned output
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 17: self-hosted workspace ownership repair ==="
+
+if python3 - "$SUPER_LINTER_WORKFLOW" <<'PY'; then
+import sys
+
+import yaml
+
+with open(sys.argv[1], encoding="utf-8") as workflow_file:
+    workflow = yaml.safe_load(workflow_file)
+
+expected_condition = (
+    "github.repository == 'f5-sales-demo/docs-control' && "
+    "runner.environment == 'self-hosted'"
+)
+required_fragments = (
+    'workspace="${GITHUB_WORKSPACE:?}"',
+    "/data/actions-runners/f5-sales-demo/docs-control/_work/docs-control/docs-control",
+    "/home/robin/actions-runners/f5-sales-demo/docs-control/_work/docs-control/docs-control",  # repo-hygiene:allow
+    'sudo -n chown -R -- "$(id -u):$(id -g)" "$workspace"',
+)
+
+for job_name in ("lint", "shell-unit-tests"):
+    steps = workflow["jobs"][job_name]["steps"]
+    repairs = [step for step in steps if step.get("name") == "Repair docs-control runner workspace"]
+    checkouts = [step for step in steps if step.get("name") == "Checkout"]
+    if len(repairs) != 1 or len(checkouts) != 1:
+        raise SystemExit(1)
+    repair = repairs[0]
+    if steps.index(repair) >= steps.index(checkouts[0]):
+        raise SystemExit(1)
+    if repair.get("if") != expected_condition or repair.get("shell") != "bash":
+        raise SystemExit(1)
+    command = repair.get("run", "")
+    if any(fragment not in command for fragment in required_fragments):
+        raise SystemExit(1)
+PY
+  pass "17.1 lint and shell jobs repair only the exact docs-control workspace before checkout"
+else
+  fail "17.1 lint and shell jobs repair only the exact docs-control workspace before checkout" \
+    "both jobs need the guarded ownership repair before actions/checkout"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 # Summary
 # ════════════════════════════════════════════════════════════════════
 echo ""
