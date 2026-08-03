@@ -294,6 +294,7 @@ SOURCE_COMMENT_EXPRESSION_RE = re.compile(
     r"(?:[A-Za-z_$][A-Za-z0-9_$]*(?:\.|::|->))+[A-Za-z_$][A-Za-z0-9_$]*"
     r"|[A-Za-z_$][A-Za-z0-9_$]*\s*\([^\r\n]*\)"
 )
+SOURCE_TEMPLATE_STRING_RE = re.compile(r"(?P<quote>['\"])(?P<value>(?:\\.|(?!\1).)*)\1")
 JQ_OPTION_ARITY = {
     "--arg": 2,
     "--argfile": 2,
@@ -407,6 +408,7 @@ SAFE_PERSON_NAMES = {
     "rosario l.",
 }
 SCHEMA_SENTINELS = {
+    "*",
     "0",
     "any",
     "boolean",
@@ -816,6 +818,29 @@ def quoted_structured_field_value(
     return line[start:]
 
 
+def placeholder_terminates_structured_value(
+    path: str,
+    line: str,
+    placeholder_end: int,
+    flow_context: bool,
+) -> bool:
+    """Return whether a placeholder is the complete structured field value."""
+    raw_remainder = line[placeholder_end:]
+    remainder = raw_remainder.lstrip()
+    if not remainder:
+        return True
+    if raw_remainder != remainder and remainder.startswith("#"):
+        return True
+    if flow_context and remainder[0] in ",}]":
+        return True
+
+    prose = PurePosixPath(path).suffix.lower() in PROSE_DOCUMENT_SUFFIXES
+    if prose and re.fullmatch(r"[).;!?]+", remainder):
+        return True
+    following_identity = IDENTITY_FIELD_RE.match(remainder[1:].lstrip())
+    return prose and remainder.startswith(",") and bool(following_identity)
+
+
 def structured_field_value(path: str, line: str, match: re.Match[str]) -> str:
     """Read one field value without truncating quoted punctuation or YAML scalars."""
     start = match.start("value")
@@ -823,17 +848,19 @@ def structured_field_value(path: str, line: str, match: re.Match[str]) -> str:
     if quote:
         return quoted_structured_field_value(line, start, quote)
 
-    yaml = PurePosixPath(path).suffix.lower() in {".yaml", ".yml"}
+    suffix = PurePosixPath(path).suffix.lower()
+    yaml = suffix in {".yaml", ".yml"}
+    prose = suffix in PROSE_DOCUMENT_SUFFIXES
     prefix = line[:start]
     flow_context = serialization_nesting(prefix) > 0
     placeholder_end = placeholder_token_end(line, start)
-    if placeholder_end is not None:
-        raw_remainder = line[placeholder_end:]
-        remainder = raw_remainder.lstrip()
-        whitespace_comment = raw_remainder != remainder and remainder.startswith("#")
-        flow_delimiter = bool(remainder) and remainder[0] in ",}]"
-        if not remainder or whitespace_comment or (flow_context and flow_delimiter):
-            return line[start:placeholder_end]
+    if placeholder_end is not None and placeholder_terminates_structured_value(
+        path,
+        line,
+        placeholder_end,
+        flow_context,
+    ):
+        return line[start:placeholder_end]
 
     index = start
     while index < len(line):
@@ -843,7 +870,8 @@ def structured_field_value(path: str, line: str, match: re.Match[str]) -> str:
         if character == "#" and (index == start or line[index - 1].isspace()):
             break
         index += 1
-    return line[start:index]
+    value = line[start:index]
+    return value.rstrip(").;!?") if prose else value
 
 
 def unwrapped_identity_value(value: str) -> str:
@@ -943,6 +971,11 @@ def is_structured_identity_field(path: str, line: str, match: re.Match[str]) -> 
 def is_source_comment(line: str, match: re.Match[str]) -> bool:
     """Return whether a field-shaped token occurs after a source comment marker."""
     prefix = line[: match.start("key")]
+    prefix = re.sub(
+        r"(^|[\s;])#(?=[A-Za-z_$][A-Za-z0-9_$]*\s*\()",
+        r"\1",
+        prefix,
+    )
     return bool(re.search(r"(?:^|[\s;])(?://|#|/\*|\*)\s*[^\r\n]*$", prefix))
 
 
@@ -1456,6 +1489,54 @@ def jq_value_is_expression(
     return all(placeholder_value(number) for number in fallback_numbers)
 
 
+def source_template_interpolation(line: str, start: int) -> tuple[str, int] | None:
+    """Read one JavaScript-style template interpolation and its closing brace."""
+    if not line.startswith("${", start):
+        return None
+    depth = 1
+    index = start + 2
+    quote: str | None = None
+    while index < len(line):
+        character = line[index]
+        if quote:
+            if character == "\\":
+                index += 2
+                continue
+            if character == quote:
+                quote = None
+        elif character in {"'", '"'}:
+            quote = character
+        elif character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+            if depth == 0:
+                return line[start + 2 : index], index
+        index += 1
+    return None
+
+
+def source_template_value_is_expression(
+    line: str,
+    match: re.Match[str],
+) -> bool:
+    """Return whether a template field computes a value without literal identity data."""
+    interpolation = source_template_interpolation(line, match.start("value"))
+    if interpolation is None:
+        return False
+    expression, closing = interpolation
+    strings = SOURCE_TEMPLATE_STRING_RE.finditer(expression)
+    if any(not placeholder_value(item.group("value")) for item in strings):
+        return False
+    expression_without_strings = SOURCE_TEMPLATE_STRING_RE.sub("", expression)
+    if not re.search(r"[A-Za-z_$]", expression_without_strings):
+        return False
+    remainder = line[closing + 1 :]
+    closes_template = remainder.startswith("`")
+    starts_sentence = bool(re.match(r"^(?:[.,;!?)]\s|\s+\()", remainder))
+    return closes_template or starts_sentence
+
+
 def is_nonliteral_code_expression(
     line: str,
     match: re.Match[str],
@@ -1483,7 +1564,8 @@ def is_nonliteral_code_expression(
     if whole_inline_field:
         expression = value.rstrip(";").strip()
         named_expression = bool(SOURCE_COMMENT_EXPRESSION_RE.fullmatch(expression))
-        return expression.startswith(".") or named_expression
+        interpolation = source_template_value_is_expression(line, match)
+        return expression.startswith(".") or named_expression or interpolation
     if in_jq_filter:
         return jq_value_is_expression(line, match, jq_spans)
     return source_code and not bool(match.group("quote"))
@@ -2011,7 +2093,8 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
     yaml = suffix in {".yaml", ".yml"}
     aliases: dict[str, bool] = {}
     localization_strings = localization_top_level_string_spans(path, text)
-    scan_yaml_identity_blocks(path, text, findings)
+    if yaml or suffix in PROSE_DOCUMENT_SUFFIXES:
+        scan_yaml_identity_blocks(path, text, findings)
     fence_marker: str | None = None
     fence_language: str | None = None
     fence_close_column: int | None = None

@@ -522,6 +522,54 @@ git -C "$repo" add fixture.yaml
 git -C "$repo" commit -qm whole-placeholders
 assert_clean "whole identity placeholders remain synthetic" "$repo" --scope head --mode enforce
 
+repo=$(new_repo prose-adjacent-placeholders)
+cat >"${repo}/fixture.md" <<'EOF'
+You are connected to tenant: {{context.tenant}}, namespace: {{context.namespace}}.
+EOF
+git -C "$repo" add fixture.md
+git -C "$repo" commit -qm prose-adjacent-placeholders
+assert_clean "adjacent prose identity placeholders remain synthetic" "$repo" --scope head --mode enforce
+
+repo=$(new_repo prose-adjacent-placeholder-literal)
+cat >"${repo}/fixture.md" <<'EOF'
+You are connected to tenant: {{context.tenant}}, namespace: private-customer.
+EOF
+git -C "$repo" add fixture.md
+git -C "$repo" commit -qm prose-adjacent-placeholder-literal
+assert_customer_identifier "a later prose identity literal remains enforced" "$repo" --scope head --mode enforce
+
+repo=$(new_repo prose-wildcard-namespace)
+cat >"${repo}/fixture.md" <<'EOF'
+Use `params: {namespace: "*"}` to query every namespace.
+EOF
+git -C "$repo" add fixture.md
+git -C "$repo" commit -qm prose-wildcard-namespace
+assert_clean "the product wildcard namespace is a schema sentinel" "$repo" --scope head --mode enforce
+
+repo=$(new_repo prose-quoted-namespace-literal)
+cat >"${repo}/fixture.md" <<'EOF'
+Do not use `params: {namespace: "private-customer"}` in published examples.
+EOF
+git -C "$repo" add fixture.md
+git -C "$repo" commit -qm prose-quoted-namespace-literal
+assert_customer_identifier "quoted prose namespace literals remain enforced" "$repo" --scope head --mode enforce
+
+repo=$(new_repo prose-synthetic-terminal-punctuation)
+cat >"${repo}/fixture.md" <<'EOF'
+The configured value is safe (namespace: example-corp).
+EOF
+git -C "$repo" add fixture.md
+git -C "$repo" commit -qm prose-synthetic-terminal-punctuation
+assert_clean "terminal prose punctuation preserves a synthetic identity" "$repo" --scope head --mode enforce
+
+repo=$(new_repo prose-literal-terminal-punctuation)
+cat >"${repo}/fixture.md" <<'EOF'
+The configured value is unsafe (namespace: private-customer).
+EOF
+git -C "$repo" add fixture.md
+git -C "$repo" commit -qm prose-literal-terminal-punctuation
+assert_customer_identifier "terminal prose punctuation cannot hide a literal identity" "$repo" --scope head --mode enforce
+
 repo=$(new_repo placeholder-comma-suffix)
 cat >"${repo}/fixture.yaml" <<'EOF'
 tenant: ${TENANT},private-customer
@@ -2105,6 +2153,28 @@ EOF
 git -C "$repo" add fixture.ts fixture.cpp
 git -C "$repo" commit -qm expressions
 assert_clean "code types and expressions are not literal identity values" "$repo" --scope head --mode enforce
+
+repo=$(new_repo source-template-and-signature-expressions)
+cat >"${repo}/fixture.ts" <<'EOF'
+if (accountId) identifiers.add(`account:${accountId}`);
+parts.push(`Tenant: ${pageState.tenant ?? "unknown"} (${pageState.environment ?? "unknown"} environment)`);
+const message = `namespace: ${currentNamespace}. Target this namespace for subsequent operations.`;
+#build(manifest: ResourceManifest, namespace: string): Record<string, unknown> {
+  return { manifest, namespace };
+}
+EOF
+git -C "$repo" add fixture.ts
+git -C "$repo" commit -qm source-template-and-signature-expressions
+assert_clean "source template expressions and signatures are not YAML data" "$repo" --scope head --mode enforce
+
+repo=$(new_repo source-template-literal-composition)
+cat >"${repo}/fixture.ts" <<'EOF'
+const literal = `tenant:${"private-customer"}`;
+const composed = `namespace:${namespaceName}-customer`;
+EOF
+git -C "$repo" add fixture.ts
+git -C "$repo" commit -qm source-template-literal-composition
+assert_violation "template interpolation cannot hide literal identity output" "$repo" --scope head --mode enforce
 
 repo=$(new_repo code-string-literal)
 cat >"${repo}/fixture.ts" <<'EOF'
