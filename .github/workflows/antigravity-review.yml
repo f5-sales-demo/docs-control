@@ -1,3 +1,4 @@
+---
 name: Antigravity Code Review
 
 on:
@@ -15,8 +16,12 @@ permissions:
 
 jobs:
   antigravity-review:
-    # Security: restrict execution to trusted same-repo PR heads (exclude external forks)
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # SUSPENDED: Gemini Antigravity review is opt-in while its quota is exhausted.
+    # Unset, false, or any value other than the literal string "true" stays off.
+    # Security: also restrict execution to trusted same-repo PR heads (exclude external forks).
+    if: >-
+      vars.ANTIGRAVITY_REVIEW_ENABLED == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -50,17 +55,17 @@ jobs:
             export SSH_AUTH_SOCK
             export GNOME_KEYRING_CONTROL
             export GNOME_KEYRING_PID
-            
+
             # 2. Extract clean raw JSON from macOS keychain base64-encoded token
             RAW_TOKEN_JSON=$(echo "$ANTIGRAVITY_TOKEN" | sed "s/^go-keyring-base64:// " | base64 -d)
-            
+
             # 3. Store raw JSON in standard DBus Secret Service
             python3 -c "import keyring; keyring.set_password('\''gemini'\'', '\''antigravity'\'', \"\"\"$RAW_TOKEN_JSON\"\"\")"
-            
+
             # 4. Automate workspace trust with Gemini 3.6 Flash (High) and global endpoint
             mkdir -p ~/.gemini/antigravity-cli
             echo "{\"gcp\": {\"project\": \"$GCP_PROJECT_ID\", \"location\": \"global\"}, \"model\": \"Gemini 3.6 Flash (High)\", \"trustedWorkspaces\": [\"/home/runner/work/$REPOSITORY_NAME/$REPOSITORY_NAME\"]}" > ~/.gemini/antigravity-cli/settings.json
-            
+
             # 5. Run the Antigravity Agentic PR Reviewer. Using --dangerously-skip-permissions to allow execution of git and gh tools in headless mode.
             /home/runner/.local/bin/agy --project "$GCP_PROJECT_ID" --dangerously-skip-permissions --print "You are Antigravity, an elite agentic AI coding assistant. Review this Pull Request. First, run '\''gh pr diff'\'' to retrieve the code modifications. Meticulously inspect the changes for security issues, hardcoded tokens/secrets, PII leakage (such as email addresses, user names, phone numbers), or bad architectural patterns. Finally, use '\''gh pr comment'\'' to post a constructive, high-quality review summary directly on the PR."
           '

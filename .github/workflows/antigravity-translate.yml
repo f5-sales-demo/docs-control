@@ -1,3 +1,4 @@
+---
 name: Antigravity Language Translation
 
 on:
@@ -19,8 +20,13 @@ permissions:
 
 jobs:
   antigravity-translate:
-    # Security: restrict execution to trusted same-repo PR heads (exclude external forks)
-    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name == 'workflow_dispatch'
+    # SUSPENDED: Gemini Antigravity translation shares the fleet translation
+    # switch while its quota is exhausted. Unset or anything but "true" stays off.
+    # Security: also restrict execution to trusted same-repo PR heads.
+    if: >-
+      vars.TRANSLATIONS_ENABLED == 'true' &&
+      (github.event.pull_request.head.repo.full_name == github.repository ||
+       github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -40,7 +46,7 @@ jobs:
         run: |
           # Fetch changed files in the branch
           git diff --name-only origin/main...HEAD > changed_files.txt || git diff --name-only HEAD~1 > changed_files.txt || touch changed_files.txt
-          
+
           # Execute the trigger parser script
           bash scripts/parse-translation-trigger.sh "$PR_TITLE" changed_files.txt "$EVENT_NAME"
 
@@ -69,17 +75,17 @@ jobs:
             export SSH_AUTH_SOCK
             export GNOME_KEYRING_CONTROL
             export GNOME_KEYRING_PID
-            
+
             # 2. Extract clean raw JSON from macOS keychain base64-encoded token
             RAW_TOKEN_JSON=$(echo "$ANTIGRAVITY_TOKEN" | sed "s/^go-keyring-base64://" | base64 -d)
-            
+
             # 3. Store raw JSON in standard DBus Secret Service
             python3 -c "import keyring; keyring.set_password('\''gemini'\'', '\''antigravity'\'', \"\"\"$RAW_TOKEN_JSON\"\"\")"
-            
+
             # 4. Automate workspace trust with Gemini 3.6 Flash (High) and global endpoint
             mkdir -p ~/.gemini/antigravity-cli
             echo "{\"gcp\": {\"project\": \"$GCP_PROJECT_ID\", \"location\": \"global\"}, \"model\": \"Gemini 3.6 Flash (High)\", \"trustedWorkspaces\": [\"/home/runner/work/$REPOSITORY_NAME/$REPOSITORY_NAME\"]}" > ~/.gemini/antigravity-cli/settings.json
-            
+
             # 5. Configure git identity for automated translation commits
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
