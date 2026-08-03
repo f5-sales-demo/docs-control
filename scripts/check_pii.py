@@ -818,6 +818,29 @@ def quoted_structured_field_value(
     return line[start:]
 
 
+def placeholder_terminates_structured_value(
+    path: str,
+    line: str,
+    placeholder_end: int,
+    flow_context: bool,
+) -> bool:
+    """Return whether a placeholder is the complete structured field value."""
+    raw_remainder = line[placeholder_end:]
+    remainder = raw_remainder.lstrip()
+    if not remainder:
+        return True
+    if raw_remainder != remainder and remainder.startswith("#"):
+        return True
+    if flow_context and remainder[0] in ",}]":
+        return True
+
+    prose = PurePosixPath(path).suffix.lower() in PROSE_DOCUMENT_SUFFIXES
+    if prose and re.fullmatch(r"[).;!?]+", remainder):
+        return True
+    following_identity = IDENTITY_FIELD_RE.match(remainder[1:].lstrip())
+    return prose and remainder.startswith(",") and bool(following_identity)
+
+
 def structured_field_value(path: str, line: str, match: re.Match[str]) -> str:
     """Read one field value without truncating quoted punctuation or YAML scalars."""
     start = match.start("value")
@@ -831,24 +854,13 @@ def structured_field_value(path: str, line: str, match: re.Match[str]) -> str:
     prefix = line[:start]
     flow_context = serialization_nesting(prefix) > 0
     placeholder_end = placeholder_token_end(line, start)
-    if placeholder_end is not None:
-        raw_remainder = line[placeholder_end:]
-        remainder = raw_remainder.lstrip()
-        whitespace_comment = raw_remainder != remainder and remainder.startswith("#")
-        flow_delimiter = bool(remainder) and remainder[0] in ",}]"
-        prose_terminal = prose and bool(re.fullmatch(r"[).;!?]+", remainder))
-        following_identity = IDENTITY_FIELD_RE.match(remainder[1:].lstrip())
-        identity_follows = remainder.startswith(",") and bool(following_identity)
-        next_identity = prose and identity_follows
-        stop_at_placeholder = (
-            not remainder,
-            whitespace_comment,
-            flow_context and flow_delimiter,
-            prose_terminal,
-            next_identity,
-        )
-        if any(stop_at_placeholder):
-            return line[start:placeholder_end]
+    if placeholder_end is not None and placeholder_terminates_structured_value(
+        path,
+        line,
+        placeholder_end,
+        flow_context,
+    ):
+        return line[start:placeholder_end]
 
     index = start
     while index < len(line):
