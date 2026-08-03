@@ -109,6 +109,9 @@ open(sys.argv[2], "w", encoding="utf-8").write(run)
 PY
 cat >"$WORK/scripts/preflight-downstream-dispatch.sh" <<'EOF'
 #!/usr/bin/env bash
+if [ -n "${FAKE_PREFLIGHT_RC:-}" ]; then
+  exit "$FAKE_PREFLIGHT_RC"
+fi
 count_file=.preflight-count
 count=0
 [ ! -f "$count_file" ] || count=$(cat "$count_file")
@@ -186,6 +189,27 @@ set +e
 recovery_rc=$?
 set -e
 check "bootstrap API rate exhaustion defers to scheduled recovery" \
+  "[ '$recovery_rc' -eq 0 ] && ! grep -q 'workflow run dispatch-downstream.yml' '$WORK/gh.log'"
+
+rm -f "$WORK/.preflight-count"
+: >"$WORK/gh.log"
+set +e
+(
+  cd "$WORK"
+  env \
+    PATH="$WORK/bin:$PATH" \
+    FAKE_GH_LOG="$WORK/gh.log" \
+    FAKE_PREFLIGHT_RC=84 \
+    GITHUB_REPOSITORY=f5-sales-demo/docs-control \
+    GITHUB_REPOSITORY_OWNER=f5-sales-demo \
+    SOURCE_SHA=1111111111111111111111111111111111111111 \
+    REPO_SETTINGS_TOKEN=settings-token \
+    REPO_SYNC_TOKEN=sync-token \
+    bash "$WORK/dispatch.sh"
+)
+recovery_rc=$?
+set -e
+check "preflight API rate exhaustion defers to scheduled recovery" \
   "[ '$recovery_rc' -eq 0 ] && ! grep -q 'workflow run dispatch-downstream.yml' '$WORK/gh.log'"
 
 exit "$FAIL"

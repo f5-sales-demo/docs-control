@@ -81,6 +81,10 @@ jobs:
                 -f revision="$SOURCE_SHA"
               exit 0
               ;;
+            84)
+              echo "[DEFER] GitHub API rate capacity was exhausted; scheduled recovery is active"
+              exit 0
+              ;;
             80|81|82)
               echo "[BOOTSTRAP] propagating the exact managed caller before fan-out"
               set +e
