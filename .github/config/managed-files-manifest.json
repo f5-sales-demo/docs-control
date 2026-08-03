@@ -1,5 +1,5 @@
 {
-  "source_commit": "9e9f7253604ae000b958842cd23dabd8d6f6b2d5",
+  "source_commit": "f84e69fcbd978ff19748094161516ed81d437fe1",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -137,8 +137,8 @@
     ".pre-commit-config.yaml": {
       "src": ".pre-commit-config.yaml",
       "dest": ".pre-commit-config.yaml",
-      "sha": "8e852b521f4e652940ea8d4d7981cb32933ace96",
-      "size": 14135,
+      "sha": "e28749894321aa3d1e6f0f7064d654d4d6f075cc",
+      "size": 14145,
       "mode": "100644"
     },
     ".yamllint.yaml": {
@@ -333,8 +333,8 @@
     "tests/test-lint-mdx-prose.sh": {
       "src": "tests/test-lint-mdx-prose.sh",
       "dest": "tests/test-lint-mdx-prose.sh",
-      "sha": "a5105574f7782c6e9c42203a4826c1f42102ed54",
-      "size": 8361,
+      "sha": "2182f113bceff4c54a69b973c45445e1e382d605",
+      "size": 9157,
       "mode": "100755"
     },
     ".claude/governance.json": {
