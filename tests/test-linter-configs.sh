@@ -1192,6 +1192,20 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
+# SECTION 16: managed Gitleaks configuration has no escape hatches
+# ════════════════════════════════════════════════════════════════════
+echo ""
+echo "=== Section 16: unsuppressed Gitleaks configuration ==="
+
+EXPECTED_GITLEAKS_CONFIG=$'title = "Fleet default Gitleaks rules"\n\n[extend]\nuseDefault = true'
+if [ "$(cat "$REPO_ROOT/.gitleaks.toml")" = "$EXPECTED_GITLEAKS_CONFIG" ]; then
+  pass "16.1 managed Gitleaks config uses defaults without allowlists or baselines"
+else
+  fail "16.1 managed Gitleaks config uses defaults without allowlists or baselines" \
+    "the config contains an escape hatch or does not enable the default rules"
+fi
+
+# ════════════════════════════════════════════════════════════════════
 # Summary
 # ════════════════════════════════════════════════════════════════════
 echo ""
