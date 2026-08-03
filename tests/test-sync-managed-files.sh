@@ -504,14 +504,173 @@ else
     "a delayed auto-merge can merge a head that changed after verification"
 fi
 
-if grep -q 'PROTECTED_MAIN_SHA' "$MANIFEST_BUILDER" &&
+protected_main_remote_reads=$(grep -cF \
+  'git ls-remote --exit-code --heads origin refs/heads/main' \
+  "$MANIFEST_BUILDER" || true)
+protected_main_receipt_reads=$(grep -cF \
+  'PROTECTED_MAIN_SHA=$(resolve_protected_main_sha)' \
+  "$MANIFEST_BUILDER" || true)
+current_main_receipt_reads=$(grep -cF \
+  'CURRENT_MAIN_SHA=$(resolve_protected_main_sha)' \
+  "$MANIFEST_BUILDER" || true)
+manifest_commit_line=$(grep -nF \
+  'git commit -m "chore(governance): regenerate managed-files-manifest.json"' \
+  "$MANIFEST_BUILDER" | cut -d: -f1)
+current_main_guard_line=$(grep -nF \
+  'CURRENT_MAIN_SHA=$(resolve_protected_main_sha)' \
+  "$MANIFEST_BUILDER" | cut -d: -f1)
+first_manifest_push_line=$(grep -nE '^[[:space:]]+git push' \
+  "$MANIFEST_BUILDER" | head -1 | cut -d: -f1)
+if [ "$protected_main_remote_reads" -eq 2 ] &&
+  [ "$protected_main_receipt_reads" -eq 2 ] &&
+  [ "$current_main_receipt_reads" -eq 1 ] &&
+  [ -n "$manifest_commit_line" ] &&
+  [ -n "$current_main_guard_line" ] &&
+  [ -n "$first_manifest_push_line" ] &&
+  [ "$manifest_commit_line" -lt "$current_main_guard_line" ] &&
+  [ "$current_main_guard_line" -lt "$first_manifest_push_line" ] &&
+  grep -qF 'persist-credentials: true' "$MANIFEST_BUILDER" &&
+  ! grep -qF 'gh api "repos/${GITHUB_REPOSITORY}/commits/main"' "$MANIFEST_BUILDER" &&
+  grep -q 'PROTECTED_MAIN_SHA' "$MANIFEST_BUILDER" &&
   grep -q '\[ "$SOURCE_COMMIT" != "$PROTECTED_MAIN_SHA" \]' "$MANIFEST_BUILDER" &&
   grep -q 'CHECKED_OUT_SHA=$(git rev-parse HEAD)' "$MANIFEST_BUILDER"; then
-  pass "8.2 manifest generation requires the exact current protected main"
+  pass "8.2 manifest guards prove exact protected main without the REST API"
 else
-  fail "8.2 manifest generation requires the exact current protected main" \
-    "workflow_dispatch can still publish from an unmerged or historical ref"
+  fail "8.2 manifest guards prove exact protected main without the REST API" \
+    "generation can be stranded by REST throttling or publish a stale ref"
 fi
+
+extract_remote_main_helper() {
+  local target="$1"
+  awk -v target="$target" '
+    /^          resolve_protected_main_sha\(\) \{/ {
+      seen++
+      if (seen == target) capture = 1
+    }
+    capture {
+      finished = ($0 == "          }")
+      sub(/^          /, "")
+      print
+      if (finished) exit
+    }
+  ' "$MANIFEST_BUILDER"
+}
+remote_main_helper=$(extract_remote_main_helper 1)
+second_remote_main_helper=$(extract_remote_main_helper 2)
+mkdir -p "$WORK/remote-main-bin"
+cat >"$WORK/remote-main-bin/git" <<'EOF'
+#!/usr/bin/env bash
+if [ "$*" != "ls-remote --exit-code --heads origin refs/heads/main" ]; then
+  exit 99
+fi
+printf '%b' "${GIT_STUB_RESPONSE:-}"
+exit "${GIT_STUB_RC:-0}"
+EOF
+chmod +x "$WORK/remote-main-bin/git"
+run_remote_main_helper() {
+  local helper="$1" response="$2" git_rc="$3"
+  (
+    eval "$helper"
+    export GIT_STUB_RESPONSE="$response" GIT_STUB_RC="$git_rc"
+    PATH="$WORK/remote-main-bin:$PATH"
+    export PATH
+    resolve_protected_main_sha
+  )
+}
+
+REMOTE_MAIN_SHA=0123456789abcdef0123456789abcdef01234567
+if [ -n "$remote_main_helper" ] &&
+  [ "$remote_main_helper" = "$second_remote_main_helper" ]; then
+  pass "8.2a both manifest steps use one exact remote-main parser"
+else
+  fail "8.2a both manifest steps use one exact remote-main parser" \
+    "helper bodies are missing or differ across generation and publication"
+fi
+if resolved_main=$(run_remote_main_helper "$remote_main_helper" \
+  "$REMOTE_MAIN_SHA\trefs/heads/main\n" 0 2>/dev/null) &&
+  second_resolved_main=$(run_remote_main_helper "$second_remote_main_helper" \
+    "$REMOTE_MAIN_SHA\trefs/heads/main\n" 0 2>/dev/null) &&
+  [ "$resolved_main" = "$REMOTE_MAIN_SHA" ] &&
+  [ "$second_resolved_main" = "$REMOTE_MAIN_SHA" ]; then
+  pass "8.2b exact Git remote main receipt is accepted by both steps"
+else
+  fail "8.2b exact Git remote main receipt is accepted by both steps" \
+    "a production helper did not return the sole exact main SHA"
+fi
+
+if run_remote_main_helper "$remote_main_helper" "" 2 >/dev/null 2>&1; then
+  fail "8.2c Git transport failure is rejected" "ls-remote failure returned success"
+else
+  pass "8.2c Git transport failure is rejected"
+fi
+if run_remote_main_helper "$remote_main_helper" \
+  "deadbeef\trefs/heads/main\n" 0 >/dev/null 2>&1; then
+  fail "8.2d abbreviated Git remote receipt is rejected" "short SHA returned success"
+else
+  pass "8.2d abbreviated Git remote receipt is rejected"
+fi
+if run_remote_main_helper "$remote_main_helper" \
+  "$REMOTE_MAIN_SHA\trefs/heads/main\n$REMOTE_MAIN_SHA\trefs/heads/main\n" \
+  0 >/dev/null 2>&1; then
+  fail "8.2e duplicate Git remote receipts are rejected" "duplicate main rows returned success"
+else
+  pass "8.2e duplicate Git remote receipts are rejected"
+fi
+if run_remote_main_helper "$remote_main_helper" \
+  "$REMOTE_MAIN_SHA\trefs/heads/not-main\n" 0 >/dev/null 2>&1; then
+  fail "8.2f wrong Git remote ref is rejected" "non-main ref returned success"
+else
+  pass "8.2f wrong Git remote ref is rejected"
+fi
+if run_remote_main_helper "$remote_main_helper" \
+  "$REMOTE_MAIN_SHA\trefs/heads/main\ngarbage\n" 0 >/dev/null 2>&1; then
+  fail "8.2g trailing garbage row is rejected" "unparsed output returned success"
+else
+  pass "8.2g trailing garbage row is rejected"
+fi
+if run_remote_main_helper "$remote_main_helper" \
+  "$REMOTE_MAIN_SHA\trefs/heads/main\n$REMOTE_MAIN_SHA\trefs/heads/not-main\n" \
+  0 >/dev/null 2>&1; then
+  fail "8.2h an additional wrong-ref row is rejected" "extra ref returned success"
+else
+  pass "8.2h an additional wrong-ref row is rejected"
+fi
+if run_remote_main_helper "$remote_main_helper" \
+  "$REMOTE_MAIN_SHA\trefs/heads/main\textra\n" 0 >/dev/null 2>&1; then
+  fail "8.2i an additional field is rejected" "extra field returned success"
+else
+  pass "8.2i an additional field is rejected"
+fi
+if run_remote_main_helper "$remote_main_helper" \
+  "$REMOTE_MAIN_SHA refs/heads/main\n" 0 >/dev/null 2>&1; then
+  fail "8.2j a space-delimited row is rejected" "non-canonical delimiter returned success"
+else
+  pass "8.2j a space-delimited row is rejected"
+fi
+if run_remote_main_helper "$remote_main_helper" \
+  "garbage\n$REMOTE_MAIN_SHA\trefs/heads/main\n" 0 >/dev/null 2>&1; then
+  fail "8.2k a leading garbage row is rejected" "leading unparsed output returned success"
+else
+  pass "8.2k a leading garbage row is rejected"
+fi
+if run_remote_main_helper "$remote_main_helper" \
+  "\n$REMOTE_MAIN_SHA\trefs/heads/main\n" 0 >/dev/null 2>&1; then
+  fail "8.2l a leading blank row is rejected" "leading blank output returned success"
+else
+  pass "8.2l a leading blank row is rejected"
+fi
+for trailing_blank_rows in \
+  "$REMOTE_MAIN_SHA\trefs/heads/main\n\n" \
+  "$REMOTE_MAIN_SHA\trefs/heads/main\n\n\n" \
+  "$REMOTE_MAIN_SHA\trefs/heads/main\n\n\n\n"; do
+  if run_remote_main_helper "$remote_main_helper" \
+    "$trailing_blank_rows" 0 >/dev/null 2>&1; then
+    fail "8.2m additional terminal blank rows are rejected" \
+      "command substitution normalized malformed output"
+  else
+    pass "8.2m additional terminal blank rows are rejected"
+  fi
+done
 
 if grep -q 'assert_manifest_pr_diff()' "$MANIFEST_BUILDER" &&
   grep -q 'total_commits == 1' "$MANIFEST_BUILDER" &&
