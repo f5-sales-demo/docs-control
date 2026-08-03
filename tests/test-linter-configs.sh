@@ -137,15 +137,27 @@ done
 # Rust identifier fragments from xcsh (ForIn, ser, anc, Statics)
 # Legitimate English (invokable) and common test-fixture strings (doesnt, takin)
 # Upstream-misspelled F5 Distributed Cloud API identifiers that must reach the
-# wire verbatim (checkin, blocked_sevice) — codespell offers two candidates for
-# "sevice" so --write-changes cannot resolve it and the gate hard-fails
-for word in doesnt forin invokable takin defaul ser anc checkin sevice cros doub; do
+# wire verbatim (checkin, blocked_sevice), plus the upstream FRR output typo
+# Capabilty. These cannot be corrected without changing the API or falsifying
+# captured evidence.
+for word in doesnt forin invokable takin defaul ser anc checkin sevice capabilty cros doub; do
   if grep -qE "(^|[=,])${word}([,]|$)" "$REPO_ROOT/.codespellrc"; then
     pass "5.x .codespellrc ignore-words-list contains '$word'"
   else
     fail "5.x .codespellrc ignore-words-list contains '$word'" "not whitelisted"
   fi
 done
+
+if command -v codespell >/dev/null 2>&1; then
+  if printf '%s\n' 'Graceful Restart Capabilty: advertised' |
+    codespell --config "$REPO_ROOT/.codespellrc" - >/dev/null 2>&1; then
+    pass "5.x verbatim FRR Capabilty output passes codespell"
+  else
+    fail "5.x verbatim FRR Capabilty output passes codespell" "upstream output rejected"
+  fi
+else
+  echo "  SKIP: codespell CLI not installed in this environment"
+fi
 
 # pre-commit passes explicit paths, bypassing .codespellrc's skip list. Its
 # hook-level regex must filter translated docs, root translated READMEs, and
