@@ -39,14 +39,11 @@ jobs:
         run: |
           set -euo pipefail
           workspace="${GITHUB_WORKSPACE:?}"
-          case "$workspace" in
-            /data/actions-runners/f5-sales-demo/docs-control/_work/docs-control/docs-control | \
-              /home/robin/actions-runners/f5-sales-demo/docs-control/_work/docs-control/docs-control) ;; # repo-hygiene:allow
-            *)
-              echo "::error::Refusing to repair unexpected workspace: ${workspace}"
-              exit 1
-              ;;
-          esac
+          expected_workspace="${RUNNER_WORKSPACE:?}/docs-control"
+          if ! [ "$workspace" = "$expected_workspace" ]; then
+            echo "::error::Refusing to repair unexpected workspace: ${workspace}"
+            exit 1
+          fi
           sudo -n chown -R -- "$(id -u):$(id -g)" "$workspace"
 
       - name: Checkout
@@ -426,14 +423,11 @@ jobs:
         run: |
           set -euo pipefail
           workspace="${GITHUB_WORKSPACE:?}"
-          case "$workspace" in
-            /data/actions-runners/f5-sales-demo/docs-control/_work/docs-control/docs-control | \
-              /home/robin/actions-runners/f5-sales-demo/docs-control/_work/docs-control/docs-control) ;; # repo-hygiene:allow
-            *)
-              echo "::error::Refusing to repair unexpected workspace: ${workspace}"
-              exit 1
-              ;;
-          esac
+          expected_workspace="${RUNNER_WORKSPACE:?}/docs-control"
+          if ! [ "$workspace" = "$expected_workspace" ]; then
+            echo "::error::Refusing to repair unexpected workspace: ${workspace}"
+            exit 1
+          fi
           sudo -n chown -R -- "$(id -u):$(id -g)" "$workspace"
 
       - name: Checkout
