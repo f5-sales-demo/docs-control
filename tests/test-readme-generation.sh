@@ -103,6 +103,25 @@ Some per-repo prose.") ;;
 done
 
 echo ""
+echo "=== Section 1b: generated README starts with one H1 (MD041) ==="
+
+for case_name in "language navigation" "no language navigation"; do
+  case "$case_name" in
+  "language navigation") out=$(render "🌐 English" "" "") ;;
+  "no language navigation") out=$(render "" "" "") ;;
+  esac
+
+  first_content=$(awk 'NF { print; exit }' "$out")
+  h1_count=$(grep -c '^# ' "$out" || true)
+  if [ "$first_content" = "# Example Repo" ] && [ "$h1_count" -eq 1 ]; then
+    pass "1b.x rendered README starts with exactly one H1 ($case_name)"
+  else
+    fail "1b.x rendered README starts with exactly one H1 ($case_name)" \
+      "first content is '$first_content'; H1 count is $h1_count"
+  fi
+done
+
+echo ""
 echo "=== Section 2: the template still renders its required content ==="
 
 out=$(render "🌐 English" "" "")
