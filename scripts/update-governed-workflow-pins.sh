@@ -92,7 +92,10 @@ assert_target_current() {
 
 read_paginated_array() {
   local endpoint="$1" destination="$2" response
-  response=$(mktemp "$work/api-pages.XXXXXX")
+  if ! response=$(mktemp "$work/api-pages.XXXXXX"); then
+    echo "::error::could not allocate governed pin inventory response" >&2
+    return 1
+  fi
   if ! gh api "$endpoint" --paginate --slurp >"$response"; then
     echo "::error::could not inventory governed pin automation state" >&2
     rm -f "$response"
@@ -124,12 +127,16 @@ delete_remote_branch() {
   # monotonic automation. Once a newer run owns the transition, the entire
   # older ref is disposable even if its tip moves after this defensive read;
   # no human or other automation may publish into the reserved namespace.
-  err_file=$(mktemp "$work/ref-error.XXXXXX")
-  set +e
-  actual_oid=$(gh api "repos/${repository}/git/ref/heads/${ref}" --jq '.object.sha' \
-    2>"$err_file")
-  rc=$?
-  set -e
+  if ! err_file=$(mktemp "$work/ref-error.XXXXXX"); then
+    echo "::error::could not allocate governed pin ref error capture" >&2
+    return 1
+  fi
+  if actual_oid=$(gh api "repos/${repository}/git/ref/heads/${ref}" --jq '.object.sha' \
+    2>"$err_file"); then
+    rc=0
+  else
+    rc=$?
+  fi
   if [ "$rc" -ne 0 ]; then
     if grep -qE '\(HTTP 404\)$' "$err_file"; then
       rm -f "$err_file"
@@ -175,10 +182,33 @@ classify_owner() {
 
 reconcile_pin_prs() {
   local prs refs rows number ref head_repo base_ref expected_oid rc current_count
+  local retired_prs retired_refs retired_row full_ref
+  local settle_attempt settle_delay clear_sweeps retired_visible settle_required
   reconciled_pin_pr_number=""
   reconciled_pin_pr_head_oid=""
-  prs=$(mktemp "$work/open-prs.XXXXXX")
-  refs=$(mktemp "$work/open-refs.XXXXXX")
+  prs=""
+  refs=""
+  retired_prs=""
+  retired_refs=""
+  if ! prs=$(mktemp "$work/open-prs.XXXXXX"); then
+    echo "::error::could not allocate governed pin PR inventory" >&2
+    return 1
+  fi
+  if ! refs=$(mktemp "$work/open-refs.XXXXXX"); then
+    echo "::error::could not allocate governed pin ref inventory" >&2
+    rm -f "$prs"
+    return 1
+  fi
+  if ! retired_prs=$(mktemp "$work/retired-prs.XXXXXX"); then
+    echo "::error::could not allocate retired governed pin PR inventory" >&2
+    rm -f "$prs" "$refs"
+    return 1
+  fi
+  if ! retired_refs=$(mktemp "$work/retired-refs.XXXXXX"); then
+    echo "::error::could not allocate retired governed pin ref inventory" >&2
+    rm -f "$prs" "$refs" "$retired_prs"
+    return 1
+  fi
   if ! read_open_pin_prs "$prs" || ! read_pin_refs "$refs"; then
     rm -f "$prs" "$refs"
     return 1
@@ -199,10 +229,14 @@ reconcile_pin_prs() {
     return 1
   fi
 
-  rows=$(jq -r --arg prefix 'sync/governed-workflow-pins-' '
+  if ! rows=$(jq -r --arg prefix 'sync/governed-workflow-pins-' '
     .[] | select(.head.ref | startswith($prefix)) |
     [.number, .head.ref, .head.sha, .head.repo.full_name, .base.ref] | @tsv
-  ' "$prs")
+  ' "$prs"); then
+    echo "::error::could not extract governed pin PR ownership" >&2
+    rm -f "$prs" "$refs" "$retired_prs" "$retired_refs"
+    return 1
+  fi
   current_count=0
   while IFS=$'\t' read -r number ref expected_oid head_repo base_ref; do
     [ -n "$number" ] || continue
@@ -211,10 +245,11 @@ reconcile_pin_prs() {
       rm -f "$prs" "$refs"
       return 1
     fi
-    set +e
-    classify_owner "$ref"
-    rc=$?
-    set -e
+    if classify_owner "$ref"; then
+      rc=0
+    else
+      rc=$?
+    fi
     if [ "$rc" -ne 0 ]; then
       rm -f "$prs" "$refs"
       return "$rc"
@@ -231,26 +266,35 @@ reconcile_pin_prs() {
     return 1
   fi
 
-  rows=$(jq -r --arg branch "refs/heads/${branch}" \
-    '.[] | select(.ref != $branch) | [.ref, .object.sha] | @tsv' "$refs")
+  if ! rows=$(jq -r --arg branch "refs/heads/${branch}" \
+    '.[] | select(.ref != $branch) | [.ref, .object.sha] | @tsv' "$refs"); then
+    echo "::error::could not extract governed pin ref ownership" >&2
+    rm -f "$prs" "$refs" "$retired_prs" "$retired_refs"
+    return 1
+  fi
   while IFS=$'\t' read -r ref expected_oid; do
     [ -n "$ref" ] || continue
     ref="${ref#refs/heads/}"
-    set +e
-    classify_owner "$ref"
-    rc=$?
-    set -e
+    if classify_owner "$ref"; then
+      rc=0
+    else
+      rc=$?
+    fi
     if [ "$rc" -ne 0 ]; then
       rm -f "$prs" "$refs"
       return "$rc"
     fi
   done <<<"$rows"
 
-  rows=$(jq -r --arg branch "$branch" --arg prefix 'sync/governed-workflow-pins-' '
+  if ! rows=$(jq -r --arg branch "$branch" --arg prefix 'sync/governed-workflow-pins-' '
     .[] | select(.head.ref | startswith($prefix)) |
-    select(.head.ref != $branch) | [.number, .head.ref] | @tsv
-  ' "$prs")
-  while IFS=$'\t' read -r number ref; do
+    select(.head.ref != $branch) | [.number, .head.ref, .head.sha] | @tsv
+  ' "$prs"); then
+    echo "::error::could not extract superseded governed pin PRs" >&2
+    rm -f "$prs" "$refs" "$retired_prs" "$retired_refs"
+    return 1
+  fi
+  while IFS=$'\t' read -r number ref expected_oid; do
     [ -n "$number" ] || continue
     if ! gh pr close "$number" --repo "$repository" \
       --comment "Superseded by a newer exact governed-workflow pin."; then
@@ -258,45 +302,173 @@ reconcile_pin_prs() {
       rm -f "$prs" "$refs"
       return 1
     fi
+    if ! printf '%s\t%s\t%s\n' "$number" "$ref" "$expected_oid" >>"$retired_prs"; then
+      echo "::error::could not record retired governed pin PR identity" >&2
+      rm -f "$prs" "$refs" "$retired_prs" "$retired_refs"
+      return 1
+    fi
   done <<<"$rows"
 
-  rows=$(jq -r --arg branch "refs/heads/${branch}" \
-    '.[] | select(.ref != $branch) | [.ref, .object.sha] | @tsv' "$refs")
+  if ! rows=$(jq -r --arg branch "refs/heads/${branch}" \
+    '.[] | select(.ref != $branch) | [.ref, .object.sha] | @tsv' "$refs"); then
+    echo "::error::could not extract superseded governed pin refs" >&2
+    rm -f "$prs" "$refs" "$retired_prs" "$retired_refs"
+    return 1
+  fi
   while IFS=$'\t' read -r ref expected_oid; do
     [ -n "$ref" ] || continue
+    full_ref="$ref"
     ref="${ref#refs/heads/}"
     if ! delete_remote_branch "$ref" "$expected_oid"; then
       rm -f "$prs" "$refs"
       return 1
     fi
+    if ! printf '%s\t%s\n' "$full_ref" "$expected_oid" >>"$retired_refs"; then
+      echo "::error::could not record retired governed pin ref identity" >&2
+      rm -f "$prs" "$refs" "$retired_prs" "$retired_refs"
+      return 1
+    fi
   done <<<"$rows"
 
-  if ! read_open_pin_prs "$prs" || ! read_pin_refs "$refs"; then
-    rm -f "$prs" "$refs"
-    return 1
+  settle_required=false
+  if [ -s "$retired_prs" ] || [ -s "$retired_refs" ]; then
+    settle_required=true
   fi
-  if ! jq -e --arg prefix 'sync/governed-workflow-pins-' '
-    all(.[] | select(.head.ref | startswith($prefix));
-      (.number | type == "number" and . >= 1 and . == floor) and
-      (.head.ref | type == "string") and
-      (.head.sha | type == "string" and test("^[0-9a-f]{40}$")) and
-      (.head.repo.full_name | type == "string") and
-      (.base.ref | type == "string"))
-  ' "$prs" >/dev/null || ! jq -e '
-    all(.[]; (.ref | type == "string") and
-      (.object.sha | type == "string" and test("^[0-9a-f]{40}$")))
-  ' "$refs" >/dev/null; then
-    echo "::error::governed pin ownership changed during reconciliation" >&2
-    rm -f "$prs" "$refs"
-    return 1
-  fi
+  settle_attempt=1
+  settle_delay=1
+  clear_sweeps=0
+  while true; do
+    if ! read_open_pin_prs "$prs" || ! read_pin_refs "$refs"; then
+      rm -f "$prs" "$refs"
+      return 1
+    fi
+    if ! jq -e --arg prefix 'sync/governed-workflow-pins-' '
+      all(.[] | select(.head.ref | startswith($prefix));
+        (.number | type == "number" and . >= 1 and . == floor) and
+        (.head.ref | type == "string") and
+        (.head.sha | type == "string" and test("^[0-9a-f]{40}$")) and
+        (.head.repo.full_name | type == "string") and
+        (.base.ref | type == "string"))
+    ' "$prs" >/dev/null || ! jq -e '
+      all(.[]; (.ref | type == "string") and
+        (.object.sha | type == "string" and test("^[0-9a-f]{40}$")))
+    ' "$refs" >/dev/null; then
+      echo "::error::governed pin ownership changed during reconciliation" >&2
+      rm -f "$prs" "$refs"
+      return 1
+    fi
+
+    retired_visible=false
+    current_count=0
+    if ! rows=$(jq -r --arg prefix 'sync/governed-workflow-pins-' '
+      .[] | select(.head.ref | startswith($prefix)) |
+      [.number, .head.ref, .head.sha, .head.repo.full_name, .base.ref] | @tsv
+    ' "$prs"); then
+      echo "::error::could not extract settling governed pin PR ownership" >&2
+      rm -f "$prs" "$refs" "$retired_prs" "$retired_refs"
+      return 1
+    fi
+    while IFS=$'\t' read -r number ref expected_oid head_repo base_ref; do
+      [ -n "$number" ] || continue
+      if [ "$head_repo" != "$repository" ] || [ "$base_ref" != main ]; then
+        echo "::error::governed pin PR does not belong to protected main" >&2
+        rm -f "$prs" "$refs"
+        return 1
+      fi
+      if [ "$ref" = "$branch" ]; then
+        current_count=$((current_count + 1))
+        if [ "$current_count" -gt 1 ]; then
+          echo "::error::multiple governed pin PRs claim the current owner" >&2
+          rm -f "$prs" "$refs"
+          return 1
+        fi
+        continue
+      fi
+      printf -v retired_row '%s\t%s\t%s' "$number" "$ref" "$expected_oid"
+      if grep -Fqx -- "$retired_row" "$retired_prs"; then
+        retired_visible=true
+        continue
+      fi
+      if classify_owner "$ref"; then
+        rc=0
+      else
+        rc=$?
+      fi
+      if [ "$rc" -ne 0 ]; then
+        rm -f "$prs" "$refs"
+        return "$rc"
+      fi
+      echo "::error::an unseen governed pin PR appeared during reconciliation" >&2
+      rm -f "$prs" "$refs"
+      return 1
+    done <<<"$rows"
+
+    if ! rows=$(jq -r --arg branch "refs/heads/${branch}" \
+      '.[] | select(.ref != $branch) | [.ref, .object.sha] | @tsv' "$refs"); then
+      echo "::error::could not extract settling governed pin ref ownership" >&2
+      rm -f "$prs" "$refs" "$retired_prs" "$retired_refs"
+      return 1
+    fi
+    while IFS=$'\t' read -r ref expected_oid; do
+      [ -n "$ref" ] || continue
+      printf -v retired_row '%s\t%s' "$ref" "$expected_oid"
+      if grep -Fqx -- "$retired_row" "$retired_refs"; then
+        retired_visible=true
+        continue
+      fi
+      full_ref="$ref"
+      ref="${ref#refs/heads/}"
+      if classify_owner "$ref"; then
+        rc=0
+      else
+        rc=$?
+      fi
+      if [ "$rc" -ne 0 ]; then
+        rm -f "$prs" "$refs"
+        return "$rc"
+      fi
+      echo "::error::an unseen governed pin ref appeared during reconciliation: $full_ref" >&2
+      rm -f "$prs" "$refs"
+      return 1
+    done <<<"$rows"
+
+    if [ "$settle_required" = false ]; then
+      break
+    fi
+    if [ "$retired_visible" = true ]; then
+      clear_sweeps=0
+    else
+      clear_sweeps=$((clear_sweeps + 1))
+    fi
+    if [ "$clear_sweeps" -ge 2 ]; then
+      break
+    fi
+    if [ "$settle_attempt" -ge 6 ]; then
+      echo "::error::retired governed pin ownership did not settle after six inventories" >&2
+      rm -f "$prs" "$refs"
+      return 1
+    fi
+    echo "[WAIT] governed pin ownership visibility is not confirmed (${settle_attempt}/6)"
+    if ! sleep "$settle_delay"; then
+      echo "::error::governed pin ownership settling delay was interrupted" >&2
+      rm -f "$prs" "$refs"
+      return 1
+    fi
+    settle_attempt=$((settle_attempt + 1))
+    settle_delay=$((settle_delay * 2))
+    if [ "$settle_delay" -gt 4 ]; then settle_delay=4; fi
+  done
   reconciled_pin_pr_number=""
   reconciled_pin_pr_head_oid=""
   current_count=0
-  rows=$(jq -r --arg prefix 'sync/governed-workflow-pins-' '
+  if ! rows=$(jq -r --arg prefix 'sync/governed-workflow-pins-' '
     .[] | select(.head.ref | startswith($prefix)) |
     [.number, .head.ref, .head.sha, .head.repo.full_name, .base.ref] | @tsv
-  ' "$prs")
+  ' "$prs"); then
+    echo "::error::could not extract reconciled governed pin PR ownership" >&2
+    rm -f "$prs" "$refs" "$retired_prs" "$retired_refs"
+    return 1
+  fi
   while IFS=$'\t' read -r number ref expected_oid head_repo base_ref; do
     [ -n "$number" ] || continue
     if [ "$head_repo" != "$repository" ] || [ "$base_ref" != main ]; then
@@ -323,7 +495,11 @@ reconcile_pin_prs() {
     rm -f "$prs" "$refs"
     return 1
   fi
-  rows=$(jq -r '.[] | [.ref, .object.sha] | @tsv' "$refs")
+  if ! rows=$(jq -r '.[] | [.ref, .object.sha] | @tsv' "$refs"); then
+    echo "::error::could not extract reconciled governed pin ref ownership" >&2
+    rm -f "$prs" "$refs" "$retired_prs" "$retired_refs"
+    return 1
+  fi
   while IFS=$'\t' read -r ref expected_oid; do
     [ -n "$ref" ] || continue
     if [ "$ref" != "refs/heads/${branch}" ]; then
@@ -332,7 +508,7 @@ reconcile_pin_prs() {
       return 1
     fi
   done <<<"$rows"
-  rm -f "$prs" "$refs"
+  rm -f "$prs" "$refs" "$retired_prs" "$retired_refs"
 }
 
 assert_local_commit() {
@@ -392,7 +568,10 @@ main() {
     echo "::error::invalid repository or workflow-run identity" >&2
     return 1
   fi
-  work=$(mktemp -d)
+  if ! work=$(mktemp -d); then
+    echo "::error::could not allocate governed pin updater workspace" >&2
+    return 1
+  fi
   trap 'rm -rf "$work"' EXIT
   workflow_list="$work/workflows"
   update_output="$work/update-output"
