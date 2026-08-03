@@ -23,6 +23,10 @@ check_case() {
   cat >"$work/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$GH_LOG"
+if [ -n "${FAKE_API_FAIL_MATCH:-}" ] && [[ "$*" == *"$FAKE_API_FAIL_MATCH"* ]]; then
+  printf '%s\n' "$FAKE_API_FAIL_MESSAGE" >&2
+  exit 1
+fi
 case "$*" in
   *'repos/f5-sales-demo/example/commits/main'*) printf '%s\n' "$FAKE_DOWNSTREAM_MAIN" ;;
   *'/commits/main'*) printf '%s\n' "$FAKE_MAIN_SHA" ;;
@@ -75,6 +79,8 @@ EOF
     FAKE_DOWNSTREAM_MAIN="$FAKE_DOWNSTREAM_MAIN" \
     FAKE_MISSING_CALLER="${FAKE_MISSING_CALLER:-}" \
     FAKE_STATE_READ_FAIL="${FAKE_STATE_READ_FAIL:-}" \
+    FAKE_API_FAIL_MATCH="${FAKE_API_FAIL_MATCH:-}" \
+    FAKE_API_FAIL_MESSAGE="${FAKE_API_FAIL_MESSAGE:-}" \
     "$SOURCE" 2>&1)
   rc=$?
   set -e
@@ -122,6 +128,20 @@ unset FAKE_STATE_READ_FAIL
 FAKE_MISSING_CALLER=1
 check_case "missing workflow reaches exact caller bootstrap" 80 "[BOOTSTRAP]"
 unset FAKE_MISSING_CALLER
+
+FAKE_API_FAIL_MATCH='/commits/main'
+FAKE_API_FAIL_MESSAGE='gh: API rate limit exceeded for user ID 123. (HTTP 403)'
+check_case "primary API rate exhaustion returns recoverable defer" 84 \
+  "[DEFER] GitHub API rate capacity was exhausted"
+
+FAKE_API_FAIL_MESSAGE='gh: secondary rate limit. Please wait a few minutes before you try again. (HTTP 403)'
+check_case "secondary API rate exhaustion returns recoverable defer" 84 \
+  "[DEFER] GitHub API rate capacity was exhausted"
+
+FAKE_API_FAIL_MESSAGE='gh: internal server error (HTTP 500)'
+check_case "non-rate API failure remains fatal" 1 \
+  "[ERROR] Could not resolve protected docs-control main"
+unset FAKE_API_FAIL_MATCH FAKE_API_FAIL_MESSAGE
 
 echo "=== Summary: ${PASS} passed, ${FAIL} failed ==="
 [ "$FAIL" -eq 0 ]
