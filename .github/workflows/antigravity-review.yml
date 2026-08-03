@@ -16,14 +16,13 @@ permissions:
 
 jobs:
   antigravity-review:
-    # SUSPENDED: Gemini Antigravity review is opt-in while its quota is exhausted.
-    # Unset, false, or any value other than the literal string "true" stays off.
-    # Security: also restrict execution to trusted same-repo PR heads (exclude external forks).
+    # Trigger if either ANTIGRAVITY_REVIEW_ENABLED or REVIEWER_ENABLED is 'true'
+    # Security: restrict execution to trusted same-repo PR heads (exclude external forks).
     if: >-
-      vars.ANTIGRAVITY_REVIEW_ENABLED == 'true' &&
+      (vars.ANTIGRAVITY_REVIEW_ENABLED == 'true' || vars.REVIEWER_ENABLED == 'true') &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     steps:
       - name: Checkout PR Head
@@ -31,6 +30,66 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+
+      - name: Checkout Reviewer Tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: f5-sales-demo/docs-control
+          ref: main
+          path: .review-tooling
+          persist-credentials: false
+          token: ${{ secrets.REPO_SETTINGS_TOKEN }}
+
+      - name: Acquire Review Slot
+        run: bash .review-tooling/scripts/review-slot.sh acquire
+
+      - name: Reviewer Dependency Preflight
+        id: deps
+        continue-on-error: true
+        timeout-minutes: 3
+        run: |
+          set -uo pipefail
+          bash .review-tooling/scripts/check-review-deps.sh --probe > review-deps.txt 2>&1 || true
+          cat review-deps.txt
+
+      - name: Trusted Verification (.code-review/verify.sh)
+        id: verify
+        timeout-minutes: 10
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -uo pipefail
+          rel=".code-review/verify.sh"
+          if [ "${BASE_REF}" != "${DEFAULT_BRANCH}" ]; then
+            echo "::notice::PR targets '${BASE_REF}', not '${DEFAULT_BRANCH}' — skipping trusted verification."
+            exit 0
+          fi
+          git fetch --no-tags --depth=1 origin "${DEFAULT_BRANCH}" 2>/dev/null || true
+          pin="origin/${DEFAULT_BRANCH}"
+          if ! git cat-file -e "${pin}:${rel}" 2>/dev/null; then
+            pin="FETCH_HEAD"
+          fi
+          if ! git cat-file -e "${pin}:${rel}" 2>/dev/null; then
+            echo "::notice::No ${rel} on ${DEFAULT_BRANCH} — skipping trusted verification."
+            exit 0
+          fi
+          pin_sha="$(git rev-parse "${pin}")"
+          mkdir -p "$(dirname "$rel")"
+          git show "${pin}:${rel}" > "$rel"
+          chmod +x "$rel"
+          echo "::notice::Running ${rel} pinned to ${DEFAULT_BRANCH}@${pin_sha}"
+          set +e
+          bash "$rel" > /tmp/verify-raw.txt 2>&1
+          rc=$?
+          set -e
+          {
+            echo "# Trusted verification (.code-review/verify.sh, pinned to ${DEFAULT_BRANCH}@${pin_sha})"
+            echo "# exit_code=${rc}"
+            echo "---"
+            tail -c 20000 /tmp/verify-raw.txt
+          } > verify-output.txt
+          echo "verify_exit=${rc}" >> "$GITHUB_OUTPUT"
 
       - name: Install System Dependencies for Headless Keyring
         run: |
@@ -48,24 +107,32 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY_NAME: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           dbus-run-session -- bash -c '
-            # 1. Unlock gnome-keyring in headless session
             eval "$(echo "" | gnome-keyring-daemon --unlock --daemonize)"
             export SSH_AUTH_SOCK
             export GNOME_KEYRING_CONTROL
             export GNOME_KEYRING_PID
 
-            # 2. Extract clean raw JSON from macOS keychain base64-encoded token
-            RAW_TOKEN_JSON=$(echo "$ANTIGRAVITY_TOKEN" | sed "s/^go-keyring-base64:// " | base64 -d)
-
-            # 3. Store raw JSON in standard DBus Secret Service
+            RAW_TOKEN_JSON=$(echo "$ANTIGRAVITY_TOKEN" | sed "s/^go-keyring-base64://" | base64 -d)
             python3 -c "import keyring; keyring.set_password('\''gemini'\'', '\''antigravity'\'', \"\"\"$RAW_TOKEN_JSON\"\"\")"
 
-            # 4. Automate workspace trust with Gemini 3.6 Flash (High) and global endpoint
             mkdir -p ~/.gemini/antigravity-cli
-            echo "{\"gcp\": {\"project\": \"$GCP_PROJECT_ID\", \"location\": \"global\"}, \"model\": \"Gemini 3.6 Flash (High)\", \"trustedWorkspaces\": [\"/home/runner/work/$REPOSITORY_NAME/$REPOSITORY_NAME\"]}" > ~/.gemini/antigravity-cli/settings.json
+            WORK_DIR="$(pwd)"
+            echo "{\"gcp\": {\"project\": \"$GCP_PROJECT_ID\", \"location\": \"global\"}, \"model\": \"Gemini 3.6 Flash (High)\", \"trustedWorkspaces\": [\"$WORK_DIR\"]}" > ~/.gemini/antigravity-cli/settings.json
 
-            # 5. Run the Antigravity Agentic PR Reviewer. Using --dangerously-skip-permissions to allow execution of git and gh tools in headless mode.
-            /home/runner/.local/bin/agy --project "$GCP_PROJECT_ID" --dangerously-skip-permissions --print "You are Antigravity, an elite agentic AI coding assistant. Review this Pull Request. First, run '\''gh pr diff'\'' to retrieve the code modifications. Meticulously inspect the changes for security issues, hardcoded tokens/secrets, PII leakage (such as email addresses, user names, phone numbers), or bad architectural patterns. Finally, use '\''gh pr comment'\'' to post a constructive, high-quality review summary directly on the PR."
+            # Build review prompt
+            PROMPT="You are Antigravity, an elite agentic AI coding assistant. Review Pull Request #$PR_NUMBER for repo $REPOSITORY_NAME.
+            First, run '\''gh pr diff $PR_NUMBER'\'' to retrieve the code modifications.
+            If verify-output.txt exists in the workspace, read it to inspect trusted test verification results.
+            If review-deps.txt exists, inspect dependency status.
+            Inspect the changes for security issues, hardcoded tokens/secrets, PII leakage, or bad architectural patterns.
+            Finally, post a constructive, high-quality review summary using '\''gh pr comment $PR_NUMBER --body \"...\"'\''."
+
+            $HOME/.local/bin/agy --project "$GCP_PROJECT_ID" --dangerously-skip-permissions --print "$PROMPT"
           '
+
+      - name: Release Review Slot
+        if: always()
+        run: bash .review-tooling/scripts/review-slot.sh release || true

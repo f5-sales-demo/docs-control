@@ -19,8 +19,10 @@ permissions:
 
 jobs:
   claude-review:
-    # HARD GUARD: never let a fork PR reach the self-hosted runner.
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # DISABLED: Claude review on macOS self-hosted runner has been retired.
+    # Code reviews are now handled by Antigravity review on self-hosted Linux runners
+    # via .github/workflows/antigravity-review.yml.
+    if: false
     runs-on: [self-hosted, macOS, code-review]
     # Generous JOB budget so a run that WAITS in the machine-wide slot queue
     # (review-slot.sh, up to its 3h max-wait) does not die of timeout before it

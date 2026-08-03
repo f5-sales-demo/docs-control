@@ -70,12 +70,13 @@ jobs:
         startsWith(github.head_ref, 'auto-generate/') ||
         startsWith(github.head_ref, 'autoresearch/') ||
         (startsWith(github.head_ref, 'dependabot/') && github.actor == 'dependabot[bot]'))
-    uses: f5-sales-demo/docs-control/.github/workflows/claude-review.yml@110128c21a3ebc90dcf661294d61553715bafd96
+    uses: f5-sales-demo/docs-control/.github/workflows/antigravity-review.yml@main
     permissions:
       contents: read # inspect the same-repository pull request
       pull-requests: write # publish the reusable review result
     secrets:
-      F5_GATEWAY_TOKEN: ${{ secrets.F5_GATEWAY_TOKEN }}
+      ANTIGRAVITY_TOKEN: ${{ secrets.ANTIGRAVITY_TOKEN }}
+      GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       REPO_SETTINGS_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
 
   # Genuine automated branches skip the reviewer above (never touching the
