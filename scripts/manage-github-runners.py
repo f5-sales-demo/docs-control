@@ -59,7 +59,7 @@ def download_runner_tarball(version, cache_dir: Path):
     tarball_name = f"actions-runner-linux-x64-{version}.tar.gz"
     tarball_path = cache_dir / tarball_name
 
-    if tarball_path.exists():
+    if tarball_path.exists() and tarball_path.stat().st_size > 0:
         print(f"[CACHE] Found cached runner tarball at {tarball_path}")
         return tarball_path
 
@@ -112,7 +112,7 @@ def setup_runner(org, repo, base_dir: Path, user):
                 run_cmd(["./svc.sh", "uninstall"], cwd=repo_dir, check=False, sudo=True)
             except Exception as e:
                 print(f"[CLEANUP WARNING] {e}")
-        shutil.rmtree(repo_dir, ignore_errors=True)
+        run_cmd(["rm", "-rf", str(repo_dir)], sudo=True, check=False)
 
     repo_dir.mkdir(parents=True, exist_ok=True)
 
@@ -235,7 +235,7 @@ def remove_runner(org, repo, base_dir: Path):
         print(f"Warning during unregistration: {e}")
 
     print(f"Removing directory {repo_dir}...")
-    shutil.rmtree(repo_dir, ignore_errors=True)
+    run_cmd(["rm", "-rf", str(repo_dir)], sudo=True, check=False)
     print(f"Successfully removed runner for {org}/{repo}.")
 
 
@@ -294,7 +294,7 @@ def health_check(org, base_dir: Path, gov_path: Path = DOCS_CONTROL_GOVERNANCE_P
             data = json.loads(res.stdout)
             runners = data.get("runners", [])
             target_runner_name = f"runner-ubuntu-{repo}"
-            target_runner = next((r for r in runners if r.get("name") == target_runner_name), runners[0] if runners else None)
+            target_runner = next((r for r in runners if r.get("name") == target_runner_name), None)
             if not target_runner:
                 print(f"⚠️ {repo:30s} Unregistered")
                 summary["unregistered"] += 1

@@ -44,11 +44,12 @@ def get_governed_repos(gov_path=GOVERNANCE_PATH):
         return []
 
 
-def get_running_processes():
+def get_running_processes(base_dir=DEFAULT_BASE_DIR):
     """
     Parse ps aux for Runner.Listener, Runner.Worker, and runsvc.sh processes.
     """
     procs = []
+    base_dir_str = str(Path(base_dir).resolve())
     try:
         res = subprocess.run(
             ["ps", "aux"],
@@ -58,19 +59,21 @@ def get_running_processes():
             check=True
         )
         lines = res.stdout.splitlines()
-        header = lines[0].split()
         for line in lines[1:]:
             parts = line.split(None, 10)
             if len(parts) < 11:
                 continue
             user, pid, cpu, mem, vsz, rss, tty, stat, start, time_str, cmd = parts
-            if "actions-runners/f5-sales-demo" in cmd:
-                # Extract repo name from path
-                # e.g., /data/actions-runners/f5-sales-demo/<repo>/...
+            if base_dir_str in cmd or "actions-runners/" in cmd:
+                # Extract repo name from path relative to base_dir
                 repo = "unknown"
-                if "/f5-sales-demo/" in cmd:
-                    after_org = cmd.split("/f5-sales-demo/")[1]
-                    repo = after_org.split("/")[0]
+                if base_dir_str in cmd:
+                    after_base = cmd.split(base_dir_str)[1].lstrip("/")
+                    repo = after_base.split("/")[0] if after_base else "unknown"
+                elif "actions-runners/" in cmd:
+                    parts_path = cmd.split("actions-runners/")[1].split("/")
+                    if len(parts_path) >= 2:
+                        repo = parts_path[1]
 
                 p_type = None
                 if "Runner.Listener" in cmd:
@@ -109,7 +112,7 @@ def fetch_gh_runner_statuses(gov_path=GOVERNANCE_PATH, base_dir=DEFAULT_BASE_DIR
         statuses[repo] = {"status": "offline", "busy": False, "pid": "-", "cpu": 0.0, "mem_mb": 0.0}
 
     # Aggregate process stats per repo
-    procs = get_running_processes()
+    procs = get_running_processes(base_dir=base_dir)
     repo_procs = {}
     for p in procs:
         r = p["repo"]
