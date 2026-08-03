@@ -50,7 +50,7 @@ if [ "$BYPASS" != "true" ] && [ "$SHOULD_RUN" != "true" ]; then
         SHOULD_RUN="true"
         break
       fi
-    done < "$CHANGED_FILES_FILE"
+    done <"$CHANGED_FILES_FILE"
   else
     echo "No changed files list provided."
   fi
@@ -69,6 +69,6 @@ echo "  FORCE_RECONCILE=$FORCE_RECONCILE"
 
 # Export to GitHub Actions step output
 if [ -n "$GITHUB_OUTPUT" ]; then
-  echo "should_run=$SHOULD_RUN" >> "$GITHUB_OUTPUT"
-  echo "force_reconcile=$FORCE_RECONCILE" >> "$GITHUB_OUTPUT"
+  echo "should_run=$SHOULD_RUN" >>"$GITHUB_OUTPUT"
+  echo "force_reconcile=$FORCE_RECONCILE" >>"$GITHUB_OUTPUT"
 fi
