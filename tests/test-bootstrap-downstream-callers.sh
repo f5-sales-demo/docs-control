@@ -67,6 +67,10 @@ echo "[OK] bootstrap carries the lint caller that validates its own PR"
 cat >"$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$FAKE_LOG"
+if [[ "$*" == *'--slurp'* ]]; then
+  echo 'unknown flag: --slurp' >&2
+  exit 64
+fi
 endpoint="${2:-}"
 case "$1 $endpoint" in
   'api repos/f5-sales-demo/docs-control/commits/main')
@@ -306,30 +310,30 @@ case "$1 $endpoint" in
     if [ -f "$FAKE_STATE/duplicate-current-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg branch "$EXPECTED_BRANCH" \
         --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[[{number: 12, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}},
-           {number: 13, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]]'
+        '[{number: 12, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}},
+          {number: 13, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/fork-current-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg branch "$EXPECTED_BRANCH" \
         --arg repo "${GITHUB_REPOSITORY%/*}-fork/example" \
-        '[[{number: 11, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]]'
+        '[{number: 11, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/page-two-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[[], [{number: 9, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]]'
+        '[], [{number: 9, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/huge-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[[{number: 10, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-999999999999999999999999999999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]]'
+        '[{number: 10, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-999999999999999999999999999999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/newer-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[[{number: 8, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]]'
+        '[{number: 8, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/current-pr" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg branch "$EXPECTED_BRANCH" \
         --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[[{number: 42, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]]'
+        '[{number: 42, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/old-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[[{number: 7, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-12-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]]'
+        '[{number: 7, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-12-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     else
-      printf '[[]]\n'
+      printf '[]\n'
     fi
     ;;
   'pr list')
@@ -663,7 +667,7 @@ set +e
 run_bootstrap "$state" >/dev/null 2>&1
 rc=$?
 set -e
-if [ "$rc" != 83 ] || ! grep -q -- '--paginate --slurp' "$WORK/gh.log" ||
+if [ "$rc" != 83 ] || ! grep -q -- '--paginate' "$WORK/gh.log" || grep -q -- '--slurp' "$WORK/gh.log" ||
   grep -qE '^pr close |git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' "$WORK/gh.log"; then
   echo "[FAIL] exact-caller owner outside the first API page was not detected"
   exit 1

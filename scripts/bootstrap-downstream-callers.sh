@@ -182,7 +182,7 @@ read_bootstrap_prs() {
   response=$(mktemp "$work/bootstrap-pr-pages.XXXXXX")
   set +e
   gh api "repos/${slug}/pulls?state=open&per_page=100" \
-    --paginate --slurp >"$response"
+    --paginate >"$response"
   rc=$?
   set -e
   if [ "$rc" -eq 84 ]; then
@@ -194,8 +194,8 @@ read_bootstrap_prs() {
     rm -f "$response"
     return 1
   fi
-  if ! jq -e 'type == "array" and all(.[]; type == "array")' \
-    "$response" >/dev/null || ! jq -c 'add // []' "$response" >"$destination"; then
+  if ! jq -se 'length > 0 and all(.[]; type == "array")' \
+    "$response" >/dev/null || ! jq -sc 'add // []' "$response" >"$destination"; then
     echo "[ERROR] Exact-caller PR inventory is malformed for ${slug}" >&2
     rm -f "$response"
     return 1
