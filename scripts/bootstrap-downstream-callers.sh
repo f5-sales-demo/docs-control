@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Deliver only the exact managed enforcement caller, through one-file,
-# monotonic PRs, before any reusable governance implementation is invoked.
+# Deliver the exact enforcement and Super-Linter callers through bounded,
+# monotonic PRs before any reusable governance implementation is invoked.
 set -euo pipefail
 
 repository="${GITHUB_REPOSITORY:-}"
@@ -11,6 +11,7 @@ run_attempt="${GITHUB_RUN_ATTEMPT:-}"
 downstream_config="${DOWNSTREAM_CONFIG:-.github/config/downstream-repos.json}"
 rollout_config="${ROLLOUT_CONFIG:-.github/config/governance-rollout.json}"
 caller_path=".github/workflows/enforce-repo-settings.yml"
+lint_caller_path=".github/workflows/super-linter.yml"
 wait_seconds="${BOOTSTRAP_WAIT_SECONDS:-1800}"
 poll_seconds="${BOOTSTRAP_POLL_SECONDS:-30}"
 
@@ -508,7 +509,38 @@ if [ "$(git hash-object "$work/caller.yml")" != "$expected_blob" ]; then
   echo "[ERROR] Managed caller bytes do not match the GitHub blob receipt" >&2
   exit 1
 fi
-branch="sync/exact-caller-${expected_blob:0:12}-${run_id}-${run_attempt}"
+set +e
+gh api \
+  "repos/${repository}/contents/workflows/super-linter.yml?ref=${source_sha}" \
+  >"$work/lint-caller.json"
+rc=$?
+set -e
+if [ "$rc" -eq 84 ]; then
+  exit 84
+fi
+if [ "$rc" -ne 0 ]; then
+  echo "[ERROR] Could not fetch the exact Super-Linter caller" >&2
+  exit 1
+fi
+if ! jq -e '
+  .type == "file" and .encoding == "base64" and
+  (.sha | type == "string" and test("^[0-9a-f]{40}$")) and
+  (.content | type == "string" and length > 0)
+' "$work/lint-caller.json" >/dev/null; then
+  echo "[ERROR] Super-Linter caller response is malformed" >&2
+  exit 1
+fi
+expected_lint_blob=$(jq -r '.sha' "$work/lint-caller.json")
+jq -r '.content' "$work/lint-caller.json" | tr -d '\n' >"$work/lint-caller.b64"
+if ! base64 -d <"$work/lint-caller.b64" >"$work/lint-caller.yml"; then
+  echo "[ERROR] Super-Linter caller response contains invalid base64" >&2
+  exit 1
+fi
+if [ "$(git hash-object "$work/lint-caller.yml")" != "$expected_lint_blob" ]; then
+  echo "[ERROR] Super-Linter caller bytes do not match the GitHub blob receipt" >&2
+  exit 1
+fi
+branch="sync/exact-caller-${expected_blob:0:6}${expected_lint_blob:0:6}-${run_id}-${run_attempt}"
 
 set +e
 assert_source_current
@@ -531,8 +563,10 @@ fi
 echo "[OK] Downstream enforcement workflows are disabled with no active runs"
 
 bootstrap_one() {
-  local name="$1" slug default_branch base_sha main_sha actual_blob rc branch_head branch_blob
+  local name="$1" slug default_branch base_sha main_sha actual_blob actual_lint_blob rc
+  local branch_head branch_blob branch_lint_blob expected_change_count
   local pr_number pr_url created_pr_number compare_file pr_file verified_head verified_blob
+  local verified_lint_blob
   slug="${owner}/${name}"
 
   assert_source_current
@@ -553,12 +587,34 @@ bootstrap_one() {
       echo "[ERROR] Invalid live caller blob for ${name}" >&2
       return 1
     fi
-    [ "$actual_blob" != "$expected_blob" ] || return 0
     ;;
   44) ;;
   84) return 84 ;;
   *) return 1 ;;
   esac
+  set +e
+  actual_lint_blob=$(api_value_or_404 \
+    "repos/${slug}/contents/${lint_caller_path}?ref=${main_sha}" '.sha')
+  rc=$?
+  set -e
+  case "$rc" in
+  0)
+    if ! printf '%s' "$actual_lint_blob" | grep -qE '^[0-9a-f]{40}$'; then
+      echo "[ERROR] Invalid live Super-Linter caller blob for ${name}" >&2
+      return 1
+    fi
+    ;;
+  44) actual_lint_blob="" ;;
+  84) return 84 ;;
+  *) return 1 ;;
+  esac
+  if [ "$actual_blob" = "$expected_blob" ] &&
+    [ "$actual_lint_blob" = "$expected_lint_blob" ]; then
+    return 0
+  fi
+  expected_change_count=0
+  [ "$actual_blob" = "$expected_blob" ] || expected_change_count=$((expected_change_count + 1))
+  [ "$actual_lint_blob" = "$expected_lint_blob" ] || expected_change_count=$((expected_change_count + 1))
 
   default_branch=$(gh api "repos/${slug}" --jq '.default_branch')
   if [ "$default_branch" != "main" ]; then
@@ -612,11 +668,30 @@ bootstrap_one() {
   *) return 1 ;;
   esac
 
-  if [ "$branch_blob" != "$expected_blob" ]; then
-    if [ "$branch_head" != "$base_sha" ]; then
-      echo "[ERROR] Refusing to append to a non-exact bootstrap branch for ${name}" >&2
+  set +e
+  branch_lint_blob=$(api_value_or_404 \
+    "repos/${slug}/contents/${lint_caller_path}?ref=${branch_head}" '.sha')
+  rc=$?
+  set -e
+  case "$rc" in
+  0)
+    if ! printf '%s' "$branch_lint_blob" | grep -qE '^[0-9a-f]{40}$'; then
+      echo "[ERROR] Invalid bootstrap Super-Linter caller blob for ${name}" >&2
       return 1
     fi
+    ;;
+  44) branch_lint_blob="" ;;
+  84) return 84 ;;
+  *) return 1 ;;
+  esac
+
+  if { [ "$branch_blob" != "$expected_blob" ] ||
+    [ "$branch_lint_blob" != "$expected_lint_blob" ]; } &&
+    [ "$branch_head" != "$base_sha" ]; then
+    echo "[ERROR] Refusing to append to a non-exact bootstrap branch for ${name}" >&2
+    return 1
+  fi
+  if [ "$branch_blob" != "$expected_blob" ]; then
     jq -n \
       --arg message "chore(governance): bootstrap exact managed caller" \
       --arg branch "$branch" \
@@ -628,6 +703,18 @@ bootstrap_one() {
       --method PUT --input "$work/update-${name}.json" >/dev/null
     branch_head=$(gh api "repos/${slug}/git/ref/heads/${branch}" --jq '.object.sha')
   fi
+  if [ "$branch_lint_blob" != "$expected_lint_blob" ]; then
+    jq -n \
+      --arg message "chore(governance): bootstrap exact Super-Linter caller" \
+      --arg branch "$branch" \
+      --arg sha "$branch_lint_blob" \
+      --rawfile content "$work/lint-caller.b64" \
+      '{message: $message, content: $content, branch: $branch, sha: $sha} |
+       if .sha == "" then del(.sha) else . end' >"$work/update-lint-${name}.json"
+    gh api "repos/${slug}/contents/${lint_caller_path}" \
+      --method PUT --input "$work/update-lint-${name}.json" >/dev/null
+    branch_head=$(gh api "repos/${slug}/git/ref/heads/${branch}" --jq '.object.sha')
+  fi
   if ! printf '%s' "$branch_head" | grep -qE '^[0-9a-f]{40}$'; then
     echo "[ERROR] Invalid exact bootstrap head for ${name}" >&2
     return 1
@@ -635,13 +722,18 @@ bootstrap_one() {
 
   compare_file="$work/compare-${name}.json"
   gh api "repos/${slug}/compare/${base_sha}...${branch_head}" >"$compare_file"
-  if ! jq -e --arg path "$caller_path" --arg blob "$expected_blob" '
-    .status == "ahead" and .ahead_by == 1 and .total_commits == 1 and
-    (.commits | length) == 1 and (.files | length) == 1 and
-    .files[0].filename == $path and .files[0].sha == $blob and
-    (.files[0].status == "added" or .files[0].status == "modified")
+  if ! jq -e --arg path "$caller_path" --arg blob "$expected_blob" \
+    --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
+    --argjson change_count "$expected_change_count" '
+    .status == "ahead" and .ahead_by == $change_count and
+    .total_commits == $change_count and (.commits | length) == $change_count and
+    (.files | length) == $change_count and
+    all(.files[];
+      ((.filename == $path and .sha == $blob) or
+       (.filename == $lint_path and .sha == $lint_blob)) and
+      (.status == "added" or .status == "modified"))
   ' "$compare_file" >/dev/null; then
-    echo "[ERROR] Bootstrap branch for ${name} is not an exact one-file commit" >&2
+    echo "[ERROR] Bootstrap branch for ${name} is not an exact caller update" >&2
     return 1
   fi
 
@@ -652,8 +744,8 @@ bootstrap_one() {
       --repo "$slug" \
       --base "$default_branch" \
       --head "$branch" \
-      --title "chore(governance): bootstrap exact managed caller" \
-      --body "Installs one exact managed caller before fleet enforcement resumes. The sync/ branch uses the governed automation exemption from linked-issue enforcement.")
+      --title "chore(governance): bootstrap exact managed callers" \
+      --body "Installs the exact enforcement and Super-Linter callers before fleet enforcement resumes. The sync/ branch uses the governed automation exemption from linked-issue enforcement.")
     pr_number=${pr_url##*/}
     created_pr_number="$pr_number"
     if ! printf '%s' "$created_pr_number" | grep -qE '^[1-9][0-9]*$'; then
@@ -671,11 +763,12 @@ bootstrap_one() {
   pr_file="$work/pr-${name}.json"
   gh pr view "$pr_number" --repo "$slug" \
     --json baseRefName,headRefName,headRefOid,files,commits >"$pr_file"
-  if ! jq -e --arg path "$caller_path" --arg base "$default_branch" \
-    --arg head "$branch" --arg oid "$branch_head" '
+  if ! jq -e --arg path "$caller_path" --arg lint_path "$lint_caller_path" \
+    --arg base "$default_branch" --arg head "$branch" --arg oid "$branch_head" \
+    --argjson change_count "$expected_change_count" '
     .baseRefName == $base and .headRefName == $head and .headRefOid == $oid and
-    (.commits | length) == 1 and (.files | length) == 1 and
-    .files[0].path == $path
+    (.commits | length) == $change_count and (.files | length) == $change_count and
+    all(.files[]; .path == $path or .path == $lint_path)
   ' "$pr_file" >/dev/null; then
     echo "[ERROR] Bootstrap PR for ${name} contains an unexpected diff" >&2
     return 1
@@ -697,6 +790,12 @@ bootstrap_one() {
     "repos/${slug}/contents/${caller_path}?ref=${verified_head}" --jq '.sha')
   if [ "$verified_blob" != "$expected_blob" ]; then
     echo "[ERROR] Bootstrap caller changed after exact PR verification for ${name}" >&2
+    return 1
+  fi
+  verified_lint_blob=$(gh api \
+    "repos/${slug}/contents/${lint_caller_path}?ref=${verified_head}" --jq '.sha')
+  if [ "$verified_lint_blob" != "$expected_lint_blob" ]; then
+    echo "[ERROR] Super-Linter caller changed after exact PR verification for ${name}" >&2
     return 1
   fi
   gh pr merge "$pr_number" --repo "$slug" --auto --squash --delete-branch \
@@ -768,14 +867,32 @@ while true; do
     84) exit 84 ;;
     *) exit 1 ;;
     esac
+
+    set +e
+    live_lint_blob=$(api_value_or_404 \
+      "repos/${slug}/contents/${lint_caller_path}?ref=${main_sha}" '.sha')
+    rc=$?
+    set -e
+    case "$rc" in
+    0)
+      if ! printf '%s' "$live_lint_blob" | grep -qE '^[0-9a-f]{40}$'; then
+        echo "[ERROR] Invalid live Super-Linter caller receipt while verifying ${name}" >&2
+        exit 1
+      fi
+      [ "$live_lint_blob" = "$expected_lint_blob" ] || pending=$((pending + 1))
+      ;;
+    44) pending=$((pending + 1)) ;;
+    84) exit 84 ;;
+    *) exit 1 ;;
+    esac
   done < <(jq -r '.[]' "$downstream_config")
 
   if [ "$pending" -eq 0 ]; then
-    echo "[OK] Every downstream protected main contains the exact managed caller"
+    echo "[OK] Every downstream protected main contains both exact managed callers"
     break
   fi
   if [ "$SECONDS" -ge "$deadline" ]; then
-    echo "[DEFER] ${pending} exact-caller merge(s) remain pending; scheduled dispatch will resume verification"
+    echo "[DEFER] ${pending} exact-caller blob(s) remain pending; scheduled dispatch will resume verification"
     exit 83
   fi
   sleep "$poll_seconds"

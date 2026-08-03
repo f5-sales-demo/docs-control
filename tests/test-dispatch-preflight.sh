@@ -9,6 +9,7 @@ PIN_SHA=2222222222222222222222222222222222222222
 OTHER_SHA=3333333333333333333333333333333333333333
 ENFORCE_BLOB=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 SYNC_BLOB=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+LINT_CALLER_BLOB=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
 PASS=0
 FAIL=0
 
@@ -36,6 +37,9 @@ case "$*" in
   *"contents/workflows/enforce-repo-settings.yml?ref=$FAKE_SOURCE_SHA"*)
     printf '%s\n' "$FAKE_SOURCE_CALLER_BLOB"
     ;;
+  *"contents/workflows/super-linter.yml?ref=$FAKE_SOURCE_SHA"*)
+    printf '%s\n' "$FAKE_SOURCE_LINT_CALLER_BLOB"
+    ;;
   *"enforce-repo-settings.yml?ref=$FAKE_SOURCE_SHA"*) printf '%s\n' "$FAKE_SOURCE_ENFORCE_BLOB" ;;
   *"sync-managed-files.yml?ref=$FAKE_SOURCE_SHA"*) printf '%s\n' "$FAKE_SOURCE_SYNC_BLOB" ;;
   *"repos/f5-sales-demo/example/contents/.github/workflows/enforce-repo-settings.yml?ref=$FAKE_DOWNSTREAM_MAIN"*)
@@ -44,6 +48,13 @@ case "$*" in
       exit 1
     fi
     printf '%s\n' "$FAKE_DOWNSTREAM_CALLER_BLOB"
+    ;;
+  *"repos/f5-sales-demo/example/contents/.github/workflows/super-linter.yml?ref=$FAKE_DOWNSTREAM_MAIN"*)
+    if [ "${FAKE_MISSING_CALLER:-}" = 1 ]; then
+      echo 'gh: Not Found (HTTP 404)' >&2
+      exit 1
+    fi
+    printf '%s\n' "$FAKE_DOWNSTREAM_LINT_CALLER_BLOB"
     ;;
   *'repos/f5-sales-demo/example/actions/workflows/enforce-repo-settings.yml'*)
     if [ "${FAKE_MISSING_CALLER:-}" = 1 ] || [ "${FAKE_STATE_READ_FAIL:-}" = 1 ]; then
@@ -75,7 +86,9 @@ EOF
     FAKE_SOURCE_ENFORCE_BLOB="$FAKE_SOURCE_ENFORCE_BLOB" \
     FAKE_SOURCE_SYNC_BLOB="$FAKE_SOURCE_SYNC_BLOB" \
     FAKE_SOURCE_CALLER_BLOB="$FAKE_SOURCE_CALLER_BLOB" \
+    FAKE_SOURCE_LINT_CALLER_BLOB="$FAKE_SOURCE_LINT_CALLER_BLOB" \
     FAKE_DOWNSTREAM_CALLER_BLOB="$FAKE_DOWNSTREAM_CALLER_BLOB" \
+    FAKE_DOWNSTREAM_LINT_CALLER_BLOB="$FAKE_DOWNSTREAM_LINT_CALLER_BLOB" \
     FAKE_DOWNSTREAM_MAIN="$FAKE_DOWNSTREAM_MAIN" \
     FAKE_MISSING_CALLER="${FAKE_MISSING_CALLER:-}" \
     FAKE_STATE_READ_FAIL="${FAKE_STATE_READ_FAIL:-}" \
@@ -101,7 +114,9 @@ FAKE_PIN_SYNC_BLOB="$SYNC_BLOB"
 FAKE_SOURCE_ENFORCE_BLOB="$ENFORCE_BLOB"
 FAKE_SOURCE_SYNC_BLOB="$SYNC_BLOB"
 FAKE_SOURCE_CALLER_BLOB=cccccccccccccccccccccccccccccccccccccccc
+FAKE_SOURCE_LINT_CALLER_BLOB="$LINT_CALLER_BLOB"
 FAKE_DOWNSTREAM_CALLER_BLOB="$FAKE_SOURCE_CALLER_BLOB"
+FAKE_DOWNSTREAM_LINT_CALLER_BLOB="$FAKE_SOURCE_LINT_CALLER_BLOB"
 FAKE_DOWNSTREAM_MAIN=dddddddddddddddddddddddddddddddddddddddd
 check_case "exact main receipt and exact caller pin permit fan-out" 0 "[OK]"
 
@@ -124,6 +139,14 @@ FAKE_STATE_READ_FAIL=1
 check_case "stale caller bootstraps without requiring legacy workflow state" 80 \
   "[BOOTSTRAP]"
 unset FAKE_STATE_READ_FAIL
+
+FAKE_DOWNSTREAM_CALLER_BLOB="$FAKE_SOURCE_CALLER_BLOB"
+FAKE_DOWNSTREAM_LINT_CALLER_BLOB="$OTHER_SHA"
+FAKE_STATE_READ_FAIL=1
+check_case "stale Super-Linter caller requires bootstrap" 80 \
+  "[BOOTSTRAP] example does not contain the exact Super-Linter caller"
+unset FAKE_STATE_READ_FAIL
+FAKE_DOWNSTREAM_LINT_CALLER_BLOB="$FAKE_SOURCE_LINT_CALLER_BLOB"
 
 FAKE_MISSING_CALLER=1
 check_case "missing workflow reaches exact caller bootstrap" 80 "[BOOTSTRAP]"
