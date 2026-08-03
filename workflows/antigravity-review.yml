@@ -30,7 +30,7 @@ jobs:
         startsWith(github.head_ref, 'auto-generate/') ||
         startsWith(github.head_ref, 'autoresearch/') ||
         (startsWith(github.head_ref, 'dependabot/') && github.actor == 'dependabot[bot]'))
-    uses: f5-sales-demo/docs-control/.github/workflows/antigravity-review.yml@8eaaced5c8800da45934031b152c863ce8ee84c0
+    uses: f5-sales-demo/docs-control/.github/workflows/antigravity-review.yml@110128c21a3ebc90dcf661294d61553715bafd96
     permissions:
       contents: read
       pull-requests: write
