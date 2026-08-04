@@ -134,10 +134,10 @@ for enterprise_term in 'merge_group:' 'required-reviewer' 'audit-log'; do
   rejects "$WATCHER" "$enterprise_term" "watcher avoids enterprise-only surface $enterprise_term"
 done
 contains "$WATCHER" 'GitHub Free-compatible' "watcher declares its GitHub Free contract"
-contains "$WATCHER" 'python3 scripts/redact-automation-log.py' \
+contains "$WATCHER" 'python3 scripts/redact_automation_log.py' \
   "watcher redacts logs with the tested trusted helper"
 
-REDACTOR="$REPO_ROOT/scripts/redact-automation-log.py"
+REDACTOR="$REPO_ROOT/scripts/redact_automation_log.py"
 redacted=$(printf '%s\n' \
   '"token": "synthetic-one"' \
   "'authorization': 'Bearer synthetic-two'" \
@@ -171,7 +171,7 @@ else
   fail "watcher log redactor removes complete multiline PEM blocks" \
     "PEM fixture was not completely redacted"
 fi
-if jq -e --arg path 'scripts/redact-automation-log.py' \
+if jq -e --arg path 'scripts/redact_automation_log.py' \
   '.protected_files | index($path) != null' "$GOVERNANCE" >/dev/null; then
   pass "watcher log redactor is governance-protected"
 else

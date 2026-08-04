@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import io
 import re
 import sys
 
@@ -46,9 +47,9 @@ def redact_line(line: str) -> str:
     return IPV4_RE.sub("[REDACTED_IP]", line)
 
 
-sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+input_stream = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8", errors="replace")
 in_pem_block = False
-for input_line in sys.stdin:
+for input_line in input_stream:
     if in_pem_block:
         if PEM_END_RE.search(input_line):
             in_pem_block = False

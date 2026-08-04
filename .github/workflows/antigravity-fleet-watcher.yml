@@ -215,7 +215,7 @@ jobs:
                         '{repository: $repository, pull_request: $pull_request,
                           head_sha: $head_sha, workflow: $workflow, run_id: $run_id}'
                       gh run view "$run_id" -R "$full_repo" --log-failed || true
-                    } | python3 scripts/redact-automation-log.py >"$log"
+                    } | python3 scripts/redact_automation_log.py >"$log"
                   done
                 fi
               done

@@ -11,8 +11,14 @@ CONTEXT='audit / Translation freshness'
 PASS=0
 FAIL=0
 
-pass() { printf '  PASS: %s\n' "$1"; PASS=$((PASS + 1)); }
-fail() { printf '  FAIL: %s — %s\n' "$1" "$2"; FAIL=$((FAIL + 1)); }
+pass() {
+  printf '  PASS: %s\n' "$1"
+  PASS=$((PASS + 1))
+}
+fail() {
+  printf '  FAIL: %s — %s\n' "$1" "$2"
+  FAIL=$((FAIL + 1))
+}
 
 echo "Translation routing guards"
 

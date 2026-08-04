@@ -11,8 +11,14 @@ trap 'rm -rf "$WORK"' EXIT
 PASS=0
 FAIL=0
 
-pass() { PASS=$((PASS + 1)); printf '  PASS: %s\n' "$1"; }
-fail() { FAIL=$((FAIL + 1)); printf '  FAIL: %s — %s\n' "$1" "$2"; }
+pass() {
+  PASS=$((PASS + 1))
+  printf '  PASS: %s\n' "$1"
+}
+fail() {
+  FAIL=$((FAIL + 1))
+  printf '  FAIL: %s — %s\n' "$1" "$2"
+}
 
 setup_repo() {
   rm -rf "${WORK:?}/repo" "${WORK:?}/bin" "$WORK/calls" "$WORK/count"

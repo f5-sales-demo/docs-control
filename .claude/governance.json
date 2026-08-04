@@ -70,7 +70,7 @@
     "scripts/agy-review.sh",
     "scripts/agy-review-output.schema.json",
     "scripts/agy-triage-output.schema.json",
-    "scripts/redact-automation-log.py",
+    "scripts/redact_automation_log.py",
     "scripts/validate-translations.sh",
     "scripts/check-repo-hygiene.sh",
     "scripts/check_pii.py",
