@@ -34,4 +34,4 @@ jobs:
     # in a job-level `if:`. An unset variable evaluates false, so this fails safe
     # toward not spending money.
     if: vars.TRANSLATIONS_ENABLED == 'true'
-    uses: f5-sales-demo/docs-control/.github/workflows/translation-audit.yml@90f534177c9eca4cee9ad0eea8bd83a7530e33ee
+    uses: f5-sales-demo/docs-control/.github/workflows/translation-audit.yml@1534ac5010121685f8deed2af7cdab3452f800b0
