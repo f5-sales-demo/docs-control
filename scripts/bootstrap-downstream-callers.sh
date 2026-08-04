@@ -6,8 +6,6 @@ set -euo pipefail
 repository="${GITHUB_REPOSITORY:-}"
 owner="${repository%%/*}"
 source_sha="${SOURCE_SHA:-}"
-run_id="${GITHUB_RUN_ID:-}"
-run_attempt="${GITHUB_RUN_ATTEMPT:-}"
 downstream_config="${DOWNSTREAM_CONFIG:-.github/config/downstream-repos.json}"
 rollout_config="${ROLLOUT_CONFIG:-.github/config/governance-rollout.json}"
 repo_settings_config="${REPO_SETTINGS_CONFIG:-.github/config/repo-settings.json}"
@@ -26,11 +24,6 @@ if ! printf '%s' "$source_sha" | grep -qE '^[0-9a-f]{40}$'; then
 fi
 if ! printf '%s' "$repository" | grep -qE '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; then
   echo "[ERROR] GITHUB_REPOSITORY is invalid" >&2
-  exit 1
-fi
-if ! printf '%s' "$run_id" | grep -qE '^[1-9][0-9]*$' ||
-  ! printf '%s' "$run_attempt" | grep -qE '^[1-9][0-9]*$'; then
-  echo "[ERROR] GitHub run identity is invalid" >&2
   exit 1
 fi
 if ! printf '%s' "$wait_seconds" | grep -qE '^[0-9]+$' ||
@@ -148,7 +141,7 @@ retry() {
       "$@"
     )
     rc=$?
-    if [ "$rc" -eq 0 ] || [ "$rc" -eq 74 ] || [ "$rc" -eq 75 ] ||
+    if [ "$rc" -eq 0 ] || [ "$rc" -eq 74 ] ||
       [ "$rc" -eq 76 ] || [ "$rc" -eq 84 ] || [ "$rc" -eq 85 ]; then
       return "$rc"
     fi
@@ -495,9 +488,9 @@ dispatch_and_verify_linked_status() {
 }
 
 recover_linked_transition_receipt() {
-  local name="$1" slug prefix response candidate pr_number head actual
+  local name="$1" slug expected_ref response candidate pr_number head actual
   slug="${owner}/${name}"
-  prefix="sync/exact-caller-${expected_blob:0:6}${expected_lint_blob:0:6}${expected_linked_blob:0:6}-"
+  expected_ref="sync/exact-caller-${expected_blob}${expected_lint_blob}${expected_linked_blob}"
   response=$(mktemp "$work/merged-bootstrap-prs.XXXXXX")
   gh api "repos/${slug}/pulls?state=closed&sort=updated&direction=desc&per_page=100" \
     >"$response"
@@ -514,10 +507,10 @@ recover_linked_transition_receipt() {
     rm -f "$response"
     return 1
   fi
-  candidate=$(jq -c --arg prefix "$prefix" --arg slug "$slug" '
+  candidate=$(jq -c --arg expected_ref "$expected_ref" --arg slug "$slug" '
     [.[] | select(
       .merged_at != null and .base.ref == "main" and .head.repo.full_name == $slug and
-      (.head.ref | startswith($prefix)))] |
+      .head.ref == $expected_ref)] |
     sort_by(.merged_at) | reverse | first // empty
   ' "$response")
   rm -f "$response"
@@ -576,24 +569,6 @@ finalize_linked_transition() {
   reconcile_required_checks "$name"
 }
 
-decimal_greater_than() {
-  local left="$1" right="$2"
-  if [ "${#left}" -gt "${#right}" ]; then return 0; fi
-  if [ "${#left}" -lt "${#right}" ]; then return 1; fi
-  [[ "$left" > "$right" ]]
-}
-
-parse_exact_caller_owner() {
-  local head_ref="$1"
-  exact_caller_owner_run=""
-  exact_caller_owner_attempt=""
-  if [[ ! "$head_ref" =~ ^sync/exact-caller-[A-Za-z0-9][A-Za-z0-9._-]*-([1-9][0-9]*)-([1-9][0-9]*)$ ]]; then
-    return 1
-  fi
-  exact_caller_owner_run="${BASH_REMATCH[1]}"
-  exact_caller_owner_attempt="${BASH_REMATCH[2]}"
-}
-
 read_bootstrap_prs() {
   local slug="$1" destination="$2" response rc
   response=$(mktemp "$work/bootstrap-pr-pages.XXXXXX")
@@ -622,7 +597,7 @@ read_bootstrap_prs() {
 
 reconcile_bootstrap_prs() {
   local slug="$1" current_branch="$2" open_prs rows number head_ref
-  local head_oid head_repo base_ref other_run other_attempt rc current_count
+  local head_oid head_repo base_ref rc current_count
   bootstrap_pr_number=""
   bootstrap_pr_head_oid=""
   open_prs=$(mktemp "$work/bootstrap-prs.XXXXXX")
@@ -658,25 +633,11 @@ reconcile_bootstrap_prs() {
       rm -f "$open_prs"
       return 1
     fi
-    if ! parse_exact_caller_owner "$head_ref"; then
-      echo "[ERROR] Unrecognized exact-caller automation branch for ${slug}" >&2
-      rm -f "$open_prs"
-      return 1
-    fi
     if [ "$head_ref" = "$current_branch" ]; then
       current_count=$((current_count + 1))
       bootstrap_pr_number="$number"
       bootstrap_pr_head_oid="$head_oid"
       continue
-    fi
-    other_run="$exact_caller_owner_run"
-    other_attempt="$exact_caller_owner_attempt"
-    if decimal_greater_than "$other_run" "$run_id" ||
-      { [ "$other_run" = "$run_id" ] &&
-        decimal_greater_than "$other_attempt" "$run_attempt"; }; then
-      echo "[DEFER] A newer exact-caller run owns ${slug}"
-      rm -f "$open_prs"
-      return 75
     fi
   done <<<"$rows"
   if [ "$current_count" -gt 1 ]; then
@@ -732,11 +693,6 @@ reconcile_bootstrap_prs() {
     [ -n "$number" ] || continue
     if [ "$head_repo" != "$slug" ] || [ "$base_ref" != main ]; then
       echo "[ERROR] Exact-caller PR does not belong to ${slug} protected main" >&2
-      rm -f "$open_prs"
-      return 1
-    fi
-    if ! parse_exact_caller_owner "$head_ref"; then
-      echo "[ERROR] Unrecognized exact-caller automation branch for ${slug}" >&2
       rm -f "$open_prs"
       return 1
     fi
@@ -987,7 +943,7 @@ if [ "$(git hash-object "$work/linked-caller.yml")" != "$expected_linked_blob" ]
   echo "[ERROR] Linked-issue evaluator bytes do not match the GitHub blob receipt" >&2
   exit 1
 fi
-branch="sync/exact-caller-${expected_blob:0:6}${expected_lint_blob:0:6}${expected_linked_blob:0:6}-${run_id}-${run_attempt}"
+branch="sync/exact-caller-${expected_blob}${expected_lint_blob}${expected_linked_blob}"
 
 if [ "$callers_exact" = true ]; then
   finalization_pending=false
@@ -1374,7 +1330,6 @@ bootstrap_one() {
 
 failures=0
 source_superseded=false
-newer_owner=false
 transition_pending=false
 while IFS= read -r name; do
   set +e
@@ -1383,10 +1338,6 @@ while IFS= read -r name; do
   set -e
   if [ "$rc" -eq 74 ]; then
     source_superseded=true
-    break
-  fi
-  if [ "$rc" -eq 75 ]; then
-    newer_owner=true
     break
   fi
   if [ "$rc" -eq 76 ]; then
@@ -1404,10 +1355,6 @@ done < <(jq -r '.[]' "$downstream_config")
 if [ "$source_superseded" = true ]; then
   echo "[DEFER] A newer bootstrap run owns the transition"
   exit 78
-fi
-if [ "$newer_owner" = true ]; then
-  echo "[DEFER] A newer bootstrap run owns the transition"
-  exit 83
 fi
 if [ "$failures" -gt 0 ]; then
   echo "[ERROR] ${failures} downstream caller bootstrap(s) failed" >&2
