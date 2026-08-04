@@ -1,14 +1,14 @@
 ---
 title: 設定リファレンス
-description: 設定適用、同期、Antigravity AI 自動化、およびディスパッチ動作のための中央 repo-settings.json 設定リファレンス。
+description: 強制、同期、Antigravity AI 自動化、およびディスパッチ動作のための中央 repo-settings.json 設定リファレンス。
 sidebar:
   order: 3
 i18n:
-  sourceHash: "66e243c0b43d"
+  sourceHash: "6604310303ba"
   translator: "machine"
 ---
 
-中央設定ファイルは、すべての適用、同期、およびディスパッチ動作を駆動します。これは docs-control の `.github/config/repo-settings.json` に配置され、ワークフロー実行時にダウンストリームリポジトリによって取得されます。
+中央設定ファイルは、すべての強制、同期、およびディスパッチ動作を制御します。このファイルは docs-control の `.github/config/repo-settings.json` に配置され、ワークフロー実行時にダウンストリームリポジトリによって取得されます。
 
 ```json title=".github/config/repo-settings.json"
 {
@@ -41,9 +41,9 @@ i18n:
       "branch": "main",
       "enforce_admins": true,
       "required_status_checks": {
-        "strict": false,
+        "strict": true,
         "contexts": [
-          "check / Check linked issues",
+          "Check linked issues",
           "lint / Lint Code Base",
           "lint / Shell Unit Tests"
         ],
@@ -97,9 +97,9 @@ i18n:
 
 ### `repository`
 
-`PATCH /repos/{owner}/{repo}` を介して適用される標準の GitHub リポジトリ設定。各キーは GitHub API フィールドに直接マッピングされます。[設定適用ワークフロー](./settings-enforcement/) は、各キーをリポジトリの現在の値と比較し、ドリフトしたキーのみをパッチ適用します。
+`PATCH /repos/{owner}/{repo}` 経由で適用される標準的な GitHub リポジトリ設定。各キーは GitHub API フィールドに直接マッピングされます。[強制ワークフロー](./settings-enforcement/) は各キーをリポジトリの現在の値と比較し、乖離しているキーのみをパッチ適用します。
 
-注目すべき設定:
+主な設定:
 
 - `delete_branch_on_merge: true` -- マージされた PR ブランチを自動的にクリーンアップします
 - `allow_update_branch: true` -- PR 上の "Update branch" ボタンを有効にします
@@ -110,7 +110,7 @@ i18n:
 リポジトリの GitHub Actions ワークフロー権限を制御します:
 
 - `default_workflow_permissions: "write"` -- ワークフローはデフォルトでリポジトリへの読み取り/書き込みアクセス権を取得します
-- `can_approve_pull_request_reviews: true` -- ワークフローによる PR 承認を許可します
+- `can_approve_pull_request_reviews: true` -- ワークフローによる PR の承認を許可します
 
 ### `branch_protection`
 
@@ -119,51 +119,51 @@ i18n:
 主要フィールド:
 
 - `enforce_admins: true` -- 保護ルールはリポジトリ管理者にも適用されます
-- `required_status_checks.strict: false` -- マージ前にブランチが最新である必要はありません
-- `required_status_checks.contexts` -- ダウンストリームリポジトリが合格しなければならないチェック名（例: `check / Check linked issues` および `lint / Shell Unit Tests`）
-- `required_status_checks.self_contexts` -- docs-control 自体が合格しなければならないチェック名（例: `Check linked issues` および `Shell Unit Tests`）
+- `required_status_checks.strict: true` -- ブランチはマージ前に最新の状態である必要があります
+- `required_status_checks.contexts` -- ダウンストリームリポジトリが合格する必要があるチェック名（例: `Check linked issues` および `lint / Shell Unit Tests`）
+- `required_status_checks.self_contexts` -- docs-control 自体が合格する必要があるチェック名（例: `Check linked issues` および `Shell Unit Tests`）
 - `required_pull_request_reviews: null` -- PR レビューの承認は不要です
 - `restrictions: null` -- ブランチ保護以外のプッシュ制限はありません
 
-#### `contexts` 対 `self_contexts`
+#### `contexts` と `self_contexts`
 
-ダウンストリームリポジトリが呼び出し元ワークフローを使用する場合、ステータスチェック名は `<caller_job_key> / <reusable_job_name>` になります。例えば、`require-linked-issue.yml` 呼び出し元のジョブキーは `check` であるため、チェック名は `check / Check linked issues` になります。しかし、docs-control が同じワークフローを直接実行する場合（`pull_request_target` トリガー経由）、チェック名は単に `Check linked issues` になります。
+ダウンストリームリポジトリの再利用可能なワークフローチェックでは `<caller_job_key> / <reusable_job_name>` が使用され、docs-control はベアジョブ名を報告します。リンクされた Issue のゲートは例外で、そのスケジュールされたワークフローはコミットステータス `Check linked issues` をすべてのリポジトリに直接発行するため、`contexts` と `self_contexts` の両方でその正確な名前を使用する必要があります。
 
-`self_contexts` フィールドは、docs-control 自体に適用されるチェック名を保持します。[設定適用](./settings-enforcement/) 中、ワークフローはソースリポジトリで実行されているかどうかを検出し、ブランチ保護を適用する前に `self_contexts` を `contexts` に入れ替えます。`self_contexts` フィールドは、GitHub API にペイロードを送信する前に常に削除されます。
+`self_contexts` フィールドは、docs-control 自体に適用されるチェック名を格納します。[強制](./settings-enforcement/) の際、ワークフローはソースリポジトリで実行されているかどうかを検出し、ブランチ保護を適用する前に `self_contexts` を `contexts` に置き換えます。`self_contexts` フィールドは、ペイロードを GitHub API に送信する前に常に削除されます。
 
 `Shell Unit Tests` は、統一されたリポジトリテストゲートです。再利用可能なワークフローは常にこれを報告します。コンシューマーリポジトリはすべての `tests/test-*.sh` ファイルを実行し、一致するテストがないリポジトリは明示的なテストなしメッセージで成功を報告します。これにより、リポジトリごとのオプトインリストに頼るのではなく、リポジトリのシェルテストがデフォルトで必須になります。
 
 #### コンシューマーシェルテストプロファイル
 
-デフォルトでは、すべてのルートレベルの `tests/test-*.sh` スクリプトが、プロビジョニングされていない GitHub ホストランナー上で閉じた環境（hermetic）であると想定しています。このグロブパターン配下にコンテナまたはサービス統合テストも保存しているリポジトリには、`repo-settings.json` 内に `consumer_shell_tests.profiles` エントリが必要です。
+デフォルトでは、ルートレベルの各 `tests/test-*.sh` スクリプトが、プロビジョニングされていない GitHub ホストランナー上で密閉（hermetic）状態であると想定されます。そのグロブの下にコンテナまたはサービスの統合テストも保存するリポジトリには、`repo-settings.json` 内に `consumer_shell_tests.profiles` エントリが必要です。
 
 各プロファイルは、一致する完全なインベントリを分類します:
 
-- `unit` エントリには、テストの `path` と `args` 配列が含まれます。ランナーはシェルの評価を行わずに各引数をそのまま渡します。
-- `environment` エントリには、テストの `path` と、ベアランナーのユニットゲートで実行できない理由を説明する空でない `reason` が含まれます。
+- `unit` エントリには、テストの `path` と `args` 配列が含まれます。ランナーはシェル評価を行わずに、各引数を文字通り渡します。
+- `environment` エントリには、テストの `path` と、ベアランナーのユニットゲートがそれを実行できない理由を説明する空でない `reason` が含まれます。
 
-再利用可能なワークフローは、同じ docs-control の `main` リビジョンからセレクターと設定を取得し、そのリビジョンをログに記録し、何も実行する前にインベントリを検証します。設定の不足、不安全なパスや引数、重複するパス、および未分類または不足しているテストは、必須コンテキストを失敗させます。これにより、プロファイルは無視リストではなく、監査された分類契約となります。プロファイルのないリポジトリは、広範なデフォルトを維持します。
+再利用可能なワークフローは、同じ docs-control の `main` リビジョンからセレクターと設定を取得し、そのリビジョンを記録して、実行前にインベントリを検証します。設定の欠落、安全でないパスまたは引数、重複するパス、未分類または欠落しているテストは、必須のコンテキストを失敗させます。これにより、プロファイルは無視リストではなく、監査された分類契約になります。プロファイルのないリポジトリは、広範なデフォルトを維持します。
 
-`xcsh` のオーバーライドは、そのリポジトリが再利用可能な Super-Linter ワークフローを呼び出さないため、両方の Super-Linter コンテキストを除外します。ネイティブの `check`、`pii-guard`、および `test` コンテキストは引き続き必須です。ライブ検証により、追加前に除外が必要であることが証明されなければなりません。
+`xcsh` のオーバーライドは、そのリポジトリが再利用可能な Super-Linter ワークフローを呼び出さないため、両方の Super-Linter コンテキストを除外します。ネイティブの `check`、`pii-guard`、および `test` コンテキストは引き続き必須です。除外が追加される前に、実機検証によって除外が必要であることを証明する必要があります。
 
-`paths` または `paths-ignore` フィルタを持つワークフローからのコンテキストを必須にしないでください。ワークフローが開始されない場合、GitHub はそのコンテキストを保留状態のままにします。広範なセキュリティツールは、フィルタリングされていないプルリクエストワークフロー、またはスケジュールされたフルツリー監査で実行する必要があります。管理対象のワークフローセキュリティ監査では、`zizmor` に対して後者のモデルを使用します。スキップされたジョブは引き続き成功したチェックを報告するため、ジョブレベルの条件は安全です。
+`paths` または `paths-ignore` フィルターを持つワークフローからのコンテキストを必須にしないでください。ワークフローが開始されない場合、GitHub はそのコンテキストを保留状態のままにします。広範なセキュリティツールは、フィルタリングされていないプルリクエストワークフロー、またはスケジュールされたフルツリー監査で実行する必要があります。管理されたワークフローセキュリティ監査では、`zizmor` に後者のモデルを使用します。スキップされたジョブは引き続き成功したチェックを報告するため、ジョブレベルの条件は安全です。
 
 ### `topics`
 
-リポジトリに適用する GitHub トピックの配列。現在空です -- トピックは強制されません。
+リポジトリに適用する GitHub トピックの配列。現在は空です -- トピックは強制されません。
 
 ### `pages`
 
-GitHub Pages の設定:
+GitHub Pages 設定:
 
-- `enabled: true` -- 登録されているすべてのリポジトリで Pages が有効になっていることを確認します
+- `enabled: true` -- 登録されたすべてのリポジトリで Pages が有効になっていることを確認します
 - `build_type: "workflow"` -- Pages のビルドに GitHub Actions を使用します（従来のブランチベースのビルドではありません）
 
 ### `managed_files`
 
 ファイル同期マニフェストを定義します:
 
-- `source_repo` -- 管理対象ファイルの正規バージョンを保持するリポジトリ（`f5-sales-demo/docs-control`）
+- `source_repo` -- 管理対象ファイルの正規バージョンを保持するリポジトリ (`f5-sales-demo/docs-control`)
 - `files` -- docs-control 内のソースパスをダウンストリームリポジトリ内の送信先パスにマッピングする `{src, dest}` オブジェクトの配列
 
-[ファイル同期ワークフロー](./file-sync/) は、この配列を反復処理してドリフトを検出し、修正します。ここにリストされていないファイル（`dependabot.yml` や `README.md` など）は、静的ソースから同期されるのではなく、動的に生成されます。
+[ファイル同期ワークフロー](./file-sync/) はこの配列を反復処理してドリフトを検出および修正します。ここにリストされていないファイル（`dependabot.yml` や `README.md` など）は、静的ソースから同期されるのではなく、動的に生成されます。

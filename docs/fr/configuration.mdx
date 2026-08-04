@@ -4,7 +4,7 @@ description: Référence de configuration centrale repo-settings.json pour l'app
 sidebar:
   order: 3
 i18n:
-  sourceHash: "66e243c0b43d"
+  sourceHash: "6604310303ba"
   translator: "machine"
 ---
 
@@ -41,9 +41,9 @@ Le fichier de configuration central pilote tout le comportement d'application, d
       "branch": "main",
       "enforce_admins": true,
       "required_status_checks": {
-        "strict": false,
+        "strict": true,
         "contexts": [
-          "check / Check linked issues",
+          "Check linked issues",
           "lint / Lint Code Base",
           "lint / Shell Unit Tests"
         ],
@@ -119,15 +119,15 @@ Un tableau de règles de protection des branches. Chaque entrée spécifie un no
 Champs clés :
 
 - `enforce_admins: true` -- les règles de protection s'appliquent également aux administrateurs du dépôt
-- `required_status_checks.strict: false` -- les branches n'ont pas besoin d'être à jour avant la fusion
-- `required_status_checks.contexts` -- les noms de vérification que les dépôts en aval doivent valider (par exemple, `check / Check linked issues` et `lint / Shell Unit Tests`)
+- `required_status_checks.strict: true` -- les branches doivent être à jour avant la fusion
+- `required_status_checks.contexts` -- les noms de vérification que les dépôts en aval doivent valider (par exemple, `Check linked issues` et `lint / Shell Unit Tests`)
 - `required_status_checks.self_contexts` -- les noms de vérification que docs-control lui-même doit valider (par exemple, `Check linked issues` et `Shell Unit Tests`)
 - `required_pull_request_reviews: null` -- aucune approbation de revue de PR n'est requise
 - `restrictions: null` -- aucune restriction de push au-delà de la protection des branches
 
 #### `contexts` par rapport à `self_contexts`
 
-Lorsqu'un dépôt en aval utilise un workflow appelant, le nom de la vérification d'état devient `<caller_job_key> / <reusable_job_name>`. Par exemple, l'appelant `require-linked-issue.yml` a la clé de job `check`, donc le nom de la vérification est `check / Check linked issues`. Mais lorsque docs-control exécute le même workflow directement (via le déclencheur `pull_request_target`), le nom de la vérification est simplement `Check linked issues`.
+Les vérifications de workflow réutilisables dans les dépôts en aval utilisent `<caller_job_key> / <reusable_job_name>`, tandis que docs-control signale leurs noms de job bruts. La porte des tickets liés fait exception : son workflow planifié publie directement le statut de commit `Check linked issues` dans chaque dépôt, de sorte que `contexts` et `self_contexts` doivent tous deux utiliser ce nom exact.
 
 Le champ `self_contexts` stocke les noms de vérification qui s'appliquent à docs-control lui-même. Pendant [l'application](./settings-enforcement/), le workflow détecte s'il s'exécute sur le dépôt source et remplace `contexts` par `self_contexts` avant d'appliquer la protection des branches. Le champ `self_contexts` est toujours supprimé avant d'envoyer la charge utile à l'API GitHub.
 

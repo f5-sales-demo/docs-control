@@ -4,7 +4,7 @@ description: Referencia de configuración central repo-settings.json para la apl
 sidebar:
   order: 3
 i18n:
-  sourceHash: "66e243c0b43d"
+  sourceHash: "6604310303ba"
   translator: "machine"
 ---
 
@@ -41,9 +41,9 @@ El archivo de configuración central impulsa todo el comportamiento de aplicaci�
       "branch": "main",
       "enforce_admins": true,
       "required_status_checks": {
-        "strict": false,
+        "strict": true,
         "contexts": [
-          "check / Check linked issues",
+          "Check linked issues",
           "lint / Lint Code Base",
           "lint / Shell Unit Tests"
         ],
@@ -119,15 +119,15 @@ Un arreglo de reglas de protección de ramas. Cada entrada especifica un nombre 
 Campos clave:
 
 - `enforce_admins: true` -- las reglas de protección también se aplican a los administradores del repositorio
-- `required_status_checks.strict: false` -- las ramas no necesitan estar actualizadas antes de fusionarse
-- `required_status_checks.contexts` -- los nombres de las comprobaciones que deben pasar los repositorios descendentes (por ejemplo, `check / Check linked issues` y `lint / Shell Unit Tests`)
+- `required_status_checks.strict: true` -- las ramas deben estar actualizadas antes de fusionarse
+- `required_status_checks.contexts` -- los nombres de las comprobaciones que deben pasar los repositorios descendentes (por ejemplo, `Check linked issues` y `lint / Shell Unit Tests`)
 - `required_status_checks.self_contexts` -- los nombres de las comprobaciones que debe pasar el propio docs-control (por ejemplo, `Check linked issues` y `Shell Unit Tests`)
 - `required_pull_request_reviews: null` -- no se requiere aprobación de revisión de PR
 - `restrictions: null` -- sin restricciones de push más allá de la protección de ramas
 
 #### `contexts` frente a `self_contexts`
 
-Cuando un repositorio descendente utiliza un flujo de trabajo solicitante, el nombre de la comprobación de estado se convierte en `<caller_job_key> / <reusable_job_name>`. Por ejemplo, el solicitante `require-linked-issue.yml` tiene la clave de trabajo `check`, por lo que el nombre de la comprobación es `check / Check linked issues`. Pero cuando docs-control ejecuta el mismo flujo de trabajo directamente (a través del activador `pull_request_target`), el nombre de la comprobación es simplemente `Check linked issues`.
+Las comprobaciones de flujos de trabajo reutilizables en repositorios descendentes utilizan `<caller_job_key> / <reusable_job_name>`, mientras que docs-control informa sus nombres de trabajo simples. La puerta de enlace de incidencias vinculadas es una excepción: su flujo de trabajo programado publica el estado de confirmación `Check linked issues` directamente en cada repositorio, por lo que tanto `contexts` como `self_contexts` deben usar ese nombre exacto.
 
 El campo `self_contexts` almacena los nombres de las comprobaciones que se aplican al propio docs-control. Durante la [aplicación](./settings-enforcement/), el flujo de trabajo detecta si se está ejecutando en el repositorio de origen y sustituye `contexts` por `self_contexts` antes de aplicar la protección de ramas. El campo `self_contexts` siempre se elimina antes de enviar la carga útil a la API de GitHub.
 
