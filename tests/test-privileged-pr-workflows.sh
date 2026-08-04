@@ -93,6 +93,12 @@ for file in \
   require_literal "$file" '<!-- require-linked-issue -->' "${file#"$REPO_ROOT/"} preserves the deduplicated guidance comment"
 done
 
+AUTO_MERGE_CALLER="$REPO_ROOT/workflows/auto-merge.yml"
+require_literal "$AUTO_MERGE_CALLER" 'group: caller-auto-merge-${{ github.repository }}-${{ github.event.pull_request.number || github.run_id }}' \
+  'managed auto-merge caller limits concurrency without colliding with the reusable'
+require_literal "$AUTO_MERGE_CALLER" '    environment: repository-settings' \
+  'managed auto-merge token preflight uses the existing protected environment'
+
 reject_literal "$REPO_ROOT/zizmor.yaml" 'disable:' 'zizmor configuration disables no audits'
 reject_literal "$REPO_ROOT/zizmor.yaml" 'ignore:' 'zizmor configuration ignores no findings'
 require_literal "$REPO_ROOT/workflows/workflow-security-audit.yml" '--no-config --no-ignores --persona=auditor' 'managed audit refuses configuration and inline suppressions'

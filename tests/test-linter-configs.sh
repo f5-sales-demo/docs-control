@@ -602,6 +602,55 @@ else
   pass "6.4 audit gate fails on every finding"
 fi
 
+ZIZMOR_RUN=$(python3 - "$ZIZMOR_GATE" <<'PY'
+import sys
+import yaml
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    workflow = yaml.safe_load(handle)
+for step in workflow["jobs"]["audit"]["steps"]:
+    if step.get("name") == "Reject every workflow security finding":
+        print(step["run"])
+        break
+else:
+    raise SystemExit("zizmor audit step not found")
+PY
+)
+ZIZMOR_TMP=$(mktemp -d /tmp/test-linter-configs-zizmor-XXXXXX)
+mkdir -p "$ZIZMOR_TMP/bin" "$ZIZMOR_TMP/without/.github/workflows" \
+  "$ZIZMOR_TMP/with/.github/workflows" "$ZIZMOR_TMP/with/workflows"
+printf '%s\n' '#!/bin/sh' \
+  'printf "%s\\n" "$@" > "${ZIZMOR_ARGS:?}"' >"$ZIZMOR_TMP/bin/pipx"
+chmod +x "$ZIZMOR_TMP/bin/pipx"
+touch "$ZIZMOR_TMP/with/workflows/source.yml"
+
+(
+  cd "$ZIZMOR_TMP/without"
+  PATH="$ZIZMOR_TMP/bin:$PATH" ZIZMOR_ARGS="$ZIZMOR_TMP/without.args" \
+    env -u BASH_ENV bash -euo pipefail -c "$ZIZMOR_RUN"
+)
+if grep -Fxq '.github/workflows/' "$ZIZMOR_TMP/without.args" &&
+  ! grep -Fq 'workflows/*.yml' "$ZIZMOR_TMP/without.args"; then
+  pass "6.5 audit omits an unmatched optional workflow-source glob"
+else
+  fail "6.5 audit omits an unmatched optional workflow-source glob" \
+    "an absent workflows directory must not become a remote zizmor target"
+fi
+
+(
+  cd "$ZIZMOR_TMP/with"
+  PATH="$ZIZMOR_TMP/bin:$PATH" ZIZMOR_ARGS="$ZIZMOR_TMP/with.args" \
+    env -u BASH_ENV bash -euo pipefail -c "$ZIZMOR_RUN"
+)
+if grep -Fxq '.github/workflows/' "$ZIZMOR_TMP/with.args" &&
+  grep -Fxq 'workflows/source.yml' "$ZIZMOR_TMP/with.args"; then
+  pass "6.6 audit includes optional workflow sources when present"
+else
+  fail "6.6 audit includes optional workflow sources when present" \
+    "present canonical workflow sources must remain covered"
+fi
+rm -rf "$ZIZMOR_TMP"
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5a: .jscpd.json guardrails — threshold + ignore patterns
 # ════════════════════════════════════════════════════════════════════

@@ -9,6 +9,12 @@ on:
 
 permissions: {}
 
+# Keep caller cancellation separate from the reusable workflow's concurrency
+# group; sharing a group lets the called run cancel its own caller.
+concurrency:
+  group: caller-auto-merge-${{ github.repository }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   # Auto-merge has exactly one credential: the REPO_SYNC_TOKEN PAT. A merge pushed
   # with the automatic token cannot start the downstream workflows a merge is meant
@@ -20,6 +26,7 @@ jobs:
   # secrets, so an absent token there is not a misconfiguration.
   require-token:
     name: Require canonical auto-merge token
+    environment: repository-settings
     if: >-
       github.event.pull_request.draft == false &&
       github.actor != 'dependabot[bot]' &&
