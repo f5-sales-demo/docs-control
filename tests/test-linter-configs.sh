@@ -1196,7 +1196,8 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 17: self-hosted docs-control jobs repair Docker-owned output
+# SECTION 17: self-hosted jobs repair Docker-owned output before and
+#             after Super-Linter runs
 # ════════════════════════════════════════════════════════════════════
 echo ""
 echo "=== Section 17: self-hosted workspace ownership repair ==="
@@ -1236,11 +1237,35 @@ for job_name in ("lint", "shell-unit-tests"):
         raise SystemExit(1)
     if any(fragment in command for fragment in forbidden_fragments):
         raise SystemExit(1)
+
+lint_steps = workflow["jobs"]["lint"]["steps"]
+super_linter_steps = [step for step in lint_steps if step.get("name") == "Run Super-Linter"]
+restores = [
+    step
+    for step in lint_steps
+    if step.get("name") == "Restore self-hosted runner workspace ownership"
+]
+if len(super_linter_steps) != 1 or len(restores) != 1:
+    raise SystemExit(1)
+restore = restores[0]
+if lint_steps.index(restore) <= lint_steps.index(super_linter_steps[0]):
+    raise SystemExit(1)
+if restore.get("if") != "always() && runner.environment == 'self-hosted'":
+    raise SystemExit(1)
+if restore.get("shell") != "bash":
+    raise SystemExit(1)
+restore_command = restore.get("run", "")
+if any(fragment not in restore_command for fragment in required_fragments):
+    raise SystemExit(1)
+if any(fragment in restore_command for fragment in forbidden_fragments):
+    raise SystemExit(1)
+if "rm " in restore_command or "rm\n" in restore_command:
+    raise SystemExit(1)
 PY
-  pass "17.1 lint and shell jobs repair only the exact calling repository workspace before checkout"
+  pass "17.1 jobs repair the exact workspace before checkout and after Super-Linter"
 else
-  fail "17.1 lint and shell jobs repair only the exact calling repository workspace before checkout" \
-    "both jobs need the guarded ownership repair before actions/checkout"
+  fail "17.1 jobs repair the exact workspace before checkout and after Super-Linter" \
+    "the lint job needs guarded pre-checkout repair and unconditional post-lint restoration"
 fi
 
 # ════════════════════════════════════════════════════════════════════

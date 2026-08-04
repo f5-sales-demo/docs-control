@@ -406,6 +406,26 @@ jobs:
           VALIDATE_GO_MODULES: false
           VALIDATE_GO_REVIVE: false
 
+      # The container recreates github_conf/ and super-linter-output/ as root.
+      # Repairing only before checkout leaves a race: another workflow can start
+      # after this container exits but before the next lint preflight, and its
+      # checkout then cannot clean the shared self-hosted workspace. Always
+      # restore ownership here, including when lint itself fails.
+      - name: Restore self-hosted runner workspace ownership
+        if: always() && runner.environment == 'self-hosted'
+        shell: bash
+        run: |
+          set -euo pipefail
+          workspace="${GITHUB_WORKSPACE:?}"
+          repository="${GITHUB_REPOSITORY:?}"
+          repository_name="${repository##*/}"
+          expected_workspace="${RUNNER_WORKSPACE:?}/${repository_name}"
+          if ! [ "$workspace" = "$expected_workspace" ]; then
+            echo "::error::Refusing to repair unexpected workspace: ${workspace}"
+            exit 1
+          fi
+          sudo -n chown -R -- "$(id -u):$(id -g)" "$workspace"
+
       - name: Spectral OpenAPI lint
         if: hashFiles('.spectral.yaml', '.spectral.yml') != ''
         uses: stoplightio/spectral-action@6416fd018ae38e60136775066eb3e98172143141 # v0.8.13
