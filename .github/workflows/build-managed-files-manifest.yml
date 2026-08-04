@@ -297,6 +297,85 @@ jobs:
             esac
           }
 
+          assert_exact_remote_manifest_ref() {
+            local expected_sha="$1" framed remote_sha rc
+            if ! printf '%s' "$expected_sha" | grep -qE '^[0-9a-f]{40}$'; then
+              echo "[ERROR] Invalid expected manifest ref receipt" >&2
+              return 1
+            fi
+            set +e
+            framed=$(git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" &&
+              printf '\034')
+            rc=$?
+            set -e
+            if [ "$rc" -ne 0 ]; then
+              echo "[ERROR] Could not re-prove the pushed manifest ref" >&2
+              return 1
+            fi
+            remote_sha=${framed%%$'\t'*}
+            if [[ ! "$remote_sha" =~ ^[0-9a-f]{40}$ ]] ||
+              [ "$framed" != "${remote_sha}"$'\trefs/heads/'"${BRANCH}"$'\n\034' ] ||
+              [ "$remote_sha" != "$expected_sha" ]; then
+              echo "[ERROR] Remote manifest ref changed after the exact push" >&2
+              return 1
+            fi
+          }
+
+          settle_owned_manifest_pr() {
+            local expected_sha="$1" expected_pr_num="$2" stale_sha="$3"
+            local attempt inventory row rc actual_pr_num actual_head
+            if ! printf '%s' "$expected_sha" | grep -qE '^[0-9a-f]{40}$' ||
+              ! printf '%s' "$expected_pr_num" | grep -qE '^[1-9][0-9]*$' ||
+              { [ -n "$stale_sha" ] &&
+                ! printf '%s' "$stale_sha" | grep -qE '^[0-9a-f]{40}$'; }; then
+              echo "[ERROR] Invalid manifest PR settlement receipt" >&2
+              return 1
+            fi
+
+            for attempt in 1 2 3 4 5 6; do
+              if ! assert_exact_remote_manifest_ref "$expected_sha"; then
+                return 1
+              fi
+
+              inventory=$(mktemp)
+              if ! read_manifest_prs "$inventory"; then
+                rm -f "$inventory"
+                return 1
+              fi
+              set +e
+              row=$(select_owned_manifest_pr "$inventory")
+              rc=$?
+              set -e
+              rm -f "$inventory"
+              if [ "$rc" -ne 0 ]; then
+                return "$rc"
+              fi
+              if [ -n "$row" ]; then
+                IFS=$'\t' read -r actual_pr_num actual_head <<<"$row"
+                if [ "$actual_pr_num" != "$expected_pr_num" ]; then
+                  echo "[ERROR] Manifest PR ownership changed after the exact push" >&2
+                  return 1
+                fi
+                if [ "$actual_head" = "$expected_sha" ]; then
+                  if ! assert_exact_remote_manifest_ref "$expected_sha"; then
+                    return 1
+                  fi
+                  printf '%s\n' "$row"
+                  return 0
+                fi
+                if [ -z "$stale_sha" ] || [ "$actual_head" != "$stale_sha" ]; then
+                  echo "[ERROR] Manifest PR reported an unrecognized head after the exact push" >&2
+                  return 1
+                fi
+              fi
+              if [ "$attempt" -lt 6 ]; then
+                sleep 2
+              fi
+            done
+            echo "[ERROR] Manifest PR head did not settle to the exact pushed commit" >&2
+            return 1
+          }
+
           assert_manifest_pr_head() {
             local pr_num="$1" expected_sha="$2" response
             if ! printf '%s' "$pr_num" | grep -qE '^[1-9][0-9]*$' ||
@@ -435,18 +514,17 @@ jobs:
               origin "HEAD:refs/heads/$BRANCH"
           fi
 
-          # Re-inventory after the lease-protected push. A concurrent PR or
-          # head change must be proved before it can be selected.
+          # Re-inventory after the lease-protected push. A concurrent PR must
+          # never be adopted as the workflow's own publication.
           MANIFEST_PR_INVENTORY=$(mktemp)
           read_manifest_prs "$MANIFEST_PR_INVENTORY"
           MANIFEST_PR_ROW=$(select_owned_manifest_pr "$MANIFEST_PR_INVENTORY")
-          if [ -z "$MANIFEST_PR_ROW" ]; then
-            if [ -n "$PR_NUM" ]; then
-              echo "[ERROR] Inventoried manifest PR disappeared after the exact push" >&2
-              rm -f "$MANIFEST_PR_INVENTORY"
+          rm -f "$MANIFEST_PR_INVENTORY"
+          if [ -z "$PR_NUM" ]; then
+            if [ -n "$MANIFEST_PR_ROW" ]; then
+              echo "[ERROR] An unowned manifest PR appeared after the exact push" >&2
               exit 1
             fi
-            rm -f "$MANIFEST_PR_INVENTORY"
             PR_URL=$(gh pr create --repo "$GITHUB_REPOSITORY" \
               --base main --head "$BRANCH" \
               --title "chore(governance): regenerate managed-files-manifest.json" \
@@ -456,23 +534,13 @@ jobs:
               echo "[ERROR] Manifest PR creation returned an invalid URL" >&2
               exit 1
             fi
-            MANIFEST_PR_INVENTORY=$(mktemp)
-            read_manifest_prs "$MANIFEST_PR_INVENTORY"
-            MANIFEST_PR_ROW=$(select_owned_manifest_pr "$MANIFEST_PR_INVENTORY")
-          else
-            IFS=$'\t' read -r ACTUAL_PR_NUM ACTUAL_HEAD <<<"$MANIFEST_PR_ROW"
-            if [ "$ACTUAL_HEAD" != "$EXPECTED_HEAD" ] ||
-              { [ -n "$PR_NUM" ] && [ "$ACTUAL_PR_NUM" != "$PR_NUM" ]; }; then
-              echo "[ERROR] Manifest PR ownership or head changed after the exact push" >&2
-              rm -f "$MANIFEST_PR_INVENTORY"
-              exit 1
-            fi
-            PR_NUM="$ACTUAL_PR_NUM"
           fi
-          rm -f "$MANIFEST_PR_INVENTORY"
-
-          if [ -z "$MANIFEST_PR_ROW" ]; then
-            echo "[ERROR] Manifest PR was not present after creation" >&2
+          set +e
+          MANIFEST_PR_ROW=$(settle_owned_manifest_pr \
+            "$EXPECTED_HEAD" "$PR_NUM" "$INVENTORIED_HEAD")
+          SETTLE_RC=$?
+          set -e
+          if [ "$SETTLE_RC" -ne 0 ]; then
             exit 1
           fi
           IFS=$'\t' read -r FINAL_PR_NUM FINAL_HEAD <<<"$MANIFEST_PR_ROW"

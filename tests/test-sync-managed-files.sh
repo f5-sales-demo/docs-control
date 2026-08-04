@@ -518,6 +518,176 @@ else
   fail "7.6 duplicate manifest PR owners are rejected" "selection helper is absent"
 fi
 
+awk '
+  /^          settle_owned_manifest_pr\(\) \{/ { found=1 }
+  found {
+    line=$0
+    sub(/^          /, "")
+    print
+    if (line == "          }") exit
+  }
+' "$MANIFEST_BUILDER" >"$WORK/settle-owned-manifest-pr.sh"
+
+awk '
+  /^          assert_exact_remote_manifest_ref\(\) \{/ { found=1 }
+  found {
+    line=$0
+    sub(/^          /, "")
+    print
+    if (line == "          }") exit
+  }
+' "$MANIFEST_BUILDER" >"$WORK/assert-exact-remote-manifest-ref.sh"
+
+cat >"$WORK/manifest-settle-stubs.sh" <<'EOF'
+read_manifest_prs() {
+  local destination="$1" count=0 head_sha="$expected_sha"
+  if [ -f "$count_file" ]; then
+    count=$(cat "$count_file")
+  fi
+  count=$((count + 1))
+  printf '%s\n' "$count" >"$count_file"
+  case "$mode" in
+  api-failure) return 1 ;;
+  delayed) [ "$count" -gt 1 ] || head_sha="$stale_sha" ;;
+  stale) head_sha="$stale_sha" ;;
+  competing) head_sha="$competing_sha" ;;
+  duplicate)
+    jq -n --arg expected "$expected_sha" --arg stale "$stale_sha" \
+      --arg repo "$GITHUB_REPOSITORY" '
+        [[{number: 21,
+           head: {ref: "sync/manifest", sha: $expected,
+                  repo: {full_name: $repo}},
+           base: {ref: "main"}},
+          {number: 22,
+           head: {ref: "sync/manifest", sha: $stale,
+                  repo: {full_name: $repo}},
+           base: {ref: "main"}}]]
+      ' >"$destination"
+    return 0
+    ;;
+  remote-changed)
+    stub_remote_sha="$competing_sha"
+    ;;
+  esac
+  jq -n --arg sha "$head_sha" --arg repo "$GITHUB_REPOSITORY" '
+    [[{number: 21,
+       head: {ref: "sync/manifest", sha: $sha,
+              repo: {full_name: $repo}},
+       base: {ref: "main"}}]]
+  ' >"$destination"
+}
+git() {
+  if [ "$*" != "ls-remote --exit-code --heads origin refs/heads/$BRANCH" ]; then
+    return 99
+  fi
+  printf '%s\trefs/heads/%s\n' "$stub_remote_sha" "$BRANCH"
+  if [ "$mode" = "remote-malformed" ]; then
+    printf 'unexpected trailing row\n'
+  fi
+}
+sleep() { :; }
+EOF
+
+run_manifest_settle() (
+  local mode="$1" count_file="$2"
+  local expected_sha=abcdef0123456789abcdef0123456789abcdef01
+  local stale_sha=0123456789abcdef0123456789abcdef01234567
+  local competing_sha=1111111111111111111111111111111111111111
+  local stub_remote_sha="$expected_sha"
+  # shellcheck source=/dev/null
+  source "$WORK/select-owned-manifest-pr.sh"
+  # shellcheck source=/dev/null
+  source "$WORK/assert-exact-remote-manifest-ref.sh"
+  # shellcheck source=/dev/null
+  source "$WORK/settle-owned-manifest-pr.sh"
+  # shellcheck source=/dev/null
+  source "$WORK/manifest-settle-stubs.sh"
+  GITHUB_REPOSITORY=example/docs-control
+  BRANCH=sync/manifest
+
+  settle_owned_manifest_pr "$expected_sha" 21 "$stale_sha"
+)
+
+if [ -s "$WORK/settle-owned-manifest-pr.sh" ] &&
+  [ -s "$WORK/assert-exact-remote-manifest-ref.sh" ]; then
+  count_file="$WORK/manifest-settle-delayed.count"
+  if settled=$(run_manifest_settle delayed "$count_file") &&
+    [ "$settled" = $'21\tabcdef0123456789abcdef0123456789abcdef01' ] &&
+    [ "$(cat "$count_file")" -eq 2 ]; then
+    pass "7.7 delayed manifest PR head propagation settles to the exact pushed head"
+  else
+    fail "7.7 delayed manifest PR head propagation settles to the exact pushed head" \
+      "the bounded verifier did not accept one stale receipt followed by the exact head"
+  fi
+
+  count_file="$WORK/manifest-settle-competing.count"
+  if run_manifest_settle competing "$count_file" >/dev/null 2>&1 ||
+    [ "$(cat "$count_file")" -ne 1 ]; then
+    fail "7.8 an unrecognized manifest PR head fails immediately" \
+      "a competing head was retried or accepted as propagation delay"
+  else
+    pass "7.8 an unrecognized manifest PR head fails immediately"
+  fi
+
+  count_file="$WORK/manifest-settle-remote.count"
+  if run_manifest_settle remote-changed "$count_file" >/dev/null 2>&1; then
+    fail "7.9 a changed remote manifest ref fails immediately" \
+      "the verifier accepted a ref outside its lease-protected push"
+  else
+    pass "7.9 a changed remote manifest ref fails immediately"
+  fi
+
+  count_file="$WORK/manifest-settle-malformed.count"
+  if run_manifest_settle remote-malformed "$count_file" >/dev/null 2>&1; then
+    fail "7.9a malformed remote manifest receipts fail immediately" \
+      "the verifier ignored unparsed remote output"
+  else
+    pass "7.9a malformed remote manifest receipts fail immediately"
+  fi
+
+  count_file="$WORK/manifest-settle-api.count"
+  if run_manifest_settle api-failure "$count_file" >/dev/null 2>&1 ||
+    [ "$(cat "$count_file")" -ne 1 ]; then
+    fail "7.10 manifest inventory API failure is not retried as stale data" \
+      "a read failure was retried or accepted"
+  else
+    pass "7.10 manifest inventory API failure is not retried as stale data"
+  fi
+
+  count_file="$WORK/manifest-settle-duplicate.count"
+  if run_manifest_settle duplicate "$count_file" >/dev/null 2>&1 ||
+    [ "$(cat "$count_file")" -ne 1 ]; then
+    fail "7.11 duplicate manifest PR ownership fails immediately during settlement" \
+      "duplicate owners were retried or accepted"
+  else
+    pass "7.11 duplicate manifest PR ownership fails immediately during settlement"
+  fi
+
+  count_file="$WORK/manifest-settle-exhausted.count"
+  if run_manifest_settle stale "$count_file" >/dev/null 2>&1 ||
+    [ "$(cat "$count_file")" -ne 6 ]; then
+    fail "7.12 manifest PR head propagation has a bounded retry budget" \
+      "permanently stale data did not fail after six exact inventories"
+  else
+    pass "7.12 manifest PR head propagation has a bounded retry budget"
+  fi
+else
+  fail "7.7 delayed manifest PR head propagation settles to the exact pushed head" \
+    "settlement helper is absent"
+  fail "7.8 an unrecognized manifest PR head fails immediately" \
+    "settlement helper is absent"
+  fail "7.9 a changed remote manifest ref fails immediately" \
+    "settlement helper is absent"
+  fail "7.9a malformed remote manifest receipts fail immediately" \
+    "settlement helper is absent"
+  fail "7.10 manifest inventory API failure is not retried as stale data" \
+    "settlement helper is absent"
+  fail "7.11 duplicate manifest PR ownership fails immediately during settlement" \
+    "settlement helper is absent"
+  fail "7.12 manifest PR head propagation has a bounded retry budget" \
+    "settlement helper is absent"
+fi
+
 echo ""
 echo "=== Section 8: protected-source and exact mutation receipts ==="
 
