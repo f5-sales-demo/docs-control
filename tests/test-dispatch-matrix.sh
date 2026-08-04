@@ -72,6 +72,8 @@ check "triggers when fleet membership changes" \
   "grep -q 'downstream-repos.json' '$WF'"
 check "triggers when the dispatcher contract changes" \
   "grep -q 'dispatch-downstream.yml' '$WF'"
+check "triggers when governance-secret provisioning changes" \
+  "grep -q 'scripts/provision-governance-secrets.sh' '$WF'"
 check "triggers when the exact managed caller changes" \
   "grep -q 'workflows/enforce-repo-settings.yml' '$WF'"
 check "triggers after the immutable governed workflow pin rolls forward" \
@@ -94,6 +96,12 @@ check "forwards the exact source receipt to every downstream run" \
   "grep -Fq -- '-f source_sha=\"\$SOURCE_SHA\"' '$WF'"
 check "runs exact-source and immutable-pin preflight before fan-out" \
   "grep -q 'scripts/preflight-downstream-dispatch.sh' '$WF'"
+PROVISION_LINE=$(grep -n '^[[:space:]]*scripts/provision-governance-secrets.sh$' "$WF" |
+  head -n1 | cut -d: -f1 || true)
+PREFLIGHT_LINE=$(grep -n '^[[:space:]]*scripts/preflight-downstream-dispatch.sh$' "$WF" |
+  head -n1 | cut -d: -f1 || true)
+check "provisions governance secrets before downstream preflight" \
+  "[ -n '$PROVISION_LINE' ] && [ -n '$PREFLIGHT_LINE' ] && [ '$PROVISION_LINE' -lt '$PREFLIGHT_LINE' ]"
 check "defers fan-out until the governed caller pin is exact" \
   "grep -q '\[DEFER\].*governed workflow pin' '$WF'"
 check "bootstraps stale downstream callers without legacy reusable code" \
@@ -132,6 +140,10 @@ count=$((count + 1))
 printf '%s\n' "$count" >"$count_file"
 [ "$count" -eq 1 ] && exit 80
 exit 78
+EOF
+cat >"$WORK/scripts/provision-governance-secrets.sh" <<'EOF'
+#!/usr/bin/env bash
+exit "${FAKE_PROVISION_RC:-0}"
 EOF
 cat >"$WORK/scripts/bootstrap-downstream-callers.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -224,5 +236,26 @@ recovery_rc=$?
 set -e
 check "preflight API rate exhaustion defers to scheduled recovery" \
   "[ '$recovery_rc' -eq 0 ] && ! grep -q 'workflow run dispatch-downstream.yml' '$WORK/gh.log'"
+
+rm -f "$WORK/.preflight-count"
+: >"$WORK/gh.log"
+set +e
+(
+  cd "$WORK"
+  env \
+    PATH="$WORK/bin:$PATH" \
+    FAKE_GH_LOG="$WORK/gh.log" \
+    FAKE_PROVISION_RC=84 \
+    GITHUB_REPOSITORY=f5-sales-demo/docs-control \
+    GITHUB_REPOSITORY_OWNER=f5-sales-demo \
+    SOURCE_SHA=1111111111111111111111111111111111111111 \
+    REPO_SETTINGS_TOKEN=settings-token \
+    REPO_SYNC_TOKEN=sync-token \
+    bash "$WORK/dispatch.sh"
+)
+recovery_rc=$?
+set -e
+check "secret-provisioning rate exhaustion defers before preflight" \
+  "[ '$recovery_rc' -eq 0 ] && [ ! -e '$WORK/.preflight-count' ] && ! grep -q 'workflow run dispatch-downstream.yml' '$WORK/gh.log'"
 
 exit "$FAIL"

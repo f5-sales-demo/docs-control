@@ -21,6 +21,7 @@ on:
       - '.github/config/governed-workflow-pin.json'
       - '.github/config/governance-rollout.json'
       - '.github/workflows/dispatch-downstream.yml'
+      - 'scripts/provision-governance-secrets.sh'
       - 'workflows/enforce-repo-settings.yml'
       - 'README.md.tpl'
   schedule:
@@ -63,6 +64,22 @@ jobs:
             echo "::error::Could not resolve an exact docs-control source commit"
             exit 1
           fi
+
+          set +e
+          scripts/provision-governance-secrets.sh
+          provision_rc=$?
+          set -e
+          case "$provision_rc" in
+            0) ;;
+            84)
+              echo "[DEFER] GitHub API rate capacity was exhausted; scheduled recovery is active"
+              exit 0
+              ;;
+            *)
+              echo "::error::Governance repository-secret provisioning failed"
+              exit "$provision_rc"
+              ;;
+          esac
 
           set +e
           scripts/preflight-downstream-dispatch.sh
