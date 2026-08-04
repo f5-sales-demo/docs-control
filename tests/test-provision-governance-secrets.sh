@@ -165,9 +165,9 @@ fi
 pass "idempotent rerun does not rewrite existing secrets"
 
 : >"$WORK/sleep.log"
-PROVISION_TEST_DELAY=1 run_provisioner >/dev/null 2>&1 ||
+PROVISION_TEST_DELAY=2 run_provisioner >/dev/null 2>&1 ||
   fail "paced inventory succeeds"
-[ "$(cat "$WORK/sleep.log")" = "1" ] ||
+[ "$(cat "$WORK/sleep.log")" = "2" ] ||
   fail "inventory requests are paced between repositories"
 pass "inventory requests are paced between repositories"
 

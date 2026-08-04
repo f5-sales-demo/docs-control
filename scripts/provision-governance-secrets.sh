@@ -6,7 +6,7 @@ set -euo pipefail
 
 downstream_config="${DOWNSTREAM_CONFIG:-.github/config/downstream-repos.json}"
 owner="${GITHUB_REPOSITORY_OWNER:-}"
-request_delay_seconds="${PROVISION_REQUEST_DELAY_SECONDS:-1}"
+request_delay_seconds="${PROVISION_REQUEST_DELAY_SECONDS:-2}"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
