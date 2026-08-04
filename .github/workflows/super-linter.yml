@@ -297,6 +297,17 @@ jobs:
               ;;
           esac
 
+          # Super-Linter rejects a mix of explicit true (include mode) and
+          # false (exclude mode) VALIDATE_* settings. This workflow already
+          # excludes unrelated validators, so leave the selected Rust edition
+          # unset and dynamically exclude every other edition. `none` excludes
+          # them all.
+          for edition in 2015 2018 2021 2024; do
+            if [ "$RUST_EDITION" != "$edition" ]; then
+              echo "VALIDATE_RUST_${edition}=false" >> "$GITHUB_ENV"
+            fi
+          done
+
       - name: Run Super-Linter
         uses: super-linter/super-linter@4ce20838b8ab83717e78138c5b3a1407148e0918 # v8.7.0
         env:
@@ -398,13 +409,7 @@ jobs:
           # tuned per-repo (e.g., .clang-format-ignore in xcsh).
           VALIDATE_CPP: false
           VALIDATE_CPP_EPA: false
-          # Run exactly the Rust edition selected by the reusable-workflow caller.
-          # Multiple edition validators are not additive: an older rustfmt parser
-          # rejects valid syntax from a newer edition before formatting begins.
-          VALIDATE_RUST_2015: false
-          VALIDATE_RUST_2018: ${{ inputs.rust_edition == '2018' }}
-          VALIDATE_RUST_2021: ${{ inputs.rust_edition == '2021' }}
-          VALIDATE_RUST_2024: ${{ inputs.rust_edition == '2024' }}
+
           # Dockerfile hadolint: overlaps with CHECKOV for dockerfile
           # security scanning; running both is redundant noise.
           VALIDATE_DOCKERFILE_HADOLINT: false
