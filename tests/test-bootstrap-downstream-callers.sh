@@ -30,6 +30,7 @@ LINKED_CALLER_BLOB=$(printf '%s\n' "$LINKED_CALLER_TEXT" | git hash-object --std
 printf '["example"]\n' >"$WORK/repos.json"
 printf '{"revision":"%s"}\n' "$PIN_SHA" >"$WORK/pin.json"
 printf '{"state":"active"}\n' >"$WORK/rollout.json"
+printf '{"skip_files":{}}\n' >"$WORK/governance.json"
 cat >"$WORK/repo-settings.json" <<'EOF'
 {
   "branch_protection": [
@@ -409,6 +410,10 @@ case "$1 $endpoint" in
     fi
     ;;
   'api repos/f5-sales-demo/example/contents/.github/workflows/super-linter.yml?ref='*)
+    if [ "${FAKE_FORBID_LINT_READ:-}" = 1 ]; then
+      echo 'unexpected opted-out Super-Linter caller read' >&2
+      exit 65
+    fi
     ref=${endpoint##*ref=}
     if { [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; } &&
       [ -f "$FAKE_STATE/lint-updated" ]; then
@@ -467,14 +472,19 @@ case "$1 $endpoint" in
       shift
     done
     [ -n "$input" ] || exit 64
+    skip_lint=false
+    [ "${FAKE_SKIP_LINT_CALLER:-}" != 1 ] || skip_lint=true
     jq -e --arg base "$BASE_TREE" --arg caller "$CALLER_BLOB" \
-      --arg lint "$LINT_CALLER_BLOB" --arg linked "$LINKED_CALLER_BLOB" '
+      --arg lint "$LINT_CALLER_BLOB" --arg linked "$LINKED_CALLER_BLOB" \
+      --argjson skip_lint "$skip_lint" '
       .base_tree == $base and
-      .tree == [
-        {path:".github/workflows/enforce-repo-settings.yml",mode:"100644",type:"blob",sha:$caller},
-        {path:".github/workflows/super-linter.yml",mode:"100644",type:"blob",sha:$lint},
-        {path:".github/workflows/require-linked-issue.yml",mode:"100644",type:"blob",sha:$linked}
-      ]
+      .tree == (
+        [{path:".github/workflows/enforce-repo-settings.yml",mode:"100644",type:"blob",sha:$caller}] +
+        (if $skip_lint then [] else
+          [{path:".github/workflows/super-linter.yml",mode:"100644",type:"blob",sha:$lint}]
+        end) +
+        [{path:".github/workflows/require-linked-issue.yml",mode:"100644",type:"blob",sha:$linked}]
+      )
     ' "$input" >/dev/null || exit 65
     touch "$FAKE_STATE/refresh-tree-created"
     jq -cn --arg sha "$REFRESH_TREE" '{sha:$sha}'
@@ -532,7 +542,8 @@ case "$1 $endpoint" in
         '$files + [{filename:".github/workflows/enforce-repo-settings.yml",sha:$sha,status:"modified"}]')
       count=$((count + 1))
     fi
-    if [ "$DOWNSTREAM_LINT_BLOB" != "$LINT_CALLER_BLOB" ]; then
+    if [ "${FAKE_SKIP_LINT_CALLER:-}" != 1 ] &&
+      [ "$DOWNSTREAM_LINT_BLOB" != "$LINT_CALLER_BLOB" ]; then
       files=$(jq -cn --argjson files "$files" --arg sha "$LINT_CALLER_BLOB" \
         '$files + [{filename:".github/workflows/super-linter.yml",sha:$sha,status:"modified"}]')
       count=$((count + 1))
@@ -611,7 +622,8 @@ case "$1 $endpoint" in
       files=$(jq -cn --argjson files "$files" '$files + [{path:".github/workflows/enforce-repo-settings.yml"}]')
       count=$((count + 1))
     fi
-    if [ "$DOWNSTREAM_LINT_BLOB" != "$LINT_CALLER_BLOB" ]; then
+    if [ "${FAKE_SKIP_LINT_CALLER:-}" != 1 ] &&
+      [ "$DOWNSTREAM_LINT_BLOB" != "$LINT_CALLER_BLOB" ]; then
       files=$(jq -cn --argjson files "$files" '$files + [{path:".github/workflows/super-linter.yml"}]')
       count=$((count + 1))
     fi
@@ -647,6 +659,10 @@ chmod +x "$WORK/bin/gh"
 
 run_bootstrap() {
   local state="$1"
+  local expected_lint_receipt="$LINT_CALLER_BLOB"
+  if [ "${FAKE_SKIP_LINT_CALLER:-}" = 1 ]; then
+    expected_lint_receipt=skipped
+  fi
   env \
     PATH="$WORK/bin:$PATH" \
     GITHUB_REPOSITORY=f5-sales-demo/docs-control \
@@ -655,6 +671,7 @@ run_bootstrap() {
     ROLLOUT_CONFIG="${TEST_ROLLOUT_CONFIG:-$WORK/rollout.json}" \
     DOWNSTREAM_CONFIG="${TEST_DOWNSTREAM_CONFIG:-$WORK/repos.json}" \
     REPO_SETTINGS_CONFIG="${TEST_REPO_SETTINGS_CONFIG:-$WORK/repo-settings.json}" \
+    GOVERNANCE_CONFIG="${TEST_GOVERNANCE_CONFIG:-$WORK/governance.json}" \
     BOOTSTRAP_WAIT_SECONDS=0 \
     BOOTSTRAP_LINKED_WAIT_SECONDS=0 \
     FAKE_LOG="$WORK/gh.log" \
@@ -670,7 +687,7 @@ run_bootstrap() {
     BRANCH_HEAD="$BRANCH_HEAD" \
     REFRESH_TREE="$REFRESH_TREE" \
     REFRESH_HEAD="$REFRESH_HEAD" \
-    EXPECTED_BRANCH="sync/exact-caller-${CALLER_BLOB}${LINT_CALLER_BLOB}${LINKED_CALLER_BLOB}" \
+    EXPECTED_BRANCH="sync/exact-caller-${CALLER_BLOB}${expected_lint_receipt}${LINKED_CALLER_BLOB}" \
     CALLER_BLOB="$CALLER_BLOB" \
     CALLER_CONTENT="$CALLER_CONTENT" \
     LINT_CALLER_BLOB="$LINT_CALLER_BLOB" \
@@ -680,6 +697,8 @@ run_bootstrap() {
     DOWNSTREAM_BLOB="$DOWNSTREAM_BLOB" \
     DOWNSTREAM_LINT_BLOB="${DOWNSTREAM_LINT_BLOB:-$LINT_CALLER_BLOB}" \
     DOWNSTREAM_LINKED_BLOB="${DOWNSTREAM_LINKED_BLOB:-$LINKED_CALLER_BLOB}" \
+    FAKE_SKIP_LINT_CALLER="${FAKE_SKIP_LINT_CALLER:-}" \
+    FAKE_FORBID_LINT_READ="${FAKE_FORBID_LINT_READ:-}" \
     FAKE_READ_ERROR="${FAKE_READ_ERROR:-}" \
     FAKE_MAIN_ADVANCE_AT="${FAKE_MAIN_ADVANCE_AT:-}" \
     FAKE_DIVERGED_BASE="${FAKE_DIVERGED_BASE:-}" \
@@ -918,6 +937,69 @@ if [ "$rc" != 83 ] ||
   exit 1
 fi
 echo "[OK] exact enforcement with stale lint updates only lint and remains quiesced"
+
+cat >"$WORK/governance-skip-lint.json" <<'EOF'
+{"skip_files":{"example":[".github/workflows/super-linter.yml"]}}
+EOF
+state="$WORK/state-skip-stale-lint"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+FAKE_SKIP_LINT_CALLER=1
+FAKE_FORBID_LINT_READ=1
+set +e
+TEST_GOVERNANCE_CONFIG="$WORK/governance-skip-lint.json" run_bootstrap "$state" \
+  >"$WORK/skip-stale-lint.out" 2>"$WORK/skip-stale-lint.err"
+rc=$?
+set -e
+unset DOWNSTREAM_LINT_BLOB FAKE_SKIP_LINT_CALLER FAKE_FORBID_LINT_READ \
+  TEST_GOVERNANCE_CONFIG
+if [ "$rc" != 83 ] ||
+  ! grep -q 'contents/.github/workflows/enforce-repo-settings.yml --method PUT' \
+    "$WORK/gh.log" ||
+  grep -q 'example/contents/.github/workflows/super-linter.yml' "$WORK/gh.log" ||
+  grep -q 'contents/.github/workflows/super-linter.yml --method PUT' "$WORK/gh.log" ||
+  grep -q 'actions/workflows/enforce-repo-settings.yml/enable --method PUT' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] opted-out lint caller was read, changed, or allowed to bypass exact enforcement"
+  cat "$WORK/skip-stale-lint.err"
+  sed 's/^/  log: /' "$WORK/gh.log"
+  exit 1
+fi
+echo "[OK] opted-out lint caller is untouched while mandatory callers stay fail-closed"
+
+state="$WORK/state-diverged-skip-stale-lint"
+mkdir -p "$state"
+touch "$state/disabled" "$state/branch" "$state/current-pr" \
+  "$state/updated" "$state/linked-updated"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
+FAKE_DIVERGED_BASE=1
+FAKE_SKIP_LINT_CALLER=1
+FAKE_FORBID_LINT_READ=1
+set +e
+TEST_GOVERNANCE_CONFIG="$WORK/governance-skip-lint.json" run_bootstrap "$state" \
+  >"$WORK/diverged-skip-stale-lint.out" 2>"$WORK/diverged-skip-stale-lint.err"
+rc=$?
+set -e
+unset FAKE_DIVERGED_BASE FAKE_SKIP_LINT_CALLER FAKE_FORBID_LINT_READ \
+  DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINKED_BLOB TEST_GOVERNANCE_CONFIG
+if [ "$rc" != 83 ] ||
+  ! grep -q 'git/trees --method POST' "$WORK/gh.log" ||
+  grep -q 'example/contents/.github/workflows/super-linter.yml' "$WORK/gh.log" ||
+  grep -q 'contents/.github/workflows/super-linter.yml --method PUT' "$WORK/gh.log" ||
+  grep -qE '^pr (close|create) |(^|[[:space:]])--force([[:space:]]|$)|"force"[[:space:]]*:[[:space:]]*true' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] protected-main refresh read or replaced an opted-out lint caller"
+  cat "$WORK/diverged-skip-stale-lint.err"
+  sed 's/^/  log: /' "$WORK/gh.log"
+  exit 1
+fi
+echo "[OK] protected-main refresh preserves an opted-out repository-owned lint caller"
 
 state="$WORK/state-stale-linked-only"
 mkdir -p "$state"

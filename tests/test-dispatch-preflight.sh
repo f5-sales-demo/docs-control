@@ -22,6 +22,12 @@ check_case() {
   printf '{"revision":"%s"}\n' "$PIN_SHA" >"$work/pin.json"
   printf '["example"]\n' >"$work/repos.json"
   printf '{"state":"active"}\n' >"$work/rollout.json"
+  if [ "${FAKE_SKIP_LINT_CALLER:-}" = 1 ]; then
+    printf '{"skip_files":{"example":[".github/workflows/super-linter.yml"]}}\n' \
+      >"$work/governance.json"
+  else
+    printf '{"skip_files":{}}\n' >"$work/governance.json"
+  fi
   cat >"$work/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$GH_LOG"
@@ -54,6 +60,10 @@ case "$*" in
     printf '%s\n' "$FAKE_DOWNSTREAM_CALLER_BLOB"
     ;;
   *"repos/f5-sales-demo/example/contents/.github/workflows/super-linter.yml?ref=$FAKE_DOWNSTREAM_MAIN"*)
+    if [ "${FAKE_FORBID_LINT_READ:-}" = 1 ]; then
+      echo 'unexpected opted-out Super-Linter caller read' >&2
+      exit 65
+    fi
     if [ "${FAKE_MISSING_CALLER:-}" = 1 ]; then
       echo 'gh: Not Found (HTTP 404)' >&2
       exit 1
@@ -88,6 +98,7 @@ EOF
     PIN_CONFIG="$work/pin.json" \
     DOWNSTREAM_CONFIG="$work/repos.json" \
     ROLLOUT_CONFIG="$work/rollout.json" \
+    GOVERNANCE_CONFIG="$work/governance.json" \
     FAKE_MAIN_SHA="$FAKE_MAIN_SHA" \
     FAKE_COMPARE_STATUS="$FAKE_COMPARE_STATUS" \
     FAKE_PIN_SHA="$PIN_SHA" \
@@ -105,6 +116,7 @@ EOF
     FAKE_DOWNSTREAM_MAIN="$FAKE_DOWNSTREAM_MAIN" \
     FAKE_MISSING_CALLER="${FAKE_MISSING_CALLER:-}" \
     FAKE_STATE_READ_FAIL="${FAKE_STATE_READ_FAIL:-}" \
+    FAKE_FORBID_LINT_READ="${FAKE_FORBID_LINT_READ:-}" \
     FAKE_API_FAIL_MATCH="${FAKE_API_FAIL_MATCH:-}" \
     FAKE_API_FAIL_MESSAGE="${FAKE_API_FAIL_MESSAGE:-}" \
     "$SOURCE" 2>&1)
@@ -161,6 +173,13 @@ FAKE_STATE_READ_FAIL=1
 check_case "stale Super-Linter caller requires bootstrap" 80 \
   "[BOOTSTRAP] example does not contain the exact Super-Linter caller"
 unset FAKE_STATE_READ_FAIL
+FAKE_DOWNSTREAM_LINT_CALLER_BLOB="$FAKE_SOURCE_LINT_CALLER_BLOB"
+
+FAKE_SKIP_LINT_CALLER=1
+FAKE_FORBID_LINT_READ=1
+FAKE_DOWNSTREAM_LINT_CALLER_BLOB="$OTHER_SHA"
+check_case "opted-out Super-Linter caller is neither read nor bootstrapped" 0 "[OK]"
+unset FAKE_SKIP_LINT_CALLER FAKE_FORBID_LINT_READ
 FAKE_DOWNSTREAM_LINT_CALLER_BLOB="$FAKE_SOURCE_LINT_CALLER_BLOB"
 
 FAKE_DOWNSTREAM_LINKED_CALLER_BLOB="$OTHER_SHA"
