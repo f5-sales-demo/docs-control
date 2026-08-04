@@ -33,17 +33,33 @@ printf '{"state":"active"}\n' >"$WORK/rollout.json"
 printf '{"skip_files":{}}\n' >"$WORK/governance.json"
 cat >"$WORK/repo-settings.json" <<'EOF'
 {
+  "repository": {
+    "allow_squash_merge": true,
+    "allow_auto_merge": true,
+    "delete_branch_on_merge": true
+  },
   "branch_protection": [
     {
       "branch": "main",
+      "enforce_admins": true,
       "required_status_checks": {
         "strict": true,
         "contexts": [
           "Check linked issues",
           "lint / Lint Code Base",
           "lint / Shell Unit Tests"
-        ]
-      }
+        ],
+        "self_contexts": ["Check linked issues", "Lint Code Base", "Shell Unit Tests"]
+      },
+      "required_pull_request_reviews": null,
+      "restrictions": null,
+      "required_linear_history": false,
+      "allow_force_pushes": false,
+      "allow_deletions": false,
+      "block_creations": false,
+      "required_conversation_resolution": false,
+      "lock_branch": false,
+      "allow_fork_syncing": false
     }
   ],
   "repo_overrides": {
@@ -93,6 +109,12 @@ if ! grep -Fq 'contents/workflows/super-linter.yml?ref=${source_sha}' "$SOURCE" 
   exit 1
 fi
 echo "[OK] bootstrap carries the lint caller that validates its own PR"
+
+if grep -Fqi 'checkov' "$SOURCE" || ! grep -Fq 'first_repo' "$SOURCE"; then
+  echo "[FAIL] first-repository bootstrap is not limited to exact managed callers"
+  exit 1
+fi
+echo "[OK] first-repository bootstrap is limited to exact managed callers"
 
 cat >"$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -156,7 +178,8 @@ case "$1 $endpoint" in
     printf '%s\n' "$BASE_SHA"
     ;;
   'api repos/f5-sales-demo/example/actions/workflows/enforce-repo-settings.yml')
-    if [ "${FAKE_MISSING_WORKFLOW:-}" = 1 ] && [ ! -f "$FAKE_STATE/merged" ]; then
+    if { [ "${FAKE_MISSING_WORKFLOW:-}" = 1 ] || [ "${FAKE_FIRST_REPO:-}" = 1 ]; } &&
+      [ ! -f "$FAKE_STATE/merged" ]; then
       echo 'gh: Not Found (HTTP 404)' >&2
       exit 1
     fi
@@ -188,7 +211,14 @@ case "$1 $endpoint" in
       done
       [ -n "$input" ] || exit 64
       cp "$input" "$FAKE_STATE/required-checks-input.json"
-      if [ "${FAKE_STAGED_LINKED_TRANSITION:-}" = 1 ]; then
+      if [ "${FAKE_FIRST_REPO:-}" = 1 ]; then
+        jq -e '
+          (.contexts | index("Check linked issues")) != null and
+          (.contexts | index("check / Check linked issues")) == null
+        ' "$input" >/dev/null || exit 65
+        cp "$input" "$FAKE_STATE/final-required-checks.json"
+        touch "$FAKE_STATE/final-required-checks-reconciled"
+      elif [ "${FAKE_STAGED_LINKED_TRANSITION:-}" = 1 ]; then
         if jq -e '
           (.contexts | index("check / Check linked issues")) != null and
           (.contexts | index("Check linked issues")) == null
@@ -207,6 +237,12 @@ case "$1 $endpoint" in
       else
         touch "$FAKE_STATE/required-checks-reconciled"
       fi
+    elif [ "${FAKE_FIRST_REPO:-}" = 1 ] && [ ! -f "$FAKE_STATE/protection-created" ]; then
+      echo 'gh: Branch not protected (HTTP 404)' >&2
+      exit 1
+    elif [ "${FAKE_FIRST_REPO:-}" = 1 ] &&
+      [ ! -f "$FAKE_STATE/final-required-checks-reconciled" ]; then
+      printf '{"strict":true,"contexts":["Example CI","lint / Lint Code Base"]}\n'
     elif [ "${FAKE_REQUIRED_CHECKS_ERROR:-}" = 1 ]; then
       touch "$FAKE_STATE/required-check-failed"
       echo 'gh: synthetic required-check read failure (HTTP 500)' >&2
@@ -250,6 +286,10 @@ case "$1 $endpoint" in
       shift
     done
     [ -n "$input" ] || exit 64
+    if [ "${FAKE_FIRST_REPO:-}" = 1 ] && [ ! -f "$FAKE_STATE/merged" ]; then
+      echo 'gh: Not Found (HTTP 404)' >&2
+      exit 1
+    fi
     if [ "${FAKE_STAGED_LINKED_TRANSITION:-}" = 1 ] &&
       ! jq -e '.inputs.pull_request_number and .inputs.expected_head_sha' "$input" >/dev/null; then
       echo 'gh: workflow does not have workflow_dispatch trigger (HTTP 422)' >&2
@@ -394,7 +434,8 @@ case "$1 $endpoint" in
       exit 1
     fi
     ref=${endpoint##*ref=}
-    if [ "${FAKE_MISSING_WORKFLOW:-}" = 1 ] && [ ! -f "$FAKE_STATE/merged" ] &&
+    if { [ "${FAKE_MISSING_WORKFLOW:-}" = 1 ] || [ "${FAKE_FIRST_REPO:-}" = 1 ]; } &&
+      [ ! -f "$FAKE_STATE/merged" ] &&
       [ "$ref" != "$BRANCH_HEAD" ]; then
       echo 'gh: Not Found (HTTP 404)' >&2
       exit 1
@@ -415,7 +456,11 @@ case "$1 $endpoint" in
       exit 65
     fi
     ref=${endpoint##*ref=}
-    if { [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; } &&
+    if [ "${FAKE_FIRST_REPO:-}" = 1 ] && [ ! -f "$FAKE_STATE/merged" ] &&
+      [ "$ref" != "$BRANCH_HEAD" ]; then
+      echo 'gh: Not Found (HTTP 404)' >&2
+      exit 1
+    elif { [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; } &&
       [ -f "$FAKE_STATE/lint-updated" ]; then
       printf '%s\n' "$LINT_CALLER_BLOB"
     elif [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; then
@@ -428,7 +473,13 @@ case "$1 $endpoint" in
     ;;
   'api repos/f5-sales-demo/example/contents/.github/workflows/require-linked-issue.yml?ref='*)
     ref=${endpoint##*ref=}
-    if { [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; } &&
+    if [ "${FAKE_BAD_RECOVER_LINKED:-}" = 1 ] && [ "$ref" = "$BRANCH_HEAD" ]; then
+      printf '%s\n' "$OLD_BLOB"
+    elif [ "${FAKE_FIRST_REPO:-}" = 1 ] && [ ! -f "$FAKE_STATE/merged" ] &&
+      [ "$ref" != "$BRANCH_HEAD" ]; then
+      echo 'gh: Not Found (HTTP 404)' >&2
+      exit 1
+    elif { [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; } &&
       [ -f "$FAKE_STATE/linked-updated" ]; then
       printf '%s\n' "$LINKED_CALLER_BLOB"
     elif [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; then
@@ -439,7 +490,70 @@ case "$1 $endpoint" in
       printf '%s\n' "$DOWNSTREAM_LINKED_BLOB"
     fi
     ;;
-  'api repos/f5-sales-demo/example') printf 'main\n' ;;
+  'api repos/f5-sales-demo/example/branches/main/protection')
+    if [[ "$*" == *'--method PUT'* ]]; then
+      input=""
+      while [ "$#" -gt 0 ]; do
+        if [ "$1" = "--input" ]; then
+          input="$2"
+          break
+        fi
+        shift
+      done
+      [ -n "$input" ] || exit 64
+      jq -e '
+        .enforce_admins == true and
+        .required_status_checks.strict == true and
+        .required_status_checks.contexts == ["Example CI", "lint / Lint Code Base"] and
+        .required_pull_request_reviews == null and .restrictions == null and
+        .allow_force_pushes == false and .allow_deletions == false
+      ' "$input" >/dev/null || exit 65
+      cp "$input" "$FAKE_STATE/transition-protection.json"
+      touch "$FAKE_STATE/protection-created"
+    elif [ "${FAKE_FIRST_REPO:-}" = 1 ] && [ ! -f "$FAKE_STATE/protection-created" ]; then
+      echo 'gh: Branch not protected (HTTP 404)' >&2
+      exit 1
+    else
+      jq -cn --slurpfile desired "$FAKE_STATE/transition-protection.json" '
+        $desired[0] | {
+          enforce_admins:{enabled:.enforce_admins},
+          required_status_checks:.required_status_checks,
+          required_pull_request_reviews:.required_pull_request_reviews,
+          restrictions:.restrictions,
+          required_linear_history:{enabled:.required_linear_history},
+          allow_force_pushes:{enabled:.allow_force_pushes},
+          allow_deletions:{enabled:.allow_deletions},
+          block_creations:{enabled:.block_creations},
+          required_conversation_resolution:{enabled:.required_conversation_resolution},
+          lock_branch:{enabled:.lock_branch},
+          allow_fork_syncing:{enabled:.allow_fork_syncing}
+        }'
+    fi
+    ;;
+  'api repos/f5-sales-demo/example')
+    if [[ "$*" == *'--method PATCH'* ]]; then
+      input=""
+      while [ "$#" -gt 0 ]; do
+        if [ "$1" = "--input" ]; then
+          input="$2"
+          break
+        fi
+        shift
+      done
+      [ -n "$input" ] || exit 64
+      jq -e '
+        .allow_squash_merge == true and .allow_auto_merge == true and
+        .delete_branch_on_merge == true
+      ' "$input" >/dev/null || exit 65
+      touch "$FAKE_STATE/repo-settings-reconciled"
+    elif [[ "$*" == *'--jq .default_branch'* ]]; then
+      printf 'main\n'
+    elif [ -f "$FAKE_STATE/repo-settings-reconciled" ]; then
+      printf '{"allow_squash_merge":true,"allow_auto_merge":true,"delete_branch_on_merge":true}\n'
+    else
+      printf '{"allow_squash_merge":true,"allow_auto_merge":false,"delete_branch_on_merge":false}\n'
+    fi
+    ;;
   'api repos/f5-sales-demo/example/git/ref/heads/main') printf '%s\n' "$BASE_SHA" ;;
   'api repos/f5-sales-demo/example/git/ref/heads/sync/exact-caller-'*)
     if [ -f "$FAKE_STATE/branch" ]; then
@@ -663,6 +777,7 @@ run_bootstrap() {
   if [ "${FAKE_SKIP_LINT_CALLER:-}" = 1 ]; then
     expected_lint_receipt=skipped
   fi
+  local expected_branch="sync/exact-caller-${CALLER_BLOB}${expected_lint_receipt}${LINKED_CALLER_BLOB}"
   env \
     PATH="$WORK/bin:$PATH" \
     GITHUB_REPOSITORY=f5-sales-demo/docs-control \
@@ -687,7 +802,7 @@ run_bootstrap() {
     BRANCH_HEAD="$BRANCH_HEAD" \
     REFRESH_TREE="$REFRESH_TREE" \
     REFRESH_HEAD="$REFRESH_HEAD" \
-    EXPECTED_BRANCH="sync/exact-caller-${CALLER_BLOB}${expected_lint_receipt}${LINKED_CALLER_BLOB}" \
+    EXPECTED_BRANCH="$expected_branch" \
     CALLER_BLOB="$CALLER_BLOB" \
     CALLER_CONTENT="$CALLER_CONTENT" \
     LINT_CALLER_BLOB="$LINT_CALLER_BLOB" \
@@ -721,6 +836,8 @@ run_bootstrap() {
     FAKE_STAGED_LINKED_TRANSITION="${FAKE_STAGED_LINKED_TRANSITION:-}" \
     FAKE_LEGACY_LINKED_CHECK="${FAKE_LEGACY_LINKED_CHECK:-}" \
     FAKE_RECOVER_MERGED_TRANSITION="${FAKE_RECOVER_MERGED_TRANSITION:-}" \
+    FAKE_FIRST_REPO="${FAKE_FIRST_REPO:-}" \
+    FAKE_BAD_RECOVER_LINKED="${FAKE_BAD_RECOVER_LINKED:-}" \
     FAKE_FAIL_SECOND_BOOTSTRAP="${FAKE_FAIL_SECOND_BOOTSTRAP:-}" \
     REPO_SETTINGS_TOKEN=settings-token \
     "$SOURCE"
@@ -1492,6 +1609,91 @@ if [ "$rc" != 0 ] || [ ! -f "$state/legacy-canceled" ] ||
   exit 1
 fi
 echo "[OK] missing current workflow still inventories and cancels active legacy runs"
+
+state="$WORK/state-first-repo"
+mkdir -p "$state"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
+FAKE_FIRST_REPO=1
+FAKE_MERGE_LANDS=1
+set +e
+run_bootstrap "$state" >"$WORK/first-repo.out" 2>"$WORK/first-repo.err"
+rc=$?
+set -e
+unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINKED_BLOB FAKE_FIRST_REPO FAKE_MERGE_LANDS
+protection_line=$(grep -n 'branches/main/protection --method PUT' "$WORK/gh.log" |
+  head -1 | cut -d: -f1 || true)
+merge_line=$(grep -n '^pr merge ' "$WORK/gh.log" | head -1 | cut -d: -f1 || true)
+dispatch_line=$(grep -n 'require-linked-issue.yml/dispatches --method POST' "$WORK/gh.log" |
+  head -1 | cut -d: -f1 || true)
+final_context_line=$(grep -n 'required_status_checks --method PATCH' "$WORK/gh.log" |
+  tail -1 | cut -d: -f1 || true)
+if [ "$rc" != 0 ] || [ -z "$protection_line" ] || [ -z "$merge_line" ] ||
+  [ -z "$dispatch_line" ] || [ -z "$final_context_line" ] ||
+  [ "$protection_line" -ge "$merge_line" ] || [ "$merge_line" -ge "$dispatch_line" ] ||
+  [ "$dispatch_line" -ge "$final_context_line" ] ||
+  ! grep -q 'repos/f5-sales-demo/example --method PATCH' "$WORK/gh.log" ||
+  [ "$(grep -c 'required_status_checks --method PATCH' "$WORK/gh.log")" -ne 1 ] ||
+  ! jq -e '.required_status_checks.contexts | index("Check linked issues") == null' \
+    "$state/transition-protection.json" >/dev/null ||
+  ! jq -e '.contexts | index("Check linked issues") != null' \
+    "$state/final-required-checks.json" >/dev/null; then
+  echo "[FAIL] first governed repository did not complete the verified three-caller transition"
+  echo "  rc=$rc"
+  sed 's/^/  /' "$WORK/first-repo.err"
+  sed 's/^/  log: /' "$WORK/gh.log"
+  exit 1
+fi
+echo "[OK] first governed repository installs three exact callers before restoring protection"
+
+state="$WORK/state-recover-first-repo"
+mkdir -p "$state"
+touch "$state/merged" "$state/protection-created"
+cp "$WORK/state-first-repo/transition-protection.json" \
+  "$state/transition-protection.json"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+FAKE_FIRST_REPO=1
+FAKE_RECOVER_MERGED_TRANSITION=1
+run_bootstrap "$state" >"$WORK/recover-first-repo.out" \
+  2>"$WORK/recover-first-repo.err"
+unset FAKE_FIRST_REPO FAKE_RECOVER_MERGED_TRANSITION
+if ! grep -q 'pulls?state=closed&sort=updated&direction=desc&per_page=100' "$WORK/gh.log" ||
+  ! grep -q 'require-linked-issue.yml/dispatches --method POST' "$WORK/gh.log" ||
+  [ "$(grep -c 'required_status_checks --method PATCH' "$WORK/gh.log")" -ne 1 ] ||
+  grep -qE 'git/refs --method POST|contents/.github/workflows/.* --method PUT|^pr (create|merge)' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] interrupted first-repository transition did not recover from three exact blobs"
+  cat "$WORK/recover-first-repo.err"
+  exit 1
+fi
+echo "[OK] interrupted first-repository transition recovers from three exact blobs"
+
+state="$WORK/state-hostile-first-repo-receipt"
+mkdir -p "$state"
+touch "$state/merged" "$state/protection-created"
+cp "$WORK/state-first-repo/transition-protection.json" \
+  "$state/transition-protection.json"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+FAKE_FIRST_REPO=1
+FAKE_RECOVER_MERGED_TRANSITION=1
+FAKE_BAD_RECOVER_LINKED=1
+set +e
+run_bootstrap "$state" >/dev/null 2>"$WORK/hostile-first-repo-receipt.err"
+rc=$?
+set -e
+unset FAKE_FIRST_REPO FAKE_RECOVER_MERGED_TRANSITION FAKE_BAD_RECOVER_LINKED
+if [ "$rc" = 0 ] ||
+  grep -qE 'require-linked-issue.yml/dispatches --method POST|required_status_checks --method PATCH|^pr merge' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] hostile first-repository receipt reached dispatch or protection mutation"
+  cat "$WORK/hostile-first-repo-receipt.err"
+  exit 1
+fi
+echo "[OK] hostile first-repository receipt fails before dispatch or protection mutation"
 
 state="$WORK/state-missing-workflow"
 mkdir -p "$state"
