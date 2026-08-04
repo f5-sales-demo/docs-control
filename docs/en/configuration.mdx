@@ -38,9 +38,9 @@ The central configuration file drives all enforcement, sync, and dispatch behavi
       "branch": "main",
       "enforce_admins": true,
       "required_status_checks": {
-        "strict": false,
+        "strict": true,
         "contexts": [
-          "check / Check linked issues",
+          "Check linked issues",
           "lint / Lint Code Base",
           "lint / Shell Unit Tests"
         ],
@@ -116,15 +116,15 @@ An array of branch protection rules. Each entry specifies a `branch` name and th
 Key fields:
 
 - `enforce_admins: true` -- protection rules apply to repository administrators too
-- `required_status_checks.strict: false` -- branches don't need to be up-to-date before merging
-- `required_status_checks.contexts` -- the check names downstream repositories must pass (for example, `check / Check linked issues` and `lint / Shell Unit Tests`)
+- `required_status_checks.strict: true` -- branches must be up-to-date before merging
+- `required_status_checks.contexts` -- the check names downstream repositories must pass (for example, `Check linked issues` and `lint / Shell Unit Tests`)
 - `required_status_checks.self_contexts` -- the check names docs-control itself must pass (for example, `Check linked issues` and `Shell Unit Tests`)
 - `required_pull_request_reviews: null` -- no PR review approval required
 - `restrictions: null` -- no push restrictions beyond branch protection
 
 #### `contexts` vs `self_contexts`
 
-When a downstream repository uses a caller workflow, the status check name becomes `<caller_job_key> / <reusable_job_name>`. For example, the `require-linked-issue.yml` caller has job key `check`, so the check name is `check / Check linked issues`. But when docs-control runs the same workflow directly (via the `pull_request_target` trigger), the check name is just `Check linked issues`.
+Reusable workflow checks in downstream repositories use `<caller_job_key> / <reusable_job_name>`, while docs-control reports their bare job names. The linked-issue gate is an exception: its scheduled workflow publishes the commit status `Check linked issues` directly in every repository, so both `contexts` and `self_contexts` must use that exact name.
 
 The `self_contexts` field stores the check names that apply to docs-control itself. During [enforcement](./settings-enforcement/), the workflow detects whether it's running on the source repository and swaps `self_contexts` into `contexts` before applying branch protection. The `self_contexts` field is always stripped before sending the payload to the GitHub API.
 

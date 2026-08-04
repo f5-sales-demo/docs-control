@@ -4,7 +4,7 @@ description: Zentrale repo-settings.json-Konfigurationsreferenz für Durchsetzun
 sidebar:
   order: 3
 i18n:
-  sourceHash: "66e243c0b43d"
+  sourceHash: "6604310303ba"
   translator: "machine"
 ---
 
@@ -41,9 +41,9 @@ Die zentrale Konfigurationsdatei steuert das gesamte Durchsetzungs-, Synchronisi
       "branch": "main",
       "enforce_admins": true,
       "required_status_checks": {
-        "strict": false,
+        "strict": true,
         "contexts": [
-          "check / Check linked issues",
+          "Check linked issues",
           "lint / Lint Code Base",
           "lint / Shell Unit Tests"
         ],
@@ -102,7 +102,7 @@ Standardmäßige GitHub-Repository-Einstellungen, angewendet über `PATCH /repos
 Wichtige Einstellungen:
 
 - `delete_branch_on_merge: true` -- bereinigt zusammengeführte PR-Branches automatisch
-- `allow_update_branch: true` -- aktiviert la Schaltfläche "Update branch" bei PRs
+- `allow_update_branch: true` -- aktiviert die Schaltfläche "Update branch" bei PRs
 - `homepage: ""` -- wird zur Laufzeit automatisch berechnet als `https://f5-sales-demo.github.io/{repo}/`
 
 ### `actions_permissions`
@@ -119,15 +119,15 @@ Ein Array von Branch-Schutzregeln. Jeder Eintrag gibt einen `branch`-Namen und d
 Hauptfelder:
 
 - `enforce_admins: true` -- Schutzregeln gelten auch für Repository-Administratoren
-- `required_status_checks.strict: false` -- Branches müssen vor dem Zusammenführen nicht auf dem neuesten Stand sein
-- `required_status_checks.contexts` -- die Namen der Prüfungen, die nachgelagerte Repositories bestehen müssen (z. B. `check / Check linked issues` und `lint / Shell Unit Tests`)
+- `required_status_checks.strict: true` -- Branches müssen vor dem Zusammenführen auf dem neuesten Stand sein
+- `required_status_checks.contexts` -- die Namen der Prüfungen, die nachgelagerte Repositories bestehen müssen (z. B. `Check linked issues` und `lint / Shell Unit Tests`)
 - `required_status_checks.self_contexts` -- die Namen der Prüfungen, die docs-control selbst bestehen muss (z. B. `Check linked issues` und `Shell Unit Tests`)
 - `required_pull_request_reviews: null` -- keine PR-Review-Genehmigung erforderlich
 - `restrictions: null` -- keine Push-Einschränkungen über den Branch-Schutz hinaus
 
 #### `contexts` vs. `self_contexts`
 
-Wenn ein nachgelagertes Repository einen Aufrufer-Workflow verwendet, wird der Statusprüfungsname zu `<caller_job_key> / <reusable_job_name>`. Beispielsweise hat der Aufrufer `require-linked-issue.yml` den Job-Schlüssel `check`, sodass der Prüfungsname `check / Check linked issues` lautet. Wenn docs-control jedoch denselben Workflow direkt ausführt (über den `pull_request_target`-Auslöser), lautet der Prüfungsname einfach `Check linked issues`.
+Wiederverwendbare Workflow-Prüfungen in nachgelagerten Repositories verwenden `<caller_job_key> / <reusable_job_name>`, während docs-control ihre einfachen Job-Namen meldet. Das Linked-Issue-Gate bildet eine Ausnahme: Sein geplanter Workflow veröffentlicht den Commit-Status `Check linked issues` direkt in jedem Repository, sodass sowohl `contexts` als auch `self_contexts` genau diesen Namen verwenden müssen.
 
 Das Feld `self_contexts` speichert die Prüfungsnamen, die für docs-control selbst gelten. Während der [Durchsetzung](./settings-enforcement/) erkennt der Workflow, ob er auf dem Quell-Repository läuft, und tauscht `self_contexts` vor der Anwendung des Branch-Schutzes in `contexts` aus. Das Feld `self_contexts` wird immer entfernt, bevor die Nutzlast an die GitHub-API gesendet wird.
 
