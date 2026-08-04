@@ -488,16 +488,8 @@ case "$1 $endpoint" in
         '[{number: 11, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/page-two-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[], [{number: 9, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
-    elif [ -f "$FAKE_STATE/huge-open" ]; then
-      jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[{number: 10, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-999999999999999999999999999999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
-    elif [ -f "$FAKE_STATE/newer-open" ]; then
-      jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[{number: 8, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
-    elif [ -f "$FAKE_STATE/malformed-owner-open" ]; then
-      jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[{number: 14, head: {ref: "sync/exact-caller-invalid", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
+        --arg branch "sync/exact-caller-${OTHER_SHA}${OTHER_SHA}${OTHER_SHA}" \
+        '[], [{number: 9, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/current-pr" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg branch "$EXPECTED_BRANCH" \
         --arg repo "${GITHUB_REPOSITORY%/*}/example" \
@@ -525,7 +517,7 @@ case "$1 $endpoint" in
       printf '[]\n'
     fi
     ;;
-  'pr close') rm -f "$FAKE_STATE/old-open" ;;
+  'pr close') rm -f "$FAKE_STATE/old-open" "$FAKE_STATE/page-two-open" ;;
   'pr create')
     touch "$FAKE_STATE/current-pr"
     printf 'https://github.com/f5-sales-demo/example/pull/42\n'
@@ -570,8 +562,6 @@ run_bootstrap() {
   env \
     PATH="$WORK/bin:$PATH" \
     GITHUB_REPOSITORY=f5-sales-demo/docs-control \
-    GITHUB_RUN_ID=12345 \
-    GITHUB_RUN_ATTEMPT=1 \
     SOURCE_SHA="$SOURCE_SHA" \
     PIN_CONFIG="$WORK/pin.json" \
     ROLLOUT_CONFIG="${TEST_ROLLOUT_CONFIG:-$WORK/rollout.json}" \
@@ -589,7 +579,7 @@ run_bootstrap() {
     ENFORCE_BLOB="$ENFORCE_BLOB" \
     SYNC_BLOB="$SYNC_BLOB" \
     BRANCH_HEAD="$BRANCH_HEAD" \
-    EXPECTED_BRANCH="sync/exact-caller-${CALLER_BLOB:0:6}${LINT_CALLER_BLOB:0:6}${LINKED_CALLER_BLOB:0:6}-12345-1" \
+    EXPECTED_BRANCH="sync/exact-caller-${CALLER_BLOB}${LINT_CALLER_BLOB}${LINKED_CALLER_BLOB}" \
     CALLER_BLOB="$CALLER_BLOB" \
     CALLER_CONTENT="$CALLER_CONTENT" \
     LINT_CALLER_BLOB="$LINT_CALLER_BLOB" \
@@ -657,6 +647,24 @@ if grep -qE '(^|[[:space:]])--force([[:space:]]|$)|"force"[[:space:]]*:[[:space:
   exit 1
 fi
 echo "[OK] stale callers close older PRs and queue one exact bounded PR"
+
+: >"$WORK/gh.log"
+set +e
+run_bootstrap "$state" >"$WORK/adopt-stable-receipt.out" \
+  2>"$WORK/adopt-stable-receipt.err"
+rc=$?
+set -e
+if [ "$rc" != 83 ] ||
+  grep -qE '^pr (close|create) |git/refs --method POST|contents/.github/workflows/.* --method PUT' \
+    "$WORK/gh.log" ||
+  ! grep -q '^pr view 42 ' "$WORK/gh.log" ||
+  ! grep -q '^pr merge 42 ' "$WORK/gh.log"; then
+  echo "[FAIL] recovery did not adopt the existing stable exact-caller receipt"
+  cat "$WORK/adopt-stable-receipt.err"
+  sed 's/^/  log: /' "$WORK/gh.log"
+  exit 1
+fi
+echo "[OK] recovery adopts the existing stable exact-caller receipt without churn"
 
 state="$WORK/state-stale-required-checks"
 mkdir -p "$state"
@@ -1002,40 +1010,6 @@ if [ "$rc" != 83 ] ||
 fi
 echo "[OK] repeated empty inventories catch and cancel status transitions"
 
-state="$WORK/state-newer"
-mkdir -p "$state"
-touch "$state/newer-open"
-: >"$WORK/gh.log"
-DOWNSTREAM_BLOB="$OLD_BLOB"
-set +e
-run_bootstrap "$state" >/dev/null 2>&1
-rc=$?
-set -e
-if [ "$rc" != 83 ] || grep -qE '^pr close |git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' "$WORK/gh.log"; then
-  echo "[FAIL] older run did not defer to the newer bootstrap owner"
-  echo "  rc=$rc"
-  sed 's/^/  log: /' "$WORK/gh.log"
-  exit 1
-fi
-echo "[OK] older run cannot close or overtake a newer bootstrap PR"
-
-state="$WORK/state-huge-owner"
-mkdir -p "$state"
-touch "$state/huge-open"
-: >"$WORK/gh.log"
-DOWNSTREAM_BLOB="$OLD_BLOB"
-set +e
-run_bootstrap "$state" >/dev/null 2>&1
-rc=$?
-set -e
-if [ "$rc" != 83 ] || grep -qE '^pr close |git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' "$WORK/gh.log"; then
-  echo "[FAIL] oversized owner was not treated as a newer exact-caller run"
-  echo "  rc=$rc"
-  sed 's/^/  log: /' "$WORK/gh.log"
-  exit 1
-fi
-echo "[OK] oversized exact-caller owner defers without integer overflow"
-
 state="$WORK/state-page-two-owner"
 mkdir -p "$state"
 touch "$state/page-two-open"
@@ -1046,11 +1020,14 @@ run_bootstrap "$state" >/dev/null 2>&1
 rc=$?
 set -e
 if [ "$rc" != 83 ] || ! grep -q -- '--paginate' "$WORK/gh.log" || grep -q -- '--slurp' "$WORK/gh.log" ||
-  grep -qE '^pr close |git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' "$WORK/gh.log"; then
-  echo "[FAIL] exact-caller owner outside the first API page was not detected"
+  ! grep -q '^pr close 9 ' "$WORK/gh.log" ||
+  ! grep -qE 'git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr create ' "$WORK/gh.log"; then
+  echo "[FAIL] superseded exact-caller PR outside the first API page was not replaced"
+  echo "  rc=$rc"
+  sed 's/^/  log: /' "$WORK/gh.log"
   exit 1
 fi
-echo "[OK] paginated exact-caller inventory detects later-page owners"
+echo "[OK] paginated exact-caller inventory replaces later-page superseded receipts"
 
 state="$WORK/state-fork-current"
 mkdir -p "$state"
@@ -1069,23 +1046,6 @@ if [ "$rc" = 0 ] ||
   exit 1
 fi
 echo "[OK] hostile same-ref fork PR blocks exact-caller mutation"
-
-state="$WORK/state-malformed-owner"
-mkdir -p "$state"
-touch "$state/malformed-owner-open" "$state/disabled"
-: >"$WORK/gh.log"
-DOWNSTREAM_BLOB="$OLD_BLOB"
-set +e
-run_bootstrap "$state" >/dev/null 2>&1
-rc=$?
-set -e
-if [ "$rc" = 0 ] ||
-  grep -qE '^pr (close|create|merge) |git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT' \
-    "$WORK/gh.log"; then
-  echo "[FAIL] malformed reserved-namespace ownership was mutated"
-  exit 1
-fi
-echo "[OK] malformed reserved-namespace ownership fails closed"
 
 state="$WORK/state-duplicate-current"
 mkdir -p "$state"
