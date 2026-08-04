@@ -279,7 +279,7 @@ repos:
   # Translation validation — deterministic only. English-only source commits
   # are allowed through so the governed workflow can generate locale output;
   # any locale file that is staged locally must already match its English hash
-  # and preserve code, links, imports, and MDX component structure.
+  # and preserve fence shape, links, imports, and MDX component structure.
   # ===========================================================================
   - repo: local
     hooks:

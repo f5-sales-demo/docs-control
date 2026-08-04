@@ -28,7 +28,7 @@ PY
 }
 
 write_target() {
-  local repo=$1 locale=$2 hash=$3 code=${4:-'echo safe'}
+  local repo=$1 locale=$2 hash=$3 code=${4:-'echo safe'} fence_info=${5:-sh}
   mkdir -p "$repo/docs/$locale"
   printf '%s\n' \
     '---' \
@@ -38,9 +38,20 @@ write_target() {
     '  translator: "machine"' \
     '---' \
     '' \
-    'Texte `literal` https://example.com/docs.' \
+    'import { Aside, Badge, Image } from "@components";' \
     '' \
-    '```sh' \
+    '<Aside type="note" title="確認済み">本文。</Aside>' \
+    '<Badge text="33 コマンド" variant="note" />' \
+    '<Image src="/images/hero.svg" alt="主要図" />' \
+    '' \
+    '本文 `2026-07-28 に確認済み` https://example.com/docs [案内](../guide/).' \
+    '' \
+    '```text' \
+    '管理/SLO    タイムアウト' \
+    '```' \
+    '' \
+    "\`\`\`$fence_info" \
+    '# 安全なコマンド' \
     "$code" \
     '```' >"$repo/docs/$locale/page.mdx"
 }
@@ -57,9 +68,20 @@ make_repo() {
     'title: Page' \
     '---' \
     '' \
-    'Text `literal` https://example.com/docs.' \
+    'import { Aside, Badge, Image } from "@components";' \
+    '' \
+    '<Aside type="note" title="What is verified here">Body.</Aside>' \
+    '<Badge text="33 commands" variant="note" />' \
+    '<Image src="/images/hero.svg" alt="Hero diagram" />' \
+    '' \
+    'Status: `Observed 2026-07-28` https://example.com/docs [Guide](../guide/).' \
+    '' \
+    '```text' \
+    'management/SLO address    timed out' \
+    '```' \
     '' \
     '```sh' \
+    '# Safe command' \
     'echo safe' \
     '```' >"$repo/docs/en/page.mdx"
   local hash
@@ -155,11 +177,41 @@ git -C "$repo" rm -q docs/fr/unrelated.mdx
 git -C "$repo" commit -qm remove-out-of-scope
 head=$(git -C "$repo" rev-parse HEAD)
 
-write_target "$repo" fr "$hash" 'echo changed'
+write_target "$repo" fr "$hash" 'echo safe' bash
 if (cd "$repo" && bash "$SCRIPT" --base "$base" --head "$head" >/dev/null 2>&1); then
-  fail "translated fenced code fails" "validator returned success"
+  fail "changed fence info string fails" "validator returned success"
 else
-  pass "translated fenced code fails"
+  pass "changed fence info string fails"
+fi
+
+repo=$(make_repo)
+sed -i.bak 's/type="note"/type="warning"/' "$repo/docs/fr/page.mdx"
+rm -f "$repo/docs/fr/page.mdx.bak"
+git -C "$repo" add docs/fr/page.mdx
+if output=$(cd "$repo" && bash "$SCRIPT" --staged 2>&1); then
+  fail "functional JSX drift reports the exact token" "validator returned success"
+elif grep -qF 'docs/fr/page.mdx: protected MDX component tags changed' <<<"$output" &&
+  grep -qF 'missing' <<<"$output" &&
+  grep -qF 'type="note"' <<<"$output" &&
+  grep -qF 'unexpected' <<<"$output" &&
+  grep -qF 'type="warning"' <<<"$output"; then
+  pass "functional JSX drift reports the exact token"
+else
+  fail "functional JSX drift reports the exact token" "$output"
+fi
+
+repo=$(make_repo)
+sed -i.bak 's#](../guide/)#](../translated/)#' "$repo/docs/fr/page.mdx"
+rm -f "$repo/docs/fr/page.mdx.bak"
+git -C "$repo" add docs/fr/page.mdx
+if output=$(cd "$repo" && bash "$SCRIPT" --staged 2>&1); then
+  fail "link-target drift reports the exact token" "validator returned success"
+elif grep -qF 'protected link targets changed' <<<"$output" &&
+  grep -qF "missing '../guide/'" <<<"$output" &&
+  grep -qF "unexpected '../translated/'" <<<"$output"; then
+  pass "link-target drift reports the exact token"
+else
+  fail "link-target drift reports the exact token" "$output"
 fi
 
 repo=$(make_repo)
