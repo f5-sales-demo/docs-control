@@ -128,6 +128,7 @@
         ".mypy.ini",
         ".github/workflows/super-linter.yml"
       ],
+      "xcsh-action": ["README.md"],
       "terraform-provider-xcsh": [".github/workflows/translation-audit.yml", "scripts/locale-lint.sh"],
       "api-specs": [".ruff.toml", ".python-lint", ".mypy.ini"],
       "api-specs-enriched": [".ruff.toml", ".python-lint", ".mypy.ini", ".github/workflows/github-pages-deploy.yml"],
@@ -439,6 +440,7 @@
       "starlight-llms-txt": ["governance", "npm_publish"],
       "starlight-mega-menu": ["governance", "npm_publish"],
       "xcsh": ["governance", "npm_publish", "apple_signing"],
+      "xcsh-action": ["governance"],
       "vscode-xcsh": ["governance", "vscode_extension"],
       "terraform-provider-xcsh": ["governance", "terraform_provider"],
       "api-specs": ["governance"],
