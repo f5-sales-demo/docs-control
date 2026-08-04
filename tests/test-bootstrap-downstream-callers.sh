@@ -15,6 +15,9 @@ OLD_BLOB=4444444444444444444444444444444444444444
 ENFORCE_BLOB=5555555555555555555555555555555555555555
 SYNC_BLOB=6666666666666666666666666666666666666666
 BRANCH_HEAD=7777777777777777777777777777777777777777
+BASE_TREE=8888888888888888888888888888888888888888
+REFRESH_TREE=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+REFRESH_HEAD=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 CALLER_TEXT='name: Enforce Repository Settings'
 CALLER_CONTENT=$(printf '%s\n' "$CALLER_TEXT" | base64 | tr -d '\n')
 CALLER_BLOB=$(printf '%s\n' "$CALLER_TEXT" | git hash-object --stdin)
@@ -394,9 +397,10 @@ case "$1 $endpoint" in
       [ "$ref" != "$BRANCH_HEAD" ]; then
       echo 'gh: Not Found (HTTP 404)' >&2
       exit 1
-    elif [ "$ref" = "$BRANCH_HEAD" ] && [ -f "$FAKE_STATE/updated" ]; then
+    elif { [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; } &&
+      [ -f "$FAKE_STATE/updated" ]; then
       printf '%s\n' "$CALLER_BLOB"
-    elif [ "$ref" = "$BRANCH_HEAD" ]; then
+    elif [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; then
       printf '%s\n' "$DOWNSTREAM_BLOB"
     elif [ -f "$FAKE_STATE/merged" ]; then
       printf '%s\n' "$CALLER_BLOB"
@@ -406,9 +410,10 @@ case "$1 $endpoint" in
     ;;
   'api repos/f5-sales-demo/example/contents/.github/workflows/super-linter.yml?ref='*)
     ref=${endpoint##*ref=}
-    if [ "$ref" = "$BRANCH_HEAD" ] && [ -f "$FAKE_STATE/lint-updated" ]; then
+    if { [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; } &&
+      [ -f "$FAKE_STATE/lint-updated" ]; then
       printf '%s\n' "$LINT_CALLER_BLOB"
-    elif [ "$ref" = "$BRANCH_HEAD" ]; then
+    elif [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; then
       printf '%s\n' "$DOWNSTREAM_LINT_BLOB"
     elif [ -f "$FAKE_STATE/merged" ]; then
       printf '%s\n' "$LINT_CALLER_BLOB"
@@ -418,9 +423,10 @@ case "$1 $endpoint" in
     ;;
   'api repos/f5-sales-demo/example/contents/.github/workflows/require-linked-issue.yml?ref='*)
     ref=${endpoint##*ref=}
-    if [ "$ref" = "$BRANCH_HEAD" ] && [ -f "$FAKE_STATE/linked-updated" ]; then
+    if { [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; } &&
+      [ -f "$FAKE_STATE/linked-updated" ]; then
       printf '%s\n' "$LINKED_CALLER_BLOB"
-    elif [ "$ref" = "$BRANCH_HEAD" ]; then
+    elif [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; then
       printf '%s\n' "$DOWNSTREAM_LINKED_BLOB"
     elif [ -f "$FAKE_STATE/merged" ]; then
       printf '%s\n' "$LINKED_CALLER_BLOB"
@@ -434,6 +440,8 @@ case "$1 $endpoint" in
     if [ -f "$FAKE_STATE/branch" ]; then
       if [ -f "$FAKE_STATE/corrupt" ]; then
         printf '%s\n' '8888888888888888888888888888888888888888'
+      elif [ -f "$FAKE_STATE/refreshed" ]; then
+        printf '%s\n' "$REFRESH_HEAD"
       elif [ -f "$FAKE_STATE/updated" ] || [ -f "$FAKE_STATE/lint-updated" ] ||
         [ -f "$FAKE_STATE/linked-updated" ]; then
         printf '%s\n' "$BRANCH_HEAD"
@@ -444,6 +452,67 @@ case "$1 $endpoint" in
       echo 'gh: Not Found (HTTP 404)' >&2
       exit 1
     fi
+    ;;
+  'api repos/f5-sales-demo/example/git/commits/'*)
+    jq -cn --arg sha "$BASE_SHA" --arg tree "$BASE_TREE" \
+      '{sha:$sha,tree:{sha:$tree},parents:[]}'
+    ;;
+  'api repos/f5-sales-demo/example/git/trees')
+    input=""
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = "--input" ]; then
+        input="$2"
+        break
+      fi
+      shift
+    done
+    [ -n "$input" ] || exit 64
+    jq -e --arg base "$BASE_TREE" --arg caller "$CALLER_BLOB" \
+      --arg lint "$LINT_CALLER_BLOB" --arg linked "$LINKED_CALLER_BLOB" '
+      .base_tree == $base and
+      .tree == [
+        {path:".github/workflows/enforce-repo-settings.yml",mode:"100644",type:"blob",sha:$caller},
+        {path:".github/workflows/super-linter.yml",mode:"100644",type:"blob",sha:$lint},
+        {path:".github/workflows/require-linked-issue.yml",mode:"100644",type:"blob",sha:$linked}
+      ]
+    ' "$input" >/dev/null || exit 65
+    touch "$FAKE_STATE/refresh-tree-created"
+    jq -cn --arg sha "$REFRESH_TREE" '{sha:$sha}'
+    ;;
+  'api repos/f5-sales-demo/example/git/commits')
+    input=""
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = "--input" ]; then
+        input="$2"
+        break
+      fi
+      shift
+    done
+    [ -n "$input" ] || exit 64
+    jq -e --arg tree "$REFRESH_TREE" --arg head "$BRANCH_HEAD" --arg base "$BASE_SHA" '
+      .tree == $tree and .parents == [$head, $base]
+    ' "$input" >/dev/null || exit 65
+    [ -f "$FAKE_STATE/refresh-tree-created" ] || exit 65
+    touch "$FAKE_STATE/refresh-commit-created"
+    jq -cn --arg sha "$REFRESH_HEAD" --arg tree "$REFRESH_TREE" \
+      --arg head "$BRANCH_HEAD" --arg base "$BASE_SHA" \
+      '{sha:$sha,tree:{sha:$tree},parents:[{sha:$head},{sha:$base}]}'
+    ;;
+  'api repos/f5-sales-demo/example/git/refs/heads/sync/exact-caller-'*)
+    input=""
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = "--input" ]; then
+        input="$2"
+        break
+      fi
+      shift
+    done
+    [ -n "$input" ] || exit 64
+    jq -e --arg sha "$REFRESH_HEAD" '.sha == $sha and .force == false' \
+      "$input" >/dev/null || exit 65
+    [ -f "$FAKE_STATE/refresh-commit-created" ] || exit 65
+    touch "$FAKE_STATE/refreshed"
+    jq -cn --arg sha "$REFRESH_HEAD" '{object:{sha:$sha}}'
     ;;
   'api repos/f5-sales-demo/example/git/refs') touch "$FAKE_STATE/branch" ;;
   'api repos/f5-sales-demo/example/contents/.github/workflows/enforce-repo-settings.yml')
@@ -473,8 +542,19 @@ case "$1 $endpoint" in
         '$files + [{filename:".github/workflows/require-linked-issue.yml",sha:$sha,status:"modified"}]')
       count=$((count + 1))
     fi
-    jq -cn --argjson count "$count" --argjson files "$files" \
-      '{status:"ahead",ahead_by:$count,total_commits:$count,commits:[range(0;$count)|{}],files:$files}'
+    if [ "${FAKE_DIVERGED_BASE:-}" = 1 ] && [ ! -f "$FAKE_STATE/refreshed" ]; then
+      jq -cn --argjson count "$count" --argjson files "$files" \
+        '{status:"diverged",ahead_by:$count,behind_by:1,total_commits:$count,commits:[range(0;$count)|{}],files:$files}'
+    elif [ -f "$FAKE_STATE/refreshed" ]; then
+      refreshed_count=$((count + 1))
+      jq -cn --arg base "$BASE_SHA" --argjson count "$refreshed_count" \
+        --argjson files "$files" \
+        '{status:"ahead",ahead_by:$count,behind_by:0,total_commits:$count,
+          merge_base_commit:{sha:$base},commits:[range(0;$count)|{}],files:$files}'
+    else
+      jq -cn --argjson count "$count" --argjson files "$files" \
+        '{status:"ahead",ahead_by:$count,behind_by:0,total_commits:$count,commits:[range(0;$count)|{}],files:$files}'
+    fi
     ;;
   'api repos/f5-sales-demo/example/pulls?state=open&per_page=100')
     if [ -f "$FAKE_STATE/duplicate-current-open" ]; then
@@ -491,7 +571,9 @@ case "$1 $endpoint" in
         --arg branch "sync/exact-caller-${OTHER_SHA}${OTHER_SHA}${OTHER_SHA}" \
         '[], [{number: 9, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/current-pr" ]; then
-      jq -cn --arg sha "$BRANCH_HEAD" --arg branch "$EXPECTED_BRANCH" \
+      current_head="$BRANCH_HEAD"
+      [ ! -f "$FAKE_STATE/refreshed" ] || current_head="$REFRESH_HEAD"
+      jq -cn --arg sha "$current_head" --arg branch "$EXPECTED_BRANCH" \
         --arg repo "${GITHUB_REPOSITORY%/*}/example" \
         '[{number: 42, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/old-open" ]; then
@@ -538,8 +620,14 @@ case "$1 $endpoint" in
         '$files + [{path:".github/workflows/require-linked-issue.yml"}]')
       count=$((count + 1))
     fi
-    jq -cn --arg branch "$EXPECTED_BRANCH" --arg sha "$BRANCH_HEAD" \
-      --argjson count "$count" --argjson files "$files" \
+    current_head="$BRANCH_HEAD"
+    commit_count="$count"
+    if [ -f "$FAKE_STATE/refreshed" ]; then
+      current_head="$REFRESH_HEAD"
+      commit_count=$((commit_count + 1))
+    fi
+    jq -cn --arg branch "$EXPECTED_BRANCH" --arg sha "$current_head" \
+      --argjson count "$commit_count" --argjson files "$files" \
       '{baseRefName:"main",headRefName:$branch,headRefOid:$sha,commits:[range(0;$count)|{}],files:$files}'
     ;;
   'pr merge')
@@ -574,11 +662,14 @@ run_bootstrap() {
     SOURCE_SHA="$SOURCE_SHA" \
     PIN_SHA="$PIN_SHA" \
     BASE_SHA="$BASE_SHA" \
+    BASE_TREE="$BASE_TREE" \
     OTHER_SHA="$OTHER_SHA" \
     OLD_BLOB="$OLD_BLOB" \
     ENFORCE_BLOB="$ENFORCE_BLOB" \
     SYNC_BLOB="$SYNC_BLOB" \
     BRANCH_HEAD="$BRANCH_HEAD" \
+    REFRESH_TREE="$REFRESH_TREE" \
+    REFRESH_HEAD="$REFRESH_HEAD" \
     EXPECTED_BRANCH="sync/exact-caller-${CALLER_BLOB}${LINT_CALLER_BLOB}${LINKED_CALLER_BLOB}" \
     CALLER_BLOB="$CALLER_BLOB" \
     CALLER_CONTENT="$CALLER_CONTENT" \
@@ -591,6 +682,7 @@ run_bootstrap() {
     DOWNSTREAM_LINKED_BLOB="${DOWNSTREAM_LINKED_BLOB:-$LINKED_CALLER_BLOB}" \
     FAKE_READ_ERROR="${FAKE_READ_ERROR:-}" \
     FAKE_MAIN_ADVANCE_AT="${FAKE_MAIN_ADVANCE_AT:-}" \
+    FAKE_DIVERGED_BASE="${FAKE_DIVERGED_BASE:-}" \
     FAKE_MALFORMED_CALLER="${FAKE_MALFORMED_CALLER:-}" \
     FAKE_MISSING_WORKFLOW="${FAKE_MISSING_WORKFLOW:-}" \
     FAKE_MERGE_LANDS="${FAKE_MERGE_LANDS:-}" \
@@ -665,6 +757,52 @@ if [ "$rc" != 83 ] ||
   exit 1
 fi
 echo "[OK] recovery adopts the existing stable exact-caller receipt without churn"
+
+state="$WORK/state-diverged-stable-receipt"
+mkdir -p "$state"
+touch "$state/disabled" "$state/branch" "$state/current-pr" \
+  "$state/updated" "$state/lint-updated" "$state/linked-updated"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
+FAKE_DIVERGED_BASE=1
+set +e
+run_bootstrap "$state" >"$WORK/diverged-stable-receipt.out" \
+  2>"$WORK/diverged-stable-receipt.err"
+rc=$?
+set -e
+if [ "$rc" != 83 ] ||
+  ! grep -q 'git/trees --method POST' "$WORK/gh.log" ||
+  ! grep -q 'git/commits --method POST' "$WORK/gh.log" ||
+  ! grep -q 'git/refs/heads/sync/exact-caller-.* --method PATCH' "$WORK/gh.log" ||
+  ! grep -q -- "--match-head-commit $REFRESH_HEAD" "$WORK/gh.log" ||
+  grep -qE '^pr (close|create) |(^|[[:space:]])--force([[:space:]]|$)|"force"[[:space:]]*:[[:space:]]*true' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] protected-main drift did not fast-forward the stable exact-caller owner"
+  cat "$WORK/diverged-stable-receipt.err"
+  sed 's/^/  log: /' "$WORK/gh.log"
+  exit 1
+fi
+echo "[OK] protected-main drift fast-forwards one exact stable owner without force"
+
+: >"$WORK/gh.log"
+set +e
+run_bootstrap "$state" >"$WORK/adopt-refreshed-stable-receipt.out" \
+  2>"$WORK/adopt-refreshed-stable-receipt.err"
+rc=$?
+set -e
+unset FAKE_DIVERGED_BASE DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINKED_BLOB
+if [ "$rc" != 83 ] ||
+  grep -qE '^pr (close|create) |git/(trees|commits) --method POST|git/refs/heads/.* --method PATCH' \
+    "$WORK/gh.log" ||
+  ! grep -q -- "--match-head-commit $REFRESH_HEAD" "$WORK/gh.log"; then
+  echo "[FAIL] recovery did not idempotently adopt the refreshed stable owner"
+  cat "$WORK/adopt-refreshed-stable-receipt.err"
+  sed 's/^/  log: /' "$WORK/gh.log"
+  exit 1
+fi
+echo "[OK] recovery adopts the refreshed stable owner without another mutation"
 
 state="$WORK/state-stale-required-checks"
 mkdir -p "$state"

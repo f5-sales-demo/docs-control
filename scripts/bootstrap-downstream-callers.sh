@@ -999,6 +999,8 @@ bootstrap_one() {
   local expected_change_count
   local pr_number pr_url created_pr_number compare_file pr_file verified_head verified_blob
   local verified_lint_blob verified_linked_blob transition_checks
+  local base_commit_file base_tree_sha refresh_tree_file refresh_tree_sha refresh_commit_file
+  local refresh_head refresh_ref_file current_base_sha current_branch_head
   slug="${owner}/${name}"
 
   assert_source_current
@@ -1201,12 +1203,116 @@ bootstrap_one() {
 
   compare_file="$work/compare-${name}.json"
   gh api "repos/${slug}/compare/${base_sha}...${branch_head}" >"$compare_file"
+  if jq -e '.status == "diverged"' "$compare_file" >/dev/null; then
+    if [ -z "$bootstrap_pr_number" ] || [ "$bootstrap_pr_head_oid" != "$branch_head" ]; then
+      echo "[ERROR] Diverged bootstrap branch has no verified stable PR owner for ${name}" >&2
+      return 1
+    fi
+    if ! jq -e --arg path "$caller_path" --arg blob "$expected_blob" \
+      --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
+      --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" \
+      --argjson change_count "$expected_change_count" '
+      .status == "diverged" and .ahead_by > 0 and .behind_by > 0 and
+      (.files | length) == $change_count and
+      all(.files[];
+        ((.filename == $path and .sha == $blob) or
+         (.filename == $lint_path and .sha == $lint_blob) or
+         (.filename == $linked_path and .sha == $linked_blob)) and
+        (.status == "added" or .status == "modified"))
+    ' "$compare_file" >/dev/null; then
+      echo "[ERROR] Diverged bootstrap branch contains an unexpected diff for ${name}" >&2
+      return 1
+    fi
+
+    base_commit_file="$work/base-commit-${name}.json"
+    gh api "repos/${slug}/git/commits/${base_sha}" >"$base_commit_file"
+    if ! jq -e --arg sha "$base_sha" '
+      .sha == $sha and
+      (.tree.sha | type == "string" and test("^[0-9a-f]{40}$"))
+    ' "$base_commit_file" >/dev/null; then
+      echo "[ERROR] Protected-main commit receipt is malformed for ${name}" >&2
+      return 1
+    fi
+    base_tree_sha=$(jq -r '.tree.sha' "$base_commit_file")
+    jq -n --arg base_tree "$base_tree_sha" \
+      --arg path "$caller_path" --arg blob "$expected_blob" \
+      --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
+      --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" '
+      {
+        base_tree: $base_tree,
+        tree: [
+          {path: $path, mode: "100644", type: "blob", sha: $blob},
+          {path: $lint_path, mode: "100644", type: "blob", sha: $lint_blob},
+          {path: $linked_path, mode: "100644", type: "blob", sha: $linked_blob}
+        ]
+      }
+    ' >"$work/refresh-tree-${name}.json"
+    refresh_tree_file="$work/refresh-tree-response-${name}.json"
+    gh api "repos/${slug}/git/trees" --method POST \
+      --input "$work/refresh-tree-${name}.json" >"$refresh_tree_file"
+    if ! jq -e '.sha | type == "string" and test("^[0-9a-f]{40}$")' \
+      "$refresh_tree_file" >/dev/null; then
+      echo "[ERROR] Exact refresh tree receipt is malformed for ${name}" >&2
+      return 1
+    fi
+    refresh_tree_sha=$(jq -r '.sha' "$refresh_tree_file")
+
+    assert_source_current
+    current_base_sha=$(gh api "repos/${slug}/git/ref/heads/${default_branch}" --jq '.object.sha')
+    current_branch_head=$(gh api "repos/${slug}/git/ref/heads/${branch}" --jq '.object.sha')
+    if [ "$current_base_sha" != "$base_sha" ] || [ "$current_branch_head" != "$branch_head" ]; then
+      echo "[ERROR] Exact refresh ownership changed before commit creation for ${name}" >&2
+      return 1
+    fi
+    jq -n --arg tree "$refresh_tree_sha" --arg head "$branch_head" --arg base "$base_sha" '
+      {
+        message: "chore(governance): refresh exact managed callers on protected main",
+        tree: $tree,
+        parents: [$head, $base]
+      }
+    ' >"$work/refresh-commit-${name}.json"
+    refresh_commit_file="$work/refresh-commit-response-${name}.json"
+    gh api "repos/${slug}/git/commits" --method POST \
+      --input "$work/refresh-commit-${name}.json" >"$refresh_commit_file"
+    if ! jq -e --arg tree "$refresh_tree_sha" --arg head "$branch_head" --arg base "$base_sha" '
+      (.sha | type == "string" and test("^[0-9a-f]{40}$")) and
+      .tree.sha == $tree and [.parents[].sha] == [$head, $base]
+    ' "$refresh_commit_file" >/dev/null; then
+      echo "[ERROR] Exact refresh commit receipt is malformed for ${name}" >&2
+      return 1
+    fi
+    refresh_head=$(jq -r '.sha' "$refresh_commit_file")
+
+    assert_source_current
+    current_base_sha=$(gh api "repos/${slug}/git/ref/heads/${default_branch}" --jq '.object.sha')
+    current_branch_head=$(gh api "repos/${slug}/git/ref/heads/${branch}" --jq '.object.sha')
+    if [ "$current_base_sha" != "$base_sha" ] || [ "$current_branch_head" != "$branch_head" ]; then
+      echo "[ERROR] Exact refresh ownership changed before branch update for ${name}" >&2
+      return 1
+    fi
+    jq -n --arg sha "$refresh_head" '{sha: $sha, force: false}' \
+      >"$work/refresh-ref-${name}.json"
+    refresh_ref_file="$work/refresh-ref-response-${name}.json"
+    gh api "repos/${slug}/git/refs/heads/${branch}" --method PATCH \
+      --input "$work/refresh-ref-${name}.json" >"$refresh_ref_file"
+    if ! jq -e --arg sha "$refresh_head" '.object.sha == $sha' \
+      "$refresh_ref_file" >/dev/null; then
+      echo "[ERROR] Exact refresh branch receipt is malformed for ${name}" >&2
+      return 1
+    fi
+    branch_head=$(gh api "repos/${slug}/git/ref/heads/${branch}" --jq '.object.sha')
+    if [ "$branch_head" != "$refresh_head" ]; then
+      echo "[ERROR] Exact refresh branch did not reach its verified head for ${name}" >&2
+      return 1
+    fi
+    gh api "repos/${slug}/compare/${base_sha}...${branch_head}" >"$compare_file"
+  fi
   if ! jq -e --arg path "$caller_path" --arg blob "$expected_blob" \
     --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
     --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" \
     --argjson change_count "$expected_change_count" '
-    .status == "ahead" and .ahead_by == $change_count and
-    .total_commits == $change_count and (.commits | length) == $change_count and
+    .status == "ahead" and .behind_by == 0 and .ahead_by >= $change_count and
+    .total_commits == .ahead_by and (.commits | length) == .total_commits and
     (.files | length) == $change_count and
     all(.files[];
       ((.filename == $path and .sha == $blob) or
@@ -1249,7 +1355,7 @@ bootstrap_one() {
     --arg base "$default_branch" --arg head "$branch" --arg oid "$branch_head" \
     --argjson change_count "$expected_change_count" '
     .baseRefName == $base and .headRefName == $head and .headRefOid == $oid and
-    (.commits | length) == $change_count and (.files | length) == $change_count and
+    (.commits | length) >= $change_count and (.files | length) == $change_count and
     all(.files[]; .path == $path or .path == $lint_path or .path == $linked_path)
   ' "$pr_file" >/dev/null; then
     echo "[ERROR] Bootstrap PR for ${name} contains an unexpected diff" >&2
