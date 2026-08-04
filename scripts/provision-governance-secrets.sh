@@ -6,6 +6,7 @@ set -euo pipefail
 
 downstream_config="${DOWNSTREAM_CONFIG:-.github/config/downstream-repos.json}"
 owner="${GITHUB_REPOSITORY_OWNER:-}"
+request_delay_seconds="${PROVISION_REQUEST_DELAY_SECONDS:-1}"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
@@ -19,6 +20,11 @@ if [ -z "${REPO_SETTINGS_TOKEN:-}" ]; then
 fi
 if [ -z "${REPO_SYNC_TOKEN:-}" ]; then
   echo "[ERROR] REPO_SYNC_TOKEN is required as a repository secret source" >&2
+  exit 1
+fi
+if ! printf '%s' "$request_delay_seconds" | grep -qE '^[0-9]+$' ||
+  [ "$request_delay_seconds" -gt 60 ]; then
+  echo "[ERROR] Repository-secret request delay must be between 0 and 60 seconds" >&2
   exit 1
 fi
 if ! jq -e '
@@ -79,6 +85,8 @@ inventory_has() {
     jq -e --arg name "$name" 'any(.[]; .name == $name)' >/dev/null
 }
 
+repository_count=$(jq 'length' "$downstream_config")
+repository_index=0
 while IFS= read -r name; do
   slug="${owner}/${name}"
   set +e
@@ -126,4 +134,9 @@ while IFS= read -r name; do
     fi
   done
   printf '[OK] %s governance repository secrets are present\n' "$slug"
+  repository_index=$((repository_index + 1))
+  if [ "$repository_index" -lt "$repository_count" ] &&
+    [ "$request_delay_seconds" -gt 0 ]; then
+    sleep "$request_delay_seconds"
+  fi
 done < <(jq -r '.[]' "$downstream_config")
