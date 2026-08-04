@@ -12,6 +12,7 @@ repo_settings_config="${REPO_SETTINGS_CONFIG:-.github/config/repo-settings.json}
 caller_path=".github/workflows/enforce-repo-settings.yml"
 lint_caller_path=".github/workflows/super-linter.yml"
 linked_caller_path=".github/workflows/require-linked-issue.yml"
+checkov_path=".checkov.yaml"
 linked_context="Check linked issues"
 legacy_linked_context="check / Check linked issues"
 wait_seconds="${BOOTSTRAP_WAIT_SECONDS:-1800}"
@@ -62,6 +63,26 @@ if ! jq -e '
       length == (unique | length)))
 ' "$repo_settings_config" >/dev/null; then
   echo "[ERROR] Repository settings contain an invalid required-check contract" >&2
+  exit 1
+fi
+if ! jq -e '
+  (.repository | type == "object") and
+  (.repository.allow_squash_merge == true) and
+  (.repository.allow_auto_merge == true) and
+  (.repository.delete_branch_on_merge == true) and
+  ([.branch_protection[] | select(.branch == "main")][0] |
+    (.enforce_admins | type == "boolean") and
+    (.required_pull_request_reviews == null) and
+    (.restrictions == null) and
+    (.required_linear_history | type == "boolean") and
+    (.allow_force_pushes | type == "boolean") and
+    (.allow_deletions | type == "boolean") and
+    (.block_creations | type == "boolean") and
+    (.required_conversation_resolution | type == "boolean") and
+    (.lock_branch | type == "boolean") and
+    (.allow_fork_syncing | type == "boolean"))
+' "$repo_settings_config" >/dev/null; then
+  echo "[ERROR] First-repository controls must use GitHub Free-compatible classic protection" >&2
   exit 1
 fi
 if ! rollout_state=$(jq -er '.state | select(. == "quiesced" or . == "active")' \
@@ -229,6 +250,143 @@ transition_required_checks_for_repo() {
       .contexts = ([.contexts[] | select(. != $current)] + [$legacy] | unique | sort)
     end
   '
+}
+
+first_transition_required_checks_for_repo() {
+  local name="$1" desired
+  desired=$(required_checks_for_repo "$name")
+  printf '%s' "$desired" | jq -ce \
+    --arg current "$linked_context" --arg legacy "$legacy_linked_context" '
+    if ([.contexts[] | select(. == $current)] | length) != 1 or
+      ([.contexts[] | select(. == $legacy)] | length) != 0 then
+      error("authoritative first-repository linked context is not unique")
+    else
+      .contexts = [.contexts[] | select(. != $current)] |
+      if (.contexts | length) == 0 then error("first-repository transition has no real checks")
+      else . end
+    end
+  '
+}
+
+first_transition_protection_for_repo() {
+  local name="$1" checks
+  checks=$(first_transition_required_checks_for_repo "$name") || return 1
+  jq -ce --argjson checks "$checks" '
+    [.branch_protection[] | select(.branch == "main")][0] |
+    del(.branch) |
+    .required_status_checks = $checks |
+    .required_status_checks |= del(.self_contexts)
+  ' "$repo_settings_config"
+}
+
+normalize_desired_bootstrap_protection() {
+  jq -ce '{
+    enforce_admins: .enforce_admins,
+    required_status_checks: {
+      strict: .required_status_checks.strict,
+      contexts: (.required_status_checks.contexts | unique | sort)
+    },
+    required_pull_request_reviews: .required_pull_request_reviews,
+    restrictions: .restrictions,
+    required_linear_history: .required_linear_history,
+    allow_force_pushes: .allow_force_pushes,
+    allow_deletions: .allow_deletions,
+    block_creations: .block_creations,
+    required_conversation_resolution: .required_conversation_resolution,
+    lock_branch: .lock_branch,
+    allow_fork_syncing: .allow_fork_syncing
+  }'
+}
+
+normalize_current_bootstrap_protection() {
+  jq -ce '{
+    enforce_admins: .enforce_admins.enabled,
+    required_status_checks: {
+      strict: .required_status_checks.strict,
+      contexts: (.required_status_checks.contexts | unique | sort)
+    },
+    required_pull_request_reviews: .required_pull_request_reviews,
+    restrictions: .restrictions,
+    required_linear_history: .required_linear_history.enabled,
+    allow_force_pushes: .allow_force_pushes.enabled,
+    allow_deletions: .allow_deletions.enabled,
+    block_creations: .block_creations.enabled,
+    required_conversation_resolution: .required_conversation_resolution.enabled,
+    lock_branch: .lock_branch.enabled,
+    allow_fork_syncing: .allow_fork_syncing.enabled
+  }'
+}
+
+reconcile_first_repo_controls() {
+  local name="$1" slug desired_repo current_repo verified_repo repo_payload
+  local desired_protection desired_state current_protection current_state rc protection_payload
+  slug="${owner}/${name}"
+  desired_repo=$(jq -c '{
+    allow_squash_merge: .repository.allow_squash_merge,
+    allow_auto_merge: .repository.allow_auto_merge,
+    delete_branch_on_merge: .repository.delete_branch_on_merge
+  }' "$repo_settings_config")
+  current_repo=$(GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api "repos/${slug}")
+  if ! printf '%s' "$current_repo" | jq -e '
+    type == "object" and
+    (.allow_squash_merge | type == "boolean") and
+    (.allow_auto_merge | type == "boolean") and
+    (.delete_branch_on_merge | type == "boolean")
+  ' >/dev/null; then
+    echo "[ERROR] Repository merge settings response is malformed for ${slug}" >&2
+    return 1
+  fi
+  if [ "$(printf '%s' "$current_repo" | jq -c '{allow_squash_merge,allow_auto_merge,delete_branch_on_merge}')" != "$desired_repo" ]; then
+    assert_source_current
+    repo_payload="$work/first-repo-settings-${name}.json"
+    printf '%s\n' "$desired_repo" >"$repo_payload"
+    GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api "repos/${slug}" --method PATCH \
+      --input "$repo_payload" >/dev/null
+  fi
+  verified_repo=$(GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api "repos/${slug}")
+  if ! printf '%s' "$verified_repo" | jq -e --argjson desired "$desired_repo" '
+    {allow_squash_merge,allow_auto_merge,delete_branch_on_merge} == $desired
+  ' >/dev/null; then
+    echo "[ERROR] Repository merge settings did not settle exactly for ${slug}" >&2
+    return 1
+  fi
+
+  desired_protection=$(first_transition_protection_for_repo "$name") || {
+    echo "[ERROR] Could not derive first-repository protection for ${slug}" >&2
+    return 1
+  }
+  desired_state=$(printf '%s' "$desired_protection" | normalize_desired_bootstrap_protection)
+  set +e
+  current_protection=$(api_value_or_404 \
+    "repos/${slug}/branches/main/protection" '.' "$REPO_SETTINGS_TOKEN")
+  rc=$?
+  set -e
+  case "$rc" in
+  0)
+    current_state=$(printf '%s' "$current_protection" | normalize_current_bootstrap_protection) || {
+      echo "[ERROR] Branch-protection response is malformed for ${slug}" >&2
+      return 1
+    }
+    ;;
+  44) current_state="" ;;
+  84) return 84 ;;
+  *) return 1 ;;
+  esac
+  if [ "$current_state" != "$desired_state" ]; then
+    assert_source_current
+    protection_payload="$work/first-repo-protection-${name}.json"
+    printf '%s\n' "$desired_protection" >"$protection_payload"
+    GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
+      "repos/${slug}/branches/main/protection" --method PUT \
+      --input "$protection_payload" >/dev/null
+  fi
+  verified_protection=$(api_value_or_404 \
+    "repos/${slug}/branches/main/protection" '.' "$REPO_SETTINGS_TOKEN") || return $?
+  if [ "$(printf '%s' "$verified_protection" | normalize_current_bootstrap_protection)" != "$desired_state" ]; then
+    echo "[ERROR] First-repository protection did not settle exactly for ${slug}" >&2
+    return 1
+  fi
+  echo "[OK] First-repository merge controls are exact for ${slug}"
 }
 
 reconcile_required_checks_to() {
@@ -488,9 +646,8 @@ dispatch_and_verify_linked_status() {
 }
 
 recover_linked_transition_receipt() {
-  local name="$1" slug expected_ref response candidate pr_number head actual
+  local name="$1" slug response candidate pr_number head actual candidate_ref
   slug="${owner}/${name}"
-  expected_ref="sync/exact-caller-${expected_blob}${expected_lint_blob}${expected_linked_blob}"
   response=$(mktemp "$work/merged-bootstrap-prs.XXXXXX")
   gh api "repos/${slug}/pulls?state=closed&sort=updated&direction=desc&per_page=100" \
     >"$response"
@@ -507,10 +664,11 @@ recover_linked_transition_receipt() {
     rm -f "$response"
     return 1
   fi
-  candidate=$(jq -c --arg expected_ref "$expected_ref" --arg slug "$slug" '
+  candidate=$(jq -c --arg standard_ref "$standard_branch" --arg first_ref "$first_branch" \
+    --arg slug "$slug" '
     [.[] | select(
       .merged_at != null and .base.ref == "main" and .head.repo.full_name == $slug and
-      .head.ref == $expected_ref)] |
+      (.head.ref == $standard_ref or .head.ref == $first_ref))] |
     sort_by(.merged_at) | reverse | first // empty
   ' "$response")
   rm -f "$response"
@@ -520,6 +678,7 @@ recover_linked_transition_receipt() {
   fi
   pr_number=$(printf '%s' "$candidate" | jq -r '.number')
   head=$(printf '%s' "$candidate" | jq -r '.head.sha')
+  candidate_ref=$(printf '%s' "$candidate" | jq -r '.head.ref')
   if ! [[ "$head" =~ ^[0-9a-f]{40}$ ]]; then
     echo "[ERROR] Merged bootstrap receipt has an invalid head for ${slug}" >&2
     return 1
@@ -530,6 +689,10 @@ recover_linked_transition_receipt() {
   [ "$actual" = "$expected_lint_blob" ] || return 1
   actual=$(gh api "repos/${slug}/contents/${linked_caller_path}?ref=${head}" --jq '.sha')
   [ "$actual" = "$expected_linked_blob" ] || return 1
+  if [ "$candidate_ref" = "$first_branch" ]; then
+    actual=$(gh api "repos/${slug}/contents/${checkov_path}?ref=${head}" --jq '.sha')
+    [ "$actual" = "$expected_checkov_blob" ] || return 1
+  fi
   jq -n --argjson pr "$pr_number" --arg head "$head" \
     '{pull_request: $pr, head: $head}' >"$work/linked-transition-${name}.json"
 }
@@ -943,7 +1106,39 @@ if [ "$(git hash-object "$work/linked-caller.yml")" != "$expected_linked_blob" ]
   echo "[ERROR] Linked-issue evaluator bytes do not match the GitHub blob receipt" >&2
   exit 1
 fi
-branch="sync/exact-caller-${expected_blob}${expected_lint_blob}${expected_linked_blob}"
+set +e
+gh api \
+  "repos/${repository}/contents/.checkov.yaml?ref=${source_sha}" \
+  >"$work/checkov.json"
+rc=$?
+set -e
+if [ "$rc" -eq 84 ]; then
+  exit 84
+fi
+if [ "$rc" -ne 0 ]; then
+  echo "[ERROR] Could not fetch the exact Checkov policy" >&2
+  exit 1
+fi
+if ! jq -e '
+  .type == "file" and .encoding == "base64" and
+  (.sha | type == "string" and test("^[0-9a-f]{40}$")) and
+  (.content | type == "string" and length > 0)
+' "$work/checkov.json" >/dev/null; then
+  echo "[ERROR] Checkov policy response is malformed" >&2
+  exit 1
+fi
+expected_checkov_blob=$(jq -r '.sha' "$work/checkov.json")
+jq -r '.content' "$work/checkov.json" | tr -d '\n' >"$work/checkov.b64"
+if ! base64 -d <"$work/checkov.b64" >"$work/checkov.yaml"; then
+  echo "[ERROR] Checkov policy response contains invalid base64" >&2
+  exit 1
+fi
+if [ "$(git hash-object "$work/checkov.yaml")" != "$expected_checkov_blob" ]; then
+  echo "[ERROR] Checkov policy bytes do not match the GitHub blob receipt" >&2
+  exit 1
+fi
+standard_branch="sync/exact-caller-${expected_blob}${expected_lint_blob}${expected_linked_blob}"
+first_branch="${standard_branch}-${expected_checkov_blob}"
 
 if [ "$callers_exact" = true ]; then
   finalization_pending=false
@@ -996,9 +1191,10 @@ echo "[OK] Downstream enforcement workflows are disabled with no active runs"
 bootstrap_one() {
   local name="$1" slug default_branch base_sha main_sha actual_blob actual_lint_blob
   local actual_linked_blob rc branch_head branch_blob branch_lint_blob branch_linked_blob
-  local expected_change_count
-  local pr_number pr_url created_pr_number compare_file pr_file verified_head verified_blob
-  local verified_lint_blob verified_linked_blob transition_checks
+  local actual_checkov_blob="" branch_checkov_blob="" expected_change_count first_repo=false
+  local branch="$standard_branch"
+  local pr_number pr_url pr_body created_pr_number compare_file pr_file verified_head verified_blob
+  local verified_lint_blob verified_linked_blob verified_checkov_blob transition_checks
   local base_commit_file base_tree_sha refresh_tree_file refresh_tree_sha refresh_commit_file
   local refresh_head refresh_ref_file current_base_sha current_branch_head
   slug="${owner}/${name}"
@@ -1021,7 +1217,7 @@ bootstrap_one() {
       return 1
     fi
     ;;
-  44) ;;
+  44) actual_blob="" ;;
   84) return 84 ;;
   *) return 1 ;;
   esac
@@ -1057,6 +1253,27 @@ bootstrap_one() {
   84) return 84 ;;
   *) return 1 ;;
   esac
+  if [ -z "$actual_blob" ] && [ -z "$actual_lint_blob" ] && [ -z "$actual_linked_blob" ]; then
+    first_repo=true
+    branch="$first_branch"
+    touch "$work/first-repo-${name}"
+    set +e
+    actual_checkov_blob=$(api_value_or_404 \
+      "repos/${slug}/contents/${checkov_path}?ref=${main_sha}" '.sha')
+    rc=$?
+    set -e
+    case "$rc" in
+    0)
+      if ! printf '%s' "$actual_checkov_blob" | grep -qE '^[0-9a-f]{40}$'; then
+        echo "[ERROR] Invalid live Checkov policy blob for ${name}" >&2
+        return 1
+      fi
+      ;;
+    44) actual_checkov_blob="" ;;
+    84) return 84 ;;
+    *) return 1 ;;
+    esac
+  fi
   if [ "$actual_blob" = "$expected_blob" ] &&
     [ "$actual_lint_blob" = "$expected_lint_blob" ] &&
     [ "$actual_linked_blob" = "$expected_linked_blob" ]; then
@@ -1066,6 +1283,9 @@ bootstrap_one() {
   [ "$actual_blob" = "$expected_blob" ] || expected_change_count=$((expected_change_count + 1))
   [ "$actual_lint_blob" = "$expected_lint_blob" ] || expected_change_count=$((expected_change_count + 1))
   [ "$actual_linked_blob" = "$expected_linked_blob" ] || expected_change_count=$((expected_change_count + 1))
+  if [ "$first_repo" = true ] && [ "$actual_checkov_blob" != "$expected_checkov_blob" ]; then
+    expected_change_count=$((expected_change_count + 1))
+  fi
 
   default_branch=$(gh api "repos/${slug}" --jq '.default_branch')
   if [ "$default_branch" != "main" ]; then
@@ -1076,6 +1296,10 @@ bootstrap_one() {
   if ! printf '%s' "$base_sha" | grep -qE '^[0-9a-f]{40}$'; then
     echo "[ERROR] Invalid default-branch receipt for ${name}" >&2
     return 1
+  fi
+
+  if [ "$first_repo" = true ]; then
+    reconcile_first_repo_controls "$name"
   fi
 
   reconcile_bootstrap_prs "$slug" "$branch"
@@ -1153,9 +1377,29 @@ bootstrap_one() {
   *) return 1 ;;
   esac
 
+  if [ "$first_repo" = true ]; then
+    set +e
+    branch_checkov_blob=$(api_value_or_404 \
+      "repos/${slug}/contents/${checkov_path}?ref=${branch_head}" '.sha')
+    rc=$?
+    set -e
+    case "$rc" in
+    0)
+      if ! printf '%s' "$branch_checkov_blob" | grep -qE '^[0-9a-f]{40}$'; then
+        echo "[ERROR] Invalid bootstrap Checkov policy blob for ${name}" >&2
+        return 1
+      fi
+      ;;
+    44) branch_checkov_blob="" ;;
+    84) return 84 ;;
+    *) return 1 ;;
+    esac
+  fi
+
   if { [ "$branch_blob" != "$expected_blob" ] ||
     [ "$branch_lint_blob" != "$expected_lint_blob" ] ||
-    [ "$branch_linked_blob" != "$expected_linked_blob" ]; } &&
+    [ "$branch_linked_blob" != "$expected_linked_blob" ] ||
+    { [ "$first_repo" = true ] && [ "$branch_checkov_blob" != "$expected_checkov_blob" ]; }; } &&
     [ "$branch_head" != "$base_sha" ]; then
     echo "[ERROR] Refusing to append to a non-exact bootstrap branch for ${name}" >&2
     return 1
@@ -1196,6 +1440,18 @@ bootstrap_one() {
       --method PUT --input "$work/update-linked-${name}.json" >/dev/null
     branch_head=$(gh api "repos/${slug}/git/ref/heads/${branch}" --jq '.object.sha')
   fi
+  if [ "$first_repo" = true ] && [ "$branch_checkov_blob" != "$expected_checkov_blob" ]; then
+    jq -n \
+      --arg message "chore(governance): bootstrap exact Checkov policy" \
+      --arg branch "$branch" \
+      --arg sha "$branch_checkov_blob" \
+      --rawfile content "$work/checkov.b64" \
+      '{message: $message, content: $content, branch: $branch, sha: $sha} |
+       if .sha == "" then del(.sha) else . end' >"$work/update-checkov-${name}.json"
+    gh api "repos/${slug}/contents/${checkov_path}" \
+      --method PUT --input "$work/update-checkov-${name}.json" >/dev/null
+    branch_head=$(gh api "repos/${slug}/git/ref/heads/${branch}" --jq '.object.sha')
+  fi
   if ! printf '%s' "$branch_head" | grep -qE '^[0-9a-f]{40}$'; then
     echo "[ERROR] Invalid exact bootstrap head for ${name}" >&2
     return 1
@@ -1211,13 +1467,16 @@ bootstrap_one() {
     if ! jq -e --arg path "$caller_path" --arg blob "$expected_blob" \
       --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
       --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" \
+      --arg checkov_path "$checkov_path" --arg checkov_blob "$expected_checkov_blob" \
+      --argjson first_repo "$first_repo" \
       --argjson change_count "$expected_change_count" '
       .status == "diverged" and .ahead_by > 0 and .behind_by > 0 and
       (.files | length) == $change_count and
       all(.files[];
         ((.filename == $path and .sha == $blob) or
          (.filename == $lint_path and .sha == $lint_blob) or
-         (.filename == $linked_path and .sha == $linked_blob)) and
+         (.filename == $linked_path and .sha == $linked_blob) or
+         ($first_repo and .filename == $checkov_path and .sha == $checkov_blob)) and
         (.status == "added" or .status == "modified"))
     ' "$compare_file" >/dev/null; then
       echo "[ERROR] Diverged bootstrap branch contains an unexpected diff for ${name}" >&2
@@ -1237,14 +1496,18 @@ bootstrap_one() {
     jq -n --arg base_tree "$base_tree_sha" \
       --arg path "$caller_path" --arg blob "$expected_blob" \
       --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
-      --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" '
+      --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" \
+      --arg checkov_path "$checkov_path" --arg checkov_blob "$expected_checkov_blob" \
+      --argjson first_repo "$first_repo" '
       {
         base_tree: $base_tree,
-        tree: [
+        tree: ([
           {path: $path, mode: "100644", type: "blob", sha: $blob},
           {path: $lint_path, mode: "100644", type: "blob", sha: $lint_blob},
           {path: $linked_path, mode: "100644", type: "blob", sha: $linked_blob}
-        ]
+        ] + (if $first_repo then
+          [{path: $checkov_path, mode: "100644", type: "blob", sha: $checkov_blob}]
+        else [] end))
       }
     ' >"$work/refresh-tree-${name}.json"
     refresh_tree_file="$work/refresh-tree-response-${name}.json"
@@ -1310,6 +1573,8 @@ bootstrap_one() {
   if ! jq -e --arg path "$caller_path" --arg blob "$expected_blob" \
     --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
     --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" \
+    --arg checkov_path "$checkov_path" --arg checkov_blob "$expected_checkov_blob" \
+    --argjson first_repo "$first_repo" \
     --argjson change_count "$expected_change_count" '
     .status == "ahead" and .behind_by == 0 and .ahead_by >= $change_count and
     .total_commits == .ahead_by and (.commits | length) == .total_commits and
@@ -1317,7 +1582,8 @@ bootstrap_one() {
     all(.files[];
       ((.filename == $path and .sha == $blob) or
        (.filename == $lint_path and .sha == $lint_blob) or
-       (.filename == $linked_path and .sha == $linked_blob)) and
+       (.filename == $linked_path and .sha == $linked_blob) or
+       ($first_repo and .filename == $checkov_path and .sha == $checkov_blob)) and
       (.status == "added" or .status == "modified"))
   ' "$compare_file" >/dev/null; then
     echo "[ERROR] Bootstrap branch for ${name} is not an exact caller update" >&2
@@ -1327,12 +1593,16 @@ bootstrap_one() {
   pr_number="$bootstrap_pr_number"
   created_pr_number=""
   if [ -z "$pr_number" ]; then
+    pr_body="Installs the exact enforcement, Super-Linter, and linked-issue workflows before fleet enforcement resumes. The sync/ branch uses the governed automation exemption from linked-issue enforcement."
+    if [ "$first_repo" = true ]; then
+      pr_body="Installs the exact enforcement, Super-Linter, linked-issue, and Checkov policy files for a first governed repository. Classic branch protection requires the two real lint contexts during bootstrap; the canonical linked-issue context is restored only after its default-branch workflow reports a real success."
+    fi
     pr_url=$(gh pr create \
       --repo "$slug" \
       --base "$default_branch" \
       --head "$branch" \
       --title "chore(governance): bootstrap exact managed callers" \
-      --body "Installs the exact enforcement, Super-Linter, and linked-issue workflows before fleet enforcement resumes. The sync/ branch uses the governed automation exemption from linked-issue enforcement.")
+      --body "$pr_body")
     pr_number=${pr_url##*/}
     created_pr_number="$pr_number"
     if ! printf '%s' "$created_pr_number" | grep -qE '^[1-9][0-9]*$'; then
@@ -1352,11 +1622,14 @@ bootstrap_one() {
     --json baseRefName,headRefName,headRefOid,files,commits >"$pr_file"
   if ! jq -e --arg path "$caller_path" --arg lint_path "$lint_caller_path" \
     --arg linked_path "$linked_caller_path" \
+    --arg checkov_path "$checkov_path" --argjson first_repo "$first_repo" \
     --arg base "$default_branch" --arg head "$branch" --arg oid "$branch_head" \
     --argjson change_count "$expected_change_count" '
     .baseRefName == $base and .headRefName == $head and .headRefOid == $oid and
     (.commits | length) >= $change_count and (.files | length) == $change_count and
-    all(.files[]; .path == $path or .path == $lint_path or .path == $linked_path)
+    all(.files[];
+      .path == $path or .path == $lint_path or .path == $linked_path or
+      ($first_repo and .path == $checkov_path))
   ' "$pr_file" >/dev/null; then
     echo "[ERROR] Bootstrap PR for ${name} contains an unexpected diff" >&2
     return 1
@@ -1392,7 +1665,16 @@ bootstrap_one() {
     echo "[ERROR] Linked-issue evaluator changed after exact PR verification for ${name}" >&2
     return 1
   fi
-  if [ "$actual_linked_blob" != "$expected_linked_blob" ]; then
+  if [ "$first_repo" = true ]; then
+    verified_checkov_blob=$(gh api \
+      "repos/${slug}/contents/${checkov_path}?ref=${verified_head}" --jq '.sha')
+    if [ "$verified_checkov_blob" != "$expected_checkov_blob" ]; then
+      echo "[ERROR] Checkov policy changed after exact PR verification for ${name}" >&2
+      return 1
+    fi
+    jq -n --argjson pr "$pr_number" --arg head "$verified_head" \
+      '{pull_request: $pr, head: $head}' >"$work/linked-transition-${name}.json"
+  elif [ "$actual_linked_blob" != "$expected_linked_blob" ]; then
     if dispatch_and_verify_linked_status "$slug" "$pr_number" "$verified_head" false; then
       rc=0
     else
@@ -1534,6 +1816,26 @@ while true; do
     84) exit 84 ;;
     *) exit 1 ;;
     esac
+
+    if [ -f "$work/first-repo-${name}" ]; then
+      set +e
+      live_checkov_blob=$(api_value_or_404 \
+        "repos/${slug}/contents/${checkov_path}?ref=${main_sha}" '.sha')
+      rc=$?
+      set -e
+      case "$rc" in
+      0)
+        if ! printf '%s' "$live_checkov_blob" | grep -qE '^[0-9a-f]{40}$'; then
+          echo "[ERROR] Invalid live Checkov policy receipt while verifying ${name}" >&2
+          exit 1
+        fi
+        [ "$live_checkov_blob" = "$expected_checkov_blob" ] || pending=$((pending + 1))
+        ;;
+      44) pending=$((pending + 1)) ;;
+      84) exit 84 ;;
+      *) exit 1 ;;
+      esac
+    fi
   done < <(jq -r '.[]' "$downstream_config")
 
   if [ "$pending" -eq 0 ]; then
