@@ -1,5 +1,5 @@
 {
-  "source_commit": "b45e9854b3672b19daf03cd1fc3e1be98f2ed6cd",
+  "source_commit": "98e52a170e3a6035e7e08e89f408143fe064aa0b",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -186,8 +186,8 @@
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "f1e74175380557a4e95e582b9776a1d4f62f2e67",
-      "size": 2761,
+      "sha": "e30d166994107cab516434f35f15d5033a581a01",
+      "size": 3093,
       "mode": "100644"
     },
     "biome.json": {
@@ -410,8 +410,8 @@
     ".github/workflows/workflow-security-audit.yml": {
       "src": "workflows/workflow-security-audit.yml",
       "dest": ".github/workflows/workflow-security-audit.yml",
-      "sha": "553ba6e8a14708dfcf066f6b56e85d50ba568f7f",
-      "size": 1656,
+      "sha": "a610438cc4c07d58440d3d644d149f137786950e",
+      "size": 1760,
       "mode": "100644"
     },
     ".github/workflows/semgrep.yml": {
