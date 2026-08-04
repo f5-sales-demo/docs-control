@@ -188,9 +188,34 @@ if [ -s "$WORK/tree_payload_helpers.sh" ]; then
     fail "4.4 production helpers assemble multiple oversized entries exactly" \
       "large entries, paths, or trailing-newline normalization were corrupted"
   fi
+
+  printf '[]\n' >"$TREE_ITEMS"
+  if declare -F append_tree_deletion >/dev/null 2>&1; then
+    append_tree_deletion "$TREE_ITEMS" ".github/workflows/code-review.yml"
+    write_tree_request "$BASE_TREE" "$TREE_ITEMS" "$TREE_REQUEST"
+    if jq -e \
+      --arg base_tree "$BASE_TREE" \
+      '.base_tree == $base_tree and
+       .tree == [{
+         "path": ".github/workflows/code-review.yml",
+         "mode": "100644",
+         "type": "blob",
+         "sha": null
+       }]' "$TREE_REQUEST" >/dev/null; then
+      pass "4.5 retired managed files produce an exact Git-tree deletion"
+    else
+      fail "4.5 retired managed files produce an exact Git-tree deletion" \
+        "the tree entry is not a sha:null deletion for the governed path"
+    fi
+  else
+    fail "4.5 retired managed files produce an exact Git-tree deletion" \
+      "the production tree helpers have no deletion operation"
+  fi
 else
   fail "4.4 production helpers assemble multiple oversized entries exactly" \
     "payload helpers were unavailable for the stress test"
+  fail "4.5 retired managed files produce an exact Git-tree deletion" \
+    "payload helpers were unavailable for the deletion test"
 fi
 
 echo ""
@@ -705,14 +730,50 @@ else
     "malformed routing can silently skip managed paths"
 fi
 
+awk '
+  /^          validate_managed_routing\(\)/ { found=1 }
+  found && /^          validate_docs_sites\(\)/ { exit }
+  found { sub(/^          /, ""); print }
+' "$SYNC" >"$WORK/managed-routing-helper.sh"
+
+if [ -s "$WORK/managed-routing-helper.sh" ]; then
+  # shellcheck source=/dev/null
+  source "$WORK/managed-routing-helper.sh"
+  VALID_ROUTING='{"source_repo":"f5-sales-demo/docs-control","files":[{"src":"workflows/example.yml","dest":".github/workflows/example.yml"}],"absent_files":[".github/workflows/retired.yml"],"skip_files":{}}'
+  OVERLAPPING_ROUTING='{"source_repo":"f5-sales-demo/docs-control","files":[{"src":"workflows/example.yml","dest":".github/workflows/example.yml"}],"absent_files":[".github/workflows/example.yml"],"skip_files":{}}'
+  DUPLICATE_ABSENT_ROUTING='{"source_repo":"f5-sales-demo/docs-control","files":[{"src":"workflows/example.yml","dest":".github/workflows/example.yml"}],"absent_files":[".github/workflows/retired.yml",".github/workflows/retired.yml"],"skip_files":{}}'
+  UNSAFE_ABSENT_ROUTING='{"source_repo":"f5-sales-demo/docs-control","files":[{"src":"workflows/example.yml","dest":".github/workflows/example.yml"}],"absent_files":["../code-review.yml"],"skip_files":{}}'
+
+  if printf '%s' "$VALID_ROUTING" | validate_managed_routing &&
+    ! printf '%s' "$OVERLAPPING_ROUTING" | validate_managed_routing &&
+    ! printf '%s' "$DUPLICATE_ABSENT_ROUTING" | validate_managed_routing &&
+    ! printf '%s' "$UNSAFE_ABSENT_ROUTING" | validate_managed_routing; then
+    pass "8.6 absent managed paths are unique, safe, and disjoint from present files"
+  else
+    fail "8.6 absent managed paths are unique, safe, and disjoint from present files" \
+      "managed-file routing accepted an ambiguous or unsafe deletion contract"
+  fi
+else
+  fail "8.6 absent managed paths are unique, safe, and disjoint from present files" \
+    "validate_managed_routing could not be exercised"
+fi
+
+if grep -q 'git ls-files --error-unmatch -- "$absent_file"' "$SYNC" &&
+  grep -q 'append_tree_deletion "$tree_items_file" "$dest_file"' "$SYNC"; then
+  pass "8.7 tracked absent files become drift and are deleted atomically"
+else
+  fail "8.7 tracked absent files become drift and are deleted atomically" \
+    "the sync does not connect tracked-file detection to the Git-tree deletion helper"
+fi
+
 if grep -q 'validate_docs_sites()' "$SYNC" &&
   grep -q '\[ERROR\] No canonical docs-site metadata' "$SYNC" &&
   ! grep -q '\[SKIP\] README.md -- no canonical docs-site metadata' "$SYNC" &&
   ! grep -qE 'README_DESC=\$\(gh api|README_(TITLE|DESC|BADGES|CONTENT)=.*\|\| true' \
     "$WORK/sync-joined.txt"; then
-  pass "8.6 missing canonical README metadata fails closed"
+  pass "8.8 missing canonical README metadata fails closed"
 else
-  fail "8.6 missing canonical README metadata fails closed" \
+  fail "8.8 missing canonical README metadata fails closed" \
     "absence of metadata can still silently opt a repository out of governance"
 fi
 
@@ -725,17 +786,17 @@ if jq -e --slurpfile sites "$REPO_ROOT/.github/config/docs-sites.json" '
       any($sites[]; .url == ("https://f5-sales-demo.github.io/" + $repo + "/llms-full.txt")))
   ' --argjson repos "$(jq -c '.' "$REPO_ROOT/.github/config/downstream-repos.json")" \
   "$REPO_ROOT/.github/config/repo-settings.json" >/dev/null; then
-  pass "8.7 every downstream README has canonical metadata or an explicit opt-out"
+  pass "8.9 every downstream README has canonical metadata or an explicit opt-out"
 else
-  fail "8.7 every downstream README has canonical metadata or an explicit opt-out" \
+  fail "8.9 every downstream README has canonical metadata or an explicit opt-out" \
     "the canonical fleet configuration contains an implicit README ownership gap"
 fi
 
 if grep -q 'select_owned_stale_issues()' "$SYNC" &&
   grep -q 'This issue was created automatically by the governance enforcement workflow' "$SYNC"; then
-  pass "8.8 stale issue closure requires an exact automation ownership marker"
+  pass "8.10 stale issue closure requires an exact automation ownership marker"
 else
-  fail "8.8 stale issue closure requires an exact automation ownership marker" \
+  fail "8.10 stale issue closure requires an exact automation ownership marker" \
     "free-text search results can still close unrelated issues"
 fi
 

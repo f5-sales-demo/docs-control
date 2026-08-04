@@ -120,12 +120,25 @@ jobs:
             exit 1
           fi
           if ! jq -e '
-            .managed_files.files | type == "array" and length > 0 and
-            all(.[];
-              (.src | type == "string" and length > 0) and
-              (.dest | type == "string" and length > 0))
+            def safe_path:
+              type == "string" and
+              length > 0 and
+              test("^[A-Za-z0-9._/-]+$") and
+              (startswith("/") | not) and
+              (split("/") | all(.[]; length > 0 and . != "." and . != ".."));
+            .managed_files as $managed |
+            ($managed.files | type == "array" and length > 0) and
+            all($managed.files[];
+              (.src | safe_path) and
+              (.dest | safe_path)) and
+            ([$managed.files[].dest] | length == (unique | length)) and
+            ($managed.absent_files | type == "array" and length > 0 and
+              all(.[]; safe_path) and
+              length == (unique | length)) and
+            (([$managed.files[].dest] + $managed.absent_files) |
+              length == (unique | length))
           ' "$CONFIG_PATH" >/dev/null; then
-            echo "[ERROR] managed_files.files must be a non-empty src/dest array" >&2
+            echo "[ERROR] Managed-file present and absent paths are invalid or overlap" >&2
             exit 1
           fi
           DUPLICATE_DESTS=$(jq -r '

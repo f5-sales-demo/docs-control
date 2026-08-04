@@ -427,21 +427,33 @@ jobs:
 
           validate_managed_routing() {
             jq -e '
+              def safe_path:
+                type == "string" and
+                length > 0 and
+                test("^[A-Za-z0-9._/-]+$") and
+                (startswith("/") | not) and
+                (split("/") | all(.[]; length > 0 and . != "." and . != ".."));
               type == "object" and
               (.source_repo | type == "string" and length > 0) and
               (.files | type == "array" and length > 0) and
               all(.files[];
-                (.src | type == "string" and length > 0) and
-                (.dest | type == "string" and length > 0) and
+                (.src | safe_path) and
+                (.dest | safe_path) and
                 ((has("only_repos") | not) or
                   (.only_repos | type == "array" and
                     all(.[]; type == "string" and test("^[A-Za-z0-9_.-]+$")) and
                     length == (unique | length)))) and
+              ([.files[].dest] | length == (unique | length)) and
+              (.absent_files | type == "array" and length > 0 and
+                all(.[]; safe_path) and
+                length == (unique | length)) and
+              (([.files[].dest] + .absent_files) |
+                length == (unique | length)) and
               (.skip_files | type == "object") and
               all(.skip_files | to_entries[];
                 (.key | test("^[A-Za-z0-9_.-]+$")) and
                 (.value | type == "array" and
-                  all(.[]; type == "string" and length > 0) and
+                  all(.[]; safe_path) and
                   length == (unique | length)))
             ' >/dev/null
           }
@@ -579,6 +591,22 @@ jobs:
             mv "$next_items_file" "$tree_items_file"
           }
 
+          append_tree_deletion() {
+            local tree_items_file="$1"
+            local dest_file="$2"
+            local next_items_file
+            next_items_file=$(mktemp "${tree_items_file}.next.XXXXXX")
+
+            if ! jq \
+              --arg path "$dest_file" \
+              '. + [{"path": $path, "mode": "100644", "type": "blob", "sha": null}]' \
+              "$tree_items_file" >"$next_items_file"; then
+              rm -f "$next_items_file"
+              return 1
+            fi
+            mv "$next_items_file" "$tree_items_file"
+          }
+
           write_tree_request() {
             local base_tree="$1"
             local tree_items_file="$2"
@@ -615,7 +643,11 @@ jobs:
               local content_file
               local file_mode
 
-              if [ "$dest_file" = ".github/dependabot.yml" ] && [ "$DEPENDABOT_DRIFT" = true ]; then
+              if echo "$ABSENT_LIST" | jq -e --arg dest "$dest_file" \
+                'index($dest) != null' >/dev/null; then
+                append_tree_deletion "$tree_items_file" "$dest_file"
+                continue
+              elif [ "$dest_file" = ".github/dependabot.yml" ] && [ "$DEPENDABOT_DRIFT" = true ]; then
                 source_file="/tmp/generated_dependabot.yml"
                 item_index=$((item_index + 1))
                 content_file="${payload_dir}/content-${item_index}"
@@ -736,6 +768,7 @@ jobs:
 
               # Per-repo opt-out list (files this repo maintains independently)
               SKIP_LIST=$(echo "$MANAGED_FILES" | jq -c --arg repo "$REPO" '.skip_files[$repo] // []')
+              ABSENT_LIST=$(echo "$MANAGED_FILES" | jq -c '.absent_files')
 
               # The manifest is required receipt evidence. Missing or malformed
               # entries fail closed; no mutable per-file fallback is admissible.
@@ -840,9 +873,8 @@ jobs:
                 fi
 
                 # Honor per-file opt-in allowlist. A managed file may carry an
-                # "only_repos" array; if present it is synced ONLY to those repos
-                # (used by the Code Review caller, which belongs only on
-                # runner-equipped repos). Files without only_repos sync to all.
+                # "only_repos" array; if present it is synced ONLY to those repos.
+                # Files without only_repos sync to all.
                 ONLY_REPOS=$(echo "$file_obj" | jq -c '.only_repos // empty')
                 if [ -n "$ONLY_REPOS" ] && ! echo "$ONLY_REPOS" | jq -e --arg r "$REPO" 'index($r) != null' >/dev/null; then
                   echo "[SKIP] ${dest} -- not in only_repos for ${REPO}"
@@ -890,6 +922,16 @@ jobs:
                     "$CANONICAL_SHA" "$CANONICAL_SIZE" "$CACHE_FILE"; then
                     exit 1
                   fi
+                fi
+              done
+
+              for absent_file in $(echo "$ABSENT_LIST" | jq -r '.[]'); do
+                if git ls-files --error-unmatch -- "$absent_file" >/dev/null 2>&1; then
+                  echo "[DRIFT] Retired managed file still tracked: ${absent_file}"
+                  DRIFT_FILES="${DRIFT_FILES}${absent_file}\n"
+                  DRIFT_COUNT=$((DRIFT_COUNT + 1))
+                else
+                  echo "[OK] Retired managed file absent: ${absent_file}"
                 fi
               done
 

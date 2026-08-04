@@ -400,8 +400,8 @@ for v in POWERSHELL HTML CPP RUST_2015 DOCKERFILE_HADOLINT BASH_EXEC EDITORCONFI
 done
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 5f: the repo-hygiene gate never executes PR-head code
-#             (REVIEWER-SPEC.md invariant 3). The Lint Code Base job holds
+# SECTION 5f: the repo-hygiene gate never executes PR-head code.
+#             The Lint Code Base job holds
 #             statuses:write and pull-requests:write, so running a PR's own
 #             copy of the script would hand those scopes to PR-authored code,
 #             and gating on the head's copy would let a PR delete the file to
@@ -677,17 +677,6 @@ if [ "$(sed -n '1p' "$REPO_ROOT/.github/PULL_REQUEST_TEMPLATE.md")" = \
 else
   fail "5b.x pull-request form scopes only its opening MD041 exception" \
     "expected an adjacent disable-next-line directive before Summary"
-fi
-
-# The review command is prompt documentation, not a GitHub form, so it keeps a
-# real H1 rather than gaining another exception.
-if awk '
-  /^---$/ { delimiters++; next }
-  delimiters >= 2 && NF { print; exit }
-' "$REPO_ROOT/plugins/f5-review/code-review-f5/commands/code-review.md" | grep -qx '# F5 code review'; then
-  pass "5b.x review command starts with a real H1"
-else
-  fail "5b.x review command starts with a real H1" "first body line is not the expected H1"
 fi
 
 # MD040 (code-fence-language) is ENFORCED, and this asserts it stays that way.

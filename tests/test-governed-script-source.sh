@@ -5,8 +5,7 @@
 # COPY of the script it executes is a trust decision with two failure modes:
 #
 #   - Running the head's copy would hand statuses:write / pull-requests:write to
-#     PR-authored code, and would let a PR delete the file to skip the gate
-#     (REVIEWER-SPEC.md invariant 3).
+#     PR-authored code, and would let a PR delete the file to skip the gate.
 #   - Running the downstream default branch's copy deadlocks: when that copy lags
 #     docs-control, the pull request that would deliver the fix is blocked by the
 #     stale copy it is trying to replace. This is what stranded i18n-core.
