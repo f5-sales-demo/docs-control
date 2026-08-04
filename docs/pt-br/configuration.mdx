@@ -1,14 +1,14 @@
 ---
 title: Referência de Configuração
-description: Referência central de configuração do repo-settings.json para aplicação, sincronização, automação de IA Antigravity e comportamento de disparo.
+description: Referência de configuração central do repo-settings.json para imposição, sincronização, automação de IA do Antigravity e comportamento de envio.
 sidebar:
   order: 3
 i18n:
-  sourceHash: "66e243c0b43d"
+  sourceHash: "6604310303ba"
   translator: "machine"
 ---
 
-O arquivo de configuração central impulsiona todo o comportamento de aplicação, sincronização e disparo. Ele reside em `.github/config/repo-settings.json` no docs-control e é buscado pelos repositórios downstream durante a execução do fluxo de trabalho.
+O arquivo de configuração central orienta todo o comportamento de imposição, sincronização e envio. Ele reside em `.github/config/repo-settings.json` no docs-control e é obtido por repositórios downstream no momento da execução do fluxo de trabalho.
 
 ```json title=".github/config/repo-settings.json"
 {
@@ -41,9 +41,9 @@ O arquivo de configuração central impulsiona todo o comportamento de aplicaç�
       "branch": "main",
       "enforce_admins": true,
       "required_status_checks": {
-        "strict": false,
+        "strict": true,
         "contexts": [
-          "check / Check linked issues",
+          "Check linked issues",
           "lint / Lint Code Base",
           "lint / Shell Unit Tests"
         ],
@@ -97,73 +97,73 @@ O arquivo de configuração central impulsiona todo o comportamento de aplicaç�
 
 ### `repository`
 
-Configurações padrão do repositório no GitHub aplicadas via `PATCH /repos/{owner}/{repo}`. Cada chave mapeia diretamente para o campo da API do GitHub. O [fluxo de trabalho de aplicação](./settings-enforcement/) compara cada chave com o valor atual do repositório e aplica o patch apenas para chaves que sofreram desvio.
+Configurações padrão do repositório do GitHub aplicadas via `PATCH /repos/{owner}/{repo}`. Cada chave é mapeada diretamente para o campo da API do GitHub. O [fluxo de trabalho de imposição](./settings-enforcement/) compara cada chave com o valor atual do repositório e aplica patches apenas nas chaves que sofreram desvio.
 
-Configurações notáveis:
+Configurações destacadas:
 
-- `delete_branch_on_merge: true` -- limpa automaticamente branches de PRs mesclados
-- `allow_update_branch: true` -- habilita o botão "Update branch" em PRs
-- `homepage: ""` -- calculado automaticamente em tempo de execução como `https://f5-sales-demo.github.io/{repo}/`
+- `delete_branch_on_merge: true` -- exclui automaticamente ramificações de PR mescladas
+- `allow_update_branch: true` -- habilita o botão "Update branch" nas PRs
+- `homepage: ""` -- calculado automaticamente no tempo de execução como `https://f5-sales-demo.github.io/{repo}/`
 
 ### `actions_permissions`
 
-Controla as permissões de fluxos de trabalho do GitHub Actions para o repositório:
+Controla as permissões do fluxo de trabalho do GitHub Actions para o repositório:
 
-- `default_workflow_permissions: "write"` -- fluxos de trabalho obtêm acesso de leitura/escrita ao repositório por padrão
-- `can_approve_pull_request_reviews: true` -- permite que fluxos de trabalho aprovem PRs
+- `default_workflow_permissions: "write"` -- os fluxos de trabalho recebem acesso de leitura/gravação ao repositório por padrão
+- `can_approve_pull_request_reviews: true` -- permite que fluxos de trabalho aprovem revisões de PR
 
 ### `branch_protection`
 
-Uma matriz de regras de proteção de branch. Cada entrada especifica um nome de `branch` e as configurações de proteção desejadas. Atualmente, apenas a `main` é protegida.
+Uma matriz de regras de proteção de ramificação. Cada entrada especifica um nome de `branch` e as configurações de proteção desejadas. Atualmente, apenas a `main` está protegida.
 
 Campos principais:
 
-- `enforce_admins: true` -- regras de proteção aplicam-se também aos administradores do repositório
-- `required_status_checks.strict: false` -- branches não precisam estar atualizadas antes da mesclagem
-- `required_status_checks.contexts` -- os nomes de verificações que repositórios downstream devem passar (por exemplo, `check / Check linked issues` e `lint / Shell Unit Tests`)
-- `required_status_checks.self_contexts` -- os nomes de verificações que o próprio docs-control deve passar (por exemplo, `Check linked issues` e `Shell Unit Tests`)
-- `required_pull_request_reviews: null` -- nenhuma aprovação de revisão de PR necessária
-- `restrictions: null` -- sem restrições de push além da proteção de branch
+- `enforce_admins: true` -- as regras de proteção também se aplicam aos administradores do repositório
+- `required_status_checks.strict: true` -- as ramificações devem estar atualizadas antes da mesclagem
+- `required_status_checks.contexts` -- os nomes das verificações que os repositórios downstream devem aprovar (por exemplo, `Check linked issues` e `lint / Shell Unit Tests`)
+- `required_status_checks.self_contexts` -- os nomes das verificações que o próprio docs-control deve aprovar (por exemplo, `Check linked issues` e `Shell Unit Tests`)
+- `required_pull_request_reviews: null` -- nenhuma aprovação de revisão de PR é necessária
+- `restrictions: null` -- sem restrições de envio além da proteção de ramificação
 
 #### `contexts` vs `self_contexts`
 
-Quando um repositório downstream usa um fluxo de trabalho chamador, o nome da verificação de status torna-se `<caller_job_key> / <reusable_job_name>`. Por exemplo, o chamador `require-linked-issue.yml` possui a chave de job `check`, então o nome da verificação é `check / Check linked issues`. Mas quando o docs-control executa o mesmo fluxo de trabalho diretamente (via gatilho `pull_request_target`), o nome da verificação é apenas `Check linked issues`.
+Verificações de fluxo de trabalho reutilizáveis em repositórios downstream usam `<caller_job_key> / <reusable_job_name>`, enquanto o docs-control relata seus nomes de trabalho simples. O portão de problemas vinculados é uma exceção: seu fluxo de trabalho agendado publica o status do commit `Check linked issues` diretamente em cada repositório, portanto, tanto `contexts` quanto `self_contexts` devem usar esse nome exato.
 
-O campo `self_contexts` armazena os nomes de verificação que se aplicam ao próprio docs-control. Durante a [aplicação](./settings-enforcement/), o fluxo de trabalho detecta se está sendo executado no repositório de origem e substitui `contexts` por `self_contexts` antes de aplicar a proteção de branch. O campo `self_contexts` é sempre removido antes de enviar o payload para a API do GitHub.
+O campo `self_contexts` armazena os nomes das verificações que se aplicam ao próprio docs-control. Durante a [imposição](./settings-enforcement/), o fluxo de trabalho detecta se está sendo executado no repositório de origem e substitui `self_contexts` em `contexts` antes de aplicar a proteção de ramificação. O campo `self_contexts` é sempre removido antes do envio da carga útil para a API do GitHub.
 
-`Shell Unit Tests` é o gate uniforme de testes de repositório. O fluxo de trabalho reutilizável sempre o reporta: repositórios consumidores executam cada arquivo `tests/test-*.sh`, enquanto um repositório sem testes correspondentes reporta sucesso com uma mensagem explícita de ausência de testes. Isso torna os testes shell de repositório obrigatórios por padrão, em vez de depender de listas de opt-in por repositório.
+`Shell Unit Tests` é o portão uniforme de teste do repositório. O fluxo de trabalho reutilizável sempre o relata: os repositórios consumidores executam cada arquivo `tests/test-*.sh`, enquanto um repositório sem testes correspondentes relata sucesso com uma mensagem explícita de ausência de testes. Isso torna os testes de shell do repositório obrigatórios por padrão, em vez de depender de listas de aceitação por repositório.
 
-#### Perfis de teste shell em consumidores
+#### Perfis de teste de shell do consumidor
 
-O padrão pressupõe que todo script `tests/test-*.sh` na raiz é hermético em um runner hospedado no GitHub sem provisionamento. Um repositório que também armazena testes de integração de contêiner ou serviço sob essa máscara precisa de uma entrada `consumer_shell_tests.profiles` no `repo-settings.json`.
+O padrão pressupõe que cada script `tests/test-*.sh` no nível raiz é hermético em um executor hospedado no GitHub não provisionado. Um repositório que também armazena testes de integração de contêiner ou serviço sob esse glob precisa de uma entrada `consumer_shell_tests.profiles` em `repo-settings.json`.
 
-Cada perfil classifica o inventário correspondente completo:
+Cada perfil classifica todo o inventário correspondente:
 
-- Entradas `unit` contêm um `path` de teste e um array `args`. O runner passa cada argumento literalmente, sem avaliação de shell.
-- Entradas `environment` contêm um `path` de teste e um `reason` não vazio explicando por que o gate unitário no runner simples não pode executá-lo.
+- Entradas `unit` contêm um `path` de teste e uma matriz `args`. O executor passa cada argumento literalmente, sem avaliação de shell.
+- Entradas `environment` contêm um `path` de teste e um `reason` não vazio explicando por que o portão de unidade do executor simples não pode executá-lo.
 
-O fluxo de trabalho reutilizável busca o seletor e a configuração da mesma revisão `main` do docs-control, registra essa revisão e valida o inventário antes de executar qualquer coisa. Configuração ausente, caminhos ou argumentos inseguros, caminhos duplicados e testes não classificados ou ausentes falham no contexto obrigatório. Isso torna o perfil um contrato de classificação auditado, e não uma lista de ignorados. Repositórios sem perfil mantêm o padrão abrangente.
+O fluxo de trabalho reutilizável obtém o seletor e a configuração da mesma revisão `main` do docs-control, registra essa revisão e valida o inventario antes de executar qualquer coisa. Configuração ausente, caminhos ou argumentos não seguros, caminhos duplicados e testes não classificados ou ausentes falham no contexto exigido. Isso torna um perfil um contrato de classificação auditado, em vez de uma lista de ignorados. Repositórios sem um perfil mantêm o padrão amplo.
 
-A substituição do `xcsh` exclui ambos os contextos do Super-Linter porque esse repositório não chama o fluxo de trabalho reutilizável do Super-Linter; seus contextos nativos `check`, `pii-guard` e `test` permanecem obrigatórios. A verificação em tempo real deve provar que a exclusão é necessária antes de ser adicionada.
+A substituição do `xcsh` exclui ambos os contextos do Super-Linter porque esse repositório não chama o fluxo de trabalho reutilizável do Super-Linter; seus contextos nativos `check`, `pii-guard` e `test` permanecem obrigatórios. A verificação em tempo real deve provar que uma exclusão é necessária antes de ser adicionada.
 
-Não exija um contexto de um fluxo de trabalho com filtros `paths` ou `paths-ignore`. O GitHub deixa esse contexto pendente quando o fluxo de trabalho não é iniciado. Ferramentas de segurança abrangentes devem ser executadas em um fluxo de trabalho de pull request sem filtros ou em uma auditoria completa agendada; a auditoria de segurança de fluxo de trabalho gerenciado usa o último modelo para o `zizmor`. Uma condição no nível do job é segura porque um job ignorado ainda reporta uma verificação bem-sucedida.
+Não exija um contexto de um fluxo de trabalho com filtros `paths` ou `paths-ignore`. O GitHub deixa esse contexto pendente quando o fluxo de trabalho não é iniciado. Ferramentas de segurança amplas devem ser executadas em um fluxo de trabalho de solicitação de busca não filtrado ou em uma auditoria programada de árvore completa; a auditoria gerenciada de segurança de fluxo de trabalho usa esse último modelo para o `zizmor`. Uma condição no nível do trabalho é segura porque um trabalho ignorado ainda relata uma verificação bem-sucedida.
 
 ### `topics`
 
-Um array de tópicos do GitHub para aplicar ao repositório. Atualmente vazio -- tópicos não são aplicados.
+Uma matriz de tópicos do GitHub para aplicar ao repositório. Atualmente vazia -- os tópicos não são impostos.
 
 ### `pages`
 
 Configuração do GitHub Pages:
 
-- `enabled: true` -- garante que o Pages esteja habilitado em todo repositório inscrito
-- `build_type: "workflow"` -- usa o GitHub Actions para a compilação do Pages (não compilações legadas baseadas em branch)
+- `enabled: true` -- garante que o Pages esteja habilitado em todos os repositórios inscritos
+- `build_type: "workflow"` -- usa o GitHub Actions para a compilação do Pages (não compilações legadas baseadas em ramificações)
 
 ### `managed_files`
 
 Define o manifesto de sincronização de arquivos:
 
-- `source_repo` -- o repositório que contém as versões canônicas dos arquivos gerenciados (`f5-sales-demo/docs-control`)
-- `files` -- um array de objetos `{src, dest}` mapeando caminhos de origem no docs-control para caminhos de destino em repositórios downstream
+- `source_repo` -- o repositório que contém versões canônicas dos arquivos gerenciados (`f5-sales-demo/docs-control`)
+- `files` -- uma matriz de objetos `{src, dest}` mapeando caminhos de origem no docs-control para caminhos de destino em repositórios downstream
 
-O [fluxo de trabalho de sincronização de arquivos](./file-sync/) itera esse array para detectar e corrigir desvios. Arquivos não listados aqui (como `dependabot.yml` e `README.md`) são gerados dinamicamente em vez de sincronizados a partir de fontes estáticas.
+O [fluxo de trabalho de sincronização de arquivos](./file-sync/) itera essa matriz para detectar e corrigir desvios. Arquivos não listados aqui (como `dependabot.yml` e `README.md`) são gerados dinamicamente em vez de serem sincronizados a partir de fontes estáticas.

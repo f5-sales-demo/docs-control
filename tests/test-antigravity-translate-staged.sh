@@ -43,12 +43,13 @@ write_translation() {
   printf '%s\n' '---' "title: Example" 'i18n:' "  sourceHash: \"$hash\"" \
     '  translator: "machine"' '---' '' '# Example' '' \
     'Keep `literal` and <Callout type="note"> unchanged.' '' \
-    'Visit https://example.com/docs.' >"$repo/$target"
+    'Visit `https://example.com/docs`.' >"$repo/$target"
 }
 
 setup_repo() {
   local layout="$1" repo="$WORK/repo" source hash
   rm -rf "$repo"
+  rm -f "$WORK/agy-calls"
   mkdir -p "$repo"
   git -C "$repo" init -q
   git -C "$repo" config user.email test@example.com
@@ -58,7 +59,7 @@ setup_repo() {
   printf '%s\n' 'test skill' >"$repo/.agents/skills/i18n-translate/SKILL.md"
   printf '%s\n' '---' 'title: Example' '---' '' '# Example' '' \
     'Keep `literal` and <Callout type="note"> unchanged.' '' \
-    'Visit https://example.com/docs.' >"$repo/$source"
+    'Visit `https://example.com/docs`.' >"$repo/$source"
   hash=$(shasum -a 256 "$repo/$source" | awk '{print substr($1, 1, 12)}')
   for locale in "${locales[@]}"; do
     write_translation "$repo" "$layout" "$locale" "$hash"
@@ -80,7 +81,11 @@ import sys
 
 args = sys.argv[1:]
 Path(os.environ["FAKE_AGY_ARGS"]).write_text("\n".join(args), encoding="utf-8")
-if os.environ.get("FAKE_AGY_MODE") == "fail":
+calls_file = Path(os.environ["FAKE_AGY_CALLS"])
+calls = int(calls_file.read_text(encoding="utf-8")) + 1 if calls_file.exists() else 1
+calls_file.write_text(str(calls), encoding="utf-8")
+mode = os.environ.get("FAKE_AGY_MODE")
+if mode == "fail":
     raise SystemExit(9)
 prompt = args[-1]
 requests = re.findall(r"^- (.+) sourceHash=([0-9a-f]{12})$", prompt, re.MULTILINE)
@@ -102,7 +107,7 @@ for source, expected_hash in requests:
             f"  sourceHash: \"{expected_hash}\"\n"
             "  translator: \"machine\"\n---\n" + raw
         )
-    if os.environ.get("FAKE_AGY_MODE") == "bad-hash":
+    if mode == "bad-hash":
         rendered = rendered.replace(expected_hash, "000000000000")
     if source.startswith("docs/en/"):
         relative = source.removeprefix("docs/en/")
@@ -111,12 +116,19 @@ for source, expected_hash in requests:
         relative = source.removeprefix("src/content/docs/en/")
         target = lambda locale: Path("src/content/docs") / locale / relative
     for locale in locales:
-        if os.environ.get("FAKE_AGY_MODE") == "missing" and locale == "th":
+        if mode == "missing" and locale == "th":
             target(locale).unlink(missing_ok=True)
             continue
         target(locale).parent.mkdir(parents=True, exist_ok=True)
-        target(locale).write_text(rendered, encoding="utf-8")
-if os.environ.get("FAKE_AGY_MODE") == "unexpected":
+        locale_rendered = rendered
+        if locale == "ko":
+            locale_rendered = locale_rendered.replace(
+                "`https://example.com/docs`.", "`https://example.com/docs`로."
+            )
+        if locale == "ko" and (mode == "bad-token" or (mode == "bad-token-once" and calls == 1)):
+            locale_rendered = locale_rendered.replace("`literal`", "`translated`")
+        target(locale).write_text(locale_rendered, encoding="utf-8")
+if mode == "unexpected":
     Path("unexpected.txt").write_text("not allowed\n", encoding="utf-8")
 PY
   chmod +x "$WORK/bin/agy"
@@ -127,6 +139,7 @@ run_hook() {
   (
     cd "$repo"
     PATH="$WORK/bin:/usr/bin:/bin" FAKE_AGY_ARGS="$WORK/agy-args" \
+      FAKE_AGY_CALLS="$WORK/agy-calls" \
       FAKE_AGY_MODE="$mode" bash "$SCRIPT"
   ) >"$WORK/output" 2>&1 || rc=$?
   return "$rc"
@@ -175,6 +188,15 @@ else
   fail "translation uses sandboxed edit mode" "required flags missing"
 fi
 
+if grep -qF 'Do not create scratch files, helper scripts, or directories anywhere in the snapshot.' \
+  "$WORK/agy-args" &&
+  grep -qF 'Edit only the listed locale target files directly.' "$WORK/agy-args"; then
+  pass "translation prompt forbids scratch artifacts outside the locale allowlist"
+else
+  fail "translation prompt forbids scratch artifacts outside the locale allowlist" \
+    "explicit direct-edit restriction missing"
+fi
+
 rm -f "$WORK/agy-args"
 if run_hook "$WORK/repo" && [ ! -e "$WORK/agy-args" ]; then
   pass "fresh translations do not spend another model call"
@@ -182,7 +204,15 @@ else
   fail "fresh translations do not spend another model call" "agy ran or hook failed"
 fi
 
-for mode in unexpected missing bad-hash fail; do
+setup_repo docs
+make_fake_agy
+if run_hook "$WORK/repo" bad-token-once && [ "$(cat "$WORK/agy-calls")" -eq 2 ]; then
+  pass "one bounded repair pass fixes a first-pass protected-token mutation"
+else
+  fail "one bounded repair pass fixes a first-pass protected-token mutation" "$(cat "$WORK/output")"
+fi
+
+for mode in unexpected missing bad-hash bad-token fail; do
   setup_repo docs
   make_fake_agy
   if run_hook "$WORK/repo" "$mode"; then
