@@ -21,6 +21,9 @@ CALLER_BLOB=$(printf '%s\n' "$CALLER_TEXT" | git hash-object --stdin)
 LINT_CALLER_TEXT='name: Super-Linter'
 LINT_CALLER_CONTENT=$(printf '%s\n' "$LINT_CALLER_TEXT" | base64 | tr -d '\n')
 LINT_CALLER_BLOB=$(printf '%s\n' "$LINT_CALLER_TEXT" | git hash-object --stdin)
+LINKED_CALLER_TEXT='name: Require Linked Issue'
+LINKED_CALLER_CONTENT=$(printf '%s\n' "$LINKED_CALLER_TEXT" | base64 | tr -d '\n')
+LINKED_CALLER_BLOB=$(printf '%s\n' "$LINKED_CALLER_TEXT" | git hash-object --stdin)
 printf '["example"]\n' >"$WORK/repos.json"
 printf '{"revision":"%s"}\n' "$PIN_SHA" >"$WORK/pin.json"
 printf '{"state":"active"}\n' >"$WORK/rollout.json"
@@ -134,6 +137,14 @@ case "$1 $endpoint" in
         "$LINT_CALLER_BLOB" "$LINT_CALLER_CONTENT"
     fi
     ;;
+  'api repos/f5-sales-demo/docs-control/contents/workflows/require-linked-issue.yml?ref='*)
+    if [[ "$*" == *'--jq .sha'* ]]; then
+      printf '%s\n' "$LINKED_CALLER_BLOB"
+    else
+      printf '{"type":"file","encoding":"base64","sha":"%s","content":"%s"}\n' \
+        "$LINKED_CALLER_BLOB" "$LINKED_CALLER_CONTENT"
+    fi
+    ;;
   'api repos/f5-sales-demo/example/commits/main')
     if [ -f "$FAKE_STATE/required-check-failed" ]; then
       touch "$FAKE_STATE/continued-after-required-check-failure"
@@ -173,11 +184,35 @@ case "$1 $endpoint" in
       done
       [ -n "$input" ] || exit 64
       cp "$input" "$FAKE_STATE/required-checks-input.json"
-      touch "$FAKE_STATE/required-checks-reconciled"
+      if [ "${FAKE_STAGED_LINKED_TRANSITION:-}" = 1 ]; then
+        if jq -e '
+          (.contexts | index("check / Check linked issues")) != null and
+          (.contexts | index("Check linked issues")) == null
+        ' "$input" >/dev/null; then
+          cp "$input" "$FAKE_STATE/transition-required-checks.json"
+          touch "$FAKE_STATE/transition-required-checks-reconciled"
+        elif jq -e '
+          (.contexts | index("Check linked issues")) != null and
+          (.contexts | index("check / Check linked issues")) == null
+        ' "$input" >/dev/null; then
+          cp "$input" "$FAKE_STATE/final-required-checks.json"
+          touch "$FAKE_STATE/final-required-checks-reconciled"
+        else
+          exit 65
+        fi
+      else
+        touch "$FAKE_STATE/required-checks-reconciled"
+      fi
     elif [ "${FAKE_REQUIRED_CHECKS_ERROR:-}" = 1 ]; then
       touch "$FAKE_STATE/required-check-failed"
       echo 'gh: synthetic required-check read failure (HTTP 500)' >&2
       exit 1
+    elif [ "${FAKE_STAGED_LINKED_TRANSITION:-}" = 1 ] &&
+      [ -f "$FAKE_STATE/transition-required-checks-reconciled" ] &&
+      [ ! -f "$FAKE_STATE/final-required-checks-reconciled" ]; then
+      printf '{"strict":true,"contexts":["check / Check linked issues","Example CI","lint / Lint Code Base"]}\n'
+    elif [ "${FAKE_STAGED_LINKED_TRANSITION:-}" = 1 ]; then
+      printf '{"strict":true,"contexts":["Check linked issues","Example CI","lint / Lint Code Base"]}\n'
     elif [ "${FAKE_STALE_REQUIRED_CHECKS:-}" = 1 ] &&
       { [ ! -f "$FAKE_STATE/required-checks-reconciled" ] ||
         [ "${FAKE_REQUIRED_CHECKS_VERIFY_DRIFT:-}" = 1 ]; }; then
@@ -187,6 +222,47 @@ case "$1 $endpoint" in
       printf '{"strict":true,"contexts":["check / Check linked issues","lint / Lint Code Base","lint / Shell Unit Tests"]}\n'
     else
       printf '{"strict":true,"contexts":["Check linked issues","Example CI","lint / Lint Code Base"]}\n'
+    fi
+    ;;
+  'api repos/f5-sales-demo/example/commits/'*'/check-runs')
+    if [ "${FAKE_LEGACY_LINKED_CHECK:-}" = 1 ]; then
+      jq -cn --arg sha "$BRANCH_HEAD" \
+        '{check_runs:[{name:"check / Check linked issues",head_sha:$sha,status:"completed",conclusion:"success",details_url:"https://github.com/f5-sales-demo/example/actions/runs/999/job/1000",app:{id:15368,slug:"github-actions"}}]}'
+    else
+      printf '{"check_runs":[]}\n'
+    fi
+    ;;
+  'api repos/f5-sales-demo/example/actions/runs/999')
+    jq -cn --arg sha "$BRANCH_HEAD" \
+      '{path:".github/workflows/require-linked-issue.yml",event:"pull_request_target",head_sha:$sha,status:"completed",conclusion:"success"}'
+    ;;
+  'api repos/f5-sales-demo/example/actions/workflows/require-linked-issue.yml/dispatches')
+    input=""
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = "--input" ]; then
+        input="$2"
+        break
+      fi
+      shift
+    done
+    [ -n "$input" ] || exit 64
+    if [ "${FAKE_STAGED_LINKED_TRANSITION:-}" = 1 ] &&
+      ! jq -e '.inputs.pull_request_number and .inputs.expected_head_sha' "$input" >/dev/null; then
+      echo 'gh: workflow does not have workflow_dispatch trigger (HTTP 422)' >&2
+      exit 1
+    fi
+    count=0
+    [ ! -f "$FAKE_STATE/linked-dispatch-count" ] || count=$(cat "$FAKE_STATE/linked-dispatch-count")
+    count=$((count + 1))
+    printf '%s\n' "$count" >"$FAKE_STATE/linked-dispatch-count"
+    ;;
+  'api repos/f5-sales-demo/example/commits/'*'/statuses')
+    if [ -f "$FAKE_STATE/linked-dispatch-count" ]; then
+      status_id=$(cat "$FAKE_STATE/linked-dispatch-count")
+      jq -cn --argjson id "$status_id" \
+        '[{id:$id,context:"Check linked issues",state:"success",creator:{id:41898282,login:"github-actions[bot]",type:"Bot"}}]'
+    else
+      printf '[]\n'
     fi
     ;;
   'api repos/f5-sales-demo/example-two/commits/main') printf '%s\n' "$BASE_SHA" ;;
@@ -215,6 +291,9 @@ case "$1 $endpoint" in
     ;;
   'api repos/f5-sales-demo/example-two/contents/.github/workflows/super-linter.yml?ref='*)
     printf '%s\n' "$DOWNSTREAM_LINT_BLOB"
+    ;;
+  'api repos/f5-sales-demo/example-two/contents/.github/workflows/require-linked-issue.yml?ref='*)
+    printf '%s\n' "$DOWNSTREAM_LINKED_BLOB"
     ;;
   'api repos/f5-sales-demo/example/actions/runs?status='*)
     if [ -n "${FAKE_RATE_LIMIT_STATUS:-}" ] &&
@@ -331,13 +410,26 @@ case "$1 $endpoint" in
       printf '%s\n' "$DOWNSTREAM_LINT_BLOB"
     fi
     ;;
+  'api repos/f5-sales-demo/example/contents/.github/workflows/require-linked-issue.yml?ref='*)
+    ref=${endpoint##*ref=}
+    if [ "$ref" = "$BRANCH_HEAD" ] && [ -f "$FAKE_STATE/linked-updated" ]; then
+      printf '%s\n' "$LINKED_CALLER_BLOB"
+    elif [ "$ref" = "$BRANCH_HEAD" ]; then
+      printf '%s\n' "$DOWNSTREAM_LINKED_BLOB"
+    elif [ -f "$FAKE_STATE/merged" ]; then
+      printf '%s\n' "$LINKED_CALLER_BLOB"
+    else
+      printf '%s\n' "$DOWNSTREAM_LINKED_BLOB"
+    fi
+    ;;
   'api repos/f5-sales-demo/example') printf 'main\n' ;;
   'api repos/f5-sales-demo/example/git/ref/heads/main') printf '%s\n' "$BASE_SHA" ;;
   'api repos/f5-sales-demo/example/git/ref/heads/sync/exact-caller-'*)
     if [ -f "$FAKE_STATE/branch" ]; then
       if [ -f "$FAKE_STATE/corrupt" ]; then
         printf '%s\n' '8888888888888888888888888888888888888888'
-      elif [ -f "$FAKE_STATE/updated" ] || [ -f "$FAKE_STATE/lint-updated" ]; then
+      elif [ -f "$FAKE_STATE/updated" ] || [ -f "$FAKE_STATE/lint-updated" ] ||
+        [ -f "$FAKE_STATE/linked-updated" ]; then
         printf '%s\n' "$BRANCH_HEAD"
       else
         printf '%s\n' "$BASE_SHA"
@@ -354,6 +446,9 @@ case "$1 $endpoint" in
   'api repos/f5-sales-demo/example/contents/.github/workflows/super-linter.yml')
     touch "$FAKE_STATE/lint-updated"
     ;;
+  'api repos/f5-sales-demo/example/contents/.github/workflows/require-linked-issue.yml')
+    touch "$FAKE_STATE/linked-updated"
+    ;;
   'api repos/f5-sales-demo/example/compare/'*)
     files='[]'
     count=0
@@ -365,6 +460,11 @@ case "$1 $endpoint" in
     if [ "$DOWNSTREAM_LINT_BLOB" != "$LINT_CALLER_BLOB" ]; then
       files=$(jq -cn --argjson files "$files" --arg sha "$LINT_CALLER_BLOB" \
         '$files + [{filename:".github/workflows/super-linter.yml",sha:$sha,status:"modified"}]')
+      count=$((count + 1))
+    fi
+    if [ "$DOWNSTREAM_LINKED_BLOB" != "$LINKED_CALLER_BLOB" ]; then
+      files=$(jq -cn --argjson files "$files" --arg sha "$LINKED_CALLER_BLOB" \
+        '$files + [{filename:".github/workflows/require-linked-issue.yml",sha:$sha,status:"modified"}]')
       count=$((count + 1))
     fi
     jq -cn --argjson count "$count" --argjson files "$files" \
@@ -382,20 +482,29 @@ case "$1 $endpoint" in
         '[{number: 11, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/page-two-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[], [{number: 9, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
+        '[], [{number: 9, head: {ref: "sync/exact-caller-aaaaaaaaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/huge-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[{number: 10, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-999999999999999999999999999999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
+        '[{number: 10, head: {ref: "sync/exact-caller-aaaaaaaaaaaaaaaaaa-999999999999999999999999999999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/newer-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[{number: 8, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
+        '[{number: 8, head: {ref: "sync/exact-caller-aaaaaaaaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/current-pr" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg branch "$EXPECTED_BRANCH" \
         --arg repo "${GITHUB_REPOSITORY%/*}/example" \
         '[{number: 42, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/old-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[{number: 7, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-12-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
+        '[{number: 7, head: {ref: "sync/exact-caller-aaaaaaaaaaaaaaaaaa-12-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
+    else
+      printf '[]\n'
+    fi
+    ;;
+  'api repos/f5-sales-demo/example/pulls?state=closed&sort=updated&direction=desc&per_page=100')
+    if [ "${FAKE_RECOVER_MERGED_TRANSITION:-}" = 1 ]; then
+      jq -cn --arg sha "$BRANCH_HEAD" --arg branch "$EXPECTED_BRANCH" \
+        --arg repo "${GITHUB_REPOSITORY%/*}/example" \
+        '[{number:42,merged_at:"2026-08-04T12:00:00Z",head:{ref:$branch,sha:$sha,repo:{full_name:$repo}},base:{ref:"main"}}]'
     else
       printf '[]\n'
     fi
@@ -421,6 +530,11 @@ case "$1 $endpoint" in
     fi
     if [ "$DOWNSTREAM_LINT_BLOB" != "$LINT_CALLER_BLOB" ]; then
       files=$(jq -cn --argjson files "$files" '$files + [{path:".github/workflows/super-linter.yml"}]')
+      count=$((count + 1))
+    fi
+    if [ "$DOWNSTREAM_LINKED_BLOB" != "$LINKED_CALLER_BLOB" ]; then
+      files=$(jq -cn --argjson files "$files" \
+        '$files + [{path:".github/workflows/require-linked-issue.yml"}]')
       count=$((count + 1))
     fi
     jq -cn --arg branch "$EXPECTED_BRANCH" --arg sha "$BRANCH_HEAD" \
@@ -455,6 +569,7 @@ run_bootstrap() {
     DOWNSTREAM_CONFIG="${TEST_DOWNSTREAM_CONFIG:-$WORK/repos.json}" \
     REPO_SETTINGS_CONFIG="${TEST_REPO_SETTINGS_CONFIG:-$WORK/repo-settings.json}" \
     BOOTSTRAP_WAIT_SECONDS=0 \
+    BOOTSTRAP_LINKED_WAIT_SECONDS=0 \
     FAKE_LOG="$WORK/gh.log" \
     FAKE_STATE="$state" \
     SOURCE_SHA="$SOURCE_SHA" \
@@ -465,13 +580,16 @@ run_bootstrap() {
     ENFORCE_BLOB="$ENFORCE_BLOB" \
     SYNC_BLOB="$SYNC_BLOB" \
     BRANCH_HEAD="$BRANCH_HEAD" \
-    EXPECTED_BRANCH="sync/exact-caller-${CALLER_BLOB:0:6}${LINT_CALLER_BLOB:0:6}-12345-1" \
+    EXPECTED_BRANCH="sync/exact-caller-${CALLER_BLOB:0:6}${LINT_CALLER_BLOB:0:6}${LINKED_CALLER_BLOB:0:6}-12345-1" \
     CALLER_BLOB="$CALLER_BLOB" \
     CALLER_CONTENT="$CALLER_CONTENT" \
     LINT_CALLER_BLOB="$LINT_CALLER_BLOB" \
     LINT_CALLER_CONTENT="$LINT_CALLER_CONTENT" \
+    LINKED_CALLER_BLOB="$LINKED_CALLER_BLOB" \
+    LINKED_CALLER_CONTENT="$LINKED_CALLER_CONTENT" \
     DOWNSTREAM_BLOB="$DOWNSTREAM_BLOB" \
     DOWNSTREAM_LINT_BLOB="${DOWNSTREAM_LINT_BLOB:-$LINT_CALLER_BLOB}" \
+    DOWNSTREAM_LINKED_BLOB="${DOWNSTREAM_LINKED_BLOB:-$LINKED_CALLER_BLOB}" \
     FAKE_READ_ERROR="${FAKE_READ_ERROR:-}" \
     FAKE_MAIN_ADVANCE_AT="${FAKE_MAIN_ADVANCE_AT:-}" \
     FAKE_MALFORMED_CALLER="${FAKE_MALFORMED_CALLER:-}" \
@@ -490,6 +608,9 @@ run_bootstrap() {
     FAKE_REQUIRED_CHECKS_ERROR="${FAKE_REQUIRED_CHECKS_ERROR:-}" \
     FAKE_REQUIRED_CHECKS_VERIFY_DRIFT="${FAKE_REQUIRED_CHECKS_VERIFY_DRIFT:-}" \
     FAKE_REQUIRED_CHECKS_PATCH_RATE_LIMIT="${FAKE_REQUIRED_CHECKS_PATCH_RATE_LIMIT:-}" \
+    FAKE_STAGED_LINKED_TRANSITION="${FAKE_STAGED_LINKED_TRANSITION:-}" \
+    FAKE_LEGACY_LINKED_CHECK="${FAKE_LEGACY_LINKED_CHECK:-}" \
+    FAKE_RECOVER_MERGED_TRANSITION="${FAKE_RECOVER_MERGED_TRANSITION:-}" \
     REPO_SETTINGS_TOKEN=settings-token \
     "$SOURCE"
 }
@@ -542,17 +663,22 @@ required_patch_line=$(grep -n \
   'example/branches/main/protection/required_status_checks --method PATCH' \
   "$WORK/gh.log" | cut -d: -f1 || true)
 branch_create_line=$(grep -n 'git/refs --method POST' "$WORK/gh.log" | cut -d: -f1 || true)
+linked_status_line=$(grep -n '/status' "$WORK/gh.log" | tail -1 | cut -d: -f1 || true)
+merge_line=$(grep -n '^pr merge ' "$WORK/gh.log" | head -1 | cut -d: -f1 || true)
 if [ "$rc" != 83 ] || [ -z "$required_patch_line" ] || [ -z "$branch_create_line" ] ||
-  [ "$required_patch_line" -ge "$branch_create_line" ] ||
+  [ -z "$linked_status_line" ] || [ -z "$merge_line" ] ||
+  [ "$branch_create_line" -ge "$linked_status_line" ] ||
+  [ "$linked_status_line" -ge "$required_patch_line" ] ||
+  [ "$required_patch_line" -ge "$merge_line" ] ||
   ! jq -e '
     .strict == true and
     .contexts == ["Check linked issues", "Example CI", "lint / Lint Code Base"]
   ' "$state/required-checks-input.json" >/dev/null; then
-  echo "[FAIL] stale required checks were not reconciled exactly before caller PR creation"
+  echo "[FAIL] stale required checks were not reconciled after exact evaluator proof"
   cat "$WORK/stale-required-checks.err"
   exit 1
 fi
-echo "[OK] stale required checks reconcile additions and exclusions before caller PR creation"
+echo "[OK] stale required checks reconcile only after exact evaluator proof"
 
 state="$WORK/state-required-check-read-failure"
 mkdir -p "$state"
@@ -565,10 +691,10 @@ run_bootstrap "$state" >/dev/null 2>&1
 rc=$?
 set -e
 unset FAKE_REQUIRED_CHECKS_ERROR
-if [ "$rc" = 0 ] || [ -f "$state/continued-after-required-check-failure" ] ||
-  grep -qE 'git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' \
+if [ "$rc" = 0 ] ||
+  grep -qE '^pr merge |actions/workflows/enforce-repo-settings.yml/enable' \
     "$WORK/gh.log"; then
-  echo "[FAIL] required-check API failure did not block caller mutation"
+  echo "[FAIL] required-check API failure did not block merge and enforcement"
   exit 1
 fi
 echo "[OK] required-check API failure blocks caller mutation"
@@ -585,9 +711,9 @@ run_bootstrap "$state" >/dev/null 2>"$WORK/required-check-patch-rate-limit.err"
 rc=$?
 set -e
 unset FAKE_STALE_REQUIRED_CHECKS FAKE_REQUIRED_CHECKS_PATCH_RATE_LIMIT
-if [ "$rc" != 84 ] || [ -f "$state/continued-after-required-check-failure" ] ||
+if [ "$rc" != 84 ] ||
   [ "$(grep -c 'required_status_checks --method PATCH' "$WORK/gh.log")" -ne 1 ] ||
-  grep -qE 'git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' \
+  grep -qE '^pr merge |actions/workflows/enforce-repo-settings.yml/enable' \
     "$WORK/gh.log"; then
   echo "[FAIL] required-check rate exhaustion did not defer immediately before caller mutation"
   exit 1
@@ -606,10 +732,10 @@ run_bootstrap "$state" >/dev/null 2>&1
 rc=$?
 set -e
 unset FAKE_STALE_REQUIRED_CHECKS FAKE_REQUIRED_CHECKS_VERIFY_DRIFT
-if [ "$rc" = 0 ] || [ -f "$state/continued-after-required-check-failure" ] ||
+if [ "$rc" = 0 ] ||
   ! grep -q 'example/branches/main/protection/required_status_checks --method PATCH' \
     "$WORK/gh.log" ||
-  grep -qE 'git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' \
+  grep -qE '^pr merge |actions/workflows/enforce-repo-settings.yml/enable' \
     "$WORK/gh.log"; then
   echo "[FAIL] required-check postcondition drift did not fail before caller mutation"
   exit 1
@@ -636,6 +762,90 @@ if [ "$rc" != 83 ] ||
   exit 1
 fi
 echo "[OK] exact enforcement with stale lint updates only lint and remains quiesced"
+
+state="$WORK/state-stale-linked-only"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
+set +e
+run_bootstrap "$state" >"$WORK/stale-linked-only.out" 2>"$WORK/stale-linked-only.err"
+rc=$?
+set -e
+unset DOWNSTREAM_LINKED_BLOB
+if [ "$rc" != 83 ] ||
+  grep -q 'contents/.github/workflows/enforce-repo-settings.yml --method PUT' "$WORK/gh.log" ||
+  grep -q 'contents/.github/workflows/super-linter.yml --method PUT' "$WORK/gh.log" ||
+  ! grep -q 'contents/.github/workflows/require-linked-issue.yml --method PUT' "$WORK/gh.log" ||
+  ! grep -q 'require-linked-issue.yml/dispatches --method POST' "$WORK/gh.log" ||
+  ! grep -q '^pr merge ' "$WORK/gh.log" ||
+  grep -q 'actions/workflows/enforce-repo-settings.yml/enable --method PUT' "$WORK/gh.log"; then
+  echo "[FAIL] stale linked-issue evaluator was not carried by its exact bounded PR"
+  cat "$WORK/stale-linked-only.err"
+  exit 1
+fi
+echo "[OK] stale linked-issue evaluator is bootstrapped before enforcement resumes"
+
+state="$WORK/state-staged-linked-transition"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
+FAKE_STAGED_LINKED_TRANSITION=1
+FAKE_LEGACY_LINKED_CHECK=1
+FAKE_MERGE_LANDS=1
+set +e
+run_bootstrap "$state" >"$WORK/staged-linked-transition.out" \
+  2>"$WORK/staged-linked-transition.err"
+rc=$?
+set -e
+unset DOWNSTREAM_LINKED_BLOB FAKE_STAGED_LINKED_TRANSITION FAKE_LEGACY_LINKED_CHECK \
+  FAKE_MERGE_LANDS
+legacy_check_line=$(grep -n '/check-runs' "$WORK/gh.log" | head -1 | cut -d: -f1 || true)
+transition_patch_line=$(grep -n 'required_status_checks --method PATCH' "$WORK/gh.log" | head -1 | cut -d: -f1 || true)
+merge_line=$(grep -n '^pr merge ' "$WORK/gh.log" | head -1 | cut -d: -f1 || true)
+dispatch_line=$(grep -n 'require-linked-issue.yml/dispatches --method POST' "$WORK/gh.log" | tail -1 | cut -d: -f1 || true)
+status_line=$(grep -n '/status' "$WORK/gh.log" | tail -1 | cut -d: -f1 || true)
+final_patch_line=$(grep -n 'required_status_checks --method PATCH' "$WORK/gh.log" | tail -1 | cut -d: -f1 || true)
+if [ "$rc" != 0 ] || [ -z "$legacy_check_line" ] || [ -z "$transition_patch_line" ] ||
+  [ -z "$merge_line" ] || [ -z "$dispatch_line" ] || [ -z "$status_line" ] ||
+  [ -z "$final_patch_line" ] || [ "$legacy_check_line" -ge "$transition_patch_line" ] ||
+  [ "$transition_patch_line" -ge "$merge_line" ] || [ "$merge_line" -ge "$dispatch_line" ] ||
+  [ "$dispatch_line" -ge "$status_line" ] || [ "$status_line" -ge "$final_patch_line" ] ||
+  [ "$(grep -c 'required_status_checks --method PATCH' "$WORK/gh.log")" -ne 2 ] ||
+  ! jq -e '.contexts | index("check / Check linked issues") != null' \
+    "$state/transition-required-checks.json" >/dev/null ||
+  ! jq -e '.contexts | index("Check linked issues") != null' \
+    "$state/final-required-checks.json" >/dev/null; then
+  echo "[FAIL] linked-issue evaluator transition did not retain a real gate through both stages"
+  cat "$WORK/staged-linked-transition.err"
+  sed 's/^/  log: /' "$WORK/gh.log"
+  exit 1
+fi
+echo "[OK] linked-issue evaluator transition preserves a verified real gate throughout"
+
+state="$WORK/state-recover-linked-transition"
+mkdir -p "$state"
+touch "$state/transition-required-checks-reconciled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+FAKE_STAGED_LINKED_TRANSITION=1
+FAKE_RECOVER_MERGED_TRANSITION=1
+run_bootstrap "$state" >"$WORK/recover-linked-transition.out" \
+  2>"$WORK/recover-linked-transition.err"
+unset FAKE_STAGED_LINKED_TRANSITION FAKE_RECOVER_MERGED_TRANSITION
+if ! grep -q 'pulls?state=closed&sort=updated&direction=desc&per_page=100' "$WORK/gh.log" ||
+  ! grep -q 'require-linked-issue.yml/dispatches --method POST' "$WORK/gh.log" ||
+  [ "$(grep -c 'required_status_checks --method PATCH' "$WORK/gh.log")" -ne 1 ] ||
+  grep -qE 'git/refs --method POST|contents/.github/workflows/.* --method PUT|^pr (create|merge)' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] interrupted linked-issue transition did not recover from its merged exact receipt"
+  cat "$WORK/recover-linked-transition.err"
+  exit 1
+fi
+echo "[OK] interrupted transition recovers idempotently from its merged exact receipt"
 
 state="$WORK/state-exact"
 mkdir -p "$state"

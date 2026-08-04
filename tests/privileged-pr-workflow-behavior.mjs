@@ -116,6 +116,11 @@ function linkedIssueHarness(pulls, linkedByNumber = new Map(), errorsByNumber = 
   const coreErrors = [];
   const failures = [];
   const listPulls = async () => pulls;
+  const getPull = async ({ pull_number }) => {
+    const pull = pulls.find(({ number }) => number === pull_number);
+    if (!pull) throw new Error(`pull request ${pull_number} not found`);
+    return { data: pull };
+  };
   const listComments = async () => [];
   const github = {
     paginate: async (endpoint, params) => endpoint(params),
@@ -130,7 +135,7 @@ function linkedIssueHarness(pulls, linkedByNumber = new Map(), errorsByNumber = 
       };
     },
     rest: {
-      pulls: { list: listPulls },
+      pulls: { list: listPulls, get: getPull },
       repos: {
         createCommitStatus: async (params) => statuses.push(params),
       },
@@ -146,6 +151,52 @@ function linkedIssueHarness(pulls, linkedByNumber = new Map(), errorsByNumber = 
     setFailed: (message) => failures.push(message),
   };
   return { github, core, statuses, comments, coreErrors, failures };
+}
+
+async function testLinkedIssueTargetedDispatch() {
+  const pull = { number: 30, state: 'closed', head: { ref: 'sync/exact-caller', sha: 'a'.repeat(40) } };
+  const harness = linkedIssueHarness([pull]);
+  const dispatchContext = {
+    ...context,
+    eventName: 'workflow_dispatch',
+    payload: {
+      inputs: {
+        pull_request_number: '30',
+        expected_head_sha: pull.head.sha,
+      },
+    },
+  };
+
+  await linkedIssueScript(harness.github, dispatchContext, harness.core);
+
+  assert.deepEqual(
+    harness.statuses.map(({ sha, state }) => [sha, state]),
+    [
+      [pull.head.sha, 'pending'],
+      [pull.head.sha, 'success'],
+    ],
+  );
+}
+
+async function testLinkedIssueTargetedDispatchRejectsHeadDrift() {
+  const pull = { number: 31, state: 'closed', head: { ref: 'sync/exact-caller', sha: 'b'.repeat(40) } };
+  const harness = linkedIssueHarness([pull]);
+  const dispatchContext = {
+    ...context,
+    eventName: 'workflow_dispatch',
+    payload: {
+      inputs: {
+        pull_request_number: '31',
+        expected_head_sha: 'c'.repeat(40),
+      },
+    },
+  };
+
+  await assert.rejects(
+    linkedIssueScript(harness.github, dispatchContext, harness.core),
+    /head changed before linked-issue evaluation/,
+  );
+  assert.deepEqual(harness.statuses, []);
 }
 
 async function testLinkedIssueOutcomes() {
@@ -201,4 +252,6 @@ await testDependabotSelection();
 await testDependabotIdempotence();
 await testLinkedIssueOutcomes();
 await testLinkedIssueApiFailure();
+await testLinkedIssueTargetedDispatch();
+await testLinkedIssueTargetedDispatchRejectsHeadDrift();
 console.log('PASS: privileged PR workflow behavior is deterministic and idempotent');
