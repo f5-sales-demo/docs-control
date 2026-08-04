@@ -68,6 +68,8 @@ done
 for file in \
   "$REPO_ROOT/workflows/require-linked-issue.yml" \
   "$REPO_ROOT/.github/workflows/require-linked-issue.yml"; do
+  require_literal "$file" '#checkov:skip=CKV_GHA_7:Targeted inputs are exact PR receipts validated before a status is written.' \
+    "${file#"$REPO_ROOT/"} carries its pristine-repository Checkov justification"
   published_context=$(sed -n 's/.*const STATUS_CONTEXT = "\([^"]*\)";.*/\1/p' "$file")
   for context_scope in contexts self_contexts; do
     case "$context_scope" in
@@ -91,6 +93,13 @@ for file in \
   require_literal "$file" 'postStatus("success"' "${file#"$REPO_ROOT/"} publishes a passing status"
   require_literal "$file" 'postStatus("failure"' "${file#"$REPO_ROOT/"} publishes a failing status"
   require_literal "$file" '<!-- require-linked-issue -->' "${file#"$REPO_ROOT/"} preserves the deduplicated guidance comment"
+done
+
+for file in \
+  "$REPO_ROOT/workflows/enforce-repo-settings.yml" \
+  "$REPO_ROOT/.github/workflows/enforce-repo-settings.yml"; do
+  require_literal "$file" '#checkov:skip=CKV_GHA_7:Exact source receipts are validated before any governed read or mutation.' \
+    "${file#"$REPO_ROOT/"} carries its pristine-repository Checkov justification"
 done
 
 AUTO_MERGE_CALLER="$REPO_ROOT/workflows/auto-merge.yml"

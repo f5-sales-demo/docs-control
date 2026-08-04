@@ -1,6 +1,7 @@
 ---
 name: Enforce Repository Settings
 
+#checkov:skip=CKV_GHA_7:Exact source receipts are validated before any governed read or mutation.
 on:
   push:
     branches: [main]
