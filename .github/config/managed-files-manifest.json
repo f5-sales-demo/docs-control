@@ -1,5 +1,5 @@
 {
-  "source_commit": "62f2e3b314b09e0d5eac0ba15057df7aefa392b6",
+  "source_commit": "854a1bc6cecb6144c62d5d9bf93c904ad55add7f",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -32,8 +32,8 @@
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
       "dest": ".github/workflows/translation-audit.yml",
-      "sha": "460f98bc1aaf280b3b03759f4b7146b451fe1cd2",
-      "size": 1800,
+      "sha": "6ac0a99435526d1d55efa632a90033a02bb4f106",
+      "size": 1697,
       "mode": "100644"
     },
     ".github/workflows/antigravity-review.yml": {
@@ -88,15 +88,15 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "be1a2c847d871a5c9dd2b27b7d921dae08363074",
-      "size": 42710,
+      "sha": "f5bb9c97ecca309c9cf2760eccc4ee71cc2bc313",
+      "size": 40842,
       "mode": "100644"
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "6b76584dc36753ec6c59585cb72434cac88678b2",
-      "size": 8475,
+      "sha": "3b146038b08d8e705c7ccec0144b17a6d8b13b23",
+      "size": 8358,
       "mode": "100644"
     },
     "AGENTS.md": {
@@ -382,8 +382,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "17a7ea850618cc842a96ca40b41a0ccfa40d6bcf",
-      "size": 5575,
+      "sha": "756f755e1cadae25eb6565f79b714856e3ca1d6d",
+      "size": 5534,
       "mode": "100644"
     },
     ".claude/settings.json": {
@@ -405,13 +405,6 @@
       "dest": "actionlint.yml",
       "sha": "25ee28bc1551da9c481eb1251101e09dfdc2707d",
       "size": 27,
-      "mode": "100644"
-    },
-    ".github/workflows/code-review.yml": {
-      "src": "workflows/code-review.yml",
-      "dest": ".github/workflows/code-review.yml",
-      "sha": "1aac51de708e403a482e6c11c2bc9b37c1e9f6d2",
-      "size": 5361,
       "mode": "100644"
     },
     ".github/workflows/workflow-security-audit.yml": {
