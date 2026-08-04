@@ -10,6 +10,7 @@ run_id="${GITHUB_RUN_ID:-}"
 run_attempt="${GITHUB_RUN_ATTEMPT:-}"
 downstream_config="${DOWNSTREAM_CONFIG:-.github/config/downstream-repos.json}"
 rollout_config="${ROLLOUT_CONFIG:-.github/config/governance-rollout.json}"
+repo_settings_config="${REPO_SETTINGS_CONFIG:-.github/config/repo-settings.json}"
 caller_path=".github/workflows/enforce-repo-settings.yml"
 lint_caller_path=".github/workflows/super-linter.yml"
 wait_seconds="${BOOTSTRAP_WAIT_SECONDS:-1800}"
@@ -39,6 +40,30 @@ if ! jq -e '
   (length == (unique | length))
 ' "$downstream_config" >/dev/null; then
   echo "[ERROR] Downstream inventory must be a non-empty array of unique repository names" >&2
+  exit 1
+fi
+if ! jq -e '
+  (.branch_protection | type == "array") and
+  ([.branch_protection[] | select(.branch == "main")] | length == 1) and
+  ([.branch_protection[] | select(.branch == "main")][0].required_status_checks |
+    type == "object" and
+    (.strict | type == "boolean") and
+    (.contexts |
+      type == "array" and length > 0 and
+      all(.[]; type == "string" and length > 0) and
+      length == (unique | length))) and
+  (.repo_overrides | type == "object") and
+  all(.repo_overrides[];
+    ((.additional_contexts // []) |
+      type == "array" and
+      all(.[]; type == "string" and length > 0) and
+      length == (unique | length)) and
+    ((.excluded_required_contexts // []) |
+      type == "array" and
+      all(.[]; type == "string" and length > 0) and
+      length == (unique | length)))
+' "$repo_settings_config" >/dev/null; then
+  echo "[ERROR] Repository settings contain an invalid required-check contract" >&2
   exit 1
 fi
 if ! rollout_state=$(jq -er '.state | select(. == "quiesced" or . == "active")' \
@@ -168,6 +193,101 @@ assert_source_current() {
     echo "[DEFER] A newer docs-control run supersedes this bootstrap"
     return 74
   fi
+}
+
+required_checks_for_repo() {
+  local name="$1"
+  jq -c --arg name "$name" '
+    ([.branch_protection[] | select(.branch == "main")][0].required_status_checks) as $base |
+    (.repo_overrides[$name] // {}) as $override |
+    {
+      strict: $base.strict,
+      contexts: (
+        (($base.contexts + ($override.additional_contexts // [])) | unique) -
+        ($override.excluded_required_contexts // []) |
+        sort
+      )
+    }
+  ' "$repo_settings_config"
+}
+
+normalize_required_checks() {
+  jq -c '{strict: .strict, contexts: (.contexts | unique | sort)}'
+}
+
+reconcile_required_checks() {
+  local name="$1" slug endpoint desired current current_state verified rc payload
+  slug="${owner}/${name}"
+  endpoint="repos/${slug}/branches/main/protection/required_status_checks"
+  desired=$(required_checks_for_repo "$name")
+  if ! printf '%s' "$desired" | jq -e '
+    .strict | type == "boolean"
+  ' >/dev/null || ! printf '%s' "$desired" | jq -e '
+    .contexts |
+    type == "array" and length > 0 and
+    all(.[]; type == "string" and length > 0) and
+    length == (unique | length)
+  ' >/dev/null; then
+    echo "[ERROR] Could not derive exact required checks for ${slug}" >&2
+    return 1
+  fi
+
+  set +e
+  current=$(api_value_or_404 "$endpoint" '.' "$REPO_SETTINGS_TOKEN")
+  rc=$?
+  set -e
+  case "$rc" in
+  0) ;;
+  44)
+    echo "[ERROR] Protected main has no required-status-checks resource for ${slug}" >&2
+    return 1
+    ;;
+  84) return 84 ;;
+  *) return 1 ;;
+  esac
+  if ! printf '%s' "$current" | jq -e '
+    type == "object" and
+    (.strict | type == "boolean") and
+    (.contexts | type == "array" and all(.[]; type == "string" and length > 0))
+  ' >/dev/null; then
+    echo "[ERROR] Required-status-checks response is malformed for ${slug}" >&2
+    return 1
+  fi
+  current_state=$(printf '%s' "$current" | normalize_required_checks)
+  if [ "$current_state" = "$desired" ]; then
+    return 0
+  fi
+
+  assert_source_current
+  payload="$work/required-checks-${name}.json"
+  printf '%s\n' "$desired" >"$payload"
+  set +e
+  GH_TOKEN="$REPO_SETTINGS_TOKEN" retry 3 gh api "$endpoint" \
+    --method PATCH --input "$payload" >/dev/null
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    [ "$rc" -ne 84 ] || return 84
+    echo "[ERROR] Could not reconcile required checks for ${slug}" >&2
+    return 1
+  fi
+  assert_source_current
+  set +e
+  verified=$(api_value_or_404 "$endpoint" '.' "$REPO_SETTINGS_TOKEN")
+  rc=$?
+  set -e
+  if [ "$rc" -eq 84 ]; then
+    return 84
+  fi
+  if [ "$rc" -ne 0 ] || ! printf '%s' "$verified" | jq -e '
+    type == "object" and
+    (.strict | type == "boolean") and
+    (.contexts | type == "array" and all(.[]; type == "string" and length > 0))
+  ' >/dev/null || [ "$(printf '%s' "$verified" | normalize_required_checks)" != "$desired" ]; then
+    echo "[ERROR] Required checks did not settle exactly for ${slug}" >&2
+    return 1
+  fi
+  echo "[OK] Required checks reconciled for ${slug}"
 }
 
 decimal_greater_than() {
@@ -570,6 +690,16 @@ bootstrap_one() {
   slug="${owner}/${name}"
 
   assert_source_current
+  set +e
+  (
+    set -e
+    reconcile_required_checks "$name"
+  )
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    return "$rc"
+  fi
 
   main_sha=$(gh api "repos/${slug}/commits/main" --jq '.sha')
   if ! printf '%s' "$main_sha" | grep -qE '^[0-9a-f]{40}$'; then
