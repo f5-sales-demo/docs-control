@@ -504,6 +504,10 @@ jobs:
         if: hashFiles('tests/test-retry-stdout.sh') != ''
         run: bash tests/test-retry-stdout.sh
 
+      - name: Run governance-secret provisioning test
+        if: hashFiles('tests/test-provision-governance-secrets.sh') != ''
+        run: bash tests/test-provision-governance-secrets.sh
+
       - name: Run dispatch-matrix test
         if: hashFiles('tests/test-dispatch-matrix.sh') != ''
         run: bash tests/test-dispatch-matrix.sh
