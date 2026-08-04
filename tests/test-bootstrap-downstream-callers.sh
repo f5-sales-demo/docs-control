@@ -24,6 +24,29 @@ LINT_CALLER_BLOB=$(printf '%s\n' "$LINT_CALLER_TEXT" | git hash-object --stdin)
 printf '["example"]\n' >"$WORK/repos.json"
 printf '{"revision":"%s"}\n' "$PIN_SHA" >"$WORK/pin.json"
 printf '{"state":"active"}\n' >"$WORK/rollout.json"
+cat >"$WORK/repo-settings.json" <<'EOF'
+{
+  "branch_protection": [
+    {
+      "branch": "main",
+      "required_status_checks": {
+        "strict": true,
+        "contexts": [
+          "Check linked issues",
+          "lint / Lint Code Base",
+          "lint / Shell Unit Tests"
+        ]
+      }
+    }
+  ],
+  "repo_overrides": {
+    "example": {
+      "additional_contexts": ["Example CI"],
+      "excluded_required_contexts": ["lint / Shell Unit Tests"]
+    }
+  }
+}
+EOF
 
 for run_status in queued in_progress waiting requested pending; do
   if ! grep -Fq "status=${run_status}" "$SOURCE"; then
@@ -111,7 +134,12 @@ case "$1 $endpoint" in
         "$LINT_CALLER_BLOB" "$LINT_CALLER_CONTENT"
     fi
     ;;
-  'api repos/f5-sales-demo/example/commits/main') printf '%s\n' "$BASE_SHA" ;;
+  'api repos/f5-sales-demo/example/commits/main')
+    if [ -f "$FAKE_STATE/required-check-failed" ]; then
+      touch "$FAKE_STATE/continued-after-required-check-failure"
+    fi
+    printf '%s\n' "$BASE_SHA"
+    ;;
   'api repos/f5-sales-demo/example/actions/workflows/enforce-repo-settings.yml')
     if [ "${FAKE_MISSING_WORKFLOW:-}" = 1 ] && [ ! -f "$FAKE_STATE/merged" ]; then
       echo 'gh: Not Found (HTTP 404)' >&2
@@ -126,6 +154,39 @@ case "$1 $endpoint" in
     rm -f "$FAKE_STATE/disabled"
     if [ "${FAKE_ADVANCE_AFTER_ENABLE:-}" = 1 ]; then
       touch "$FAKE_STATE/advance-main"
+    fi
+    ;;
+  'api repos/f5-sales-demo/example/branches/main/protection/required_status_checks')
+    if [[ "$*" == *'--method PATCH'* ]]; then
+      if [ "${FAKE_REQUIRED_CHECKS_PATCH_RATE_LIMIT:-}" = 1 ]; then
+        touch "$FAKE_STATE/required-check-failed"
+        echo 'gh: API rate limit exceeded for user ID 123. (HTTP 403)' >&2
+        exit 1
+      fi
+      input=""
+      while [ "$#" -gt 0 ]; do
+        if [ "$1" = "--input" ]; then
+          input="$2"
+          break
+        fi
+        shift
+      done
+      [ -n "$input" ] || exit 64
+      cp "$input" "$FAKE_STATE/required-checks-input.json"
+      touch "$FAKE_STATE/required-checks-reconciled"
+    elif [ "${FAKE_REQUIRED_CHECKS_ERROR:-}" = 1 ]; then
+      touch "$FAKE_STATE/required-check-failed"
+      echo 'gh: synthetic required-check read failure (HTTP 500)' >&2
+      exit 1
+    elif [ "${FAKE_STALE_REQUIRED_CHECKS:-}" = 1 ] &&
+      { [ ! -f "$FAKE_STATE/required-checks-reconciled" ] ||
+        [ "${FAKE_REQUIRED_CHECKS_VERIFY_DRIFT:-}" = 1 ]; }; then
+      if [ -f "$FAKE_STATE/required-checks-reconciled" ]; then
+        touch "$FAKE_STATE/required-check-failed"
+      fi
+      printf '{"strict":true,"contexts":["check / Check linked issues","lint / Lint Code Base","lint / Shell Unit Tests"]}\n'
+    else
+      printf '{"strict":true,"contexts":["Check linked issues","Example CI","lint / Lint Code Base"]}\n'
     fi
     ;;
   'api repos/f5-sales-demo/example-two/commits/main') printf '%s\n' "$BASE_SHA" ;;
@@ -144,6 +205,9 @@ case "$1 $endpoint" in
       exit 1
     fi
     rm -f "$FAKE_STATE/disabled-example-two"
+    ;;
+  'api repos/f5-sales-demo/example-two/branches/main/protection/required_status_checks')
+    printf '{"strict":true,"contexts":["Check linked issues","lint / Lint Code Base","lint / Shell Unit Tests"]}\n'
     ;;
   'api repos/f5-sales-demo/example-two/actions/runs?status='*) printf '\n' ;;
   'api repos/f5-sales-demo/example-two/contents/.github/workflows/enforce-repo-settings.yml?ref='*)
@@ -389,6 +453,7 @@ run_bootstrap() {
     PIN_CONFIG="$WORK/pin.json" \
     ROLLOUT_CONFIG="${TEST_ROLLOUT_CONFIG:-$WORK/rollout.json}" \
     DOWNSTREAM_CONFIG="${TEST_DOWNSTREAM_CONFIG:-$WORK/repos.json}" \
+    REPO_SETTINGS_CONFIG="${TEST_REPO_SETTINGS_CONFIG:-$WORK/repo-settings.json}" \
     BOOTSTRAP_WAIT_SECONDS=0 \
     FAKE_LOG="$WORK/gh.log" \
     FAKE_STATE="$state" \
@@ -421,6 +486,10 @@ run_bootstrap() {
     FAKE_LEGACY_RUN="${FAKE_LEGACY_RUN:-}" \
     FAKE_UNRELATED_RUN="${FAKE_UNRELATED_RUN:-}" \
     FAKE_MALFORMED_RUN_ID="${FAKE_MALFORMED_RUN_ID:-}" \
+    FAKE_STALE_REQUIRED_CHECKS="${FAKE_STALE_REQUIRED_CHECKS:-}" \
+    FAKE_REQUIRED_CHECKS_ERROR="${FAKE_REQUIRED_CHECKS_ERROR:-}" \
+    FAKE_REQUIRED_CHECKS_VERIFY_DRIFT="${FAKE_REQUIRED_CHECKS_VERIFY_DRIFT:-}" \
+    FAKE_REQUIRED_CHECKS_PATCH_RATE_LIMIT="${FAKE_REQUIRED_CHECKS_PATCH_RATE_LIMIT:-}" \
     REPO_SETTINGS_TOKEN=settings-token \
     "$SOURCE"
 }
@@ -457,6 +526,95 @@ if grep -qE '(^|[[:space:]])--force([[:space:]]|$)|"force"[[:space:]]*:[[:space:
   exit 1
 fi
 echo "[OK] stale callers close older PRs and queue one exact bounded PR"
+
+state="$WORK/state-stale-required-checks"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+FAKE_STALE_REQUIRED_CHECKS=1
+set +e
+run_bootstrap "$state" >"$WORK/stale-required-checks.out" 2>"$WORK/stale-required-checks.err"
+rc=$?
+set -e
+unset FAKE_STALE_REQUIRED_CHECKS
+required_patch_line=$(grep -n \
+  'example/branches/main/protection/required_status_checks --method PATCH' \
+  "$WORK/gh.log" | cut -d: -f1 || true)
+branch_create_line=$(grep -n 'git/refs --method POST' "$WORK/gh.log" | cut -d: -f1 || true)
+if [ "$rc" != 83 ] || [ -z "$required_patch_line" ] || [ -z "$branch_create_line" ] ||
+  [ "$required_patch_line" -ge "$branch_create_line" ] ||
+  ! jq -e '
+    .strict == true and
+    .contexts == ["Check linked issues", "Example CI", "lint / Lint Code Base"]
+  ' "$state/required-checks-input.json" >/dev/null; then
+  echo "[FAIL] stale required checks were not reconciled exactly before caller PR creation"
+  cat "$WORK/stale-required-checks.err"
+  exit 1
+fi
+echo "[OK] stale required checks reconcile additions and exclusions before caller PR creation"
+
+state="$WORK/state-required-check-read-failure"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+FAKE_REQUIRED_CHECKS_ERROR=1
+set +e
+run_bootstrap "$state" >/dev/null 2>&1
+rc=$?
+set -e
+unset FAKE_REQUIRED_CHECKS_ERROR
+if [ "$rc" = 0 ] || [ -f "$state/continued-after-required-check-failure" ] ||
+  grep -qE 'git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] required-check API failure did not block caller mutation"
+  exit 1
+fi
+echo "[OK] required-check API failure blocks caller mutation"
+
+state="$WORK/state-required-check-patch-rate-limit"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+FAKE_STALE_REQUIRED_CHECKS=1
+FAKE_REQUIRED_CHECKS_PATCH_RATE_LIMIT=1
+set +e
+run_bootstrap "$state" >/dev/null 2>"$WORK/required-check-patch-rate-limit.err"
+rc=$?
+set -e
+unset FAKE_STALE_REQUIRED_CHECKS FAKE_REQUIRED_CHECKS_PATCH_RATE_LIMIT
+if [ "$rc" != 84 ] || [ -f "$state/continued-after-required-check-failure" ] ||
+  [ "$(grep -c 'required_status_checks --method PATCH' "$WORK/gh.log")" -ne 1 ] ||
+  grep -qE 'git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] required-check rate exhaustion did not defer immediately before caller mutation"
+  exit 1
+fi
+echo "[OK] required-check rate exhaustion returns a bounded recoverable defer"
+
+state="$WORK/state-required-check-verification-drift"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+FAKE_STALE_REQUIRED_CHECKS=1
+FAKE_REQUIRED_CHECKS_VERIFY_DRIFT=1
+set +e
+run_bootstrap "$state" >/dev/null 2>&1
+rc=$?
+set -e
+unset FAKE_STALE_REQUIRED_CHECKS FAKE_REQUIRED_CHECKS_VERIFY_DRIFT
+if [ "$rc" = 0 ] || [ -f "$state/continued-after-required-check-failure" ] ||
+  ! grep -q 'example/branches/main/protection/required_status_checks --method PATCH' \
+    "$WORK/gh.log" ||
+  grep -qE 'git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] required-check postcondition drift did not fail before caller mutation"
+  exit 1
+fi
+echo "[OK] required-check reconciliation verifies its exact postcondition"
 
 state="$WORK/state-stale-lint-only"
 mkdir -p "$state"
@@ -720,6 +878,33 @@ if [ "$rc" = 0 ] || [ -s "$WORK/gh.log" ]; then
   exit 1
 fi
 echo "[OK] invalid inventory is rejected before network access"
+
+cat >"$WORK/repo-settings-invalid.json" <<'EOF'
+{
+  "branch_protection": [
+    {
+      "branch": "main",
+      "required_status_checks": {
+        "strict": true,
+        "contexts": ["Check linked issues", "Check linked issues"]
+      }
+    }
+  ],
+  "repo_overrides": {}
+}
+EOF
+: >"$WORK/gh.log"
+set +e
+TEST_REPO_SETTINGS_CONFIG="$WORK/repo-settings-invalid.json" run_bootstrap "$state" \
+  >/dev/null 2>&1
+rc=$?
+set -e
+unset TEST_REPO_SETTINGS_CONFIG
+if [ "$rc" = 0 ] || [ -s "$WORK/gh.log" ]; then
+  echo "[FAIL] invalid required-check configuration was not rejected before network access"
+  exit 1
+fi
+echo "[OK] invalid required-check configuration is rejected before network access"
 
 state="$WORK/state-internal-preflight-superseded"
 mkdir -p "$state"
