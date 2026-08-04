@@ -8,14 +8,16 @@ name: Auto-Merge
 on:
   pull_request:
     types: [opened, reopened, ready_for_review]
-  # Declared so callers can pass REPO_SYNC_TOKEN EXPLICITLY instead of
+  # Declared so callers pass REPO_SYNC_TOKEN EXPLICITLY instead of
   # `secrets: inherit` (least privilege — the caller hands over one secret, not
-  # every repository secret). `required: false` preserves the documented
-  # REPO_SYNC_TOKEN || GITHUB_TOKEN fallback for repos without the PAT.
+  # every repository secret). `required: true` because auto-merge has exactly one
+  # credential: a merge pushed with the automatic token cannot start the downstream
+  # workflows a merge is meant to start, so a repository without the PAT must fail
+  # loudly rather than merge in a way that silently breaks release and regeneration.
   workflow_call:
     secrets:
       REPO_SYNC_TOKEN:
-        required: false
+        required: true
 
 permissions: {}
 
@@ -57,11 +59,16 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           # PAT (REPO_SYNC_TOKEN) so the eventual merge-push is attributed to a
           # real user — not github-actions[bot] — which lets it trigger downstream
-          # workflows (release.yml, github-pages-deploy.yml, CI); GITHUB_TOKEN
-          # merges are blocked by GitHub's recursion prevention. The same token
-          # reads the author's repo permission for the trust gate. Falls back to
-          # GITHUB_TOKEN for repos without REPO_SYNC_TOKEN.
-          GH_TOKEN: ${{ secrets.REPO_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+          # workflows (release.yml, github-pages-deploy.yml, CI); a merge pushed
+          # with the automatic token is blocked by GitHub's recursion prevention.
+          # The same token reads the author's repo permission for the trust gate.
+          #
+          # There is deliberately no alternate credential. Substituting the
+          # automatic token would still merge, but the merge would start none of
+          # the downstream work it exists to start — a silent half-failure that is
+          # harder to diagnose than a refused merge. Callers declare this secret as
+          # required and preflight it, so absence fails before any merge is enabled.
+          GH_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}
         run: |
           if bash .governance/scripts/pr-author-trusted.sh "$REPO" "$PR_AUTHOR"; then
             gh pr merge --auto --squash "$PR_URL"

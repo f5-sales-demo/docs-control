@@ -407,20 +407,27 @@ else
     "the workflow must reject every value except none, 2018, 2021, or 2024"
 fi
 
-for edition in 2018 2021 2024; do
-  expected="VALIDATE_RUST_${edition}: \${{ inputs.rust_edition == '${edition}' }}"
-  if grep -Fq "$expected" "$SL_YML"; then
-    pass "5e.3 Rust ${edition} validation is selected only for edition ${edition}"
-  else
-    fail "5e.3 Rust ${edition} validation is selected only for edition ${edition}" \
-      "missing exact workflow_call input selector"
-  fi
-done
+if printf '%s' "$RUST_EDITION_STEP" | grep -Fq 'for edition in 2015 2018 2021 2024; do' &&
+  printf '%s' "$RUST_EDITION_STEP" | grep -Fq 'if [ "$RUST_EDITION" != "$edition" ]; then' &&
+  printf '%s' "$RUST_EDITION_STEP" | grep -Fq \
+    'echo "VALIDATE_RUST_${edition}=false" >> "$GITHUB_ENV"'; then
+  pass "5e.3 non-selected Rust editions are exported as exclusions"
+else
+  fail "5e.3 non-selected Rust editions are exported as exclusions" \
+    "the input step must disable every Rust validator except the selected edition"
+fi
+
+if grep -qE '^[[:space:]]*VALIDATE_RUST_[0-9]+:' "$SL_YML"; then
+  fail "5e.4 the Super-Linter env does not mix include and exclude modes" \
+    "Rust validator keys belong in GITHUB_ENV, not the static action env"
+else
+  pass "5e.4 the Super-Linter env does not mix include and exclude modes"
+fi
 
 # Each entry below is an explicit "not relevant" decision captured with
 # its rationale in the workflow comment. Removing a disable re-introduces
 # a full audit surface for that validator on every governed repo.
-for v in POWERSHELL HTML CPP RUST_2015 DOCKERFILE_HADOLINT BASH_EXEC EDITORCONFIG PROTOBUF; do
+for v in POWERSHELL HTML CPP DOCKERFILE_HADOLINT BASH_EXEC EDITORCONFIG PROTOBUF; do
   if grep -qE "^[[:space:]]*VALIDATE_${v}:[[:space:]]+false" "$SL_YML"; then
     pass "5e.x super-linter disables VALIDATE_${v}"
   else
@@ -594,6 +601,56 @@ if grep -Eq '\|\|[[:space:]]*true|--min-severity' "$ZIZMOR_GATE"; then
 else
   pass "6.4 audit gate fails on every finding"
 fi
+
+ZIZMOR_RUN=$(
+  python3 - "$ZIZMOR_GATE" <<'PY'
+import sys
+import yaml
+
+with open(sys.argv[1], encoding="utf-8") as handle:
+    workflow = yaml.safe_load(handle)
+for step in workflow["jobs"]["audit"]["steps"]:
+    if step.get("name") == "Reject every workflow security finding":
+        print(step["run"])
+        break
+else:
+    raise SystemExit("zizmor audit step not found")
+PY
+)
+ZIZMOR_TMP=$(mktemp -d /tmp/test-linter-configs-zizmor-XXXXXX)
+mkdir -p "$ZIZMOR_TMP/bin" "$ZIZMOR_TMP/without/.github/workflows" \
+  "$ZIZMOR_TMP/with/.github/workflows" "$ZIZMOR_TMP/with/workflows"
+printf '%s\n' '#!/bin/sh' \
+  'printf "%s\\n" "$@" > "${ZIZMOR_ARGS:?}"' >"$ZIZMOR_TMP/bin/pipx"
+chmod +x "$ZIZMOR_TMP/bin/pipx"
+touch "$ZIZMOR_TMP/with/workflows/source.yml"
+
+(
+  cd "$ZIZMOR_TMP/without"
+  PATH="$ZIZMOR_TMP/bin:$PATH" ZIZMOR_ARGS="$ZIZMOR_TMP/without.args" \
+    env -u BASH_ENV bash -euo pipefail -c "$ZIZMOR_RUN"
+)
+if grep -Fxq '.github/workflows/' "$ZIZMOR_TMP/without.args" &&
+  ! grep -Fq 'workflows/*.yml' "$ZIZMOR_TMP/without.args"; then
+  pass "6.5 audit omits an unmatched optional workflow-source glob"
+else
+  fail "6.5 audit omits an unmatched optional workflow-source glob" \
+    "an absent workflows directory must not become a remote zizmor target"
+fi
+
+(
+  cd "$ZIZMOR_TMP/with"
+  PATH="$ZIZMOR_TMP/bin:$PATH" ZIZMOR_ARGS="$ZIZMOR_TMP/with.args" \
+    env -u BASH_ENV bash -euo pipefail -c "$ZIZMOR_RUN"
+)
+if grep -Fxq '.github/workflows/' "$ZIZMOR_TMP/with.args" &&
+  grep -Fxq 'workflows/source.yml' "$ZIZMOR_TMP/with.args"; then
+  pass "6.6 audit includes optional workflow sources when present"
+else
+  fail "6.6 audit includes optional workflow sources when present" \
+    "present canonical workflow sources must remain covered"
+fi
+rm -rf "$ZIZMOR_TMP"
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5a: .jscpd.json guardrails — threshold + ignore patterns
