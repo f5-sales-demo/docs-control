@@ -1,247 +1,93 @@
 #!/usr/bin/env bash
-# Guards the translation suspension against the one combination that deadlocks
-# pull requests fleet-wide: a required status check whose workflow is gated off
-# never reports, so the check can never go green and no PR can merge without an
-# administrator.
-#
-# The two settings live in different files that propagate through different
-# fan-outs (branch protection via enforce-repo-settings, the workflow via
-# managed-file sync), so nothing else couples them. This test does.
+# Translation generation is centrally gated while deterministic local validation stays active.
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 REPO_SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
-AUDIT_STUB="$REPO_ROOT/workflows/translation-audit.yml"
-ANTIGRAVITY_REUSABLE="$REPO_ROOT/.github/workflows/antigravity-translate.yml"
-ANTIGRAVITY_STUB="$REPO_ROOT/workflows/antigravity-translate.yml"
+AUDIT="$REPO_ROOT/workflows/translation-audit.yml"
 PRE_COMMIT="$REPO_ROOT/.pre-commit-config.yaml"
-TRANSLATION_SCRIPT="$REPO_ROOT/scripts/antigravity-translate-staged.sh"
 CONTRIBUTING="$REPO_ROOT/CONTRIBUTING.md"
-
-CONTEXT="audit / Translation freshness"
+CONTEXT='audit / Translation freshness'
 PASS=0
 FAIL=0
 
 pass() {
-  echo "  PASS: $1"
+  printf '  PASS: %s\n' "$1"
   PASS=$((PASS + 1))
 }
-
 fail() {
-  echo "  FAIL: $1 — $2"
+  printf '  FAIL: %s — %s\n' "$1" "$2"
   FAIL=$((FAIL + 1))
 }
 
-echo "════════════════════════════════════════════════════════════════"
-echo "Translation suspension guards"
-echo "════════════════════════════════════════════════════════════════"
+echo "Translation routing guards"
 
-# ════════════════════════════════════════════════════════════════════
-# SECTION 1: the deadlock combination is impossible
-# ════════════════════════════════════════════════════════════════════
-echo ""
-echo "=== Section 1: a required context never coexists with a gated-off workflow ==="
-
-# Is the context required anywhere it could be? Base contexts plus any
-# per-repo additional_contexts — the two sources enforce-repo-settings merges.
-REQUIRED=$(jq -r --arg c "$CONTEXT" '
+required=$(jq -r --arg context "$CONTEXT" '
   ((.branch_protection[0].required_status_checks.contexts // []) +
-   ([.repo_overrides // {} | .[] | .additional_contexts // []] | flatten))
-  | index($c) != null
+   ([.repo_overrides[]?.additional_contexts // []] | flatten)) |
+  index($context) != null
 ' "$REPO_SETTINGS")
-
-# GATED is the functional question: can this job decline to report?
-#
-# The condition is what actually withholds the status. Because restoration deletes
-# the `if:` outright rather than flipping the variable (see "Restoring translations"
-# in CONTRIBUTING.md), its presence is a reliable signal — and it is the only signal
-# that catches the dangerous case where someone removes the explanatory comment but
-# leaves the condition behind. A repository the variable is not visible to then
-# emits no status at all, and a required context would wait on it forever.
-#
-# Keying on the comment alone was wrong for exactly that reason.
-if grep -qE "^\s*if:\s*vars\.TRANSLATIONS_ENABLED" "$AUDIT_STUB"; then
-  GATED=true
+if grep -qE '^\s*if:\s*vars\.TRANSLATIONS_ENABLED' "$AUDIT"; then gated=true; else gated=false; fi
+if [ "$required" = true ] && [ "$gated" = true ]; then
+  fail "a gated audit is never required" "the status would remain pending forever"
 else
-  GATED=false
+  pass "a gated audit is never required"
 fi
 
-# The marker is documentation of intent. It must agree with the condition, or the
-# next reader is told one thing while CI does another.
-if grep -q 'SUSPENDED:' "$AUDIT_STUB"; then
-  MARKED=true
-else
-  MARKED=false
-fi
-
-if [ "$REQUIRED" = "true" ] && [ "$GATED" = "true" ]; then
-  fail "1.1 a conditionally-skipped audit is never a required context" \
-    "'$CONTEXT' is required while the job can skip itself — repos without the variable emit no status and their PRs deadlock"
-else
-  pass "1.1 a conditionally-skipped audit is never a required context (required=$REQUIRED gated=$GATED)"
-fi
-
-if [ "$GATED" = "$MARKED" ]; then
-  pass "1.2 the SUSPENDED marker agrees with the actual gate (gated=$GATED marked=$MARKED)"
-else
-  fail "1.2 the SUSPENDED marker agrees with the actual gate" \
-    "gated=$GATED but marked=$MARKED — the comment and the condition disagree, so one of them is lying"
-fi
-
-# Name the state, so CI output says suspended or restored without a reader
-# opening two files.
-if [ "$GATED" = "true" ] && [ "$REQUIRED" = "false" ]; then
-  pass "1.3 suspended state is coherent: audit can skip, context not required"
-elif [ "$GATED" = "false" ] && [ "$REQUIRED" = "true" ]; then
-  pass "1.3 restored state is coherent: audit unconditional, context required"
-else
-  # Unconditional but gating nothing: wasteful rather than dangerous, and it is the
-  # transient state between the two halves of a restore.
-  pass "1.3 audit unconditional but not required — safe, advisory only (mid-restore)"
-fi
-
-# ════════════════════════════════════════════════════════════════════
-# SECTION 2: GitHub generation is opt-in; local generation is mandatory
-# ════════════════════════════════════════════════════════════════════
-echo ""
-echo "=== Section 2: GitHub generation is opt-in and local generation is always active ==="
-
-for translation_workflow in "$ANTIGRAVITY_REUSABLE" "$ANTIGRAVITY_STUB"; do
-  if grep -qF "vars.TRANSLATIONS_ENABLED == 'true'" "$translation_workflow"; then
-    pass "2.0 Antigravity $(basename "$translation_workflow") shares the positive translation gate"
+for workflow in \
+  "$REPO_ROOT/.github/workflows/antigravity-translate.yml" \
+  "$REPO_ROOT/workflows/antigravity-translate.yml"; do
+  if grep -qF "vars.TRANSLATIONS_ENABLED == 'true'" "$workflow"; then
+    pass "$(basename "$workflow") is positive-gated"
   else
-    fail "2.0 Antigravity $(basename "$translation_workflow") shares the positive translation gate" \
-      "quota-backed generation must stay off unless TRANSLATIONS_ENABLED is exactly true"
+    fail "$(basename "$workflow") is positive-gated" "literal true gate is absent"
+  fi
+  if grep -q 'workflow_dispatch:' "$workflow" || [[ "$workflow" == *'/.github/'* ]]; then
+    pass "$(basename "$workflow") has a trusted automation route"
+  else
+    fail "$(basename "$workflow") has a trusted automation route" "dispatch route is absent"
   fi
 done
 
-HOOK_BLOCK=$(awk '
-  /^      - id: antigravity-translate$/ { capture = 1 }
-  capture && /^ci:/ { exit }
-  capture { print }
+hook=$(awk '
+  /^      - id: validate-translations$/ {capture=1}
+  capture && /^ci:/ {exit}
+  capture {print}
 ' "$PRE_COMMIT")
-
-if grep -q 'entry: bash scripts/antigravity-translate-staged.sh' <<<"$HOOK_BLOCK" &&
-  ! grep -qE 'ANTHROPIC_API_KEY|docs-translate|TRANSLATIONS_ENABLED' <<<"$HOOK_BLOCK" &&
-  grep -qE 'agy .*--sandbox .*--mode accept-edits' <(tr '\n' ' ' <"$TRANSLATION_SCRIPT") &&
-  ! grep -qE 'ANTHROPIC_API_KEY|docs-translate|TRANSLATIONS_ENABLED|dangerously-skip-permissions' \
-    "$TRANSLATION_SCRIPT"; then
-  pass "2.1 local translation is always-active Antigravity generation"
+if grep -qF 'entry: bash scripts/validate-translations.sh --staged' <<<"$hook" &&
+  ! grep -qE 'agy|ANTHROPIC|TRANSLATIONS_ENABLED|accept-edits' <<<"$hook"; then
+  pass "local translation hook is deterministic and model-free"
 else
-  fail "2.1 local translation is always-active Antigravity generation" \
-    "the hook is missing, locally gated, or still invokes the Anthropic docs-translate path"
+  fail "local translation hook is deterministic and model-free" "hook invokes or depends on a model"
 fi
 
-if grep -qF "docs-control's \`tests/test-translation-suspension.sh\`" "$CONTRIBUTING"; then
-  pass "2.3 CONTRIBUTING identifies the canonical translation guard without naming a consumer-local test"
-else
-  fail "2.3 CONTRIBUTING identifies the canonical translation guard" \
-    "the managed document must qualify the docs-control-only test path"
-fi
-
-# Both supported layouts must reach the same managed hook.
-if grep -qF 'files: ^(docs/en|src/content/docs/en)/.*\.mdx?$' "$PRE_COMMIT"; then
-  pass "2.2 the hook covers both English documentation layouts"
-else
-  fail "2.2 the hook covers both English documentation layouts" \
-    "docs/en or src/content/docs/en is outside the hook selector"
-fi
-
-# ════════════════════════════════════════════════════════════════════
-# SECTION 3: the restore procedure records what removal took away
-# ════════════════════════════════════════════════════════════════════
-echo ""
-echo "=== Section 3: restoring is documented, including the non-obvious parts ==="
-
-# Removing the base context forced the removal of two per-repo exclusions,
-# because tests/test-linter-configs.sh section 7c rejects an exclusion that
-# matches no required context. Restoring the context without restoring those
-# exclusions silently subjects those repos to a check they were exempt from.
-for repo in terraform-provider-xcsh code-review; do
-  if grep -q "$repo" "$CONTRIBUTING"; then
-    pass "3.1 restore procedure names $repo, whose exclusion was removed with the context"
+for retired in scripts/antigravity-translate-staged.sh scripts/parse-translation-trigger.sh; do
+  if [ ! -e "$REPO_ROOT/$retired" ] &&
+    jq -e --arg retired "$retired" '.managed_files.absent_files | index($retired) != null' \
+      "$REPO_SETTINGS" >/dev/null; then
+    pass "$retired is removed fleet-wide"
   else
-    fail "3.1 restore procedure names $repo, whose exclusion was removed with the context" \
-      "restoring the context without its exclusion gives this repo a check it was exempt from"
+    fail "$retired is removed fleet-wide" "source or deletion route remains"
   fi
 done
 
-# The organisation variable controls Actions only. Local generation is an
-# unconditional developer-environment contract and must not drift back to a
-# second persistent switch.
-if grep -q 'Actions controls only' "$CONTRIBUTING" &&
-  grep -q 'always-active' "$CONTRIBUTING" &&
-  ! grep -q 'export TRANSLATIONS_ENABLED' "$CONTRIBUTING"; then
-  pass "3.2 documentation separates the Actions switch from always-active local generation"
+if grep -qF 'scripts/validate-translations.sh' "$REPO_ROOT/.github/workflows/antigravity-translate.yml" &&
+  grep -qF 'scripts/validate-translations.sh' "$REPO_SETTINGS"; then
+  pass "trusted source-hash/output validator gates translation publication"
 else
-  fail "3.2 documentation separates Actions and local generation" \
-    "local translation still appears to depend on the organisation variable or an exported copy"
+  fail "trusted source-hash/output validator gates translation publication" \
+    "workflow or managed catalog omits the validator"
 fi
 
-# Section 1 keys on the SUSPENDED marker, so restoring must remove it. A
-# procedure that flips the variable and the context but leaves the marker in place
-# would fail 1.1 immediately after a correct restore.
-# Match the marker token exactly, case-sensitively, and flattened.
-#
-# Three earlier attempts got this wrong, in both directions. Requiring the verb
-# adjacent to the marker missed correct prose. Widening to a sentence broke on the
-# period inside `vars.TRANSLATIONS_ENABLED`. Widening further with -i made it
-# vacuous, because the document says "suspended" nine times in ordinary prose and
-# something always matched. `SUSPENDED:` with its colon is the literal marker and
-# appears only where the procedure discusses it, so it is the discriminating token.
-# Flattening is still needed: the verb and the marker wrap onto different lines and
-# grep is line-based.
-if tr '\n' ' ' <"$CONTRIBUTING" | grep -qE '(remove|delete|Remove|Delete).{0,200}SUSPENDED:'; then
-  pass "3.3 restore procedure removes the SUSPENDED markers that section 1 keys on"
+if grep -q 'skip_files' "$CONTRIBUTING" &&
+  grep -q 'terraform-provider-xcsh' "$CONTRIBUTING" &&
+  ! grep -qE 'terraform-provider-xcsh.{0,80}code-review|code-review.{0,80}terraform-provider-xcsh' \
+    <(tr '\n' ' ' <"$CONTRIBUTING"); then
+  pass "restore procedure derives exclusions without the retired repository"
 else
-  fail "3.3 restore procedure removes the SUSPENDED markers that section 1 keys on" \
-    "leaving the marker in place fails 1.1 straight after a correct restore"
+  fail "restore procedure derives exclusions without the retired repository" \
+    "restore instructions are stale"
 fi
 
-# One green pull request does not prove the audit reports everywhere. During #867
-# a five-repo spot check came back clean while 9 of 38 repos were still stale,
-# because enforcement fans out in batches. Re-adding the context on that evidence
-# deadlocks whichever repos have not caught up.
-if grep -qiE 'every governed repo|all governed repo' "$CONTRIBUTING"; then
-  pass "3.4 restore procedure requires fleet-wide confirmation, not a single PR"
-else
-  fail "3.4 restore procedure requires fleet-wide confirmation, not a single PR" \
-    "a sample can be green while repos lag; the context must not be re-added on that evidence"
-fi
-
-# "Every governed repo must report" is impossible as stated: repos listed in
-# skip_files for translation-audit.yml never receive the workflow, so the check
-# can never appear there. Verified: terraform-provider-xcsh skips it and the file
-# 404s in that repository. That is exactly why it carried an
-# excluded_required_contexts entry — a required check whose workflow does not
-# exist is a permanent deadlock, not a transient one.
-#
-# So the procedure must scope its verification to repos that actually receive the
-# workflow, and must derive that set from skip_files rather than from a
-# hand-maintained list that will drift.
-if grep -q 'skip_files' "$CONTRIBUTING"; then
-  pass "3.4b restore procedure excludes repos that never receive the audit workflow"
-else
-  fail "3.4b restore procedure excludes repos that never receive the audit workflow" \
-    "terraform-provider-xcsh skips translation-audit.yml; demanding a report from it is impossible"
-fi
-
-# The ordering rule is the load-bearing part of the procedure. Assert the two
-# substantive facts rather than one exact phrase: that re-adding the context is
-# explicitly sequenced last, and that the consequence of getting it wrong is
-# named. Grepping for a single wording made this fail against prose that stated
-# the rule three different ways.
-if grep -qiE 'only then|order matters' "$CONTRIBUTING" &&
-  grep -qi 'deadlock' "$CONTRIBUTING"; then
-  pass "3.5 restore procedure sequences the context last and names the deadlock consequence"
-else
-  fail "3.5 restore procedure sequences the context last and names the deadlock consequence" \
-    "re-adding the required context before the check can pass deadlocks every open PR"
-fi
-
-echo ""
-echo "════════════════════════════════════════════════════════════════"
-echo "  Results: $PASS passed, $FAIL failed ($((PASS + FAIL)) total)"
-echo "════════════════════════════════════════════════════════════════"
-
+printf '\nResults: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

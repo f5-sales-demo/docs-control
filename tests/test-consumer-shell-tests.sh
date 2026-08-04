@@ -188,7 +188,8 @@ if jq -e '
     "tests/test-fetch-governed.sh",
     "tests/test-hook-neutralization.sh",
     "tests/test-inlined-helpers-match.sh",
-    "tests/test-lint-mdx-prose.sh"
+    "tests/test-lint-mdx-prose.sh",
+    "tests/test-review-plugin-removal.sh"
   ] and
   ($p.unit[] | select(.path == "tests/test-hook-neutralization.sh") | .args) == ["--unit-only"] and
   ($p.environment | map(.path)) == [

@@ -576,13 +576,13 @@ jobs:
         if: hashFiles('tests/test-antigravity-suspension.sh') != ''
         run: bash tests/test-antigravity-suspension.sh
 
-      - name: Run Antigravity staged-translation test
-        if: hashFiles('tests/test-antigravity-translate-staged.sh') != ''
-        run: bash tests/test-antigravity-translate-staged.sh
-
       - name: Run Antigravity pre-push review test
         if: hashFiles('tests/test-agy-pre-push-review.sh') != ''
         run: bash tests/test-agy-pre-push-review.sh
+
+      - name: Run deterministic translation-validator test
+        if: hashFiles('tests/test-validate-translations.sh') != ''
+        run: bash tests/test-validate-translations.sh
 
       - name: Run Antigravity live-control verifier test
         if: hashFiles('tests/test-verify-antigravity-controls.sh') != ''

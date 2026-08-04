@@ -85,7 +85,8 @@
           { "path": "tests/test-fetch-governed.sh", "args": [] },
           { "path": "tests/test-hook-neutralization.sh", "args": ["--unit-only"] },
           { "path": "tests/test-inlined-helpers-match.sh", "args": [] },
-          { "path": "tests/test-lint-mdx-prose.sh", "args": [] }
+          { "path": "tests/test-lint-mdx-prose.sh", "args": [] },
+          { "path": "tests/test-review-plugin-removal.sh", "args": [] }
         ],
         "environment": [
           {
@@ -111,7 +112,13 @@
   },
   "managed_files": {
     "source_repo": "f5-sales-demo/docs-control",
-    "absent_files": [".github/workflows/code-review.yml"],
+    "absent_files": [
+      ".github/workflows/claude-review.yml",
+      ".github/workflows/code-review.yml",
+      "scripts/antigravity-translate-staged.sh",
+      "scripts/parse-translation-trigger.sh",
+      "tests/test-antigravity-translate-staged.sh"
+    ],
     "skip_files": {
       "xcsh": [
         "biome.json",
@@ -129,7 +136,6 @@
       "console": [".ruff.toml", ".mypy.ini", ".isort.cfg"],
       "xcsh-chrome-extension": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"],
       "apt-repo": ["README.md"],
-      "code-review": ["README.md"],
       "demo-resource-template": ["README.md"],
       "marketplace-claude-code": ["README.md"],
       "starlight-llms-txt": ["README.md"],
@@ -314,16 +320,20 @@
         "dest": "scripts/locale-lint.sh"
       },
       {
-        "src": "scripts/parse-translation-trigger.sh",
-        "dest": "scripts/parse-translation-trigger.sh"
-      },
-      {
-        "src": "scripts/antigravity-translate-staged.sh",
-        "dest": "scripts/antigravity-translate-staged.sh"
-      },
-      {
         "src": "scripts/agy-pre-push-review.sh",
         "dest": "scripts/agy-pre-push-review.sh"
+      },
+      {
+        "src": "scripts/agy-review.sh",
+        "dest": "scripts/agy-review.sh"
+      },
+      {
+        "src": "scripts/agy-review-output.schema.json",
+        "dest": "scripts/agy-review-output.schema.json"
+      },
+      {
+        "src": "scripts/validate-translations.sh",
+        "dest": "scripts/validate-translations.sh"
       },
       {
         "src": "scripts/check-repo-hygiene.sh",
@@ -352,6 +362,14 @@
       {
         "src": "tests/test-lint-mdx-prose.sh",
         "dest": "tests/test-lint-mdx-prose.sh"
+      },
+      {
+        "src": "tests/test-agy-pre-push-review.sh",
+        "dest": "tests/test-agy-pre-push-review.sh"
+      },
+      {
+        "src": "tests/test-validate-translations.sh",
+        "dest": "tests/test-validate-translations.sh"
       },
       {
         "src": ".claude/governance.json",
@@ -412,7 +430,6 @@
     },
     "repo_roles": {
       "_default": ["governance"],
-      "code-review": ["governance", "xcsh"],
       "dns": ["governance"],
       "demo-resource-template": ["governance"],
       "docs-icons": ["governance", "npm_publish"],

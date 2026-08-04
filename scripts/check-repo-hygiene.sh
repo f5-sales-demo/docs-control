@@ -11,7 +11,7 @@
 # masks a dangling link by creating the real thing (npm ci, pip install).
 #
 # The symlink check runs by default. The home-directory scan is opt-in via
-# --include-paths, because measuring it across all 38 governed repositories flagged
+# --include-paths, because measuring it across all 37 governed repositories flagged
 # 10 of them and only 2 findings were real: the rest were API routes (/Users/1),
 # URL paths (/home/index), shell variables (/home/${USERNAME}), placeholder names,
 # and upstream-generated specification examples. A gate that is ~80% false positives

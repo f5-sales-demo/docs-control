@@ -23,12 +23,17 @@ A hook blocks direct edits — open an issue in docs-control instead.
 
 ## Review routing
 
-Specs and plans are not branch diffs. Route by artifact; see CONTRIBUTING.md, "Automated code review".
+Antigravity is the fleet's only semantic reviewer. Claude authors, reasons, debugs, implements, and
+responds to findings; it does not independently review its own or another agent's work.
 
-- **Specs/plans — advisory.** When installed, use `verified-review:verified-code-review` with `document --kind spec|plan`; verify findings and report dismissals.
-- **Branch — required before every PR push.** Commit, then run `bash scripts/agy-pre-push-review.sh`. It applies the same `verified-code-review` workflow to `origin/main...HEAD` using sandboxed `agy` without GitHub credentials. Fix confirmed blockers, commit, and rerun; never push an unreviewed HEAD.
-- **Never** use a PR-diff reviewer for a spec, plan, or local branch. `.claude/settings.json` denies `code-review:code-review` and `pr-review-toolkit:review-pr`. The built-ins `/review` and `/security-review` cannot be denied — not selecting them is on you.
-- **CI** — the Antigravity pull-request reviewer is **suspended** and not required. Do not wait for it; follow the restoration procedure in CONTRIBUTING.md.
+- **Specs/plans.** Run `bash scripts/agy-review.sh document --kind spec|plan --file <path>`.
+- **Branch — required before every PR push.** Commit, then run `bash scripts/agy-pre-push-review.sh`.
+  Fix blocking findings, commit, and rerun; never push an unreviewed HEAD.
+- **Prohibited.** Do not invoke `/review`, `/security-review`, `code-review:code-review`,
+  `pr-review-toolkit:review-pr`, `verified-review:verified-code-review`, Codex review commands,
+  adversarial-review modes, review subagents, or automatic review stop hooks.
+- **After push.** Do not poll or wait on GitHub Actions. Auto-merge and the governed Antigravity
+  watcher record terminal results and comment only when a workflow fails.
 
 ## Worktrees
 
