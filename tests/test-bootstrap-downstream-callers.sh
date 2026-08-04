@@ -265,7 +265,13 @@ case "$1 $endpoint" in
       printf '[]\n'
     fi
     ;;
-  'api repos/f5-sales-demo/example-two/commits/main') printf '%s\n' "$BASE_SHA" ;;
+  'api repos/f5-sales-demo/example-two/commits/main')
+    if [ "${FAKE_FAIL_SECOND_BOOTSTRAP:-}" = 1 ]; then
+      echo 'gh: synthetic protected-main read failure (HTTP 500)' >&2
+      exit 1
+    fi
+    printf '%s\n' "$BASE_SHA"
+    ;;
   'api repos/f5-sales-demo/example-two/actions/workflows/enforce-repo-settings.yml')
     if [ -f "$FAKE_STATE/disabled-example-two" ]; then
       printf 'disabled_manually\n'
@@ -482,20 +488,23 @@ case "$1 $endpoint" in
         '[{number: 11, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/page-two-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[], [{number: 9, head: {ref: "sync/exact-caller-aaaaaaaaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
+        '[], [{number: 9, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/huge-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[{number: 10, head: {ref: "sync/exact-caller-aaaaaaaaaaaaaaaaaa-999999999999999999999999999999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
+        '[{number: 10, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-999999999999999999999999999999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/newer-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[{number: 8, head: {ref: "sync/exact-caller-aaaaaaaaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
+        '[{number: 8, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-99999-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
+    elif [ -f "$FAKE_STATE/malformed-owner-open" ]; then
+      jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
+        '[{number: 14, head: {ref: "sync/exact-caller-invalid", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/current-pr" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg branch "$EXPECTED_BRANCH" \
         --arg repo "${GITHUB_REPOSITORY%/*}/example" \
         '[{number: 42, head: {ref: $branch, sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     elif [ -f "$FAKE_STATE/old-open" ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg repo "${GITHUB_REPOSITORY%/*}/example" \
-        '[{number: 7, head: {ref: "sync/exact-caller-aaaaaaaaaaaaaaaaaa-12-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
+        '[{number: 7, head: {ref: "sync/exact-caller-aaaaaaaaaaaa-12-1", sha: $sha, repo: {full_name: $repo}}, base: {ref: "main"}}]'
     else
       printf '[]\n'
     fi
@@ -611,6 +620,7 @@ run_bootstrap() {
     FAKE_STAGED_LINKED_TRANSITION="${FAKE_STAGED_LINKED_TRANSITION:-}" \
     FAKE_LEGACY_LINKED_CHECK="${FAKE_LEGACY_LINKED_CHECK:-}" \
     FAKE_RECOVER_MERGED_TRANSITION="${FAKE_RECOVER_MERGED_TRANSITION:-}" \
+    FAKE_FAIL_SECOND_BOOTSTRAP="${FAKE_FAIL_SECOND_BOOTSTRAP:-}" \
     REPO_SETTINGS_TOKEN=settings-token \
     "$SOURCE"
 }
@@ -1060,6 +1070,23 @@ if [ "$rc" = 0 ] ||
 fi
 echo "[OK] hostile same-ref fork PR blocks exact-caller mutation"
 
+state="$WORK/state-malformed-owner"
+mkdir -p "$state"
+touch "$state/malformed-owner-open" "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+set +e
+run_bootstrap "$state" >/dev/null 2>&1
+rc=$?
+set -e
+if [ "$rc" = 0 ] ||
+  grep -qE '^pr (close|create|merge) |git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] malformed reserved-namespace ownership was mutated"
+  exit 1
+fi
+echo "[OK] malformed reserved-namespace ownership fails closed"
+
 state="$WORK/state-duplicate-current"
 mkdir -p "$state"
 touch "$state/duplicate-current-open" "$state/disabled"
@@ -1202,6 +1229,26 @@ fi
 echo "[OK] source advancement during enable re-quiesces the fleet"
 
 printf '["example","example-two"]\n' >"$WORK/repos-two.json"
+state="$WORK/state-mixed-pending-and-failure"
+mkdir -p "$state"
+touch "$state/disabled" "$state/disabled-example-two"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
+FAKE_STAGED_LINKED_TRANSITION=1
+FAKE_FAIL_SECOND_BOOTSTRAP=1
+set +e
+TEST_DOWNSTREAM_CONFIG="$WORK/repos-two.json" run_bootstrap "$state" >/dev/null 2>&1
+rc=$?
+set -e
+unset DOWNSTREAM_LINKED_BLOB FAKE_STAGED_LINKED_TRANSITION FAKE_FAIL_SECOND_BOOTSTRAP
+if [ "$rc" != 1 ] || grep -q 'actions/workflows/enforce-repo-settings.yml/enable --method PUT' \
+  "$WORK/gh.log"; then
+  echo "[FAIL] recoverable transition state masked a permanent fleet bootstrap failure"
+  exit 1
+fi
+echo "[OK] permanent fleet bootstrap failures take precedence over recoverable transition state"
+
 state="$WORK/state-partial-enable-failure"
 mkdir -p "$state"
 touch "$state/disabled" "$state/disabled-example-two"
