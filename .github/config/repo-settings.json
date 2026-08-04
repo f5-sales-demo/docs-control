@@ -33,7 +33,7 @@
       "enforce_admins": true,
       "required_status_checks": {
         "strict": true,
-        "contexts": ["check / Check linked issues", "lint / Lint Code Base", "lint / Shell Unit Tests"],
+        "contexts": ["Check linked issues", "lint / Lint Code Base", "lint / Shell Unit Tests"],
         "self_contexts": ["Check linked issues", "Lint Code Base", "Shell Unit Tests"]
       },
       "required_pull_request_reviews": null,

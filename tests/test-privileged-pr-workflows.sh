@@ -68,16 +68,23 @@ done
 for file in \
   "$REPO_ROOT/workflows/require-linked-issue.yml" \
   "$REPO_ROOT/.github/workflows/require-linked-issue.yml"; do
-  required_context=$(jq -r '
-    .branch_protection[0].required_status_checks.self_contexts[]
-    | select(endswith("Check linked issues"))
-  ' "$REPO_ROOT/.github/config/repo-settings.json")
   published_context=$(sed -n 's/.*const STATUS_CONTEXT = "\([^"]*\)";.*/\1/p' "$file")
-  if [ -n "$required_context" ] && [ "$published_context" = "$required_context" ]; then
-    pass "${file#"$REPO_ROOT/"} publishes the exact required self-repository context"
-  else
-    fail "${file#"$REPO_ROOT/"} publishes the exact required self-repository context"
-  fi
+  for context_scope in contexts self_contexts; do
+    case "$context_scope" in
+    contexts) context_label="consumer" ;;
+    self_contexts) context_label="self-repository" ;;
+    esac
+    required_context=$(jq -r --arg scope "$context_scope" '
+      .branch_protection[0].required_status_checks[$scope]
+      | map(select(endswith("Check linked issues")))
+      | if length == 1 then .[0] else empty end
+    ' "$REPO_ROOT/.github/config/repo-settings.json")
+    if [ -n "$required_context" ] && [ "$published_context" = "$required_context" ]; then
+      pass "${file#"$REPO_ROOT/"} publishes the exact required $context_label context"
+    else
+      fail "${file#"$REPO_ROOT/"} publishes the exact required $context_label context"
+    fi
+  done
   require_literal "$file" 'const headSha = pull.head.sha;' "${file#"$REPO_ROOT/"} publishes status on the current PR head"
   require_literal "$file" 'github.paginate(github.rest.pulls.list' "${file#"$REPO_ROOT/"} evaluates every open pull request"
   require_literal "$file" 'postStatus("pending"' "${file#"$REPO_ROOT/"} publishes a pending status before evaluation"
