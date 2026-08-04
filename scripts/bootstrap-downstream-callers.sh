@@ -583,6 +583,17 @@ decimal_greater_than() {
   [[ "$left" > "$right" ]]
 }
 
+parse_exact_caller_owner() {
+  local head_ref="$1"
+  exact_caller_owner_run=""
+  exact_caller_owner_attempt=""
+  if [[ ! "$head_ref" =~ ^sync/exact-caller-[A-Za-z0-9][A-Za-z0-9._-]*-([1-9][0-9]*)-([1-9][0-9]*)$ ]]; then
+    return 1
+  fi
+  exact_caller_owner_run="${BASH_REMATCH[1]}"
+  exact_caller_owner_attempt="${BASH_REMATCH[2]}"
+}
+
 read_bootstrap_prs() {
   local slug="$1" destination="$2" response rc
   response=$(mktemp "$work/bootstrap-pr-pages.XXXXXX")
@@ -647,7 +658,7 @@ reconcile_bootstrap_prs() {
       rm -f "$open_prs"
       return 1
     fi
-    if [[ ! "$head_ref" =~ ^sync/exact-caller-[0-9a-f]{18}-([1-9][0-9]*)-([1-9][0-9]*)$ ]]; then
+    if ! parse_exact_caller_owner "$head_ref"; then
       echo "[ERROR] Unrecognized exact-caller automation branch for ${slug}" >&2
       rm -f "$open_prs"
       return 1
@@ -658,8 +669,8 @@ reconcile_bootstrap_prs() {
       bootstrap_pr_head_oid="$head_oid"
       continue
     fi
-    other_run="${BASH_REMATCH[1]}"
-    other_attempt="${BASH_REMATCH[2]}"
+    other_run="$exact_caller_owner_run"
+    other_attempt="$exact_caller_owner_attempt"
     if decimal_greater_than "$other_run" "$run_id" ||
       { [ "$other_run" = "$run_id" ] &&
         decimal_greater_than "$other_attempt" "$run_attempt"; }; then
@@ -724,7 +735,7 @@ reconcile_bootstrap_prs() {
       rm -f "$open_prs"
       return 1
     fi
-    if [[ ! "$head_ref" =~ ^sync/exact-caller-[0-9a-f]{18}-([1-9][0-9]*)-([1-9][0-9]*)$ ]]; then
+    if ! parse_exact_caller_owner "$head_ref"; then
       echo "[ERROR] Unrecognized exact-caller automation branch for ${slug}" >&2
       rm -f "$open_prs"
       return 1
@@ -1398,13 +1409,13 @@ if [ "$newer_owner" = true ]; then
   echo "[DEFER] A newer bootstrap run owns the transition"
   exit 83
 fi
-if [ "$transition_pending" = true ]; then
-  echo "[DEFER] Linked-issue transition checks remain pending"
-  exit 83
-fi
 if [ "$failures" -gt 0 ]; then
   echo "[ERROR] ${failures} downstream caller bootstrap(s) failed" >&2
   exit 1
+fi
+if [ "$transition_pending" = true ]; then
+  echo "[DEFER] Linked-issue transition checks remain pending"
+  exit 83
 fi
 
 deadline=$((SECONDS + wait_seconds))
