@@ -1,5 +1,5 @@
 {
-  "source_commit": "f6bca4b389b73a0d9d4edb89ad57695a23af47ad",
+  "source_commit": "95d1eb32c4bd66037e0440b4017a3a0118a9eb6b",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -319,8 +319,8 @@
     "scripts/antigravity-translate-staged.sh": {
       "src": "scripts/antigravity-translate-staged.sh",
       "dest": "scripts/antigravity-translate-staged.sh",
-      "sha": "d6d88be2c31b7e979688128b42d4100ce84a2ecb",
-      "size": 8744,
+      "sha": "c0a988e8b8ab6c3ea7ea3136100b39fee1bf67a5",
+      "size": 10484,
       "mode": "100755"
     },
     "scripts/agy-pre-push-review.sh": {
