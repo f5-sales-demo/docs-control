@@ -1,5 +1,5 @@
 {
-  "source_commit": "95d1eb32c4bd66037e0440b4017a3a0118a9eb6b",
+  "source_commit": "62f2e3b314b09e0d5eac0ba15057df7aefa392b6",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -88,8 +88,8 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "5b94b2edc2cd0f7baa4fb06bebf41c8d4daa22cb",
-      "size": 42236,
+      "sha": "be1a2c847d871a5c9dd2b27b7d921dae08363074",
+      "size": 42710,
       "mode": "100644"
     },
     "CLAUDE.md": {
@@ -326,8 +326,8 @@
     "scripts/agy-pre-push-review.sh": {
       "src": "scripts/agy-pre-push-review.sh",
       "dest": "scripts/agy-pre-push-review.sh",
-      "sha": "5b382df6d87b0d6549b923fc4128bfac0b043ff4",
-      "size": 1993,
+      "sha": "d73fcb914a67e0003c0a7bf9ca24b5814fbe4315",
+      "size": 2714,
       "mode": "100755"
     },
     "scripts/check-repo-hygiene.sh": {
