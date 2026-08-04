@@ -4,7 +4,7 @@ description: 中央 repo-settings.json 配置参考，用于强制执行、同�
 sidebar:
   order: 3
 i18n:
-  sourceHash: "6604310303ba"
+  sourceHash: "c71bd436ec77"
   translator: "machine"
 ---
 
@@ -49,7 +49,21 @@ i18n:
         ],
         "self_contexts": ["Check linked issues", "Lint Code Base", "Shell Unit Tests"]
       },
-      "required_pull_request_reviews": null,
+      "required_pull_request_reviews": {
+        "dismiss_stale_reviews": false,
+        "require_code_owner_reviews": false,
+        "required_approving_review_count": 0,
+        "require_last_push_approval": false,
+        "dismissal_restrictions": {
+          "users": [],
+          "teams": []
+        },
+        "bypass_pull_request_allowances": {
+          "users": [],
+          "teams": [],
+          "apps": []
+        }
+      },
       "restrictions": null,
       "required_linear_history": false,
       "allow_force_pushes": false,
@@ -122,7 +136,9 @@ i18n:
 - `required_status_checks.strict: true` -- 合并前分支必须是最新的
 - `required_status_checks.contexts` -- 下游仓库必须通过的检查名称（例如 `Check linked issues` 和 `lint / Shell Unit Tests`）
 - `required_status_checks.self_contexts` -- docs-control 本身必须通过的检查名称（例如 `Check linked issues` 和 `Shell Unit Tests`）
-- `required_pull_request_reviews: null` -- 不需要 PR 审查批准
+- `required_pull_request_reviews` -- 要求所有更改都必须通过 Pull Request 提交，同时
+  `required_approving_review_count: 0` 保持人工批准为可选；驳回和绕过列表
+  保持为空
 - `restrictions: null` -- 除分支保护外没有推送限制
 
 #### `contexts` 与 `self_contexts`

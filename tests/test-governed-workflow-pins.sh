@@ -94,6 +94,19 @@ check "protected main requires up-to-date status checks before delayed auto-merg
   jq -e '.branch_protection[] | select(.branch == "main") | .required_status_checks.strict == true' \
   "$REPO_ROOT/.github/config/repo-settings.json"
 
+check "protected main requires pull requests without a review bypass" \
+  jq -e '
+    .branch_protection[] | select(.branch == "main") |
+    .required_pull_request_reviews == {
+      dismiss_stale_reviews: false,
+      require_code_owner_reviews: false,
+      required_approving_review_count: 0,
+      require_last_push_approval: false,
+      dismissal_restrictions: {users: [], teams: []},
+      bypass_pull_request_allowances: {users: [], teams: [], apps: []}
+    }
+  ' "$REPO_ROOT/.github/config/repo-settings.json"
+
 check "roll-forward workflow invokes the updater for reusable implementation changes" \
   python3 - "$REPO_ROOT" "$UPDATER_WORKFLOW" <<'PY'
 from pathlib import Path

@@ -84,7 +84,14 @@ if ! jq -e '
   (.repository.delete_branch_on_merge == true) and
   ([.branch_protection[] | select(.branch == "main")][0] |
     (.enforce_admins | type == "boolean") and
-    (.required_pull_request_reviews == null) and
+    (.required_pull_request_reviews == {
+      dismiss_stale_reviews: false,
+      require_code_owner_reviews: false,
+      required_approving_review_count: 0,
+      require_last_push_approval: false,
+      dismissal_restrictions: {users: [], teams: []},
+      bypass_pull_request_allowances: {users: [], teams: [], apps: []}
+    }) and
     (.restrictions == null) and
     (.required_linear_history | type == "boolean") and
     (.allow_force_pushes | type == "boolean") and
@@ -337,41 +344,114 @@ first_transition_protection_for_repo() {
 }
 
 normalize_desired_bootstrap_protection() {
-  jq -ce '{
-    enforce_admins: .enforce_admins,
-    required_status_checks: {
-      strict: .required_status_checks.strict,
-      contexts: (.required_status_checks.contexts | unique | sort)
-    },
-    required_pull_request_reviews: .required_pull_request_reviews,
-    restrictions: .restrictions,
-    required_linear_history: .required_linear_history,
-    allow_force_pushes: .allow_force_pushes,
-    allow_deletions: .allow_deletions,
-    block_creations: .block_creations,
-    required_conversation_resolution: .required_conversation_resolution,
-    lock_branch: .lock_branch,
-    allow_fork_syncing: .allow_fork_syncing
-  }'
+  jq -ce '
+    def names($key):
+      map(if type == "string" then . else error("invalid " + $key) end) | sort;
+    {
+      enforce_admins: .enforce_admins,
+      required_status_checks:
+        (if .required_status_checks == null then null else {
+          strict: .required_status_checks.strict,
+          contexts: (.required_status_checks.contexts | names("contexts"))
+        } end),
+      required_pull_request_reviews:
+        (if .required_pull_request_reviews == null then null else {
+          dismiss_stale_reviews:
+            (.required_pull_request_reviews.dismiss_stale_reviews // false),
+          require_code_owner_reviews:
+            (.required_pull_request_reviews.require_code_owner_reviews // false),
+          required_approving_review_count:
+            (.required_pull_request_reviews.required_approving_review_count // 0),
+          require_last_push_approval:
+            (.required_pull_request_reviews.require_last_push_approval // false),
+          dismissal_restrictions: {
+            users: ((.required_pull_request_reviews.dismissal_restrictions.users // []) |
+              names("users")),
+            teams: ((.required_pull_request_reviews.dismissal_restrictions.teams // []) |
+              names("teams"))
+          },
+          bypass_pull_request_allowances: {
+            users: ((.required_pull_request_reviews.bypass_pull_request_allowances.users // []) |
+              names("users")),
+            teams: ((.required_pull_request_reviews.bypass_pull_request_allowances.teams // []) |
+              names("teams")),
+            apps: ((.required_pull_request_reviews.bypass_pull_request_allowances.apps // []) |
+              names("apps"))
+          }
+        } end),
+      restrictions:
+        (if .restrictions == null then null else {
+          users: ((.restrictions.users // []) | names("users")),
+          teams: ((.restrictions.teams // []) | names("teams")),
+          apps: ((.restrictions.apps // []) | names("apps"))
+        } end),
+      required_linear_history: .required_linear_history,
+      allow_force_pushes: .allow_force_pushes,
+      allow_deletions: .allow_deletions,
+      block_creations: .block_creations,
+      required_conversation_resolution: .required_conversation_resolution,
+      lock_branch: .lock_branch,
+      allow_fork_syncing: .allow_fork_syncing
+    }
+  '
 }
 
 normalize_current_bootstrap_protection() {
-  jq -ce '{
-    enforce_admins: .enforce_admins.enabled,
-    required_status_checks: {
-      strict: .required_status_checks.strict,
-      contexts: (.required_status_checks.contexts | unique | sort)
-    },
-    required_pull_request_reviews: .required_pull_request_reviews,
-    restrictions: .restrictions,
-    required_linear_history: .required_linear_history.enabled,
-    allow_force_pushes: .allow_force_pushes.enabled,
-    allow_deletions: .allow_deletions.enabled,
-    block_creations: .block_creations.enabled,
-    required_conversation_resolution: .required_conversation_resolution.enabled,
-    lock_branch: .lock_branch.enabled,
-    allow_fork_syncing: .allow_fork_syncing.enabled
-  }'
+  jq -ce '
+    def identities($key):
+      map(
+        if type == "string" then .
+        elif $key == "users" then .login
+        else .slug
+        end
+      ) | sort;
+    {
+      enforce_admins: .enforce_admins.enabled,
+      required_status_checks:
+        (if .required_status_checks == null then null else {
+          strict: .required_status_checks.strict,
+          contexts: (.required_status_checks.contexts | sort)
+        } end),
+      required_pull_request_reviews:
+        (if .required_pull_request_reviews == null then null else {
+          dismiss_stale_reviews:
+            (.required_pull_request_reviews.dismiss_stale_reviews // false),
+          require_code_owner_reviews:
+            (.required_pull_request_reviews.require_code_owner_reviews // false),
+          required_approving_review_count:
+            (.required_pull_request_reviews.required_approving_review_count // 0),
+          require_last_push_approval:
+            (.required_pull_request_reviews.require_last_push_approval // false),
+          dismissal_restrictions: {
+            users: ((.required_pull_request_reviews.dismissal_restrictions.users // []) |
+              identities("users")),
+            teams: ((.required_pull_request_reviews.dismissal_restrictions.teams // []) |
+              identities("teams"))
+          },
+          bypass_pull_request_allowances: {
+            users: ((.required_pull_request_reviews.bypass_pull_request_allowances.users // []) |
+              identities("users")),
+            teams: ((.required_pull_request_reviews.bypass_pull_request_allowances.teams // []) |
+              identities("teams")),
+            apps: ((.required_pull_request_reviews.bypass_pull_request_allowances.apps // []) |
+              identities("apps"))
+          }
+        } end),
+      restrictions:
+        (if .restrictions == null then null else {
+          users: ((.restrictions.users // []) | identities("users")),
+          teams: ((.restrictions.teams // []) | identities("teams")),
+          apps: ((.restrictions.apps // []) | identities("apps"))
+        } end),
+      required_linear_history: .required_linear_history.enabled,
+      allow_force_pushes: .allow_force_pushes.enabled,
+      allow_deletions: .allow_deletions.enabled,
+      block_creations: .block_creations.enabled,
+      required_conversation_resolution: .required_conversation_resolution.enabled,
+      lock_branch: .lock_branch.enabled,
+      allow_fork_syncing: .allow_fork_syncing.enabled
+    }
+  '
 }
 
 reconcile_first_repo_controls() {
