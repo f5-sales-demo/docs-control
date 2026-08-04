@@ -16,9 +16,11 @@ pinned_blob=""
 source_blob=""
 expected_caller_blob=""
 expected_lint_caller_blob=""
+expected_linked_caller_blob=""
 downstream_main=""
 actual_caller_blob=""
 actual_lint_caller_blob=""
+actual_linked_caller_blob=""
 workflow_state=""
 
 github_api_into() {
@@ -139,6 +141,16 @@ if ! printf '%s' "$expected_lint_caller_blob" | grep -qE '^[0-9a-f]{40}$'; then
   echo "[ERROR] GitHub returned an invalid Super-Linter caller blob receipt" >&2
   exit 1
 fi
+if ! github_api_into expected_linked_caller_blob \
+  "repos/${repository}/contents/workflows/require-linked-issue.yml?ref=${source_sha}" \
+  --jq '.sha'; then
+  echo "[ERROR] Could not resolve the exact linked-issue evaluator" >&2
+  exit 1
+fi
+if ! printf '%s' "$expected_linked_caller_blob" | grep -qE '^[0-9a-f]{40}$'; then
+  echo "[ERROR] GitHub returned an invalid linked-issue evaluator blob receipt" >&2
+  exit 1
+fi
 
 stale_callers=0
 state_mismatches=0
@@ -192,6 +204,24 @@ while IFS= read -r name; do
   fi
   if [ "$actual_lint_caller_blob" != "$expected_lint_caller_blob" ]; then
     echo "[BOOTSTRAP] ${name} does not contain the exact Super-Linter caller"
+    stale_callers=$((stale_callers + 1))
+    continue
+  fi
+  if ! github_api_into actual_linked_caller_blob \
+    "repos/${owner}/${name}/contents/.github/workflows/require-linked-issue.yml?ref=${downstream_main}" \
+    --jq '.sha'; then
+    if [ "$api_not_found" = true ]; then
+      actual_linked_caller_blob=""
+    else
+      echo "[ERROR] Could not read the live linked-issue evaluator for ${name}" >&2
+      exit 1
+    fi
+  elif ! printf '%s' "$actual_linked_caller_blob" | grep -qE '^[0-9a-f]{40}$'; then
+    echo "[ERROR] Invalid live linked-issue evaluator receipt for ${name}" >&2
+    exit 1
+  fi
+  if [ "$actual_linked_caller_blob" != "$expected_linked_caller_blob" ]; then
+    echo "[BOOTSTRAP] ${name} does not contain the exact linked-issue evaluator"
     stale_callers=$((stale_callers + 1))
     continue
   fi

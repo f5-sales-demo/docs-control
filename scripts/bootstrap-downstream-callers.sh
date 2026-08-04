@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Deliver the exact enforcement and Super-Linter callers through bounded,
-# monotonic PRs before any reusable governance implementation is invoked.
+# Deliver the exact enforcement, Super-Linter, and linked-issue workflows
+# through bounded, monotonic PRs before reusable governance is invoked.
 set -euo pipefail
 
 repository="${GITHUB_REPOSITORY:-}"
@@ -13,8 +13,12 @@ rollout_config="${ROLLOUT_CONFIG:-.github/config/governance-rollout.json}"
 repo_settings_config="${REPO_SETTINGS_CONFIG:-.github/config/repo-settings.json}"
 caller_path=".github/workflows/enforce-repo-settings.yml"
 lint_caller_path=".github/workflows/super-linter.yml"
+linked_caller_path=".github/workflows/require-linked-issue.yml"
+linked_context="Check linked issues"
+legacy_linked_context="check / Check linked issues"
 wait_seconds="${BOOTSTRAP_WAIT_SECONDS:-1800}"
 poll_seconds="${BOOTSTRAP_POLL_SECONDS:-30}"
+linked_wait_seconds="${BOOTSTRAP_LINKED_WAIT_SECONDS:-300}"
 
 if ! printf '%s' "$source_sha" | grep -qE '^[0-9a-f]{40}$'; then
   echo "[ERROR] Source receipt must be a full lowercase commit SHA" >&2
@@ -30,7 +34,8 @@ if ! printf '%s' "$run_id" | grep -qE '^[1-9][0-9]*$' ||
   exit 1
 fi
 if ! printf '%s' "$wait_seconds" | grep -qE '^[0-9]+$' ||
-  ! printf '%s' "$poll_seconds" | grep -qE '^[1-9][0-9]*$'; then
+  ! printf '%s' "$poll_seconds" | grep -qE '^[1-9][0-9]*$' ||
+  ! printf '%s' "$linked_wait_seconds" | grep -qE '^[0-9]+$'; then
   echo "[ERROR] Bootstrap wait configuration is invalid" >&2
   exit 1
 fi
@@ -88,11 +93,16 @@ gh() {
   else
     rc=$?
   fi
-  cat "$err_file" >&2
   if grep -qiE 'rate limit|\(HTTP 429\)$' "$err_file"; then
+    cat "$err_file" >&2
     rm -f "$err_file"
     return 84
   fi
+  if grep -qE '\(HTTP 422\)$' "$err_file"; then
+    rm -f "$err_file"
+    return 85
+  fi
+  cat "$err_file" >&2
   rm -f "$err_file"
   return "$rc"
 }
@@ -139,7 +149,7 @@ retry() {
     )
     rc=$?
     if [ "$rc" -eq 0 ] || [ "$rc" -eq 74 ] || [ "$rc" -eq 75 ] ||
-      [ "$rc" -eq 84 ]; then
+      [ "$rc" -eq 76 ] || [ "$rc" -eq 84 ] || [ "$rc" -eq 85 ]; then
       return "$rc"
     fi
     if [ "$attempt" -ge "$max" ]; then
@@ -215,11 +225,23 @@ normalize_required_checks() {
   jq -c '{strict: .strict, contexts: (.contexts | unique | sort)}'
 }
 
-reconcile_required_checks() {
-  local name="$1" slug endpoint desired current current_state verified rc payload
+transition_required_checks_for_repo() {
+  local name="$1" desired
+  desired=$(required_checks_for_repo "$name")
+  printf '%s' "$desired" | jq -ce \
+    --arg current "$linked_context" --arg legacy "$legacy_linked_context" '
+    if ([.contexts[] | select(. == $current)] | length) != 1 then
+      error("authoritative linked-issue context is not unique")
+    else
+      .contexts = ([.contexts[] | select(. != $current)] + [$legacy] | unique | sort)
+    end
+  '
+}
+
+reconcile_required_checks_to() {
+  local name="$1" desired="$2" slug endpoint current current_state verified rc payload
   slug="${owner}/${name}"
   endpoint="repos/${slug}/branches/main/protection/required_status_checks"
-  desired=$(required_checks_for_repo "$name")
   if ! printf '%s' "$desired" | jq -e '
     .strict | type == "boolean"
   ' >/dev/null || ! printf '%s' "$desired" | jq -e '
@@ -288,6 +310,270 @@ reconcile_required_checks() {
     return 1
   fi
   echo "[OK] Required checks reconciled for ${slug}"
+}
+
+reconcile_required_checks() {
+  local name="$1" desired
+  desired=$(required_checks_for_repo "$name")
+  reconcile_required_checks_to "$name" "$desired"
+}
+
+required_checks_are_desired() {
+  local name="$1" slug endpoint desired current rc
+  slug="${owner}/${name}"
+  endpoint="repos/${slug}/branches/main/protection/required_status_checks"
+  desired=$(required_checks_for_repo "$name")
+  set +e
+  current=$(api_value_or_404 "$endpoint" '.' "$REPO_SETTINGS_TOKEN")
+  rc=$?
+  set -e
+  [ "$rc" -eq 0 ] || return "$rc"
+  if ! printf '%s' "$current" | jq -e '
+    type == "object" and
+    (.strict | type == "boolean") and
+    (.contexts | type == "array" and all(.[]; type == "string" and length > 0))
+  ' >/dev/null; then
+    echo "[ERROR] Required-status-checks response is malformed for ${slug}" >&2
+    return 1
+  fi
+  if [ "$(printf '%s' "$current" | normalize_required_checks)" = "$desired" ]; then
+    return 0
+  fi
+  return 77
+}
+
+legacy_linked_check_is_successful() {
+  local slug="$1" head="$2" response run_response run_ids run_id rc
+  response=$(mktemp "$work/legacy-linked-check.XXXXXX")
+  set +e
+  gh api "repos/${slug}/commits/${head}/check-runs" >"$response"
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    rm -f "$response"
+    return "$rc"
+  fi
+  if ! jq -e '
+    type == "object" and (.check_runs | type == "array") and
+    all(.check_runs[];
+      (.name | type == "string") and (.head_sha | type == "string") and
+      (.status | type == "string") and
+      (.conclusion == null or (.conclusion | type == "string")) and
+      (.details_url | type == "string") and
+      (.app.id | type == "number" and . >= 1 and . == floor) and
+      (.app.slug | type == "string"))
+  ' "$response" >/dev/null; then
+    echo "[ERROR] Legacy linked-issue check response is malformed for ${slug}" >&2
+    rm -f "$response"
+    return 1
+  fi
+  run_ids=$(jq -r --arg head "$head" --arg context "$legacy_linked_context" \
+    --arg prefix "https://github.com/${slug}/actions/runs/" '
+    .check_runs[] |
+    select(.name == $context and .head_sha == $head and .status == "completed" and
+      .conclusion == "success" and .app.id == 15368 and .app.slug == "github-actions" and
+      (.details_url | startswith($prefix))) |
+    .details_url | capture("/actions/runs/(?<run>[1-9][0-9]*)/job/[1-9][0-9]*$").run
+  ' "$response")
+  rm -f "$response"
+  while IFS= read -r run_id; do
+    [ -n "$run_id" ] || continue
+    run_response=$(mktemp "$work/legacy-linked-run.XXXXXX")
+    set +e
+    gh api "repos/${slug}/actions/runs/${run_id}" >"$run_response"
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ]; then
+      rm -f "$run_response"
+      return "$rc"
+    fi
+    if jq -e --arg head "$head" '
+      type == "object" and .path == ".github/workflows/require-linked-issue.yml" and
+      .event == "pull_request_target" and .head_sha == $head and
+      .status == "completed" and .conclusion == "success"
+    ' "$run_response" >/dev/null; then
+      rm -f "$run_response"
+      return 0
+    fi
+    rm -f "$run_response"
+  done <<<"$run_ids"
+  return 76
+}
+
+canonical_linked_status_ids() {
+  local slug="$1" head="$2" destination="$3" response rc
+  response=$(mktemp "$work/canonical-linked-status.XXXXXX")
+  set +e
+  gh api "repos/${slug}/commits/${head}/statuses" >"$response"
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    rm -f "$response"
+    return "$rc"
+  fi
+  if ! jq -e '
+    type == "array" and
+    all(.[];
+      (.id | type == "number" and . >= 1 and . == floor) and
+      (.context | type == "string") and (.state | type == "string") and
+      (.creator.id | type == "number" and . >= 1 and . == floor) and
+      (.creator.login | type == "string") and (.creator.type | type == "string"))
+  ' "$response" >/dev/null || ! jq -c --arg context "$linked_context" '
+    [.[] |
+      select(.context == $context and .creator.id == 41898282 and
+        .creator.login == "github-actions[bot]" and .creator.type == "Bot") |
+      .id] | unique | sort
+  ' "$response" >"$destination"; then
+    echo "[ERROR] Commit-status response is malformed for ${slug}" >&2
+    rm -f "$response"
+    return 1
+  fi
+  rm -f "$response"
+}
+
+dispatch_and_verify_linked_status() {
+  local slug="$1" pr_number="$2" head="$3" targeted="${4:-true}"
+  local before_ids after_file payload rc deadline
+  before_ids=$(mktemp "$work/linked-before.XXXXXX")
+  after_file=$(mktemp "$work/linked-after.XXXXXX")
+  canonical_linked_status_ids "$slug" "$head" "$before_ids" || {
+    rc=$?
+    rm -f "$before_ids" "$after_file"
+    return "$rc"
+  }
+  payload=$(mktemp "$work/linked-dispatch.XXXXXX")
+  if [ "$targeted" = true ]; then
+    jq -n --arg ref main --arg pr "$pr_number" --arg head "$head" \
+      '{ref: $ref, inputs: {pull_request_number: $pr, expected_head_sha: $head}}' >"$payload"
+  elif [ "$targeted" = false ]; then
+    jq -n --arg ref main '{ref: $ref}' >"$payload"
+  else
+    echo "[ERROR] Linked-issue dispatch mode is invalid for ${slug}" >&2
+    rm -f "$before_ids" "$after_file" "$payload"
+    return 1
+  fi
+  set +e
+  GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
+    "repos/${slug}/actions/workflows/require-linked-issue.yml/dispatches" \
+    --method POST --input "$payload" >/dev/null
+  rc=$?
+  set -e
+  rm -f "$payload"
+  if [ "$rc" -ne 0 ]; then
+    rm -f "$before_ids" "$after_file"
+    return "$rc"
+  fi
+
+  deadline=$((SECONDS + linked_wait_seconds))
+  while true; do
+    set +e
+    gh api "repos/${slug}/commits/${head}/statuses" >"$after_file"
+    rc=$?
+    set -e
+    if [ "$rc" -ne 0 ]; then
+      rm -f "$before_ids" "$after_file"
+      return "$rc"
+    fi
+    if ! jq -e --slurpfile before "$before_ids" --arg context "$linked_context" '
+      type == "array" and
+      any(.[];
+        (.id | type == "number" and . >= 1 and . == floor) and
+        .context == $context and .state == "success" and .creator.id == 41898282 and
+        .creator.login == "github-actions[bot]" and .creator.type == "Bot" and
+        (.id as $id | ($before[0] | index($id)) == null))
+    ' "$after_file" >/dev/null; then
+      if [ "$SECONDS" -ge "$deadline" ]; then
+        rm -f "$before_ids" "$after_file"
+        return 76
+      fi
+      sleep "$poll_seconds"
+      continue
+    fi
+    rm -f "$before_ids" "$after_file"
+    return 0
+  done
+}
+
+recover_linked_transition_receipt() {
+  local name="$1" slug prefix response candidate pr_number head actual
+  slug="${owner}/${name}"
+  prefix="sync/exact-caller-${expected_blob:0:6}${expected_lint_blob:0:6}${expected_linked_blob:0:6}-"
+  response=$(mktemp "$work/merged-bootstrap-prs.XXXXXX")
+  gh api "repos/${slug}/pulls?state=closed&sort=updated&direction=desc&per_page=100" \
+    >"$response"
+  if ! jq -e '
+    type == "array" and all(.[];
+      (.number | type == "number" and . >= 1 and . == floor) and
+      (.head.ref | type == "string") and
+      (.head.sha | type == "string") and
+      (.head.repo.full_name | type == "string") and
+      (.base.ref | type == "string") and
+      (.merged_at == null or (.merged_at | type == "string")))
+  ' "$response" >/dev/null; then
+    echo "[ERROR] Closed bootstrap PR inventory is malformed for ${slug}" >&2
+    rm -f "$response"
+    return 1
+  fi
+  candidate=$(jq -c --arg prefix "$prefix" --arg slug "$slug" '
+    [.[] | select(
+      .merged_at != null and .base.ref == "main" and .head.repo.full_name == $slug and
+      (.head.ref | startswith($prefix)))] |
+    sort_by(.merged_at) | reverse | first // empty
+  ' "$response")
+  rm -f "$response"
+  if [ -z "$candidate" ]; then
+    echo "[ERROR] No exact merged bootstrap receipt can restore protection for ${slug}" >&2
+    return 1
+  fi
+  pr_number=$(printf '%s' "$candidate" | jq -r '.number')
+  head=$(printf '%s' "$candidate" | jq -r '.head.sha')
+  if ! [[ "$head" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "[ERROR] Merged bootstrap receipt has an invalid head for ${slug}" >&2
+    return 1
+  fi
+  actual=$(gh api "repos/${slug}/contents/${caller_path}?ref=${head}" --jq '.sha')
+  [ "$actual" = "$expected_blob" ] || return 1
+  actual=$(gh api "repos/${slug}/contents/${lint_caller_path}?ref=${head}" --jq '.sha')
+  [ "$actual" = "$expected_lint_blob" ] || return 1
+  actual=$(gh api "repos/${slug}/contents/${linked_caller_path}?ref=${head}" --jq '.sha')
+  [ "$actual" = "$expected_linked_blob" ] || return 1
+  jq -n --argjson pr "$pr_number" --arg head "$head" \
+    '{pull_request: $pr, head: $head}' >"$work/linked-transition-${name}.json"
+}
+
+finalize_linked_transition() {
+  local name="$1" slug receipt pr_number head rc
+  slug="${owner}/${name}"
+  if required_checks_are_desired "$name"; then
+    rc=0
+  else
+    rc=$?
+  fi
+  if [ "$rc" -eq 0 ]; then
+    return 0
+  fi
+  [ "$rc" -eq 77 ] || return "$rc"
+  receipt="$work/linked-transition-${name}.json"
+  if [ ! -f "$receipt" ]; then
+    recover_linked_transition_receipt "$name"
+  fi
+  if ! pr_number=$(jq -er '.pull_request | select(type == "number" and . >= 1 and . == floor)' \
+    "$receipt") || ! head=$(jq -er \
+      '.head | select(type == "string" and test("^[0-9a-f]{40}$"))' "$receipt"); then
+    echo "[ERROR] Linked-issue transition receipt is malformed for ${name}" >&2
+    return 1
+  fi
+  if dispatch_and_verify_linked_status "$slug" "$pr_number" "$head"; then
+    rc=0
+  else
+    rc=$?
+  fi
+  if [ "$rc" -eq 76 ]; then
+    echo "[DEFER] Canonical linked-issue status remains pending for ${name} PR #${pr_number}"
+    return 76
+  fi
+  [ "$rc" -eq 0 ] || return "$rc"
+  reconcile_required_checks "$name"
 }
 
 decimal_greater_than() {
@@ -361,7 +647,7 @@ reconcile_bootstrap_prs() {
       rm -f "$open_prs"
       return 1
     fi
-    if [[ ! "$head_ref" =~ ^sync/exact-caller-[0-9a-f]{12}-([1-9][0-9]*)-([1-9][0-9]*)$ ]]; then
+    if [[ ! "$head_ref" =~ ^sync/exact-caller-[0-9a-f]{18}-([1-9][0-9]*)-([1-9][0-9]*)$ ]]; then
       echo "[ERROR] Unrecognized exact-caller automation branch for ${slug}" >&2
       rm -f "$open_prs"
       return 1
@@ -438,7 +724,7 @@ reconcile_bootstrap_prs() {
       rm -f "$open_prs"
       return 1
     fi
-    if [[ ! "$head_ref" =~ ^sync/exact-caller-[0-9a-f]{12}-([1-9][0-9]*)-([1-9][0-9]*)$ ]]; then
+    if [[ ! "$head_ref" =~ ^sync/exact-caller-[0-9a-f]{18}-([1-9][0-9]*)-([1-9][0-9]*)$ ]]; then
       echo "[ERROR] Unrecognized exact-caller automation branch for ${slug}" >&2
       rm -f "$open_prs"
       return 1
@@ -578,19 +864,18 @@ enable_one() {
   [ "$state" = "active" ]
 }
 
-# The mutating path independently repeats the dispatch safety proof. Exit 80
-# is the only admissible result: current source and pins are exact, while at
-# least one downstream caller still needs bootstrap.
+# The mutating path independently repeats the dispatch safety proof.
+callers_exact=false
 set +e
 GH_TOKEN="$REPO_SETTINGS_TOKEN" scripts/preflight-downstream-dispatch.sh
 preflight_rc=$?
 set -e
 case "$preflight_rc" in
 0)
-  echo "[OK] Every downstream caller is already exact"
-  exit 0
+  callers_exact=true
   ;;
-80 | 81 | 82) ;;
+80) ;;
+81 | 82) callers_exact=true ;;
 78) exit 78 ;;
 *)
   echo "[ERROR] Mutating bootstrap preflight rejected this run" >&2
@@ -660,7 +945,66 @@ if [ "$(git hash-object "$work/lint-caller.yml")" != "$expected_lint_blob" ]; th
   echo "[ERROR] Super-Linter caller bytes do not match the GitHub blob receipt" >&2
   exit 1
 fi
-branch="sync/exact-caller-${expected_blob:0:6}${expected_lint_blob:0:6}-${run_id}-${run_attempt}"
+set +e
+gh api \
+  "repos/${repository}/contents/workflows/require-linked-issue.yml?ref=${source_sha}" \
+  >"$work/linked-caller.json"
+rc=$?
+set -e
+if [ "$rc" -eq 84 ]; then
+  exit 84
+fi
+if [ "$rc" -ne 0 ]; then
+  echo "[ERROR] Could not fetch the exact linked-issue evaluator" >&2
+  exit 1
+fi
+if ! jq -e '
+  .type == "file" and .encoding == "base64" and
+  (.sha | type == "string" and test("^[0-9a-f]{40}$")) and
+  (.content | type == "string" and length > 0)
+' "$work/linked-caller.json" >/dev/null; then
+  echo "[ERROR] Linked-issue evaluator response is malformed" >&2
+  exit 1
+fi
+expected_linked_blob=$(jq -r '.sha' "$work/linked-caller.json")
+jq -r '.content' "$work/linked-caller.json" | tr -d '\n' >"$work/linked-caller.b64"
+if ! base64 -d <"$work/linked-caller.b64" >"$work/linked-caller.yml"; then
+  echo "[ERROR] Linked-issue evaluator response contains invalid base64" >&2
+  exit 1
+fi
+if [ "$(git hash-object "$work/linked-caller.yml")" != "$expected_linked_blob" ]; then
+  echo "[ERROR] Linked-issue evaluator bytes do not match the GitHub blob receipt" >&2
+  exit 1
+fi
+branch="sync/exact-caller-${expected_blob:0:6}${expected_lint_blob:0:6}${expected_linked_blob:0:6}-${run_id}-${run_attempt}"
+
+if [ "$callers_exact" = true ]; then
+  finalization_pending=false
+  while IFS= read -r name; do
+    set +e
+    finalize_linked_transition "$name"
+    rc=$?
+    set -e
+    if [ "$rc" -eq 76 ]; then
+      finalization_pending=true
+      continue
+    fi
+    if [ "$rc" -eq 84 ]; then
+      exit 84
+    fi
+    if [ "$rc" -ne 0 ]; then
+      echo "[ERROR] Could not finalize linked-issue protection for ${name}" >&2
+      exit 1
+    fi
+  done < <(jq -r '.[]' "$downstream_config")
+  if [ "$finalization_pending" = true ]; then
+    exit 83
+  fi
+  if [ "$preflight_rc" -eq 0 ]; then
+    echo "[OK] Every downstream managed workflow and required context is exact"
+    exit 0
+  fi
+fi
 
 set +e
 assert_source_current
@@ -683,24 +1027,14 @@ fi
 echo "[OK] Downstream enforcement workflows are disabled with no active runs"
 
 bootstrap_one() {
-  local name="$1" slug default_branch base_sha main_sha actual_blob actual_lint_blob rc
-  local branch_head branch_blob branch_lint_blob expected_change_count
+  local name="$1" slug default_branch base_sha main_sha actual_blob actual_lint_blob
+  local actual_linked_blob rc branch_head branch_blob branch_lint_blob branch_linked_blob
+  local expected_change_count
   local pr_number pr_url created_pr_number compare_file pr_file verified_head verified_blob
-  local verified_lint_blob
+  local verified_lint_blob verified_linked_blob transition_checks
   slug="${owner}/${name}"
 
   assert_source_current
-  set +e
-  (
-    set -e
-    reconcile_required_checks "$name"
-  )
-  rc=$?
-  set -e
-  if [ "$rc" -ne 0 ]; then
-    return "$rc"
-  fi
-
   main_sha=$(gh api "repos/${slug}/commits/main" --jq '.sha')
   if ! printf '%s' "$main_sha" | grep -qE '^[0-9a-f]{40}$'; then
     echo "[ERROR] Invalid protected-main receipt for ${name}" >&2
@@ -738,13 +1072,31 @@ bootstrap_one() {
   84) return 84 ;;
   *) return 1 ;;
   esac
+  set +e
+  actual_linked_blob=$(api_value_or_404 \
+    "repos/${slug}/contents/${linked_caller_path}?ref=${main_sha}" '.sha')
+  rc=$?
+  set -e
+  case "$rc" in
+  0)
+    if ! printf '%s' "$actual_linked_blob" | grep -qE '^[0-9a-f]{40}$'; then
+      echo "[ERROR] Invalid live linked-issue evaluator blob for ${name}" >&2
+      return 1
+    fi
+    ;;
+  44) actual_linked_blob="" ;;
+  84) return 84 ;;
+  *) return 1 ;;
+  esac
   if [ "$actual_blob" = "$expected_blob" ] &&
-    [ "$actual_lint_blob" = "$expected_lint_blob" ]; then
+    [ "$actual_lint_blob" = "$expected_lint_blob" ] &&
+    [ "$actual_linked_blob" = "$expected_linked_blob" ]; then
     return 0
   fi
   expected_change_count=0
   [ "$actual_blob" = "$expected_blob" ] || expected_change_count=$((expected_change_count + 1))
   [ "$actual_lint_blob" = "$expected_lint_blob" ] || expected_change_count=$((expected_change_count + 1))
+  [ "$actual_linked_blob" = "$expected_linked_blob" ] || expected_change_count=$((expected_change_count + 1))
 
   default_branch=$(gh api "repos/${slug}" --jq '.default_branch')
   if [ "$default_branch" != "main" ]; then
@@ -815,8 +1167,26 @@ bootstrap_one() {
   *) return 1 ;;
   esac
 
+  set +e
+  branch_linked_blob=$(api_value_or_404 \
+    "repos/${slug}/contents/${linked_caller_path}?ref=${branch_head}" '.sha')
+  rc=$?
+  set -e
+  case "$rc" in
+  0)
+    if ! printf '%s' "$branch_linked_blob" | grep -qE '^[0-9a-f]{40}$'; then
+      echo "[ERROR] Invalid bootstrap linked-issue evaluator blob for ${name}" >&2
+      return 1
+    fi
+    ;;
+  44) branch_linked_blob="" ;;
+  84) return 84 ;;
+  *) return 1 ;;
+  esac
+
   if { [ "$branch_blob" != "$expected_blob" ] ||
-    [ "$branch_lint_blob" != "$expected_lint_blob" ]; } &&
+    [ "$branch_lint_blob" != "$expected_lint_blob" ] ||
+    [ "$branch_linked_blob" != "$expected_linked_blob" ]; } &&
     [ "$branch_head" != "$base_sha" ]; then
     echo "[ERROR] Refusing to append to a non-exact bootstrap branch for ${name}" >&2
     return 1
@@ -845,6 +1215,18 @@ bootstrap_one() {
       --method PUT --input "$work/update-lint-${name}.json" >/dev/null
     branch_head=$(gh api "repos/${slug}/git/ref/heads/${branch}" --jq '.object.sha')
   fi
+  if [ "$branch_linked_blob" != "$expected_linked_blob" ]; then
+    jq -n \
+      --arg message "chore(governance): bootstrap exact linked-issue evaluator" \
+      --arg branch "$branch" \
+      --arg sha "$branch_linked_blob" \
+      --rawfile content "$work/linked-caller.b64" \
+      '{message: $message, content: $content, branch: $branch, sha: $sha} |
+       if .sha == "" then del(.sha) else . end' >"$work/update-linked-${name}.json"
+    gh api "repos/${slug}/contents/${linked_caller_path}" \
+      --method PUT --input "$work/update-linked-${name}.json" >/dev/null
+    branch_head=$(gh api "repos/${slug}/git/ref/heads/${branch}" --jq '.object.sha')
+  fi
   if ! printf '%s' "$branch_head" | grep -qE '^[0-9a-f]{40}$'; then
     echo "[ERROR] Invalid exact bootstrap head for ${name}" >&2
     return 1
@@ -854,13 +1236,15 @@ bootstrap_one() {
   gh api "repos/${slug}/compare/${base_sha}...${branch_head}" >"$compare_file"
   if ! jq -e --arg path "$caller_path" --arg blob "$expected_blob" \
     --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
+    --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" \
     --argjson change_count "$expected_change_count" '
     .status == "ahead" and .ahead_by == $change_count and
     .total_commits == $change_count and (.commits | length) == $change_count and
     (.files | length) == $change_count and
     all(.files[];
       ((.filename == $path and .sha == $blob) or
-       (.filename == $lint_path and .sha == $lint_blob)) and
+       (.filename == $lint_path and .sha == $lint_blob) or
+       (.filename == $linked_path and .sha == $linked_blob)) and
       (.status == "added" or .status == "modified"))
   ' "$compare_file" >/dev/null; then
     echo "[ERROR] Bootstrap branch for ${name} is not an exact caller update" >&2
@@ -875,7 +1259,7 @@ bootstrap_one() {
       --base "$default_branch" \
       --head "$branch" \
       --title "chore(governance): bootstrap exact managed callers" \
-      --body "Installs the exact enforcement and Super-Linter callers before fleet enforcement resumes. The sync/ branch uses the governed automation exemption from linked-issue enforcement.")
+      --body "Installs the exact enforcement, Super-Linter, and linked-issue workflows before fleet enforcement resumes. The sync/ branch uses the governed automation exemption from linked-issue enforcement.")
     pr_number=${pr_url##*/}
     created_pr_number="$pr_number"
     if ! printf '%s' "$created_pr_number" | grep -qE '^[1-9][0-9]*$'; then
@@ -894,11 +1278,12 @@ bootstrap_one() {
   gh pr view "$pr_number" --repo "$slug" \
     --json baseRefName,headRefName,headRefOid,files,commits >"$pr_file"
   if ! jq -e --arg path "$caller_path" --arg lint_path "$lint_caller_path" \
+    --arg linked_path "$linked_caller_path" \
     --arg base "$default_branch" --arg head "$branch" --arg oid "$branch_head" \
     --argjson change_count "$expected_change_count" '
     .baseRefName == $base and .headRefName == $head and .headRefOid == $oid and
     (.commits | length) == $change_count and (.files | length) == $change_count and
-    all(.files[]; .path == $path or .path == $lint_path)
+    all(.files[]; .path == $path or .path == $lint_path or .path == $linked_path)
   ' "$pr_file" >/dev/null; then
     echo "[ERROR] Bootstrap PR for ${name} contains an unexpected diff" >&2
     return 1
@@ -928,6 +1313,49 @@ bootstrap_one() {
     echo "[ERROR] Super-Linter caller changed after exact PR verification for ${name}" >&2
     return 1
   fi
+  verified_linked_blob=$(gh api \
+    "repos/${slug}/contents/${linked_caller_path}?ref=${verified_head}" --jq '.sha')
+  if [ "$verified_linked_blob" != "$expected_linked_blob" ]; then
+    echo "[ERROR] Linked-issue evaluator changed after exact PR verification for ${name}" >&2
+    return 1
+  fi
+  if [ "$actual_linked_blob" != "$expected_linked_blob" ]; then
+    if dispatch_and_verify_linked_status "$slug" "$pr_number" "$verified_head" false; then
+      rc=0
+    else
+      rc=$?
+    fi
+    if [ "$rc" -eq 0 ]; then
+      reconcile_required_checks "$name"
+    elif [ "$rc" -eq 85 ]; then
+      if legacy_linked_check_is_successful "$slug" "$verified_head"; then
+        rc=0
+      else
+        rc=$?
+      fi
+      if [ "$rc" -ne 0 ]; then
+        if [ "$rc" -eq 76 ]; then
+          echo "[DEFER] Waiting for the legacy linked-issue gate on ${name} PR #${pr_number}"
+        fi
+        return "$rc"
+      fi
+      transition_checks=$(transition_required_checks_for_repo "$name") || {
+        echo "[ERROR] Could not derive transitional required checks for ${slug}" >&2
+        return 1
+      }
+      reconcile_required_checks_to "$name" "$transition_checks"
+      jq -n --argjson pr "$pr_number" --arg head "$verified_head" \
+        '{pull_request: $pr, head: $head}' >"$work/linked-transition-${name}.json"
+    else
+      if [ "$rc" -eq 76 ]; then
+        echo "[DEFER] Waiting for the canonical linked-issue gate on ${name} PR #${pr_number}"
+      fi
+      return "$rc"
+    fi
+  else
+    dispatch_and_verify_linked_status "$slug" "$pr_number" "$verified_head" || return $?
+    reconcile_required_checks "$name"
+  fi
   gh pr merge "$pr_number" --repo "$slug" --auto --squash --delete-branch \
     --match-head-commit "$verified_head"
   echo "[BOOTSTRAP] ${name} caller PR #${pr_number} is queued for exact merge"
@@ -936,6 +1364,7 @@ bootstrap_one() {
 failures=0
 source_superseded=false
 newer_owner=false
+transition_pending=false
 while IFS= read -r name; do
   set +e
   retry 3 bootstrap_one "$name"
@@ -948,6 +1377,10 @@ while IFS= read -r name; do
   if [ "$rc" -eq 75 ]; then
     newer_owner=true
     break
+  fi
+  if [ "$rc" -eq 76 ]; then
+    transition_pending=true
+    continue
   fi
   if [ "$rc" -eq 84 ]; then
     exit 84
@@ -963,6 +1396,10 @@ if [ "$source_superseded" = true ]; then
 fi
 if [ "$newer_owner" = true ]; then
   echo "[DEFER] A newer bootstrap run owns the transition"
+  exit 83
+fi
+if [ "$transition_pending" = true ]; then
+  echo "[DEFER] Linked-issue transition checks remain pending"
   exit 83
 fi
 if [ "$failures" -gt 0 ]; then
@@ -1015,10 +1452,28 @@ while true; do
     84) exit 84 ;;
     *) exit 1 ;;
     esac
+
+    set +e
+    live_linked_blob=$(api_value_or_404 \
+      "repos/${slug}/contents/${linked_caller_path}?ref=${main_sha}" '.sha')
+    rc=$?
+    set -e
+    case "$rc" in
+    0)
+      if ! printf '%s' "$live_linked_blob" | grep -qE '^[0-9a-f]{40}$'; then
+        echo "[ERROR] Invalid live linked-issue evaluator receipt while verifying ${name}" >&2
+        exit 1
+      fi
+      [ "$live_linked_blob" = "$expected_linked_blob" ] || pending=$((pending + 1))
+      ;;
+    44) pending=$((pending + 1)) ;;
+    84) exit 84 ;;
+    *) exit 1 ;;
+    esac
   done < <(jq -r '.[]' "$downstream_config")
 
   if [ "$pending" -eq 0 ]; then
-    echo "[OK] Every downstream protected main contains both exact managed callers"
+    echo "[OK] Every downstream protected main contains all exact managed workflows"
     break
   fi
   if [ "$SECONDS" -ge "$deadline" ]; then
@@ -1027,6 +1482,17 @@ while true; do
   fi
   sleep "$poll_seconds"
 done
+
+while IFS= read -r name; do
+  set +e
+  finalize_linked_transition "$name"
+  rc=$?
+  set -e
+  if [ "$rc" -eq 76 ]; then
+    exit 83
+  fi
+  [ "$rc" -eq 0 ] || exit "$rc"
+done < <(jq -r '.[]' "$downstream_config")
 
 set +e
 assert_source_current
