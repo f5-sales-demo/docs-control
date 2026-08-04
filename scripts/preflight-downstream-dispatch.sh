@@ -6,6 +6,7 @@ set -euo pipefail
 pin_config="${PIN_CONFIG:-.github/config/governed-workflow-pin.json}"
 downstream_config="${DOWNSTREAM_CONFIG:-.github/config/downstream-repos.json}"
 rollout_config="${ROLLOUT_CONFIG:-.github/config/governance-rollout.json}"
+governance_config="${GOVERNANCE_CONFIG:-.claude/governance.json}"
 repository="${GITHUB_REPOSITORY:-}"
 owner="${repository%%/*}"
 source_sha="${SOURCE_SHA:-}"
@@ -22,6 +23,7 @@ actual_caller_blob=""
 actual_lint_caller_blob=""
 actual_linked_caller_blob=""
 workflow_state=""
+lint_caller_path=".github/workflows/super-linter.yml"
 
 github_api_into() {
   local target="$1"
@@ -62,6 +64,17 @@ if ! jq -e '
   (length == (unique | length))
 ' "$downstream_config" >/dev/null; then
   echo "[ERROR] Downstream inventory must be a non-empty array of unique repository names" >&2
+  exit 1
+fi
+if ! jq -e '
+  (.skip_files | type == "object") and
+  all(.skip_files | to_entries[];
+    (.key | test("^[A-Za-z0-9_.-]+$")) and
+    (.value | type == "array" and
+      all(.[]; type == "string" and length > 0) and
+      length == (unique | length)))
+' "$governance_config" >/dev/null; then
+  echo "[ERROR] Governance skip_files policy is missing or invalid" >&2
   exit 1
 fi
 if ! rollout_state=$(jq -er '.state | select(. == "quiesced" or . == "active")' \
@@ -189,23 +202,28 @@ while IFS= read -r name; do
     # required until the exact caller has landed.
     continue
   fi
-  if ! github_api_into actual_lint_caller_blob \
-    "repos/${owner}/${name}/contents/.github/workflows/super-linter.yml?ref=${downstream_main}" \
-    --jq '.sha'; then
-    if [ "$api_not_found" = true ]; then
-      actual_lint_caller_blob=""
-    else
-      echo "[ERROR] Could not read the live Super-Linter caller for ${name}" >&2
+  # A skip_files entry means the repository owns this caller's exact bytes.
+  if ! jq -e --arg repo "$name" --arg path "$lint_caller_path" \
+    '(.skip_files[$repo] // []) | index($path) != null' \
+    "$governance_config" >/dev/null; then
+    if ! github_api_into actual_lint_caller_blob \
+      "repos/${owner}/${name}/contents/${lint_caller_path}?ref=${downstream_main}" \
+      --jq '.sha'; then
+      if [ "$api_not_found" = true ]; then
+        actual_lint_caller_blob=""
+      else
+        echo "[ERROR] Could not read the live Super-Linter caller for ${name}" >&2
+        exit 1
+      fi
+    elif ! printf '%s' "$actual_lint_caller_blob" | grep -qE '^[0-9a-f]{40}$'; then
+      echo "[ERROR] Invalid live Super-Linter caller blob receipt for ${name}" >&2
       exit 1
     fi
-  elif ! printf '%s' "$actual_lint_caller_blob" | grep -qE '^[0-9a-f]{40}$'; then
-    echo "[ERROR] Invalid live Super-Linter caller blob receipt for ${name}" >&2
-    exit 1
-  fi
-  if [ "$actual_lint_caller_blob" != "$expected_lint_caller_blob" ]; then
-    echo "[BOOTSTRAP] ${name} does not contain the exact Super-Linter caller"
-    stale_callers=$((stale_callers + 1))
-    continue
+    if [ "$actual_lint_caller_blob" != "$expected_lint_caller_blob" ]; then
+      echo "[BOOTSTRAP] ${name} does not contain the exact Super-Linter caller"
+      stale_callers=$((stale_callers + 1))
+      continue
+    fi
   fi
   if ! github_api_into actual_linked_caller_blob \
     "repos/${owner}/${name}/contents/.github/workflows/require-linked-issue.yml?ref=${downstream_main}" \

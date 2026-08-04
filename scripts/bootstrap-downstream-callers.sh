@@ -9,6 +9,7 @@ source_sha="${SOURCE_SHA:-}"
 downstream_config="${DOWNSTREAM_CONFIG:-.github/config/downstream-repos.json}"
 rollout_config="${ROLLOUT_CONFIG:-.github/config/governance-rollout.json}"
 repo_settings_config="${REPO_SETTINGS_CONFIG:-.github/config/repo-settings.json}"
+governance_config="${GOVERNANCE_CONFIG:-.claude/governance.json}"
 caller_path=".github/workflows/enforce-repo-settings.yml"
 lint_caller_path=".github/workflows/super-linter.yml"
 linked_caller_path=".github/workflows/require-linked-issue.yml"
@@ -38,6 +39,17 @@ if ! jq -e '
   (length == (unique | length))
 ' "$downstream_config" >/dev/null; then
   echo "[ERROR] Downstream inventory must be a non-empty array of unique repository names" >&2
+  exit 1
+fi
+if ! jq -e '
+  (.skip_files | type == "object") and
+  all(.skip_files | to_entries[];
+    (.key | test("^[A-Za-z0-9_.-]+$")) and
+    (.value | type == "array" and
+      all(.[]; type == "string" and length > 0) and
+      length == (unique | length)))
+' "$governance_config" >/dev/null; then
+  echo "[ERROR] Governance skip_files policy is missing or invalid" >&2
   exit 1
 fi
 if ! jq -e '
@@ -98,6 +110,24 @@ gh() {
   cat "$err_file" >&2
   rm -f "$err_file"
   return "$rc"
+}
+
+# Enforcement and linked-issue callers are universal. Super-Linter is the one
+# exact caller with intentional repository-owned variants declared in skip_files.
+lint_caller_applies() {
+  local name="$1"
+  ! jq -e --arg repo "$name" --arg path "$lint_caller_path" \
+    '(.skip_files[$repo] // []) | index($path) != null' \
+    "$governance_config" >/dev/null
+}
+
+exact_caller_branch_for_repo() {
+  local name="$1" lint_receipt=skipped
+  if lint_caller_applies "$name"; then
+    lint_receipt="$expected_lint_blob"
+  fi
+  printf 'sync/exact-caller-%s%s%s' \
+    "$expected_blob" "$lint_receipt" "$expected_linked_blob"
 }
 
 api_value_or_404() {
@@ -490,7 +520,7 @@ dispatch_and_verify_linked_status() {
 recover_linked_transition_receipt() {
   local name="$1" slug expected_ref response candidate pr_number head actual
   slug="${owner}/${name}"
-  expected_ref="sync/exact-caller-${expected_blob}${expected_lint_blob}${expected_linked_blob}"
+  expected_ref=$(exact_caller_branch_for_repo "$name")
   response=$(mktemp "$work/merged-bootstrap-prs.XXXXXX")
   gh api "repos/${slug}/pulls?state=closed&sort=updated&direction=desc&per_page=100" \
     >"$response"
@@ -526,8 +556,10 @@ recover_linked_transition_receipt() {
   fi
   actual=$(gh api "repos/${slug}/contents/${caller_path}?ref=${head}" --jq '.sha')
   [ "$actual" = "$expected_blob" ] || return 1
-  actual=$(gh api "repos/${slug}/contents/${lint_caller_path}?ref=${head}" --jq '.sha')
-  [ "$actual" = "$expected_lint_blob" ] || return 1
+  if lint_caller_applies "$name"; then
+    actual=$(gh api "repos/${slug}/contents/${lint_caller_path}?ref=${head}" --jq '.sha')
+    [ "$actual" = "$expected_lint_blob" ] || return 1
+  fi
   actual=$(gh api "repos/${slug}/contents/${linked_caller_path}?ref=${head}" --jq '.sha')
   [ "$actual" = "$expected_linked_blob" ] || return 1
   jq -n --argjson pr "$pr_number" --arg head "$head" \
@@ -834,7 +866,8 @@ enable_one() {
 # The mutating path independently repeats the dispatch safety proof.
 callers_exact=false
 set +e
-GH_TOKEN="$REPO_SETTINGS_TOKEN" scripts/preflight-downstream-dispatch.sh
+GOVERNANCE_CONFIG="$governance_config" GH_TOKEN="$REPO_SETTINGS_TOKEN" \
+  scripts/preflight-downstream-dispatch.sh
 preflight_rc=$?
 set -e
 case "$preflight_rc" in
@@ -943,8 +976,6 @@ if [ "$(git hash-object "$work/linked-caller.yml")" != "$expected_linked_blob" ]
   echo "[ERROR] Linked-issue evaluator bytes do not match the GitHub blob receipt" >&2
   exit 1
 fi
-branch="sync/exact-caller-${expected_blob}${expected_lint_blob}${expected_linked_blob}"
-
 if [ "$callers_exact" = true ]; then
   finalization_pending=false
   while IFS= read -r name; do
@@ -996,12 +1027,16 @@ echo "[OK] Downstream enforcement workflows are disabled with no active runs"
 bootstrap_one() {
   local name="$1" slug default_branch base_sha main_sha actual_blob actual_lint_blob
   local actual_linked_blob rc branch_head branch_blob branch_lint_blob branch_linked_blob
-  local expected_change_count
+  local branch expected_change_count manages_lint_caller=true lint_caller_exact=true
   local pr_number pr_url created_pr_number compare_file pr_file verified_head verified_blob
   local verified_lint_blob verified_linked_blob transition_checks
   local base_commit_file base_tree_sha refresh_tree_file refresh_tree_sha refresh_commit_file
   local refresh_head refresh_ref_file current_base_sha current_branch_head
   slug="${owner}/${name}"
+  if ! lint_caller_applies "$name"; then
+    manages_lint_caller=false
+  fi
+  branch=$(exact_caller_branch_for_repo "$name")
 
   assert_source_current
   main_sha=$(gh api "repos/${slug}/commits/main" --jq '.sha')
@@ -1025,22 +1060,26 @@ bootstrap_one() {
   84) return 84 ;;
   *) return 1 ;;
   esac
-  set +e
-  actual_lint_blob=$(api_value_or_404 \
-    "repos/${slug}/contents/${lint_caller_path}?ref=${main_sha}" '.sha')
-  rc=$?
-  set -e
-  case "$rc" in
-  0)
-    if ! printf '%s' "$actual_lint_blob" | grep -qE '^[0-9a-f]{40}$'; then
-      echo "[ERROR] Invalid live Super-Linter caller blob for ${name}" >&2
-      return 1
-    fi
-    ;;
-  44) actual_lint_blob="" ;;
-  84) return 84 ;;
-  *) return 1 ;;
-  esac
+  actual_lint_blob=""
+  if [ "$manages_lint_caller" = true ]; then
+    set +e
+    actual_lint_blob=$(api_value_or_404 \
+      "repos/${slug}/contents/${lint_caller_path}?ref=${main_sha}" '.sha')
+    rc=$?
+    set -e
+    case "$rc" in
+    0)
+      if ! printf '%s' "$actual_lint_blob" | grep -qE '^[0-9a-f]{40}$'; then
+        echo "[ERROR] Invalid live Super-Linter caller blob for ${name}" >&2
+        return 1
+      fi
+      ;;
+    44) actual_lint_blob="" ;;
+    84) return 84 ;;
+    *) return 1 ;;
+    esac
+    [ "$actual_lint_blob" = "$expected_lint_blob" ] || lint_caller_exact=false
+  fi
   set +e
   actual_linked_blob=$(api_value_or_404 \
     "repos/${slug}/contents/${linked_caller_path}?ref=${main_sha}" '.sha')
@@ -1058,13 +1097,13 @@ bootstrap_one() {
   *) return 1 ;;
   esac
   if [ "$actual_blob" = "$expected_blob" ] &&
-    [ "$actual_lint_blob" = "$expected_lint_blob" ] &&
+    [ "$lint_caller_exact" = true ] &&
     [ "$actual_linked_blob" = "$expected_linked_blob" ]; then
     return 0
   fi
   expected_change_count=0
   [ "$actual_blob" = "$expected_blob" ] || expected_change_count=$((expected_change_count + 1))
-  [ "$actual_lint_blob" = "$expected_lint_blob" ] || expected_change_count=$((expected_change_count + 1))
+  [ "$lint_caller_exact" = true ] || expected_change_count=$((expected_change_count + 1))
   [ "$actual_linked_blob" = "$expected_linked_blob" ] || expected_change_count=$((expected_change_count + 1))
 
   default_branch=$(gh api "repos/${slug}" --jq '.default_branch')
@@ -1119,22 +1158,25 @@ bootstrap_one() {
   *) return 1 ;;
   esac
 
-  set +e
-  branch_lint_blob=$(api_value_or_404 \
-    "repos/${slug}/contents/${lint_caller_path}?ref=${branch_head}" '.sha')
-  rc=$?
-  set -e
-  case "$rc" in
-  0)
-    if ! printf '%s' "$branch_lint_blob" | grep -qE '^[0-9a-f]{40}$'; then
-      echo "[ERROR] Invalid bootstrap Super-Linter caller blob for ${name}" >&2
-      return 1
-    fi
-    ;;
-  44) branch_lint_blob="" ;;
-  84) return 84 ;;
-  *) return 1 ;;
-  esac
+  branch_lint_blob=""
+  if [ "$manages_lint_caller" = true ]; then
+    set +e
+    branch_lint_blob=$(api_value_or_404 \
+      "repos/${slug}/contents/${lint_caller_path}?ref=${branch_head}" '.sha')
+    rc=$?
+    set -e
+    case "$rc" in
+    0)
+      if ! printf '%s' "$branch_lint_blob" | grep -qE '^[0-9a-f]{40}$'; then
+        echo "[ERROR] Invalid bootstrap Super-Linter caller blob for ${name}" >&2
+        return 1
+      fi
+      ;;
+    44) branch_lint_blob="" ;;
+    84) return 84 ;;
+    *) return 1 ;;
+    esac
+  fi
 
   set +e
   branch_linked_blob=$(api_value_or_404 \
@@ -1154,7 +1196,8 @@ bootstrap_one() {
   esac
 
   if { [ "$branch_blob" != "$expected_blob" ] ||
-    [ "$branch_lint_blob" != "$expected_lint_blob" ] ||
+    { [ "$manages_lint_caller" = true ] &&
+      [ "$branch_lint_blob" != "$expected_lint_blob" ]; } ||
     [ "$branch_linked_blob" != "$expected_linked_blob" ]; } &&
     [ "$branch_head" != "$base_sha" ]; then
     echo "[ERROR] Refusing to append to a non-exact bootstrap branch for ${name}" >&2
@@ -1172,7 +1215,8 @@ bootstrap_one() {
       --method PUT --input "$work/update-${name}.json" >/dev/null
     branch_head=$(gh api "repos/${slug}/git/ref/heads/${branch}" --jq '.object.sha')
   fi
-  if [ "$branch_lint_blob" != "$expected_lint_blob" ]; then
+  if [ "$manages_lint_caller" = true ] &&
+    [ "$branch_lint_blob" != "$expected_lint_blob" ]; then
     jq -n \
       --arg message "chore(governance): bootstrap exact Super-Linter caller" \
       --arg branch "$branch" \
@@ -1211,12 +1255,13 @@ bootstrap_one() {
     if ! jq -e --arg path "$caller_path" --arg blob "$expected_blob" \
       --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
       --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" \
+      --argjson manages_lint "$manages_lint_caller" \
       --argjson change_count "$expected_change_count" '
       .status == "diverged" and .ahead_by > 0 and .behind_by > 0 and
       (.files | length) == $change_count and
       all(.files[];
         ((.filename == $path and .sha == $blob) or
-         (.filename == $lint_path and .sha == $lint_blob) or
+         ($manages_lint and .filename == $lint_path and .sha == $lint_blob) or
          (.filename == $linked_path and .sha == $linked_blob)) and
         (.status == "added" or .status == "modified"))
     ' "$compare_file" >/dev/null; then
@@ -1237,14 +1282,17 @@ bootstrap_one() {
     jq -n --arg base_tree "$base_tree_sha" \
       --arg path "$caller_path" --arg blob "$expected_blob" \
       --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
-      --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" '
+      --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" \
+      --argjson manages_lint "$manages_lint_caller" '
       {
         base_tree: $base_tree,
-        tree: [
-          {path: $path, mode: "100644", type: "blob", sha: $blob},
-          {path: $lint_path, mode: "100644", type: "blob", sha: $lint_blob},
-          {path: $linked_path, mode: "100644", type: "blob", sha: $linked_blob}
-        ]
+        tree: (
+          [{path: $path, mode: "100644", type: "blob", sha: $blob}] +
+          (if $manages_lint then
+            [{path: $lint_path, mode: "100644", type: "blob", sha: $lint_blob}]
+          else [] end) +
+          [{path: $linked_path, mode: "100644", type: "blob", sha: $linked_blob}]
+        )
       }
     ' >"$work/refresh-tree-${name}.json"
     refresh_tree_file="$work/refresh-tree-response-${name}.json"
@@ -1310,13 +1358,14 @@ bootstrap_one() {
   if ! jq -e --arg path "$caller_path" --arg blob "$expected_blob" \
     --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
     --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" \
+    --argjson manages_lint "$manages_lint_caller" \
     --argjson change_count "$expected_change_count" '
     .status == "ahead" and .behind_by == 0 and .ahead_by >= $change_count and
     .total_commits == .ahead_by and (.commits | length) == .total_commits and
     (.files | length) == $change_count and
     all(.files[];
       ((.filename == $path and .sha == $blob) or
-       (.filename == $lint_path and .sha == $lint_blob) or
+       ($manages_lint and .filename == $lint_path and .sha == $lint_blob) or
        (.filename == $linked_path and .sha == $linked_blob)) and
       (.status == "added" or .status == "modified"))
   ' "$compare_file" >/dev/null; then
@@ -1332,7 +1381,7 @@ bootstrap_one() {
       --base "$default_branch" \
       --head "$branch" \
       --title "chore(governance): bootstrap exact managed callers" \
-      --body "Installs the exact enforcement, Super-Linter, and linked-issue workflows before fleet enforcement resumes. The sync/ branch uses the governed automation exemption from linked-issue enforcement.")
+      --body "Installs the exact applicable managed callers before fleet enforcement resumes. The sync/ branch uses the governed automation exemption from linked-issue enforcement.")
     pr_number=${pr_url##*/}
     created_pr_number="$pr_number"
     if ! printf '%s' "$created_pr_number" | grep -qE '^[1-9][0-9]*$'; then
@@ -1353,10 +1402,13 @@ bootstrap_one() {
   if ! jq -e --arg path "$caller_path" --arg lint_path "$lint_caller_path" \
     --arg linked_path "$linked_caller_path" \
     --arg base "$default_branch" --arg head "$branch" --arg oid "$branch_head" \
+    --argjson manages_lint "$manages_lint_caller" \
     --argjson change_count "$expected_change_count" '
     .baseRefName == $base and .headRefName == $head and .headRefOid == $oid and
     (.commits | length) >= $change_count and (.files | length) == $change_count and
-    all(.files[]; .path == $path or .path == $lint_path or .path == $linked_path)
+    all(.files[];
+      .path == $path or ($manages_lint and .path == $lint_path) or
+      .path == $linked_path)
   ' "$pr_file" >/dev/null; then
     echo "[ERROR] Bootstrap PR for ${name} contains an unexpected diff" >&2
     return 1
@@ -1380,11 +1432,13 @@ bootstrap_one() {
     echo "[ERROR] Bootstrap caller changed after exact PR verification for ${name}" >&2
     return 1
   fi
-  verified_lint_blob=$(gh api \
-    "repos/${slug}/contents/${lint_caller_path}?ref=${verified_head}" --jq '.sha')
-  if [ "$verified_lint_blob" != "$expected_lint_blob" ]; then
-    echo "[ERROR] Super-Linter caller changed after exact PR verification for ${name}" >&2
-    return 1
+  if [ "$manages_lint_caller" = true ]; then
+    verified_lint_blob=$(gh api \
+      "repos/${slug}/contents/${lint_caller_path}?ref=${verified_head}" --jq '.sha')
+    if [ "$verified_lint_blob" != "$expected_lint_blob" ]; then
+      echo "[ERROR] Super-Linter caller changed after exact PR verification for ${name}" >&2
+      return 1
+    fi
   fi
   verified_linked_blob=$(gh api \
     "repos/${slug}/contents/${linked_caller_path}?ref=${verified_head}" --jq '.sha')
@@ -1499,23 +1553,25 @@ while true; do
     *) exit 1 ;;
     esac
 
-    set +e
-    live_lint_blob=$(api_value_or_404 \
-      "repos/${slug}/contents/${lint_caller_path}?ref=${main_sha}" '.sha')
-    rc=$?
-    set -e
-    case "$rc" in
-    0)
-      if ! printf '%s' "$live_lint_blob" | grep -qE '^[0-9a-f]{40}$'; then
-        echo "[ERROR] Invalid live Super-Linter caller receipt while verifying ${name}" >&2
-        exit 1
-      fi
-      [ "$live_lint_blob" = "$expected_lint_blob" ] || pending=$((pending + 1))
-      ;;
-    44) pending=$((pending + 1)) ;;
-    84) exit 84 ;;
-    *) exit 1 ;;
-    esac
+    if lint_caller_applies "$name"; then
+      set +e
+      live_lint_blob=$(api_value_or_404 \
+        "repos/${slug}/contents/${lint_caller_path}?ref=${main_sha}" '.sha')
+      rc=$?
+      set -e
+      case "$rc" in
+      0)
+        if ! printf '%s' "$live_lint_blob" | grep -qE '^[0-9a-f]{40}$'; then
+          echo "[ERROR] Invalid live Super-Linter caller receipt while verifying ${name}" >&2
+          exit 1
+        fi
+        [ "$live_lint_blob" = "$expected_lint_blob" ] || pending=$((pending + 1))
+        ;;
+      44) pending=$((pending + 1)) ;;
+      84) exit 84 ;;
+      *) exit 1 ;;
+      esac
+    fi
 
     set +e
     live_linked_blob=$(api_value_or_404 \
