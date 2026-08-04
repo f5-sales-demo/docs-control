@@ -38,7 +38,7 @@ jobs:
         startsWith(github.head_ref, 'auto-generate/') ||
         startsWith(github.head_ref, 'autoresearch/') ||
         (startsWith(github.head_ref, 'dependabot/') && github.event.pull_request.user.id == 49699333))
-    uses: f5-sales-demo/docs-control/.github/workflows/antigravity-translate.yml@7a9e56e38268119eb55947c09b4b0749e424f697
+    uses: f5-sales-demo/docs-control/.github/workflows/antigravity-translate.yml@a334c5f84fb36d486209be1e331b11c99d05830c
     permissions:
       contents: write # commit generated translations to the same-repository branch
       pull-requests: write # update the translated pull request
