@@ -1,5 +1,5 @@
 {
-  "source_commit": "98e52a170e3a6035e7e08e89f408143fe064aa0b",
+  "source_commit": "1534ac5010121685f8deed2af7cdab3452f800b0",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -39,15 +39,15 @@
     ".github/workflows/antigravity-review.yml": {
       "src": "workflows/antigravity-review.yml",
       "dest": ".github/workflows/antigravity-review.yml",
-      "sha": "6341e722c8437b318cdf13b668ff3a00869a7f10",
-      "size": 1959,
+      "sha": "928001729ab2b7a258b5318cc20b397f7cab9b23",
+      "size": 1309,
       "mode": "100644"
     },
     ".github/workflows/antigravity-translate.yml": {
       "src": "workflows/antigravity-translate.yml",
       "dest": ".github/workflows/antigravity-translate.yml",
-      "sha": "fb27eb80b48ea16eee9e01aa681996de72002f33",
-      "size": 2164,
+      "sha": "850726e9c057733ec7ba829b2345dfba02906d5b",
+      "size": 1475,
       "mode": "100644"
     },
     ".github/PULL_REQUEST_TEMPLATE.md": {
@@ -88,22 +88,22 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "f5bb9c97ecca309c9cf2760eccc4ee71cc2bc313",
-      "size": 40842,
+      "sha": "26a04956f84d99bad2bcb9a3e4a64b370485df4c",
+      "size": 41596,
       "mode": "100644"
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "3b146038b08d8e705c7ccec0144b17a6d8b13b23",
-      "size": 8358,
+      "sha": "8a641bb2b9a9fe8001e7a4189eb566747bd0939d",
+      "size": 8263,
       "mode": "100644"
     },
     "AGENTS.md": {
       "src": "AGENTS.md",
       "dest": "AGENTS.md",
-      "sha": "2cb4b1ed653bf6c9f6a2eda71bbe44f19a1ea017",
-      "size": 3892,
+      "sha": "57470d33e47bc29b36ad981b17916bf10d55744e",
+      "size": 3961,
       "mode": "100644"
     },
     ".agents/skills/demo-components/SKILL.md": {
@@ -144,8 +144,8 @@
     ".gitignore": {
       "src": ".gitignore",
       "dest": ".gitignore",
-      "sha": "0d307489c8495cd7e7ea3a7c6a35976fdc4e10dc",
-      "size": 3303,
+      "sha": "9c6b6e08768c87bb6d934b149dcb61a66429b9eb",
+      "size": 3256,
       "mode": "100644"
     },
     "LICENSE": {
@@ -158,8 +158,8 @@
     ".pre-commit-config.yaml": {
       "src": ".pre-commit-config.yaml",
       "dest": ".pre-commit-config.yaml",
-      "sha": "974496504c6042feb118483a2d2657fcb5f19ee1",
-      "size": 12840,
+      "sha": "ea8d625ec99b87115767c7f0297713cc2b1102de",
+      "size": 12811,
       "mode": "100644"
     },
     ".yamllint.yaml": {
@@ -309,31 +309,38 @@
       "size": 2851,
       "mode": "100755"
     },
-    "scripts/parse-translation-trigger.sh": {
-      "src": "scripts/parse-translation-trigger.sh",
-      "dest": "scripts/parse-translation-trigger.sh",
-      "sha": "d6675761e48419c9a659b6b167075a02a8d931c9",
-      "size": 2080,
-      "mode": "100644"
-    },
-    "scripts/antigravity-translate-staged.sh": {
-      "src": "scripts/antigravity-translate-staged.sh",
-      "dest": "scripts/antigravity-translate-staged.sh",
-      "sha": "c0a988e8b8ab6c3ea7ea3136100b39fee1bf67a5",
-      "size": 10484,
-      "mode": "100755"
-    },
     "scripts/agy-pre-push-review.sh": {
       "src": "scripts/agy-pre-push-review.sh",
       "dest": "scripts/agy-pre-push-review.sh",
-      "sha": "d73fcb914a67e0003c0a7bf9ca24b5814fbe4315",
-      "size": 2714,
+      "sha": "7cef2680a37b0cc4da910e0c55e8e06f42f04f74",
+      "size": 554,
+      "mode": "100755"
+    },
+    "scripts/agy-review.sh": {
+      "src": "scripts/agy-review.sh",
+      "dest": "scripts/agy-review.sh",
+      "sha": "59bfdfcd3c78395d788972bf49b3ddbc307f550c",
+      "size": 8603,
+      "mode": "100755"
+    },
+    "scripts/agy-review-output.schema.json": {
+      "src": "scripts/agy-review-output.schema.json",
+      "dest": "scripts/agy-review-output.schema.json",
+      "sha": "455f616e09504d903354c6b66dbfd753ac599572",
+      "size": 1293,
+      "mode": "100644"
+    },
+    "scripts/validate-translations.sh": {
+      "src": "scripts/validate-translations.sh",
+      "dest": "scripts/validate-translations.sh",
+      "sha": "e3543da064611d86bcc28feef5ba6c9d5626e81b",
+      "size": 9752,
       "mode": "100755"
     },
     "scripts/check-repo-hygiene.sh": {
       "src": "scripts/check-repo-hygiene.sh",
       "dest": "scripts/check-repo-hygiene.sh",
-      "sha": "5f3df07f0053ff38c7d1ac5d0fd2e1cdbeb2d7d4",
+      "sha": "e831c2ef0d666b11d183ba5b9f6c16bb9a4cdf5c",
       "size": 6930,
       "mode": "100755"
     },
@@ -379,18 +386,32 @@
       "size": 9157,
       "mode": "100755"
     },
+    "tests/test-agy-pre-push-review.sh": {
+      "src": "tests/test-agy-pre-push-review.sh",
+      "dest": "tests/test-agy-pre-push-review.sh",
+      "sha": "293399689f81eec52d2434aa225c133dc5835532",
+      "size": 5618,
+      "mode": "100755"
+    },
+    "tests/test-validate-translations.sh": {
+      "src": "tests/test-validate-translations.sh",
+      "dest": "tests/test-validate-translations.sh",
+      "sha": "2c75f7bf3d82fed43d6428a804ccc3c611be5fc1",
+      "size": 5570,
+      "mode": "100755"
+    },
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "756f755e1cadae25eb6565f79b714856e3ca1d6d",
-      "size": 5534,
+      "sha": "b8b3f6475b8834573ccbaf2e7924ef29d515d16d",
+      "size": 5711,
       "mode": "100644"
     },
     ".claude/settings.json": {
       "src": ".claude/settings.json",
       "dest": ".claude/settings.json",
-      "sha": "7c72d51246b6ba87c98e9ca23572490e2a964925",
-      "size": 487,
+      "sha": "d8d2f7a20ef078fa850694042025a568e90d80a5",
+      "size": 540,
       "mode": "100644"
     },
     ".claude/hooks/protect-managed-files.sh": {
