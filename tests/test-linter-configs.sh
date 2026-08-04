@@ -407,20 +407,27 @@ else
     "the workflow must reject every value except none, 2018, 2021, or 2024"
 fi
 
-for edition in 2018 2021 2024; do
-  expected="VALIDATE_RUST_${edition}: \${{ inputs.rust_edition == '${edition}' }}"
-  if grep -Fq "$expected" "$SL_YML"; then
-    pass "5e.3 Rust ${edition} validation is selected only for edition ${edition}"
-  else
-    fail "5e.3 Rust ${edition} validation is selected only for edition ${edition}" \
-      "missing exact workflow_call input selector"
-  fi
-done
+if printf '%s' "$RUST_EDITION_STEP" | grep -Fq 'for edition in 2015 2018 2021 2024; do' &&
+  printf '%s' "$RUST_EDITION_STEP" | grep -Fq 'if [ "$RUST_EDITION" != "$edition" ]; then' &&
+  printf '%s' "$RUST_EDITION_STEP" | grep -Fq \
+    'echo "VALIDATE_RUST_${edition}=false" >> "$GITHUB_ENV"'; then
+  pass "5e.3 non-selected Rust editions are exported as exclusions"
+else
+  fail "5e.3 non-selected Rust editions are exported as exclusions" \
+    "the input step must disable every Rust validator except the selected edition"
+fi
+
+if grep -qE '^[[:space:]]*VALIDATE_RUST_[0-9]+:' "$SL_YML"; then
+  fail "5e.4 the Super-Linter env does not mix include and exclude modes" \
+    "Rust validator keys belong in GITHUB_ENV, not the static action env"
+else
+  pass "5e.4 the Super-Linter env does not mix include and exclude modes"
+fi
 
 # Each entry below is an explicit "not relevant" decision captured with
 # its rationale in the workflow comment. Removing a disable re-introduces
 # a full audit surface for that validator on every governed repo.
-for v in POWERSHELL HTML CPP RUST_2015 DOCKERFILE_HADOLINT BASH_EXEC EDITORCONFIG PROTOBUF; do
+for v in POWERSHELL HTML CPP DOCKERFILE_HADOLINT BASH_EXEC EDITORCONFIG PROTOBUF; do
   if grep -qE "^[[:space:]]*VALIDATE_${v}:[[:space:]]+false" "$SL_YML"; then
     pass "5e.x super-linter disables VALIDATE_${v}"
   else
