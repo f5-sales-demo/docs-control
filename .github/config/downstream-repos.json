@@ -23,6 +23,7 @@
   "devcontainer",
   "marketplace",
   "xcsh",
+  "xcsh-action",
   "cdn-simulator",
   "origin-server",
   "traffic-generator",

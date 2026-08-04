@@ -2,6 +2,7 @@
   "source_repo": "f5-sales-demo/docs-control",
   "skip_files": {
     "xcsh": ["biome.json", "LICENSE", ".ruff.toml", ".python-lint", ".mypy.ini", ".github/workflows/super-linter.yml"],
+    "xcsh-action": ["README.md"],
     "terraform-provider-xcsh": [".github/workflows/translation-audit.yml", "scripts/locale-lint.sh"],
     "api-specs": [".ruff.toml", ".python-lint", ".mypy.ini"],
     "api-specs-enriched": [".ruff.toml", ".python-lint", ".mypy.ini", ".github/workflows/github-pages-deploy.yml"],
@@ -142,6 +143,7 @@
       "was": "content",
       "webapp-api-protection": "content",
       "xcsh": "developer",
+      "xcsh-action": "developer",
       "xcsh-chrome-extension": "developer"
     }
   }

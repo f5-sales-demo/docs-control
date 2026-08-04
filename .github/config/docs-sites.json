@@ -137,6 +137,12 @@
     "badges": [{ "name": "CI", "workflow": "ci.yml" }]
   },
   {
+    "label": "xcsh Action",
+    "url": "https://f5-sales-demo.github.io/xcsh-action/llms-full.txt",
+    "description": "Verified GitHub Action for deterministic F5 XC manifest operations",
+    "badges": [{ "name": "CI", "workflow": "ci.yml" }]
+  },
+  {
     "label": "CDN Simulator",
     "url": "https://f5-sales-demo.github.io/cdn-simulator/llms-full.txt",
     "description": "NGINX-based CDN edge node simulator on Azure for multi-vendor lab environments"
