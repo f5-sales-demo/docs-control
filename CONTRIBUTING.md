@@ -305,7 +305,7 @@ boundary; configure no reviewers, wait timer, or deployment rule on it.
      --review-enabled false --translations-enabled false --workflow-state active
    ```
 
-   It checks all 37 governed repositories plus `docs-control`, rejects repository-variable shadows,
+   It checks all 38 governed repositories plus `docs-control`, rejects repository-variable shadows,
    and exits 84 without retry amplification when GitHub reports a rate limit.
 
 ### Future restoration of the required freshness context

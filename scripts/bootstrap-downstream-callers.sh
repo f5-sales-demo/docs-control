@@ -76,6 +76,26 @@ if ! jq -e '
   echo "[ERROR] Repository settings contain an invalid required-check contract" >&2
   exit 1
 fi
+if ! jq -e '
+  (.repository | type == "object") and
+  (.repository.allow_squash_merge == true) and
+  (.repository.allow_auto_merge == true) and
+  (.repository.delete_branch_on_merge == true) and
+  ([.branch_protection[] | select(.branch == "main")][0] |
+    (.enforce_admins | type == "boolean") and
+    (.required_pull_request_reviews == null) and
+    (.restrictions == null) and
+    (.required_linear_history | type == "boolean") and
+    (.allow_force_pushes | type == "boolean") and
+    (.allow_deletions | type == "boolean") and
+    (.block_creations | type == "boolean") and
+    (.required_conversation_resolution | type == "boolean") and
+    (.lock_branch | type == "boolean") and
+    (.allow_fork_syncing | type == "boolean"))
+' "$repo_settings_config" >/dev/null; then
+  echo "[ERROR] First-repository controls must use GitHub Free-compatible classic protection" >&2
+  exit 1
+fi
 if ! rollout_state=$(jq -er '.state | select(. == "quiesced" or . == "active")' \
   "$rollout_config"); then
   echo "[ERROR] Governance rollout state is missing or invalid" >&2
@@ -259,6 +279,143 @@ transition_required_checks_for_repo() {
       .contexts = ([.contexts[] | select(. != $current)] + [$legacy] | unique | sort)
     end
   '
+}
+
+first_transition_required_checks_for_repo() {
+  local name="$1" desired
+  desired=$(required_checks_for_repo "$name")
+  printf '%s' "$desired" | jq -ce \
+    --arg current "$linked_context" --arg legacy "$legacy_linked_context" '
+    if ([.contexts[] | select(. == $current)] | length) != 1 or
+      ([.contexts[] | select(. == $legacy)] | length) != 0 then
+      error("authoritative first-repository linked context is not unique")
+    else
+      .contexts = [.contexts[] | select(. != $current)] |
+      if (.contexts | length) == 0 then error("first-repository transition has no real checks")
+      else . end
+    end
+  '
+}
+
+first_transition_protection_for_repo() {
+  local name="$1" checks
+  checks=$(first_transition_required_checks_for_repo "$name") || return 1
+  jq -ce --argjson checks "$checks" '
+    [.branch_protection[] | select(.branch == "main")][0] |
+    del(.branch) |
+    .required_status_checks = $checks |
+    .required_status_checks |= del(.self_contexts)
+  ' "$repo_settings_config"
+}
+
+normalize_desired_bootstrap_protection() {
+  jq -ce '{
+    enforce_admins: .enforce_admins,
+    required_status_checks: {
+      strict: .required_status_checks.strict,
+      contexts: (.required_status_checks.contexts | unique | sort)
+    },
+    required_pull_request_reviews: .required_pull_request_reviews,
+    restrictions: .restrictions,
+    required_linear_history: .required_linear_history,
+    allow_force_pushes: .allow_force_pushes,
+    allow_deletions: .allow_deletions,
+    block_creations: .block_creations,
+    required_conversation_resolution: .required_conversation_resolution,
+    lock_branch: .lock_branch,
+    allow_fork_syncing: .allow_fork_syncing
+  }'
+}
+
+normalize_current_bootstrap_protection() {
+  jq -ce '{
+    enforce_admins: .enforce_admins.enabled,
+    required_status_checks: {
+      strict: .required_status_checks.strict,
+      contexts: (.required_status_checks.contexts | unique | sort)
+    },
+    required_pull_request_reviews: .required_pull_request_reviews,
+    restrictions: .restrictions,
+    required_linear_history: .required_linear_history.enabled,
+    allow_force_pushes: .allow_force_pushes.enabled,
+    allow_deletions: .allow_deletions.enabled,
+    block_creations: .block_creations.enabled,
+    required_conversation_resolution: .required_conversation_resolution.enabled,
+    lock_branch: .lock_branch.enabled,
+    allow_fork_syncing: .allow_fork_syncing.enabled
+  }'
+}
+
+reconcile_first_repo_controls() {
+  local name="$1" slug desired_repo current_repo verified_repo repo_payload verified_protection
+  local desired_protection desired_state current_protection current_state rc protection_payload
+  slug="${owner}/${name}"
+  desired_repo=$(jq -c '{
+    allow_squash_merge: .repository.allow_squash_merge,
+    allow_auto_merge: .repository.allow_auto_merge,
+    delete_branch_on_merge: .repository.delete_branch_on_merge
+  }' "$repo_settings_config")
+  current_repo=$(GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api "repos/${slug}")
+  if ! printf '%s' "$current_repo" | jq -e '
+    type == "object" and
+    (.allow_squash_merge | type == "boolean") and
+    (.allow_auto_merge | type == "boolean") and
+    (.delete_branch_on_merge | type == "boolean")
+  ' >/dev/null; then
+    echo "[ERROR] Repository merge settings response is malformed for ${slug}" >&2
+    return 1
+  fi
+  if [ "$(printf '%s' "$current_repo" | jq -c '{allow_squash_merge,allow_auto_merge,delete_branch_on_merge}')" != "$desired_repo" ]; then
+    assert_source_current
+    repo_payload="$work/first-repo-settings-${name}.json"
+    printf '%s\n' "$desired_repo" >"$repo_payload"
+    GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api "repos/${slug}" --method PATCH \
+      --input "$repo_payload" >/dev/null
+  fi
+  verified_repo=$(GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api "repos/${slug}")
+  if ! printf '%s' "$verified_repo" | jq -e --argjson desired "$desired_repo" '
+    {allow_squash_merge,allow_auto_merge,delete_branch_on_merge} == $desired
+  ' >/dev/null; then
+    echo "[ERROR] Repository merge settings did not settle exactly for ${slug}" >&2
+    return 1
+  fi
+
+  desired_protection=$(first_transition_protection_for_repo "$name") || {
+    echo "[ERROR] Could not derive first-repository protection for ${slug}" >&2
+    return 1
+  }
+  desired_state=$(printf '%s' "$desired_protection" | normalize_desired_bootstrap_protection)
+  set +e
+  current_protection=$(api_value_or_404 \
+    "repos/${slug}/branches/main/protection" '.' "$REPO_SETTINGS_TOKEN")
+  rc=$?
+  set -e
+  case "$rc" in
+  0)
+    current_state=$(printf '%s' "$current_protection" | normalize_current_bootstrap_protection) || {
+      echo "[ERROR] Branch-protection response is malformed for ${slug}" >&2
+      return 1
+    }
+    ;;
+  44) current_state="" ;;
+  84) return 84 ;;
+  *) return 1 ;;
+  esac
+  if [ "$current_state" != "$desired_state" ]; then
+    assert_source_current
+    protection_payload="$work/first-repo-protection-${name}.json"
+    printf '%s\n' "$desired_protection" >"$protection_payload"
+    GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
+      "repos/${slug}/branches/main/protection" --method PUT \
+      --input "$protection_payload" >/dev/null
+  fi
+  verified_protection=$(api_value_or_404 \
+    "repos/${slug}/branches/main/protection" '.' "$REPO_SETTINGS_TOKEN") || return $?
+  if [ "$(printf '%s' "$verified_protection" | normalize_current_bootstrap_protection)" != "$desired_state" ]; then
+    echo "[ERROR] First-repository protection did not settle exactly for ${slug}" >&2
+    return 1
+  fi
+  echo "[OK] First-repository merge controls are exact for ${slug}"
 }
 
 reconcile_required_checks_to() {
@@ -1027,8 +1184,9 @@ echo "[OK] Downstream enforcement workflows are disabled with no active runs"
 bootstrap_one() {
   local name="$1" slug default_branch base_sha main_sha actual_blob actual_lint_blob
   local actual_linked_blob rc branch_head branch_blob branch_lint_blob branch_linked_blob
-  local branch expected_change_count manages_lint_caller=true lint_caller_exact=true
-  local pr_number pr_url created_pr_number compare_file pr_file verified_head verified_blob
+  local expected_change_count first_repo=false
+  local branch manages_lint_caller=true lint_caller_exact=true
+  local pr_number pr_url pr_body created_pr_number compare_file pr_file verified_head verified_blob
   local verified_lint_blob verified_linked_blob transition_checks
   local base_commit_file base_tree_sha refresh_tree_file refresh_tree_sha refresh_commit_file
   local refresh_head refresh_ref_file current_base_sha current_branch_head
@@ -1056,7 +1214,7 @@ bootstrap_one() {
       return 1
     fi
     ;;
-  44) ;;
+  44) actual_blob="" ;;
   84) return 84 ;;
   *) return 1 ;;
   esac
@@ -1096,6 +1254,10 @@ bootstrap_one() {
   84) return 84 ;;
   *) return 1 ;;
   esac
+  if [ -z "$actual_blob" ] && [ -z "$actual_linked_blob" ] &&
+    { [ "$manages_lint_caller" = false ] || [ -z "$actual_lint_blob" ]; }; then
+    first_repo=true
+  fi
   if [ "$actual_blob" = "$expected_blob" ] &&
     [ "$lint_caller_exact" = true ] &&
     [ "$actual_linked_blob" = "$expected_linked_blob" ]; then
@@ -1105,7 +1267,6 @@ bootstrap_one() {
   [ "$actual_blob" = "$expected_blob" ] || expected_change_count=$((expected_change_count + 1))
   [ "$lint_caller_exact" = true ] || expected_change_count=$((expected_change_count + 1))
   [ "$actual_linked_blob" = "$expected_linked_blob" ] || expected_change_count=$((expected_change_count + 1))
-
   default_branch=$(gh api "repos/${slug}" --jq '.default_branch')
   if [ "$default_branch" != "main" ]; then
     echo "[ERROR] Governed repository ${name} does not use protected main" >&2
@@ -1115,6 +1276,10 @@ bootstrap_one() {
   if ! printf '%s' "$base_sha" | grep -qE '^[0-9a-f]{40}$'; then
     echo "[ERROR] Invalid default-branch receipt for ${name}" >&2
     return 1
+  fi
+
+  if [ "$first_repo" = true ]; then
+    reconcile_first_repo_controls "$name"
   fi
 
   reconcile_bootstrap_prs "$slug" "$branch"
@@ -1376,12 +1541,16 @@ bootstrap_one() {
   pr_number="$bootstrap_pr_number"
   created_pr_number=""
   if [ -z "$pr_number" ]; then
+    pr_body="Installs the exact enforcement, Super-Linter, and linked-issue workflows before fleet enforcement resumes. The sync/ branch uses the governed automation exemption from linked-issue enforcement."
+    if [ "$first_repo" = true ]; then
+      pr_body="Installs the exact enforcement, Super-Linter, and linked-issue workflows for a first governed repository. Classic branch protection temporarily requires only real checks available on the bootstrap PR; the canonical linked-issue context is restored only after its default-branch workflow reports a real success."
+    fi
     pr_url=$(gh pr create \
       --repo "$slug" \
       --base "$default_branch" \
       --head "$branch" \
       --title "chore(governance): bootstrap exact managed callers" \
-      --body "Installs the exact applicable managed callers before fleet enforcement resumes. The sync/ branch uses the governed automation exemption from linked-issue enforcement.")
+      --body "$pr_body")
     pr_number=${pr_url##*/}
     created_pr_number="$pr_number"
     if ! printf '%s' "$created_pr_number" | grep -qE '^[1-9][0-9]*$'; then
@@ -1446,7 +1615,10 @@ bootstrap_one() {
     echo "[ERROR] Linked-issue evaluator changed after exact PR verification for ${name}" >&2
     return 1
   fi
-  if [ "$actual_linked_blob" != "$expected_linked_blob" ]; then
+  if [ "$first_repo" = true ]; then
+    jq -n --argjson pr "$pr_number" --arg head "$verified_head" \
+      '{pull_request: $pr, head: $head}' >"$work/linked-transition-${name}.json"
+  elif [ "$actual_linked_blob" != "$expected_linked_blob" ]; then
     if dispatch_and_verify_linked_status "$slug" "$pr_number" "$verified_head" false; then
       rc=0
     else
