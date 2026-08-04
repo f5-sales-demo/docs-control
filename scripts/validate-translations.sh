@@ -92,6 +92,7 @@ import os
 import re
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 MODE, BASE, HEAD = sys.argv[1:]
@@ -173,26 +174,67 @@ def without_frontmatter(text: str) -> str:
     return text
 
 
+PROSE_JSX_ATTRIBUTES = ("title", "text", "alt")
+PROSE_JSX_ATTRIBUTE_RE = re.compile(
+    r"(?<![-A-Za-z0-9_:.])(" + "|".join(PROSE_JSX_ATTRIBUTES)
+    + r")\s*=\s*(?:\"[^\"\n]*\"|'[^'\n]*')"
+)
+FENCE_RE = re.compile(
+    r"(?ms)^\s*(?P<f>`{3,}|~{3,})(?P<info>[^\n]*)\n.*?^\s*(?P=f)\s*$"
+)
+MDX_TAG_RE = re.compile(
+    r"(?s)</?[A-Z][A-Za-z0-9_.:-]*(?:\s+[^<>]*?)?/?>"
+)
+
+
+def normalize_mdx_tag(tag: str) -> str:
+    return PROSE_JSX_ATTRIBUTE_RE.sub(
+        lambda match: f"{match.group(1)}=<translated>", tag
+    )
+
+
 def protected_fragments(raw: bytes) -> dict[str, list[str]]:
     body = without_frontmatter(raw.decode("utf-8", "strict"))
-    fence_blocks = [
-        match.group(0)
-        for match in re.finditer(r"(?ms)^\s*(?P<f>`{3,}|~{3,})[^\n]*\n.*?^\s*(?P=f)\s*$", body)
-    ]
-    body_without_fences = re.sub(
-        r"(?ms)^\s*(?P<f>`{3,}|~{3,})[^\n]*\n.*?^\s*(?P=f)\s*$", "", body
-    )
+    body_without_fences = FENCE_RE.sub("", body)
     return {
-        "fenced code blocks": fence_blocks,
-        "inline code": re.findall(r"(?<!`)`[^`\n]+`(?!`)", body_without_fences),
+        "fence signatures": [
+            match.group("info").strip() for match in FENCE_RE.finditer(body)
+        ],
         "URLs": re.findall(r"https?://[^\s<>\]\)\"']+", body_without_fences),
+        "link targets": re.findall(r"\]\(([^)]+)\)", body_without_fences),
         "MDX imports/exports": re.findall(
             r"(?m)^(?:import|export)\s+.*$", body_without_fences
         ),
-        "MDX component tags": re.findall(
-            r"(?s)</?[A-Z][A-Za-z0-9_.:-]*(?:\s+[^<>]*?)?/?>", body_without_fences
-        ),
+        "MDX component tags": [
+            normalize_mdx_tag(match.group(0))
+            for match in MDX_TAG_RE.finditer(body_without_fences)
+        ],
     }
+
+
+def describe_fragment_drift(source_values: list[str], target_values: list[str]) -> str:
+    details = []
+    source_counts = Counter(source_values)
+    target_counts = Counter(target_values)
+    for direction, drift in (
+        ("missing", source_counts - target_counts),
+        ("unexpected", target_counts - source_counts),
+    ):
+        items = sorted(drift.items())
+        for value, count in items[:3]:
+            details.append(f"{direction} {value!r} (count {count})")
+        if len(items) > 3:
+            details.append(f"{direction} {len(items) - 3} more fragment kinds")
+    if not details:
+        for index, (source_value, target_value) in enumerate(
+            zip(source_values, target_values), 1
+        ):
+            if source_value != target_value:
+                details.append(
+                    f"position {index} expected {source_value!r}, got {target_value!r}"
+                )
+                break
+    return "; ".join(details)
 
 
 def validate_target(source_raw: bytes, target_raw: bytes, target: str) -> None:
@@ -206,7 +248,8 @@ def validate_target(source_raw: bytes, target_raw: bytes, target: str) -> None:
     target_fragments = protected_fragments(target_raw)
     for category, values in source_fragments.items():
         if target_fragments[category] != values:
-            raise ValueError(f"{target}: {category} changed during translation")
+            drift = describe_fragment_drift(values, target_fragments[category])
+            raise ValueError(f"{target}: protected {category} changed: {drift}")
 
 
 def counterparts(source_path: str) -> list[str]:
