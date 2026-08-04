@@ -1,5 +1,5 @@
 {
-  "source_commit": "681ca014116e509395f7a38174a20aa991264128",
+  "source_commit": "90f534177c9eca4cee9ad0eea8bd83a7530e33ee",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -186,8 +186,8 @@
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "7c75fc4f9204f2704fd8d9f7247120187fd81531",
-      "size": 1381,
+      "sha": "068d5dbdba881056cd1ccf5262aba3357ef09662",
+      "size": 2761,
       "mode": "100644"
     },
     "biome.json": {
