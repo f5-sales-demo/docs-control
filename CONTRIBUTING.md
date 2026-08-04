@@ -253,6 +253,12 @@ confirm each finding against the codebase, fix verified blocking findings, commi
 push until the current HEAD completes cleanly. The developer environment is responsible for
 providing an authenticated `agy` executable.
 
+The prompt delegates a dedicated semantic PII review to `agy`: it runs the governed HEAD enforcement
+scan when available, traces affected runtime and repository data surfaces, treats confirmed PII or
+an invalid scan as blocking, and reports only redacted evidence. The deterministic `pii-guard`
+context remains the verifiable CI backstop; local model review does not replace it. This route does
+not restore the discontinued Claude reviewer or its retired required context.
+
 Do not substitute a PR-diff plugin for either local route. `CLAUDE.md` names the prohibited tools and
 the enforcement that keeps them out of local work. CI remains the merge layer once restored.
 
