@@ -52,9 +52,6 @@ Every change follows this path:
 Issue → Branch → PR (linked to issue) → CI passes → auto-merge when green → Branch auto-deleted
 ```
 
-The automated code review runs as an advisory check while fleet validation completes — see
-[CI review](#ci-review).
-
 No exceptions. PRs without a linked issue will be blocked by CI.
 
 ## Step 1: Create an Issue
@@ -182,8 +179,6 @@ If a branch falls behind `main` while its PR is open, use the **Update branch** 
 ## Step 5: Review and Merge
 
 - All required CI checks must pass before merge.
-- The automated Claude Code review runs as an advisory CI check and is not yet a required context
-  (see [CI review](#ci-review)).
 - Merging is automated: once every required check is green, auto-merge squash-merges the PR.
 - The branch is automatically deleted after merge (`delete_branch_on_merge` is enabled); clean up
   your local branch afterward.
@@ -200,25 +195,11 @@ Review uses three routes. They are not interchangeable, and none substitutes for
 
 ### CI review
 
-Human-authored, same-repository pull requests are reviewed by a **Claude Code reviewer** on an
-ephemeral GitHub-hosted runner. The check is advisory while the fleet migration is validated; it
-must complete successfully before `review / claude-review` is restored as a required context.
-The separate Gemini Antigravity reviewer remains disabled and fail-closed behind
+The Gemini Antigravity reviewer remains disabled and fail-closed behind
 `ANTIGRAVITY_REVIEW_ENABLED` until docs-control#1016 is resolved.
-
-- **It enforces the [Engineering Standards](#engineering-standards) in this document** — it is not
-  a separate rulebook. Meet those standards and it approves. Its reviewer persona and rubric live
-  in `REVIEW.md` in docs-control.
-- **It emits a verdict** — approve, comment, or block. A blocking verdict holds the PR.
-- **A blocking verdict is authoritative.** Read the findings, fix them at the source on the
-  branch, and push — a new push re-runs the review. Repeat until it approves.
-- **Never work around it.** Do not merge past it, disable or skip the check, dismiss the review,
-  or rename your branch to an automated-branch prefix to dodge it. If you believe a finding is
-  wrong, say so in a PR comment and escalate to a human — do not override it yourself.
-- **Automated/bot branches** (for example `sync/…`, `dependabot/…`) intentionally bypass review
-  and the linked-issue check — this is for machine-generated PRs only. The authoritative prefix
-  list lives in `require-linked-issue.yml` and `code-review.yml`; never adopt such a prefix for
-  human or agent work.
+It is advisory and must not be added to required status contexts. Automated branches that bypass
+the linked-issue check are reserved for machine-generated work; the authoritative prefix list lives
+in `require-linked-issue.yml` and must never be used for human or agent work.
 
 #### Restoring Antigravity review
 
@@ -228,10 +209,6 @@ and enable the reusable and governed caller workflows. Pilot with selected visib
 value `true`; after a real same-repository pull request completes safely, expand visibility to every
 governed repository. Future toggles change only the organisation variable, never workflow state.
 The Antigravity CI review is advisory and must not be added to required status contexts.
-
-The Claude review has a separate restoration procedure in `REVIEWER-SPEC.md`: set its variable and
-confirm a real review completes *before* re-adding its required context. Reversing that order
-deadlocks every open pull request.
 
 ### Local review before a pull-request push
 
@@ -257,10 +234,11 @@ The prompt delegates a dedicated semantic PII review to `agy`: it runs the gover
 scan when available, traces affected runtime and repository data surfaces, treats confirmed PII or
 an invalid scan as blocking, and reports only redacted evidence. The deterministic `pii-guard`
 context remains the verifiable CI backstop; local model review does not replace it. This route does
-not restore the discontinued Claude reviewer or its retired required context.
+not replace deterministic CI.
 
 Do not substitute a PR-diff plugin for either local route. `CLAUDE.md` names the prohibited tools and
-the enforcement that keeps them out of local work. CI remains the merge layer once restored.
+the enforcement that keeps them out of local work. Required deterministic CI remains the merge
+layer.
 
 ## Translations (local active, GitHub Actions held)
 
@@ -413,7 +391,7 @@ The `main` branch is protected. The following rules are enforced:
 
 - No direct pushes to `main` — all changes go through PRs
 - No force pushes
-- Required status checks: `Check linked issues`, `Lint Code Base`, and `Shell Unit Tests` must pass, plus any repo-specific contexts. The `review / claude-review` check is **suspended**. `audit / Translation freshness` still runs but **no longer gates a merge**
+- Required status checks: `Check linked issues`, `Lint Code Base`, and `Shell Unit Tests` must pass, plus any repo-specific contexts. `audit / Translation freshness` still runs but **no longer gates a merge**
 - Admin enforcement enabled — these rules apply to everyone
 
 ## AI Assistant Guidelines
@@ -428,8 +406,6 @@ If you are Claude Code, Copilot, or another AI coding assistant, follow these ru
 6. **Fill out the PR template checklist** completely.
 7. **Follow the branch naming convention**: `feature/<issue>-desc`, `fix/<issue>-desc`, `docs/<issue>-desc`.
 8. **Respect CODEOWNERS** — Review the CODEOWNERS file for the default reviewer.
-9. **A restored blocking reviewer is authoritative** — if it blocks, fix and re-push; never bypass,
-   disable, or override it. See [Automated code review](#automated-code-review).
 
 ## Engineering Standards
 

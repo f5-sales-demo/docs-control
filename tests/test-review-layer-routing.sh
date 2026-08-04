@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 # Regression harness for review routing (issues #799 and #1083).
 #
-# Document review is advisory, local branch review is a required Antigravity
-# pre-push step, and CI reviewers remain a separate merge layer. An agent that
-# picks a PR-diff reviewer for a spec gets the wrong review, and in the case of
-# code-review-f5 also gets a write-capable, gh/az/terraform-capable tool pointed
-# at local work. These assertions keep the enforcement honest: every reviewer
-# CLAUDE.md prohibits must actually be blocked by a mechanism, and the one
-# carve-out must stay a carve-out for its stated reason.
+# Document review is advisory and local branch review is a required Antigravity
+# pre-push step. An agent that picks a PR-diff reviewer for either route gets the
+# wrong review. These assertions keep the routing guidance and deny rules aligned
+# while ensuring the discontinued CI reviewer cannot be reintroduced by stale
+# governed assets or credentials.
 #
 # Run from repo root: bash tests/test-review-layer-routing.sh
 set -euo pipefail
@@ -33,7 +31,8 @@ SETTINGS="$REPO_ROOT/.claude/settings.json"
 CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
 AGENTS_MD="$REPO_ROOT/AGENTS.md"
 AGY_REVIEW="$REPO_ROOT/scripts/agy-pre-push-review.sh"
-F5_CMD="$REPO_ROOT/plugins/f5-review/code-review-f5/commands/code-review.md"
+REPO_SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
+GOVERNANCE="$REPO_ROOT/.claude/governance.json"
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 1: deny rules for the model-invocable PR-diff reviewers
@@ -60,36 +59,59 @@ for skill in "code-review:code-review" "pr-review-toolkit:review-pr"; do
 done
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 2: the code-review-f5 carve-out
+# SECTION 2: the discontinued CI reviewer stays retired
 # ════════════════════════════════════════════════════════════════════
 echo ""
-echo "=== Section 2: code-review-f5 is gated by disable-model-invocation, not deny ==="
+echo "=== Section 2: the discontinued CI reviewer has no executable or credential surface ==="
 
-# A deny rule would break the merge gate: CI invokes the reviewer through the
-# workflow's `prompt:` as a slash command, and a deny rule does not distinguish
-# that from model selection. Verified A/B — with the deny rule in place the
-# CI-style prompt returned BLOCKED; without it, EXPANDED.
-if jq -e '.permissions.deny // [] | index("Skill(code-review-f5:code-review)")' \
-  "$SETTINGS" >/dev/null 2>&1; then
-  fail "2.1 code-review-f5 is NOT in permissions.deny" \
-    "denying it also blocks the CI workflow's own prompt-level invocation, breaking the required gate"
+RETIRED_ASSETS=(
+  ".github/workflows/claude-review.yml"
+  "workflows/code-review.yml"
+  "REVIEWER-SPEC.md"
+  "REVIEW.md"
+  "plugins/f5-review"
+  "scripts/parse-verdict.sh"
+  "scripts/review-retry-decision.sh"
+  "scripts/reviewer-comment-count.sh"
+  "scripts/check-review-deps.sh"
+  "tests/test-claude-review-retry.sh"
+  "tests/test-parse-verdict.sh"
+  "tests/test-reviewer-comment-count.sh"
+  "tests/test-check-review-deps.sh"
+)
+REMAINING_ASSETS=()
+for asset in "${RETIRED_ASSETS[@]}"; do
+  if [ -e "$REPO_ROOT/$asset" ]; then
+    REMAINING_ASSETS+=("$asset")
+  fi
+done
+if [ "${#REMAINING_ASSETS[@]}" -eq 0 ]; then
+  pass "2.1 discontinued reviewer assets are absent"
 else
-  pass "2.1 code-review-f5 is NOT in permissions.deny"
+  fail "2.1 discontinued reviewer assets are absent" \
+    "still present: ${REMAINING_ASSETS[*]}"
 fi
 
-# disable-model-invocation does distinguish the two: the prompt-level slash
-# command still expands, while a Skill tool call is refused.
-if [[ -f $F5_CMD ]]; then
-  pass "2.2 vendored f5 reviewer command exists"
-  if awk '/^---$/{n++; next} n==1' "$F5_CMD" |
-    grep -qE '^disable-model-invocation:[[:space:]]*true[[:space:]]*$'; then
-    pass "2.3 f5 reviewer command sets disable-model-invocation: true"
-  else
-    fail "2.3 f5 reviewer command sets disable-model-invocation: true" \
-      "frontmatter lacks the flag, so an agent can auto-select the merge-gate reviewer locally"
-  fi
+if jq -e '
+    (.managed_files.absent_files | index(".github/workflows/code-review.yml") != null) and
+    all(.managed_files.files[]; .dest != ".github/workflows/code-review.yml") and
+    (.secrets_manifest.roles | has("claude_review") | not) and
+    all(.secrets_manifest.repo_roles[]; index("claude_review") == null)
+  ' "$REPO_SETTINGS" >/dev/null &&
+  jq -e '.protected_files | index(".github/workflows/code-review.yml") == null' \
+    "$GOVERNANCE" >/dev/null; then
+  pass "2.2 governance deletes the retired caller and grants no reviewer secret"
 else
-  fail "2.2 vendored f5 reviewer command exists" "not found at $F5_CMD"
+  fail "2.2 governance deletes the retired caller and grants no reviewer secret" \
+    "managed routing, protected files, or secret roles still retain the reviewer"
+fi
+
+if ! grep -Eq 'review / claude-review|REVIEWER-SPEC\.md|code-review-f5|\.github/workflows/claude-review\.yml' \
+  "$CLAUDE_MD" "$REPO_ROOT/CONTRIBUTING.md"; then
+  pass "2.3 contributor guidance contains no retired reviewer route"
+else
+  fail "2.3 contributor guidance contains no retired reviewer route" \
+    "CLAUDE.md or CONTRIBUTING.md still directs contributors to discontinued review infrastructure"
 fi
 
 # ════════════════════════════════════════════════════════════════════
@@ -135,8 +157,8 @@ fi
 # Every prohibited reviewer must be named explicitly. Prose that says "do not use
 # a PR-diff reviewer" without naming them loses the routing contest to their own
 # terse, all-review skill descriptions.
-for reviewer in "code-review:code-review" "code-review-f5:code-review" \
-  "pr-review-toolkit:review-pr" "/review" "/security-review"; do
+for reviewer in "code-review:code-review" "pr-review-toolkit:review-pr" \
+  "/review" "/security-review"; do
   if grep -qF "$reviewer" "$CLAUDE_MD"; then
     pass "3.2 CLAUDE.md names prohibited reviewer $reviewer"
   else
@@ -174,69 +196,30 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 3b: each safeguard is attributed to the tool it actually protects
+# SECTION 3b: deny rules and guidance name the same PR-diff tools
 # ════════════════════════════════════════════════════════════════════
 echo ""
-echo "=== Section 3b: CLAUDE.md attributes each enforcement mechanism correctly ==="
+echo "=== Section 3b: CLAUDE.md and settings agree on prohibited PR-diff tools ==="
 
-# Compressing this section once produced prose saying the deny rules covered
-# code-review-f5 and that pr-review-toolkit used disable-model-invocation. Both
-# were backwards. The cause was ordinal referencing — "the first two are denied
-# ... the third is disable-model-invocation" — which points by position into a
-# list, so it silently mis-maps the moment the list is written in any other
-# order. A line-based content check cannot catch it, because every name sits on
-# the same line. Ban the construct instead: name each tool where its mechanism
-# is stated.
-# The local layer is optional tooling. CLAUDE.md must say so itself rather than
-# delegating it to CONTRIBUTING.md: `.claude/governance.json` skip_files excludes
-# CONTRIBUTING.md from xcsh, whose own copy contains none of this content, so a
-# pointer there resolves to nothing in that repo. An unconditional "use the
-# skill" can stall work, or push an agent toward a prohibited PR-diff reviewer.
+# The local document-review layer is optional tooling. CLAUDE.md must say so
+# itself: an unconditional instruction can stall work or push an agent toward a
+# prohibited PR-diff reviewer when the preferred skill is unavailable.
 LOCAL_LINE=$(grep -F 'verified-review:verified-code-review' "$CLAUDE_MD" | head -1)
 if printf '%s' "$LOCAL_LINE" | grep -qiE 'when (it is )?(installed|available|present)|skip|absent|not installed'; then
   pass "3b.0 CLAUDE.md itself says the local layer is skipped when the tooling is absent"
 else
   fail "3b.0 CLAUDE.md itself says the local layer is skipped when the tooling is absent" \
-    "reads as unconditional; CONTRIBUTING.md is not synced to xcsh so the caveat must live here"
+    "reads as unconditional; the caveat must live with the routing instruction"
 fi
 
-ORDINALS='the first two|the first one|the second one|the third|the former|the latter|the first three'
-if grep -nEi "$ORDINALS" "$CLAUDE_MD" >/dev/null 2>&1; then
-  fail "3b.1 CLAUDE.md states mechanisms without ordinal references" \
-    "found: $(grep -oEi "$ORDINALS" "$CLAUDE_MD" | sort -u | tr '\n' ' ')— name the tool instead of its position"
-else
-  pass "3b.1 CLAUDE.md states mechanisms without ordinal references"
-fi
-
-# Banning ordinals alone is not enough: the mechanisms could be inverted in
-# plain prose and still pass. Check the pairing itself. The sentence states two
-# mechanisms in separate semicolon-delimited clauses, so read each clause and
-# require that it names the tools that mechanism actually covers — and none of
-# the tools it does not.
-MECH_LINE=$(grep 'disable-model-invocation' "$CLAUDE_MD" | head -1)
-DENY_CLAUSE=$(printf '%s' "$MECH_LINE" | tr ';' '\n' | grep -i 'denies' | head -1)
-DMI_CLAUSE=$(printf '%s' "$MECH_LINE" | tr ';' '\n' | grep -F 'disable-model-invocation' | head -1)
-
-# The flagged tool belongs to the disable-model-invocation clause, never the deny one.
-DMI_TOOL="code-review-f5:code-review"
-if printf '%s' "$DMI_CLAUSE" | grep -qF "$DMI_TOOL" &&
-  ! printf '%s' "$DENY_CLAUSE" | grep -qF "$DMI_TOOL"; then
-  pass "3b.2 $DMI_TOOL is paired with disable-model-invocation, not with the deny rules"
-else
-  fail "3b.2 $DMI_TOOL is paired with disable-model-invocation, not with the deny rules" \
-    "the mechanisms are inverted: it is flagged in the vendored plugin, not denied in settings"
-fi
-
-# Every reviewer genuinely in the deny list belongs to the deny clause, and must
-# not be described as using the flag instead.
+# Every PR-diff reviewer denied in settings must be named in the guidance.
 while IFS= read -r denied; do
   case "$denied" in *:*) : ;; *) continue ;; esac
-  if printf '%s' "$DENY_CLAUSE" | grep -qF "$denied" &&
-    ! printf '%s' "$DMI_CLAUSE" | grep -qF "$denied"; then
-    pass "3b.3 $denied is paired with the settings.json deny rules"
+  if grep -qF "$denied" "$CLAUDE_MD"; then
+    pass "3b.1 $denied is denied in settings and named in CLAUDE.md"
   else
-    fail "3b.3 $denied is paired with the settings.json deny rules" \
-      "settings.json denies it, but CLAUDE.md attributes it to another mechanism"
+    fail "3b.1 $denied is denied in settings and named in CLAUDE.md" \
+      "the enforcement exists without matching contributor guidance"
   fi
 done <<EOF
 $(jq -r '.permissions.deny // [] | .[]' "$SETTINGS" |
@@ -265,8 +248,6 @@ echo "=== Section 4b: no governed repo receives CLAUDE.md but skips CONTRIBUTING
 # only src/dest/sha/size and discards only_repos, so a real allowlist added in
 # repo-settings.json would be invisible there and this check would pass while
 # the sync skipped the file.
-GOVERNANCE="$REPO_ROOT/.claude/governance.json"
-REPO_SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
 DOWNSTREAM="$REPO_ROOT/.github/config/downstream-repos.json"
 
 OFFENDERS=$(

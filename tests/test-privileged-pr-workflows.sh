@@ -93,19 +93,6 @@ for file in \
   require_literal "$file" '<!-- require-linked-issue -->' "${file#"$REPO_ROOT/"} preserves the deduplicated guidance comment"
 done
 
-CODE_REVIEW="$REPO_ROOT/workflows/code-review.yml"
-reject_literal "$CODE_REVIEW" "github.actor == 'dependabot[bot]'" 'workflows/code-review.yml has no spoofable bot-login condition'
-require_literal "$CODE_REVIEW" 'github.event.pull_request.user.id == 49699333' 'workflows/code-review.yml authenticates Dependabot by immutable actor ID'
-reject_literal "$CODE_REVIEW" 'REVIEWER_ENABLED' 'workflows/code-review.yml no longer leaves the migrated reviewer suspended'
-
-REVIEWER="$REPO_ROOT/.github/workflows/claude-review.yml"
-require_literal "$REVIEWER" 'runs-on: ubuntu-latest' 'Claude reviewer uses an ephemeral GitHub-hosted runner'
-require_literal "$REVIEWER" 'hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1' 'Claude reviewer pins the latest Terraform setup action'
-reject_literal "$REVIEWER" 'self-hosted' 'Claude reviewer has no self-hosted execution path'
-reject_literal "$REVIEWER" '/opt/homebrew' 'Claude reviewer has no macOS executable assumption'
-reject_literal "$REVIEWER" 'review-slot.sh' 'Claude reviewer has no workstation semaphore assumption'
-reject_literal "$REVIEWER" 'Bash(az ' 'Claude reviewer does not expose an unauthenticated Azure CLI'
-
 reject_literal "$REPO_ROOT/zizmor.yaml" 'disable:' 'zizmor configuration disables no audits'
 reject_literal "$REPO_ROOT/zizmor.yaml" 'ignore:' 'zizmor configuration ignores no findings'
 require_literal "$REPO_ROOT/workflows/workflow-security-audit.yml" '--no-config --no-ignores --persona=auditor' 'managed audit refuses configuration and inline suppressions'

@@ -111,8 +111,7 @@ jobs:
       # a committed absolute symlink or hardcoded home directory fails fast.
       #
       # Runs the CANONICAL copy of the script (docs-control main) against the HEAD
-      # working tree, per REVIEWER-SPEC.md invariant 3 ("never execute scripts carried
-      # in the PR head") and the trust boundary documented there. Two reasons:
+      # working tree. Never execute a privileged gate from the untrusted PR head:
       #   1. This job holds statuses:write and pull-requests:write, so executing a
       #      PR's own copy of the script would hand those scopes to PR-authored code.
       #   2. Gating on the head's copy would let a PR delete the file to skip the
@@ -470,21 +469,9 @@ jobs:
         if: hashFiles('tests/test-bootstrap-downstream-callers.sh') != ''
         run: bash tests/test-bootstrap-downstream-callers.sh
 
-      - name: Run parse-verdict gate test
-        if: hashFiles('tests/test-parse-verdict.sh') != ''
-        run: bash tests/test-parse-verdict.sh
-
       - name: Run pr-author-trusted gate test
         if: hashFiles('tests/test-pr-author-trusted.sh') != ''
         run: bash tests/test-pr-author-trusted.sh
-
-      - name: Run claude-review retry-decision test
-        if: hashFiles('tests/test-claude-review-retry.sh') != ''
-        run: bash tests/test-claude-review-retry.sh
-
-      - name: Run reviewer-comment-count test
-        if: hashFiles('tests/test-reviewer-comment-count.sh') != ''
-        run: bash tests/test-reviewer-comment-count.sh
 
       - name: Run pages-staleness-guard test
         if: hashFiles('tests/test-pages-staleness-guard.sh') != ''
@@ -501,10 +488,6 @@ jobs:
       - name: Run downstream sync receipt test
         if: hashFiles('tests/test-sync-downstream-receipt.sh') != ''
         run: bash tests/test-sync-downstream-receipt.sh
-
-      - name: Run check-review-deps test
-        if: hashFiles('tests/test-check-review-deps.sh') != ''
-        run: bash tests/test-check-review-deps.sh
 
       - name: Run protect-managed-files hook test
         if: hashFiles('tests/test-protect-managed-files.sh') != ''

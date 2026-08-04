@@ -69,7 +69,7 @@ for token in "CONTRIBUTING.md" "DEVELOPING.md" ".claude/governance.json" \
 done
 
 for token in "EnterWorktree" ".claude/settings.json" "codex:verified-code-review" \
-  "code-review-f5" "pr-review-toolkit" "/security-review" "Opus" "Sonnet" "Haiku"; do
+  "pr-review-toolkit" "/security-review" "Opus" "Sonnet" "Haiku"; do
   assert_not_contains "$AGENTS_MD" "$token" "AGENTS.md excludes assistant-specific token: $token"
 done
 assert_not_contains "$AGENTS_MD" "demo-components" "AGENTS.md keeps skills out of project instructions"

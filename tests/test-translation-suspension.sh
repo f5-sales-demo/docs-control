@@ -4,13 +4,6 @@
 # never reports, so the check can never go green and no PR can merge without an
 # administrator.
 #
-# This is not hypothetical. The suspended Claude reviewer hit it, and the fix is
-# recorded in workflows/code-review.yml:
-#
-#   "The `review / claude-review` context was removed from branch protection
-#    first (docs-control#833); skipping this job while it was still required
-#    would have deadlocked every open PR."
-#
 # The two settings live in different files that propagate through different
 # fan-outs (branch protection via enforce-repo-settings, the workflow via
 # managed-file sync), so nothing else couples them. This test does.
