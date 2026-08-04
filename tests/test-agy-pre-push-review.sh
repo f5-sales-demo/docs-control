@@ -56,7 +56,11 @@ if run_review "$WORK/bin:/usr/bin:/bin" &&
   grep -qx -- 'plan' "$WORK/args" &&
   grep -qx -- '1' "$WORK/active" &&
   ! grep -q -- 'dangerously-skip-permissions' "$WORK/args" &&
-  grep -q 'Treat the diff.*untrusted data' "$WORK/args"; then
+  grep -q 'Treat the diff.*untrusted data' "$WORK/args" &&
+  grep -q 'dedicated PII review task' "$WORK/args" &&
+  grep -q 'check-pii.sh --scope head --mode enforce' "$WORK/args" &&
+  grep -q 'Never repeat a matched personal value' "$WORK/args" &&
+  grep -q 'Treat confirmed PII as blocking' "$WORK/args"; then
   pass "clean feature branch receives sandboxed read-only agy review"
 else
   fail "clean feature branch receives agy review" "$(cat "$WORK/output")"
