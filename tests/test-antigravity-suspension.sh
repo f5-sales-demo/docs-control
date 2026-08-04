@@ -87,8 +87,8 @@ assert_contains "$CONTRIBUTING" "same-named repository variables" \
   "CONTRIBUTING forbids repository variables that shadow central controls"
 assert_contains "$CONTRIBUTING" "do not manually disable" \
   "CONTRIBUTING keeps workflows active after the security hold"
-assert_contains "$CONTRIBUTING" "Local translation generation is always active" \
-  "CONTRIBUTING keeps local translation independent of Actions controls"
+assert_contains "$CONTRIBUTING" "Deterministic only" \
+  "CONTRIBUTING keeps local validation model-free"
 
 printf '\nResults: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "failures", "needs_implementation_assistant"],
+  "properties": {
+    "summary": { "type": "string", "minLength": 1 },
+    "needs_implementation_assistant": { "type": "boolean" },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repository",
+          "pull_request",
+          "head_sha",
+          "workflow",
+          "run_id",
+          "category",
+          "likely_cause",
+          "redacted_evidence",
+          "next_action"
+        ],
+        "properties": {
+          "repository": { "type": "string", "minLength": 1 },
+          "pull_request": { "type": "integer", "minimum": 1 },
+          "head_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+          "workflow": { "type": "string", "minLength": 1 },
+          "run_id": { "type": "integer", "minimum": 1 },
+          "category": {
+            "type": "string",
+            "enum": ["code", "test", "lint", "security", "privacy", "infrastructure", "transient", "unknown"]
+          },
+          "likely_cause": { "type": "string", "minLength": 1 },
+          "redacted_evidence": { "type": "string", "minLength": 1 },
+          "next_action": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

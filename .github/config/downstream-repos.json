@@ -35,6 +35,5 @@
   "i18n-core",
   "console",
   "xcsh-chrome-extension",
-  "marketplace-claude-code",
-  "code-review"
+  "marketplace-claude-code"
 ]

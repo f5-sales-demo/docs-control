@@ -1,8 +1,22 @@
 ---
 name: Antigravity Code Review
+run-name: Antigravity review PR ${{ inputs.pr_number }} @ ${{ inputs.expected_head_sha }}
 
 on:
   workflow_call:
+    inputs:
+      pr_number:
+        description: Pull request number selected by the trusted fleet orchestrator
+        required: true
+        type: string
+      expected_base_sha:
+        description: Exact pull-request base SHA selected by the orchestrator
+        required: true
+        type: string
+      expected_head_sha:
+        description: Exact pull-request head SHA selected by the orchestrator
+        required: true
+        type: string
     secrets:
       ANTIGRAVITY_TOKEN:
         required: true
@@ -12,63 +26,205 @@ on:
 permissions: {}
 
 jobs:
-  antigravity-review:
-    name: Review pull request with Antigravity
-    # SUSPENDED: Gemini Antigravity review is opt-in while its quota is exhausted.
-    # Unset, false, or any value other than the literal string "true" stays off.
-    # Security: also restrict execution to trusted same-repo PR heads (exclude external forks).
-    if: >-
-      vars.ANTIGRAVITY_REVIEW_ENABLED == 'true' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+  review:
+    name: PR review with Antigravity
+    if: vars.ANTIGRAVITY_REVIEW_ENABLED == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     permissions:
-      contents: read # inspect the trusted same-repository pull request
-      pull-requests: write # publish the generated review
-      issues: write # report review findings through GitHub issue surfaces
+      contents: read
+    env:
+      AGY_VERSION: "1.1.10"
+      AGY_URL: https://storage.googleapis.com/antigravity-public/antigravity-cli/1.1.10-6423386432339968/linux-x64/cli_linux_x64.tar.gz
+      AGY_SHA512: e64d4e58ede0f8440f2b3dc021f9d6d36b05f5c2f74d5a9215c1f11b20d536c8c2e020f4ce5257aa67e940e94c94d5a16d3aa6461cda18ee7f3e74d3a20ca1ac
+      BASE_SHA: ${{ inputs.expected_base_sha }}
+      HEAD_SHA: ${{ inputs.expected_head_sha }}
+      PR_NUMBER: ${{ inputs.pr_number }}
 
     steps:
-      - name: Checkout PR Head
+      - name: Checkout trusted base
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ inputs.expected_base_sha }}
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Install System Dependencies for Headless Keyring
+      - name: Fetch exact pull-request head as data
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$BASE_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" >"$RUNNER_TEMP/pull.json"
+          jq -e --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" --arg head "$HEAD_SHA" '
+            .head.repo.full_name == $repository and .base.sha == $base and .head.sha == $head
+          ' "$RUNNER_TEMP/pull.json" >/dev/null
+          git fetch --no-tags origin "+refs/pull/${PR_NUMBER}/head:refs/agy/pr-head"
+          test "$(git rev-parse refs/agy/pr-head)" = "$HEAD_SHA"
+          tool_dir="$RUNNER_TEMP/agy-review-tool"
+          mkdir -p "$tool_dir"
+          cp scripts/agy-review.sh scripts/agy-review-output.schema.json "$tool_dir/"
+          chmod 0555 "$tool_dir/agy-review.sh"
+          git checkout --detach "$HEAD_SHA"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+
+      - name: Install pinned Antigravity runtime
+        run: |
+          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y dbus-x11 libsecret-1-0 gnome-keyring python3-pip python3-keyring
+          sudo apt-get install -y dbus-x11 libsecret-1-0 gnome-keyring python3-keyring
+          archive="$RUNNER_TEMP/agy-${AGY_VERSION}.tar.gz"
+          curl --fail --silent --show-error --location "$AGY_URL" --output "$archive"
+          printf '%s  %s\n' "$AGY_SHA512" "$archive" | sha512sum --check --strict
+          mkdir "$RUNNER_TEMP/agy-extract"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/agy-extract" antigravity
+          sudo install -o root -g root -m 0555 "$RUNNER_TEMP/agy-extract/antigravity" /usr/local/bin/agy
+          test "$(agy --version)" = "$AGY_VERSION"
 
-      - name: Install Antigravity CLI
-        run: |
-          curl -fsSL https://antigravity.google/cli/install.sh | bash
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Configure Keyring and Execute Antigravity AI Reviewer
+      - name: Run isolated reviewer and verifier
+        id: model
         env:
           ANTIGRAVITY_TOKEN: ${{ secrets.ANTIGRAVITY_TOKEN }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPOSITORY_NAME: ${{ github.event.repository.name }}
         run: |
-          dbus-run-session -- bash -c '
-            # 1. Unlock gnome-keyring in headless session
-            eval "$(echo "" | gnome-keyring-daemon --unlock --daemonize)"
-            export SSH_AUTH_SOCK
-            export GNOME_KEYRING_CONTROL
-            export GNOME_KEYRING_PID
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/review-artifact"
+          dbus-run-session -- bash -euo pipefail <<'INNER'
+          eval "$(printf '' | gnome-keyring-daemon --unlock --daemonize)"
+          export SSH_AUTH_SOCK GNOME_KEYRING_CONTROL GNOME_KEYRING_PID
+          printf '%s' "${ANTIGRAVITY_TOKEN#go-keyring-base64:}" | base64 -d |
+            python3 -c 'import keyring,sys; keyring.set_password("gemini", "antigravity", sys.stdin.read())'
+          unset ANTIGRAVITY_TOKEN
+          mkdir -p "$HOME/.gemini/antigravity-cli"
+          jq -n --arg project "$GCP_PROJECT_ID" --arg workspace "$GITHUB_WORKSPACE" '{
+            gcp: {project: $project, location: "global"},
+            model: "Gemini 3.6 Flash (High)",
+            trustedWorkspaces: [$workspace]
+          }' >"$HOME/.gemini/antigravity-cli/settings.json"
+          set +e
+          AGY_REVIEW_SKIP_LOCAL_PII=1 \
+            AGY_REVIEW_REPORT_FILE="$RUNNER_TEMP/review-artifact/report.json" \
+            bash "$RUNNER_TEMP/agy-review-tool/agy-review.sh" code --base "$BASE_SHA" \
+            >"$RUNNER_TEMP/review.log" 2>&1
+          review_rc=$?
+          set -e
+          printf '%s\n' "$review_rc" >"$RUNNER_TEMP/review-artifact/tool-status"
+          if [ ! -s "$RUNNER_TEMP/review-artifact/report.json" ]; then
+            jq -n '{
+              reviewer: {verdict: "needs-attention", summary: "Antigravity review did not produce a valid report.", findings: [{severity: "critical", title: "Review execution failed", body: "The isolated reviewer failed closed; inspect the workflow log.", file: ".github/workflows/antigravity-review.yml", line_start: 1, line_end: 1, confidence: 1, recommendation: "Repair and rerun the review workflow."}], next_steps: ["Inspect the workflow log."]},
+              verifier: {verdict: "needs-attention", summary: "Independent verification was unavailable.", findings: [], next_steps: ["Rerun after repairing review execution."]}
+            }' >"$RUNNER_TEMP/review-artifact/report.json"
+          fi
+          test "$(agy --version)" = "$AGY_VERSION"
+          INNER
+          jq --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" \
+            --arg head "$HEAD_SHA" --arg workflow "$GITHUB_WORKFLOW_SHA" \
+            --arg version "$AGY_VERSION" --arg status "$(cat "$RUNNER_TEMP/review-artifact/tool-status")" '. + {
+              receipt: {
+                repository: $repository,
+                base_sha: $base,
+                head_sha: $head,
+                workflow_sha: $workflow,
+                agy_version: $version,
+                model: "Gemini 3.6 Flash (High)",
+                tool_status: ($status | tonumber)
+              }
+            }' "$RUNNER_TEMP/review-artifact/report.json" >"$RUNNER_TEMP/review-artifact/report.final.json"
+          mv "$RUNNER_TEMP/review-artifact/report.final.json" "$RUNNER_TEMP/review-artifact/report.json"
 
-            # 2. Extract clean raw JSON from macOS keychain base64-encoded token
-            RAW_TOKEN_JSON=$(echo "$ANTIGRAVITY_TOKEN" | sed "s/^go-keyring-base64:// " | base64 -d)
+      - name: Upload review receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: antigravity-review-${{ inputs.expected_head_sha }}
+          path: ${{ runner.temp }}/review-artifact/
+          if-no-files-found: error
+          retention-days: 7
 
-            # 3. Store raw JSON in standard DBus Secret Service
-            python3 -c "import keyring; keyring.set_password('\''gemini'\'', '\''antigravity'\'', \"\"\"$RAW_TOKEN_JSON\"\"\")"
+  publish:
+    name: Publish exact-head review
+    if: always() && vars.ANTIGRAVITY_REVIEW_ENABLED == 'true'
+    needs: review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write # publish an exact-head review comment
+    env:
+      BASE_SHA: ${{ inputs.expected_base_sha }}
+      HEAD_SHA: ${{ inputs.expected_head_sha }}
+      PR_NUMBER: ${{ inputs.pr_number }}
 
-            # 4. Automate workspace trust with Gemini 3.6 Flash (High) and global endpoint
-            mkdir -p ~/.gemini/antigravity-cli
-            echo "{\"gcp\": {\"project\": \"$GCP_PROJECT_ID\", \"location\": \"global\"}, \"model\": \"Gemini 3.6 Flash (High)\", \"trustedWorkspaces\": [\"/home/runner/work/$REPOSITORY_NAME/$REPOSITORY_NAME\"]}" > ~/.gemini/antigravity-cli/settings.json
+    steps:
+      - name: Download review receipt
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: antigravity-review-${{ inputs.expected_head_sha }}
+          path: ${{ runner.temp }}/review-artifact
 
-            # 5. Run the Antigravity Agentic PR Reviewer. Using --dangerously-skip-permissions to allow execution of git and gh tools in headless mode.
-            /home/runner/.local/bin/agy --project "$GCP_PROJECT_ID" --dangerously-skip-permissions --print "You are Antigravity, an elite agentic AI coding assistant. Review this Pull Request. First, run '\''gh pr diff'\'' to retrieve the code modifications. Meticulously inspect the changes for security issues, hardcoded tokens/secrets, PII leakage (such as email addresses, user names, phone numbers), or bad architectural patterns. Finally, use '\''gh pr comment'\'' to post a constructive, high-quality review summary directly on the PR."
-          '
+      - name: Validate receipt and exact current head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/review-artifact/report.json"
+          jq -e --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" --arg head "$HEAD_SHA" '
+            .receipt.repository == $repository and
+            .receipt.base_sha == $base and
+            .receipt.head_sha == $head and
+            .receipt.model == "Gemini 3.6 Flash (High)" and
+            (.receipt.agy_version | type == "string") and
+            (.receipt.tool_status | type == "number") and
+            (.reviewer.findings | type == "array") and
+            (.verifier.findings | type == "array")
+          ' "$report" >/dev/null
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" >"$RUNNER_TEMP/current-pull.json"
+          jq -e --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" --arg head "$HEAD_SHA" '
+            .head.repo.full_name == $repository and .base.sha == $base and .head.sha == $head
+          ' "$RUNNER_TEMP/current-pull.json" >/dev/null
+
+      - name: Publish deduplicated review comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          REPORT_PATH: ${{ runner.temp }}/review-artifact/report.json
+        with:
+          script: |
+            const fs = require('fs');
+            const report = JSON.parse(fs.readFileSync(process.env.REPORT_PATH, 'utf8'));
+            const pullNumber = Number(process.env.PR_NUMBER);
+            if (!Number.isSafeInteger(pullNumber) || pullNumber < 1) {
+              throw new Error('invalid pull-request number');
+            }
+            const findingKey = (finding) => JSON.stringify([
+              finding.severity, finding.title, finding.file, finding.line_start, finding.line_end,
+            ]);
+            const findings = [...new Map(
+              [...report.reviewer.findings, ...report.verifier.findings]
+                .map((finding) => [findingKey(finding), finding]),
+            ).values()];
+            const marker = '<!-- antigravity-pr-review -->';
+            const blocking = findings.filter((finding) => ['critical', 'high'].includes(finding.severity));
+            const lines = [marker, '## Antigravity PR review', '', `Head: \`${report.receipt.head_sha}\``, `Model: ${report.receipt.model}`, ''];
+            lines.push(blocking.length ? `Blocking findings: ${blocking.length}` : 'No critical or high findings remain.');
+            for (const finding of findings) {
+              lines.push('', `- **${finding.severity.toUpperCase()}** ${finding.title} — \`${finding.file}:${finding.line_start}\``, `  ${finding.body}`);
+            }
+            const comments = await github.paginate(github.rest.issues.listComments, {...context.repo, issue_number: pullNumber, per_page: 100});
+            const previous = comments.find((comment) => comment.user?.type === 'Bot' && comment.body?.includes(marker));
+            const body = lines.join('\n');
+            if (previous) {
+              await github.rest.issues.updateComment({...context.repo, comment_id: previous.id, body});
+            } else {
+              await github.rest.issues.createComment({...context.repo, issue_number: pullNumber, body});
+            }
+
+      - name: Enforce Antigravity gate
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/review-artifact/report.json"
+          jq -e '
+            .receipt.tool_status == 0 and
+            ([.reviewer.findings[], .verifier.findings[]] |
+              map(select(.severity == "critical" or .severity == "high")) |
+              length == 0)
+          ' "$report" >/dev/null

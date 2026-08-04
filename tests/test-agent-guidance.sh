@@ -64,7 +64,7 @@ else
 fi
 
 for token in "CONTRIBUTING.md" "DEVELOPING.md" ".claude/governance.json" \
-  "origin/<default-branch>" "normal defaults" "verified-code-review"; do
+  "origin/<default-branch>" "normal defaults" "scripts/agy-review.sh"; do
   assert_contains "$AGENTS_MD" "$token" "AGENTS.md retains ecosystem routing: $token"
 done
 
@@ -79,7 +79,13 @@ echo "=== Section 2: managed-file governance covers Codex surfaces ==="
 
 MANAGED_PATHS="AGENTS.md
 .agents/skills/demo-components/SKILL.md
-.agents/skills/demo-components/agents/openai.yaml"
+.agents/skills/demo-components/agents/openai.yaml
+scripts/agy-pre-push-review.sh
+scripts/agy-review.sh
+scripts/agy-review-output.schema.json
+scripts/validate-translations.sh
+tests/test-agy-pre-push-review.sh
+tests/test-validate-translations.sh"
 
 while IFS= read -r path; do
   [ -z "$path" ] && continue
