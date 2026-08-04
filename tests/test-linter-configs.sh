@@ -602,7 +602,8 @@ else
   pass "6.4 audit gate fails on every finding"
 fi
 
-ZIZMOR_RUN=$(python3 - "$ZIZMOR_GATE" <<'PY'
+ZIZMOR_RUN=$(
+  python3 - "$ZIZMOR_GATE" <<'PY'
 import sys
 import yaml
 
