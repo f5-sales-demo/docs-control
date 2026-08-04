@@ -388,6 +388,35 @@ echo ""
 echo "=== Section 5e: super-linter VALIDATE_* disables ==="
 
 SL_YML="$REPO_ROOT/.github/workflows/super-linter.yml"
+WORKFLOW_CALL_BLOCK=$(awk '/^[[:space:]]+workflow_call:/,/^permissions:/' "$SL_YML")
+
+if printf '%s' "$WORKFLOW_CALL_BLOCK" | grep -qE '^[[:space:]]+rust_edition:' &&
+  printf '%s' "$WORKFLOW_CALL_BLOCK" | grep -qE '^[[:space:]]+default:[[:space:]]+"2021"'; then
+  pass "5e.1 reusable workflow declares a Rust edition input with the fleet default"
+else
+  fail "5e.1 reusable workflow declares a Rust edition input with the fleet default" \
+    "workflow_call.rust_edition must default to edition 2021"
+fi
+
+RUST_EDITION_STEP=$(awk '/- name: Validate Rust edition input/,/- name: Run Super-Linter/' "$SL_YML")
+if printf '%s' "$RUST_EDITION_STEP" | grep -q 'none|2018|2021|2024' &&
+  printf '%s' "$RUST_EDITION_STEP" | grep -qE '^[[:space:]]*exit 1$'; then
+  pass "5e.2 invalid Rust editions fail closed"
+else
+  fail "5e.2 invalid Rust editions fail closed" \
+    "the workflow must reject every value except none, 2018, 2021, or 2024"
+fi
+
+for edition in 2018 2021 2024; do
+  expected="VALIDATE_RUST_${edition}: \${{ inputs.rust_edition == '${edition}' }}"
+  if grep -Fq "$expected" "$SL_YML"; then
+    pass "5e.3 Rust ${edition} validation is selected only for edition ${edition}"
+  else
+    fail "5e.3 Rust ${edition} validation is selected only for edition ${edition}" \
+      "missing exact workflow_call input selector"
+  fi
+done
+
 # Each entry below is an explicit "not relevant" decision captured with
 # its rationale in the workflow comment. Removing a disable re-introduces
 # a full audit surface for that validator on every governed repo.

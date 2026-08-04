@@ -6,6 +6,12 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened]
   workflow_call:
+    inputs:
+      rust_edition:
+        description: Rust edition to format (none, 2018, 2021, or 2024)
+        required: false
+        type: string
+        default: "2021"
 
 permissions: {}
 
@@ -279,6 +285,18 @@ jobs:
             echo "scripts/lint-mdx-prose.sh not present in this repository — skipping"
           fi
 
+      - name: Validate Rust edition input
+        env:
+          RUST_EDITION: ${{ inputs.rust_edition || 'none' }}
+        run: |
+          case "$RUST_EDITION" in
+            none|2018|2021|2024) ;;
+            *)
+              echo "::error::rust_edition must be one of: none, 2018, 2021, 2024"
+              exit 1
+              ;;
+          esac
+
       - name: Run Super-Linter
         uses: super-linter/super-linter@4ce20838b8ab83717e78138c5b3a1407148e0918 # v8.7.0
         env:
@@ -380,9 +398,13 @@ jobs:
           # tuned per-repo (e.g., .clang-format-ignore in xcsh).
           VALIDATE_CPP: false
           VALIDATE_CPP_EPA: false
-          # Rust 2015 edition checks: governed repos target edition 2021
-          # or 2024; the 2015 validator flags normal modern-edition code.
+          # Run exactly the Rust edition selected by the reusable-workflow caller.
+          # Multiple edition validators are not additive: an older rustfmt parser
+          # rejects valid syntax from a newer edition before formatting begins.
           VALIDATE_RUST_2015: false
+          VALIDATE_RUST_2018: ${{ inputs.rust_edition == '2018' }}
+          VALIDATE_RUST_2021: ${{ inputs.rust_edition == '2021' }}
+          VALIDATE_RUST_2024: ${{ inputs.rust_edition == '2024' }}
           # Dockerfile hadolint: overlaps with CHECKOV for dockerfile
           # security scanning; running both is redundant noise.
           VALIDATE_DOCKERFILE_HADOLINT: false
