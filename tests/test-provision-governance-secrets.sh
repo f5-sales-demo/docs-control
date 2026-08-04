@@ -16,6 +16,11 @@ pass() {
 }
 
 mkdir -p "$WORK/bin" "$WORK/state"
+cat >"$WORK/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >>"$FAKE_SLEEP_LOG"
+EOF
 cat >"$WORK/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -97,6 +102,7 @@ if [ "${FAKE_GH_MODE:-}" != "drop-write" ]; then
 fi
 EOF
 chmod +x "$WORK/bin/gh"
+chmod +x "$WORK/bin/sleep"
 
 SETTINGS_TOKEN='settings-value-must-not-leak'
 SYNC_TOKEN='sync-value-must-not-leak'
@@ -104,6 +110,7 @@ printf '["alpha","beta"]\n' >"$WORK/repos.json"
 printf 'REPO_SETTINGS_TOKEN\nREPO_SYNC_TOKEN\n' >"$WORK/state/f5-sales-demo__alpha"
 printf 'REPO_SETTINGS_TOKEN\n' >"$WORK/state/f5-sales-demo__beta"
 : >"$WORK/gh.log"
+: >"$WORK/sleep.log"
 
 run_provisioner() {
   env \
@@ -116,7 +123,9 @@ run_provisioner() {
     EXPECTED_SYNC_TOKEN="$SYNC_TOKEN" \
     FAKE_GH_LOG="$WORK/gh.log" \
     FAKE_GH_STATE="$WORK/state" \
+    FAKE_SLEEP_LOG="$WORK/sleep.log" \
     FAKE_GH_MODE="${PROVISION_FAKE_MODE:-}" \
+    PROVISION_REQUEST_DELAY_SECONDS="${PROVISION_TEST_DELAY:-0}" \
     bash "$SCRIPT"
 }
 
@@ -154,6 +163,20 @@ if grep -q '^secret set ' "$WORK/gh.log"; then
   fail "existing secrets are never rewritten"
 fi
 pass "idempotent rerun does not rewrite existing secrets"
+
+: >"$WORK/sleep.log"
+PROVISION_TEST_DELAY=1 run_provisioner >/dev/null 2>&1 ||
+  fail "paced inventory succeeds"
+[ "$(cat "$WORK/sleep.log")" = "1" ] ||
+  fail "inventory requests are paced between repositories"
+pass "inventory requests are paced between repositories"
+
+set +e
+PROVISION_TEST_DELAY=invalid run_provisioner >/dev/null 2>&1
+rc=$?
+set -e
+[ "$rc" -ne 0 ] || fail "invalid request pacing fails closed"
+pass "invalid request pacing fails closed"
 
 printf '{"not":"an array"}\n' >"$WORK/repos-invalid.json"
 set +e

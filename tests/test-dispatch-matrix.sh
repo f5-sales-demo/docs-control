@@ -34,13 +34,20 @@ check "BATCH_SIZE=5 for parallelism cap" "grep -q 'BATCH_SIZE=5' '$WF'"
 # budget in deterministic inter-batch sleeps.
 BATCH_SIZE_VALUE=$(sed -nE 's/^[[:space:]]*BATCH_SIZE=([0-9]+)$/\1/p' "$WF")
 BATCH_DELAY_VALUE=$(sed -nE 's/^[[:space:]]*BATCH_DELAY=([0-9]+)$/\1/p' "$WF")
+PROVISION_DELAY_VALUE=$(sed -nE \
+  's/^[[:space:]]*PROVISION_REQUEST_DELAY_SECONDS: ([0-9]+)$/\1/p' "$WF")
+PROVISION_DELAY_VALUE=${PROVISION_DELAY_VALUE:-0}
 FLEET_SIZE=$(jq 'length' "$CONFIG")
 BATCH_COUNT=$(((FLEET_SIZE + BATCH_SIZE_VALUE - 1) / BATCH_SIZE_VALUE))
-SCHEDULED_SLEEP_SECONDS=$(((BATCH_COUNT - 1) * BATCH_DELAY_VALUE))
+SCHEDULED_SLEEP_SECONDS=$(((\
+  BATCH_COUNT - 1) * BATCH_DELAY_VALUE + (\
+  FLEET_SIZE - 1) * PROVISION_DELAY_VALUE))
 RUNNER_BUDGET_SECONDS=300
 RUNNER_RESERVE_SECONDS=60
-check "inter-batch sleeps leave 60s of the runner budget" \
+check "inventory pacing and inter-batch sleeps leave 60s of the runner budget" \
   "[ '$SCHEDULED_SLEEP_SECONDS' -le '$((RUNNER_BUDGET_SECONDS - RUNNER_RESERVE_SECONDS))' ]"
+check "repository-secret inventory is paced at one request per second" \
+  "[ '$PROVISION_DELAY_VALUE' -eq 1 ]"
 
 # Retry-with-backoff preserved (2s → 4s → 8s).
 check "retry max=3 attempts" "grep -Eq 'max=3' '$WF'"
