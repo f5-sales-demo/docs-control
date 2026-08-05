@@ -54,15 +54,18 @@ jobs:
           set -euo pipefail
 
           # --- Retry helpers -------------------------------------------------
-          # Exponential backoff capped at 8 s per attempt to limit retry-storm
-          # amplification. On rate-limit (primary 429 or secondary), sleep
-          # until reset and abort the loop so retries don't deepen the storm.
+          # Ordinary transport failures use a short exponential backoff. Primary
+          # limits wait for X-RateLimit-Reset (or GET /rate_limit when the header
+          # is unavailable). Secondary limits never poll: honor Retry-After or
+          # wait 60, 120, 240... seconds within a bounded per-operation budget.
           retry() {
             local max="$1"; shift
             local attempt=1
             local delay=2
             local max_delay=8
-            local err_file err_content out_file
+            local total_wait=0
+            local wait_budget="${GITHUB_API_WAIT_BUDGET_SECONDS:-600}"
+            local err_file out_file response_content
             err_file=$(mktemp)
             out_file=$(mktemp)
             while true; do
@@ -79,23 +82,52 @@ jobs:
                 rm -f "$err_file" "$out_file"
                 return 0
               fi
-              err_content=$(cat "$err_file")
+              response_content=$(cat "$out_file" "$err_file")
               cat "$err_file" >&2
               : >"$err_file"
-              if echo "$err_content" | grep -qiE '(rate limit|HTTP 429|secondary rate|abuse detection|API rate limit exceeded)'; then
-                local reset now wait_s
-                reset=$(gh api rate_limit --jq '.rate.reset' 2>/dev/null || echo "0")
+              local retry_after remaining reset now wait_s next_at kind
+              retry_after=$(awk 'tolower($1) == "retry-after:" {gsub("\r", "", $2); print $2; exit}' \
+                <<<"$response_content")
+              remaining=$(awk 'tolower($1) == "x-ratelimit-remaining:" {gsub("\r", "", $2); print $2; exit}' \
+                <<<"$response_content")
+              reset=$(awk 'tolower($1) == "x-ratelimit-reset:" {gsub("\r", "", $2); print $2; exit}' \
+                <<<"$response_content")
+              kind=""
+              if [ -n "$retry_after" ] ||
+                grep -qiE '(secondary rate|abuse detection|submitted too quickly|temporarily blocked from content creation)' \
+                  <<<"$response_content" || {
+                    grep -qi 'HTTP 429' <<<"$response_content" && [ "${remaining:-unknown}" != 0 ]
+                  }; then
+                kind=secondary
+                if [[ "$retry_after" =~ ^[0-9]+$ ]]; then
+                  wait_s="$retry_after"
+                else
+                  wait_s=$((60 * (2 ** (attempt - 1))))
+                  [ "$wait_s" -gt 600 ] && wait_s=600
+                fi
+              elif [ "${remaining:-unknown}" = 0 ] ||
+                grep -qiE '(API rate limit exceeded|primary rate limit)' <<<"$response_content"; then
+                kind=primary
+                if ! [[ "$reset" =~ ^[0-9]+$ ]]; then
+                  reset=$(gh api rate_limit --jq '.rate.reset' 2>/dev/null || echo 0)
+                fi
                 now=$(date +%s)
                 wait_s=$((reset - now + 5))
-                if [ "$wait_s" -gt 0 ] && [ "$wait_s" -lt 1800 ]; then
-                  echo "[WARN] Rate limit hit -- sleeping ${wait_s}s until reset, then aborting retry" >&2
-                  sleep "$wait_s"
-                else
-                  echo "[WARN] Secondary rate limit -- sleeping 60s, then aborting retry" >&2
-                  sleep 60
+                [ "$wait_s" -gt 0 ] || wait_s=60
+              fi
+              if [ -n "$kind" ]; then
+                if [ "$attempt" -ge "$max" ] || [ $((total_wait + wait_s)) -gt "$wait_budget" ]; then
+                  echo "[DEFER] $kind GitHub limit requires ${wait_s}s; retry budget exhausted" >&2
+                  rm -f "$err_file" "$out_file"
+                  return 84
                 fi
-                rm -f "$err_file" "$out_file"
-                return 1
+                now=$(date +%s)
+                next_at=$(python3 -c 'import datetime,sys; print(datetime.datetime.fromtimestamp(int(sys.argv[1]), datetime.timezone.utc).isoformat().replace("+00:00", "Z"))' "$((now + wait_s))")
+                echo "[WAIT] $kind GitHub limit on attempt ${attempt}/${max}; waiting ${wait_s}s; next attempt ${next_at}" >&2
+                sleep "$wait_s"
+                total_wait=$((total_wait + wait_s))
+                attempt=$((attempt + 1))
+                continue
               fi
               if [ "$attempt" -ge "$max" ]; then
                 echo "[ERROR] Failed after ${max} attempts: $*" >&2
@@ -115,7 +147,34 @@ jobs:
             local json="$1"
             shift
             require_current_source_main
-            printf '%s' "$json" | gh api "$@" --input -
+            local endpoint="$1" method=POST response_file error_file rc
+            shift
+            while [ "$#" -gt 0 ]; do
+              case "$1" in
+                --method) method="$2"; shift 2 ;;
+                *) echo "[ERROR] Unsupported JSON request option: $1" >&2; return 2 ;;
+              esac
+            done
+            response_file=$(mktemp)
+            error_file=$(mktemp)
+            set +e
+            printf '%s' "$json" | gh api "$endpoint" --method "$method" --input - --include \
+              >"$response_file" 2>"$error_file"
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then
+              if head -n 1 "$response_file" | grep -q '^HTTP/'; then
+                awk 'body {print} /^\r?$/ {body=1}' "$response_file"
+              else
+                cat "$response_file"
+              fi
+              cat "$error_file" >&2
+              rm -f "$response_file" "$error_file"
+              return 0
+            fi
+            cat "$response_file" "$error_file" >&2
+            rm -f "$response_file" "$error_file"
+            return 1
           }
 
           retry_current_json() {

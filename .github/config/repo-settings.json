@@ -98,6 +98,7 @@
           { "path": "tests/test-check-pii.sh", "args": [] },
           { "path": "tests/test-check-repo-hygiene.sh", "args": [] },
           { "path": "tests/test-fetch-governed.sh", "args": [] },
+          { "path": "tests/test-github-api-resilience.sh", "args": [] },
           { "path": "tests/test-hook-neutralization.sh", "args": ["--unit-only"] },
           { "path": "tests/test-inlined-helpers-match.sh", "args": [] },
           { "path": "tests/test-lint-mdx-prose.sh", "args": [] },
@@ -349,6 +350,10 @@
         "dest": "scripts/agy-review-output.schema.json"
       },
       {
+        "src": "scripts/github-api-resilience.cjs",
+        "dest": "scripts/github-api-resilience.cjs"
+      },
+      {
         "src": "scripts/validate-translations.sh",
         "dest": "scripts/validate-translations.sh"
       },
@@ -383,6 +388,10 @@
       {
         "src": "tests/test-agy-pre-push-review.sh",
         "dest": "tests/test-agy-pre-push-review.sh"
+      },
+      {
+        "src": "tests/test-github-api-resilience.sh",
+        "dest": "tests/test-github-api-resilience.sh"
       },
       {
         "src": "tests/test-validate-translations.sh",

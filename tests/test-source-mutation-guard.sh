@@ -27,7 +27,7 @@ case "$*" in
   'api repos/f5-sales-demo/example/commits/main --jq .sha')
     printf '%s\n' "$FAKE_CURRENT_DOWNSTREAM_SHA"
     ;;
-  'api repos/f5-sales-demo/example --method PATCH --input -')
+  'api repos/f5-sales-demo/example --method PATCH --input - --include')
     touch "$FAKE_ADVANCE_FILE"
     exit 1
     ;;
@@ -138,7 +138,7 @@ for workflow in \
     retry_current_json 3 '{}' "repos/${GITHUB_REPOSITORY}" --method PATCH
   ) >"$WORK/stdout" 2>"$WORK/stderr" || rc=$?
 
-  mutations=$(grep -c '^api repos/f5-sales-demo/example --method PATCH --input -$' \
+  mutations=$(grep -c '^api repos/f5-sales-demo/example --method PATCH --input - --include$' \
     "$WORK/gh.log" || true)
   dispatches=$(grep -c '^workflow run enforce-repo-settings.yml' "$WORK/gh.log" || true)
   if [ "$rc" -eq 0 ] && [ "$mutations" -eq 1 ] && [ "$dispatches" -eq 1 ]; then

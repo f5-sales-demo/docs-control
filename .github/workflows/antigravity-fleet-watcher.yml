@@ -43,14 +43,18 @@ jobs:
           mkdir -p "$output/failures"
           jq -n '[]' >"$output/receipts.json"
           jq -n '[]' >"$output/dispatches.json"
+          github_get() {
+            node scripts/github-api-resilience.cjs get "$@"
+          }
           cutoff=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
           jq -r '.[]' .github/config/downstream-repos.json | {
             printf '%s\n' docs-control
             cat
           } | while IFS= read -r repo; do
             full_repo="$GITHUB_REPOSITORY_OWNER/$repo"
-            pulls=$(gh api "repos/$full_repo/pulls?state=all&sort=updated&direction=desc&per_page=30")
-            recent_runs=$(gh api "repos/$full_repo/actions/runs?per_page=100")
+            echo "[PROGRESS] repository $full_repo: collecting exact-head state"
+            pulls=$(github_get "repos/$full_repo/pulls?state=all&sort=updated&direction=desc&per_page=30")
+            recent_runs=$(github_get "repos/$full_repo/actions/runs?per_page=100")
             jq -c --arg cutoff "$cutoff" '.[] | select(.updated_at >= $cutoff)' <<<"$pulls" |
               while IFS= read -r pull; do
                 number=$(jq -r .number <<<"$pull")
@@ -63,10 +67,20 @@ jobs:
                 [ "$head_repo" = "$full_repo" ] || continue
 
                 marker="<!-- agy-workflow-receipt:$head_sha -->"
-                comments=$(gh api "repos/$full_repo/issues/$number/comments?per_page=100")
+                comments=$(github_get "repos/$full_repo/issues/$number/comments?per_page=100" \
+                  --paginate)
                 if jq -e --arg marker "$marker" 'any(.[]; .body | contains($marker))' \
                   <<<"$comments" >/dev/null; then
-                  continue
+                  hasReceipt=true
+                else
+                  hasReceipt=false
+                fi
+                review_marker="<!-- antigravity-pr-review:$head_sha -->"
+                if jq -e --arg marker "$review_marker" 'any(.[]; .body | contains($marker))' \
+                  <<<"$comments" >/dev/null; then
+                  hasReviewReceipt=true
+                else
+                  hasReviewReceipt=false
                 fi
 
                 review_title="Antigravity review PR $number @ $head_sha"
@@ -77,6 +91,23 @@ jobs:
                 exact_translation=$(jq -c --arg title "$translation_title" \
                   '[.workflow_runs[] | select(.display_title == $title)] | first // null' \
                   <<<"$recent_runs")
+
+                reviewNeedsRecovery=false
+                if [ "$hasReviewReceipt" = false ]; then
+                  if [ "$exact_review" = null ]; then
+                    reviewNeedsRecovery=true
+                  elif [ "$(jq -r .status <<<"$exact_review")" = completed ]; then
+                    reviewNeedsRecovery=true
+                  fi
+                fi
+
+                translationNeedsRecovery=false
+                if [ "$exact_translation" = null ]; then
+                  translationNeedsRecovery=true
+                elif [ "$(jq -r .status <<<"$exact_translation")" = completed ] &&
+                  [ "$(jq -r '.conclusion // "failure"' <<<"$exact_translation")" != success ]; then
+                  translationNeedsRecovery=true
+                fi
 
                 automated=false
                 case "$head_ref" in
@@ -89,11 +120,12 @@ jobs:
                 needs_translation=false
                 if [ "$state" = open ] && [ "${TRANSLATIONS_ENABLED:-false}" = true ] && \
                   [ "$automated" = false ]; then
-                  files=$(gh api --paginate --slurp "repos/$full_repo/pulls/$number/files?per_page=100" \
-                    --jq 'add | map(.filename)')
+                  files=$(github_get "repos/$full_repo/pulls/$number/files?per_page=100" \
+                    --paginate | jq -c 'map(.filename)')
                   if jq -e 'any(.[]; test("^(docs/en|src/content/docs/en)/.*\\.mdx?$"))' \
                     <<<"$files" >/dev/null; then
-                    commit_message=$(gh api "repos/$full_repo/commits/$head_sha" --jq '.commit.message')
+                    commit_message=$(github_get "repos/$full_repo/commits/$head_sha" |
+                      jq -r '.commit.message')
                     case "$commit_message" in
                     "chore(i18n): update translations via Antigravity"*) : ;;
                     *) needs_translation=true ;;
@@ -103,25 +135,32 @@ jobs:
 
                 queued=false
                 if [ "$state" = open ] && [ "$automated" = false ] && \
-                  [ "${REVIEW_ENABLED:-false}" = true ] && [ "$exact_review" = null ]; then
+                  [ "${REVIEW_ENABLED:-false}" = true ] && [ "$reviewNeedsRecovery" = true ]; then
+                  prior_run_id=$(jq -r 'if . == null then 0 else .id end' <<<"$exact_review")
                   jq --arg repository "$full_repo" --arg workflow antigravity-review.yml \
                     --arg ref "$base_ref" --arg number "$number" --arg base "$base_sha" \
-                    --arg head "$head_sha" '. + [{repository: $repository, workflow: $workflow,
-                      ref: $ref, pr_number: $number, base_sha: $base, head_sha: $head}]' \
+                    --arg head "$head_sha" --argjson prior_run_id "$prior_run_id" \
+                    '. + [{repository: $repository, workflow: $workflow, ref: $ref,
+                      pr_number: $number, base_sha: $base, head_sha: $head,
+                      prior_run_id: $prior_run_id}]' \
                     "$output/dispatches.json" >"$output/dispatches.next"
                   mv "$output/dispatches.next" "$output/dispatches.json"
                   queued=true
                 fi
-                if [ "$needs_translation" = true ] && [ "$exact_translation" = null ]; then
+                if [ "$needs_translation" = true ] && [ "$translationNeedsRecovery" = true ]; then
+                  prior_run_id=$(jq -r 'if . == null then 0 else .id end' <<<"$exact_translation")
                   jq --arg repository "$full_repo" --arg workflow antigravity-translate.yml \
                     --arg ref "$base_ref" --arg number "$number" --arg base "$base_sha" \
-                    --arg head "$head_sha" '. + [{repository: $repository, workflow: $workflow,
-                      ref: $ref, pr_number: $number, base_sha: $base, head_sha: $head}]' \
+                    --arg head "$head_sha" --argjson prior_run_id "$prior_run_id" \
+                    '. + [{repository: $repository, workflow: $workflow, ref: $ref,
+                      pr_number: $number, base_sha: $base, head_sha: $head,
+                      prior_run_id: $prior_run_id}]' \
                     "$output/dispatches.json" >"$output/dispatches.next"
                   mv "$output/dispatches.next" "$output/dispatches.json"
                   queued=true
                 fi
                 [ "$queued" = false ] || continue
+                [ "$hasReceipt" = false ] || continue
 
                 head_runs=$(jq -c --arg head "$head_sha" \
                   '[.workflow_runs[] | select(.head_sha == $head and
@@ -141,9 +180,9 @@ jobs:
                   continue
                 fi
 
-                check_runs=$(gh api -H 'Accept: application/vnd.github+json' \
+                check_runs=$(github_get \
                   "repos/$full_repo/commits/$head_sha/check-runs?per_page=100")
-                combined=$(gh api "repos/$full_repo/commits/$head_sha/status")
+                combined=$(github_get "repos/$full_repo/commits/$head_sha/status")
                 signal_count=$(jq 'length' <<<"$head_runs")
                 signal_count=$((signal_count + $(jq '.total_count' <<<"$check_runs")))
                 signal_count=$((signal_count + $(jq '.statuses | length' <<<"$combined")))
@@ -301,7 +340,7 @@ jobs:
     if: always() && needs.collect.result == 'success'
     needs: [collect, triage]
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     environment: antigravity-automation
     permissions:
       contents: read # checkout the trusted repository inventory
@@ -334,12 +373,17 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
+            const {readPrimaryRateLimit, retryGitHub} = require(
+              path.join(process.env.GITHUB_WORKSPACE, 'scripts/github-api-resilience.cjs'),
+            );
             const receipts = JSON.parse(fs.readFileSync(path.join(process.env.INPUT_DIR, 'receipts.json'), 'utf8'));
             const dispatches = JSON.parse(fs.readFileSync(path.join(process.env.INPUT_DIR, 'dispatches.json'), 'utf8'));
             const triagePath = path.join(process.env.INPUT_DIR, 'triage.json');
             const triage = fs.existsSync(triagePath) ? JSON.parse(fs.readFileSync(triagePath, 'utf8')) : null;
+            const rateLimit = () => readPrimaryRateLimit({request: github.request});
 
             for (const receipt of receipts) {
+              core.info(`[PROGRESS] repository ${receipt.repository}: publishing ${receipt.head_sha}`);
               const [owner, repo] = receipt.repository.split('/');
               const marker = `<!-- agy-workflow-receipt:${receipt.head_sha} -->`;
               const relevant = triage?.failures?.filter((failure) =>
@@ -364,27 +408,73 @@ jobs:
                   core.setFailed(`missing Antigravity triage for ${receipt.repository}@${receipt.head_sha}`);
                 }
               }
-              const comments = await github.paginate(github.rest.issues.listComments, {owner, repo, issue_number: receipt.pull_request, per_page: 100});
-              const previous = comments.find((comment) => comment.user?.type === 'Bot' && comment.body?.includes(marker));
               const body = lines.join('\n');
-              if (previous) await github.rest.issues.updateComment({owner, repo, comment_id: previous.id, body});
-              else await github.rest.issues.createComment({owner, repo, issue_number: receipt.pull_request, body});
+              await retryGitHub(async () => {
+                const comments = await github.paginate(github.rest.issues.listComments, {
+                  owner,
+                  repo,
+                  issue_number: receipt.pull_request,
+                  per_page: 100,
+                });
+                const previous = comments.find((comment) =>
+                  comment.user?.type === 'Bot' && comment.body?.includes(marker));
+                if (previous) {
+                  return github.rest.issues.updateComment({owner, repo, comment_id: previous.id, body});
+                }
+                return github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number: receipt.pull_request,
+                  body,
+                });
+              }, {
+                operationName: `publish watcher receipt ${receipt.repository}@${receipt.head_sha}`,
+                totalWaitBudgetSeconds: 900,
+                readPrimaryRateLimit: rateLimit,
+              });
             }
 
             for (const dispatch of dispatches) {
+              core.info(`[PROGRESS] repository ${dispatch.repository}: recovering ${dispatch.workflow} for ${dispatch.head_sha}`);
               const [owner, repo] = dispatch.repository.split('/');
-              const {data: pull} = await github.rest.pulls.get({owner, repo, pull_number: Number(dispatch.pr_number)});
-              if (pull.state !== 'open' || pull.head.repo.full_name !== dispatch.repository ||
-                  pull.base.sha !== dispatch.base_sha || pull.head.sha !== dispatch.head_sha) continue;
-              await github.rest.actions.createWorkflowDispatch({
-                owner,
-                repo,
-                workflow_id: dispatch.workflow,
-                ref: dispatch.ref,
-                inputs: {
-                  pr_number: dispatch.pr_number,
-                  expected_base_sha: dispatch.base_sha,
-                  expected_head_sha: dispatch.head_sha,
-                },
+              const label = dispatch.workflow === 'antigravity-review.yml' ? 'review' : 'translation';
+              const title = `Antigravity ${label} PR ${dispatch.pr_number} @ ${dispatch.head_sha}`;
+              await retryGitHub(async () => {
+                const runs = await github.rest.actions.listWorkflowRunsForRepo({
+                  owner,
+                  repo,
+                  per_page: 100,
+                });
+                const replacement = runs.data.workflow_runs.find((run) =>
+                  run.display_title === title && run.id !== dispatch.prior_run_id);
+                if (replacement) {
+                  core.info(`[PROGRESS] repository ${dispatch.repository}: dispatch already accepted as run ${replacement.id}`);
+                  return replacement;
+                }
+                const {data: pull} = await github.rest.pulls.get({
+                  owner,
+                  repo,
+                  pull_number: Number(dispatch.pr_number),
+                });
+                if (pull.state !== 'open' || pull.head.repo.full_name !== dispatch.repository ||
+                    pull.base.sha !== dispatch.base_sha || pull.head.sha !== dispatch.head_sha) {
+                  core.info(`[PROGRESS] repository ${dispatch.repository}: exact head is stale; dispatch skipped`);
+                  return null;
+                }
+                return github.rest.actions.createWorkflowDispatch({
+                  owner,
+                  repo,
+                  workflow_id: dispatch.workflow,
+                  ref: dispatch.ref,
+                  inputs: {
+                    pr_number: dispatch.pr_number,
+                    expected_base_sha: dispatch.base_sha,
+                    expected_head_sha: dispatch.head_sha,
+                  },
+                });
+              }, {
+                operationName: `dispatch ${dispatch.workflow} for ${dispatch.repository}@${dispatch.head_sha}`,
+                totalWaitBudgetSeconds: 900,
+                readPrimaryRateLimit: rateLimit,
               });
             }

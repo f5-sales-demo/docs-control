@@ -306,6 +306,14 @@ rulesets, merge queues, audit-log streaming, or environment required reviewers. 
 `antigravity-automation` environment on the public docs-control repository is only a secret
 boundary; configure no reviewers, wait timer, or deployment rule on it.
 
+GitHub API operations are bounded and resumable. Primary exhaustion uses `GET /rate_limit` or the
+`X-RateLimit-Reset` response header. Secondary limits never poll during cooldown: automation honors
+`Retry-After`, or waits 60 seconds and doubles the delay to a 600-second cap when that header is
+absent. `[WAIT]` messages include the next-attempt timestamp, `[PROGRESS]` messages identify the
+current repository, and an operation exits 84 when its wait budget is exhausted so the scheduled
+watcher can recover the exact head without duplicating comments, dispatches, issues, or pull
+requests.
+
 1. Verify docs-control#1016 in the live workflow bytes, not merely by issue state. The installer must
    be immutable, PR-head content must not execute with model or write credentials, permission bypass
    must be absent, and exact base/head/workflow receipts and behavioral security tests must pass.

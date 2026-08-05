@@ -53,18 +53,34 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Validate exact pull-request head
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const path = require('path');
+            const {readPrimaryRateLimit, retryGitHub} = require(
+              path.join(process.env.GITHUB_WORKSPACE, 'scripts/github-api-resilience.cjs'),
+            );
+            const pullNumber = Number(process.env.PR_NUMBER);
+            const response = await retryGitHub(
+              () => github.rest.pulls.get({...context.repo, pull_number: pullNumber}),
+              {
+                operationName: `validate translation head ${process.env.HEAD_SHA}`,
+                totalWaitBudgetSeconds: 420,
+                readPrimaryRateLimit: () => readPrimaryRateLimit({request: github.request}),
+              },
+            );
+            const pull = response.data;
+            if (pull.head.repo.full_name !== process.env.GITHUB_REPOSITORY ||
+                pull.base.sha !== process.env.BASE_SHA || pull.head.sha !== process.env.HEAD_SHA) {
+              throw new Error('pull request no longer matches the exact translation receipt');
+            }
+            core.exportVariable('HEAD_REF', pull.head.ref);
+
       - name: Prepare exact pull-request snapshot
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$BASE_SHA"
-          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" >"$RUNNER_TEMP/pull.json"
-          jq -e --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" --arg head "$HEAD_SHA" '
-            .head.repo.full_name == $repository and .base.sha == $base and .head.sha == $head
-          ' "$RUNNER_TEMP/pull.json" >/dev/null
-          HEAD_REF=$(jq -r .head.ref "$RUNNER_TEMP/pull.json")
-          echo "HEAD_REF=$HEAD_REF" >>"$GITHUB_ENV"
           sudo install -d -o root -g root -m 0555 /opt/agy-translation-contract
           sudo install -o root -g root -m 0444 \
             .agents/skills/i18n-translate/SKILL.md /opt/agy-translation-contract/SKILL.md
@@ -225,6 +241,30 @@ jobs:
           token: ${{ secrets.REPO_SYNC_TOKEN }}
           persist-credentials: false
 
+      - name: Revalidate exact publication head
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const path = require('path');
+            const {readPrimaryRateLimit, retryGitHub} = require(
+              path.join(process.env.GITHUB_WORKSPACE, '.trusted-base/scripts/github-api-resilience.cjs'),
+            );
+            const pullNumber = Number(process.env.PR_NUMBER);
+            const response = await retryGitHub(
+              () => github.rest.pulls.get({...context.repo, pull_number: pullNumber}),
+              {
+                operationName: `revalidate translation head ${process.env.HEAD_SHA}`,
+                totalWaitBudgetSeconds: 420,
+                readPrimaryRateLimit: () => readPrimaryRateLimit({request: github.request}),
+              },
+            );
+            const pull = response.data;
+            if (pull.head.repo.full_name !== process.env.GITHUB_REPOSITORY ||
+                pull.base.sha !== process.env.BASE_SHA || pull.head.sha !== process.env.HEAD_SHA) {
+              throw new Error('pull request no longer matches the exact translation receipt');
+            }
+            core.exportVariable('HEAD_REF', pull.head.ref);
+
       - name: Validate, commit, and publish translations
         env:
           GH_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}
@@ -239,13 +279,7 @@ jobs:
             .workflow_sha == $workflow and .agy_version == $version and
             .model == "Gemini 3.6 Flash (High)"
           ' "$receipt" >/dev/null
-          HEAD_REF=$(jq -r .head_ref "$receipt")
-          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" >"$RUNNER_TEMP/current-pull.json"
-          jq -e --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" \
-            --arg head "$HEAD_SHA" --arg ref "$HEAD_REF" '
-            .head.repo.full_name == $repository and .base.sha == $base and
-            .head.sha == $head and .head.ref == $ref
-          ' "$RUNNER_TEMP/current-pull.json" >/dev/null
+          test "$(jq -r .head_ref "$receipt")" = "$HEAD_REF"
           if [ ! -s "$patch" ]; then
             echo "[i18n] translations were already current at $HEAD_SHA"
             exit 0
