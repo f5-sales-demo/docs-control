@@ -1,5 +1,5 @@
 {
-  "source_commit": "ef1b2abadd3fd4fb43588a19145fe9d196dc1006",
+  "source_commit": "d815c098dfd7ab13f116f64dd2dc911b2604ba41",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -46,8 +46,8 @@
     ".github/workflows/antigravity-translate.yml": {
       "src": "workflows/antigravity-translate.yml",
       "dest": ".github/workflows/antigravity-translate.yml",
-      "sha": "2ffb88c2fe021fcdf3416e4c5a9ebf8f206465fa",
-      "size": 1475,
+      "sha": "8437e9f56408e839116b1e3a27753e90283ac89b",
+      "size": 1395,
       "mode": "100644"
     },
     ".github/PULL_REQUEST_TEMPLATE.md": {
@@ -88,15 +88,15 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "c825ae977e64e60cd0b3bf616bb54fcebe516129",
-      "size": 41596,
+      "sha": "25626aad7e0182853dce719b5fdefe3d3cf9a3fc",
+      "size": 41960,
       "mode": "100644"
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "8a641bb2b9a9fe8001e7a4189eb566747bd0939d",
-      "size": 8263,
+      "sha": "88ee31312fc55583b65acad631f47f7f4d46365e",
+      "size": 8306,
       "mode": "100644"
     },
     "AGENTS.md": {
@@ -319,8 +319,8 @@
     "scripts/agy-review.sh": {
       "src": "scripts/agy-review.sh",
       "dest": "scripts/agy-review.sh",
-      "sha": "650173231df40e951746fee19164276de5fb2deb",
-      "size": 9236,
+      "sha": "a269cba53a35e58de7f6b2f8335720bd5b501f4a",
+      "size": 10403,
       "mode": "100755"
     },
     "scripts/agy-review-output.schema.json": {
@@ -389,8 +389,8 @@
     "tests/test-agy-pre-push-review.sh": {
       "src": "tests/test-agy-pre-push-review.sh",
       "dest": "tests/test-agy-pre-push-review.sh",
-      "sha": "1b8673ffaa96411da8d20b2a3b076d417b7bc911",
-      "size": 6183,
+      "sha": "228d9312857fcf61200c388a00dde4baf1fb0585",
+      "size": 6988,
       "mode": "100755"
     },
     "tests/test-validate-translations.sh": {
