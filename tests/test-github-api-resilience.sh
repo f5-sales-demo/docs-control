@@ -252,39 +252,38 @@ check() {
 watcher="$repo_root/.github/workflows/antigravity-fleet-watcher.yml"
 review="$repo_root/.github/workflows/antigravity-review.yml"
 translation="$repo_root/.github/workflows/antigravity-translate.yml"
-review_caller="$repo_root/workflows/antigravity-review.yml"
 translation_caller="$repo_root/workflows/antigravity-translate.yml"
 
 check 'unconfigured GitHub App credentials are absent' \
-  bash -c "! rg -q 'AUTOMATION_APP_ID|AUTOMATION_APP_PRIVATE_KEY|create-github-app-token' \
+  bash -c "! grep -qE 'AUTOMATION_APP_ID|AUTOMATION_APP_PRIVATE_KEY|create-github-app-token' \
     '$watcher' '$translation' '$translation_caller'"
 check 'fleet watcher uses the existing fleet token' \
-  rg -q 'secrets.REPO_SETTINGS_TOKEN' "$watcher"
+  grep -qF 'secrets.REPO_SETTINGS_TOKEN' "$watcher"
 check 'translation caller uses the existing fleet sync token' \
-  rg -q 'REPO_SYNC_TOKEN: \$\{\{ secrets.REPO_SYNC_TOKEN \}\}' "$translation_caller"
+  grep -qF 'REPO_SYNC_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}' "$translation_caller"
 
 for workflow in "$watcher" "$review" "$translation"; do
   check "$(basename "$workflow") loads the governed retry helper" \
-    rg -q 'github-api-resilience[.]cjs' "$workflow"
+    grep -qF 'github-api-resilience.cjs' "$workflow"
   check "$(basename "$workflow") uses bounded GitHub retry" \
-    rg -q 'retryGitHub' "$workflow"
+    grep -qF 'retryGitHub' "$workflow"
 done
 
 check 'review receipts are exact-head markers' \
-  rg -q 'antigravity-pr-review:\$\{?[^}]*HEAD|antigravity-pr-review:\$\{report[.]receipt[.]head_sha\}' "$review"
+  grep -qE 'antigravity-pr-review:\$\{?[^}]*HEAD|antigravity-pr-review:\$\{report[.]receipt[.]head_sha\}' "$review"
 check 'watcher redispatches failed or unpublished exact reviews' \
-  rg -q 'reviewNeedsRecovery' "$watcher"
+  grep -qF 'reviewNeedsRecovery' "$watcher"
 check 'watcher redispatches failed exact translations' \
-  rg -q 'translationNeedsRecovery' "$watcher"
+  grep -qF 'translationNeedsRecovery' "$watcher"
 check 'watcher emits per-repository progress heartbeats' \
-  rg -q '\[PROGRESS\].*repository' "$watcher"
+  grep -qE '\[PROGRESS\].*repository' "$watcher"
 check 'Free-tier contract remains explicit' \
-  rg -q 'GitHub Free-compatible' "$watcher"
+  grep -qF 'GitHub Free-compatible' "$watcher"
 check 'operator guidance documents secondary cooldown without polling' \
-  bash -c "rg -q 'Secondary limits never poll during cooldown' '$repo_root/CONTRIBUTING.md' && \
-    rg -q 'Retry-After' '$repo_root/CONTRIBUTING.md'"
+  bash -c "grep -qF 'Secondary limits never poll during cooldown' '$repo_root/CONTRIBUTING.md' && \
+    grep -qF 'Retry-After' '$repo_root/CONTRIBUTING.md'"
 check 'managed-file sync avoids GraphQL content mutations' \
-  bash -c "! rg -q 'gh (issue create|issue close|pr create|pr close|pr merge)' \
+  bash -c "! grep -qE 'gh (issue create|issue close|pr create|pr close|pr merge)' \
     '$repo_root/.github/workflows/sync-managed-files.yml'"
 
 check 'retry helper is managed fleet-wide' jq -e \
