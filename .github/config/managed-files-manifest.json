@@ -1,5 +1,5 @@
 {
-  "source_commit": "55ae62a404638f630f55e7ff47abeb21cff402b5",
+  "source_commit": "796635cb1de6de540364142e61a95f83214767d0",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -319,8 +319,8 @@
     "scripts/agy-review.sh": {
       "src": "scripts/agy-review.sh",
       "dest": "scripts/agy-review.sh",
-      "sha": "59bfdfcd3c78395d788972bf49b3ddbc307f550c",
-      "size": 8603,
+      "sha": "650173231df40e951746fee19164276de5fb2deb",
+      "size": 9236,
       "mode": "100755"
     },
     "scripts/agy-review-output.schema.json": {
@@ -389,8 +389,8 @@
     "tests/test-agy-pre-push-review.sh": {
       "src": "tests/test-agy-pre-push-review.sh",
       "dest": "tests/test-agy-pre-push-review.sh",
-      "sha": "293399689f81eec52d2434aa225c133dc5835532",
-      "size": 5618,
+      "sha": "1b8673ffaa96411da8d20b2a3b076d417b7bc911",
+      "size": 6183,
       "mode": "100755"
     },
     "tests/test-validate-translations.sh": {
