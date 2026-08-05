@@ -8,6 +8,7 @@ owner="${repository%%/*}"
 source_sha="${SOURCE_SHA:-}"
 downstream_config="${DOWNSTREAM_CONFIG:-.github/config/downstream-repos.json}"
 rollout_config="${ROLLOUT_CONFIG:-.github/config/governance-rollout.json}"
+pin_config="${PIN_CONFIG:-.github/config/governed-workflow-pin.json}"
 repo_settings_config="${REPO_SETTINGS_CONFIG:-.github/config/repo-settings.json}"
 governance_config="${GOVERNANCE_CONFIG:-.claude/governance.json}"
 caller_path=".github/workflows/enforce-repo-settings.yml"
@@ -99,6 +100,12 @@ fi
 if ! rollout_state=$(jq -er '.state | select(. == "quiesced" or . == "active")' \
   "$rollout_config"); then
   echo "[ERROR] Governance rollout state is missing or invalid" >&2
+  exit 1
+fi
+if ! pin_revision=$(jq -er \
+  '.revision | select(type == "string" and test("^[0-9a-f]{40}$"))' \
+  "$pin_config"); then
+  echo "[ERROR] Governed workflow pin is missing or invalid" >&2
   exit 1
 fi
 if [ -z "${REPO_SETTINGS_TOKEN:-}" ]; then
@@ -468,6 +475,135 @@ reconcile_first_repo_controls() {
     return 1
   fi
   echo "[OK] First-repository merge controls are exact for ${slug}"
+}
+
+first_repo_lint_checks_are_successful() {
+  local slug="$1" branch="$2" head="$3"
+  local response run_response required_count run_id rc
+  local run_prefix="https://github.com/${slug}/actions/runs/"
+  local reusable="${repository}/.github/workflows/super-linter.yml@${pin_revision}"
+  response=$(mktemp "$work/first-repo-lint-checks.XXXXXX")
+  set +e
+  gh api "repos/${slug}/commits/${head}/check-runs?filter=latest&per_page=100" \
+    >"$response"
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    rm -f "$response"
+    return "$rc"
+  fi
+  if ! jq -e '
+    type == "object" and
+    (.total_count | type == "number" and . >= 0 and . == floor) and
+    (.check_runs | type == "array") and
+    all(.check_runs[];
+      (.id | type == "number" and . >= 1 and . == floor) and
+      (.name | type == "string") and (.head_sha | type == "string") and
+      (.status | type == "string") and
+      (.conclusion == null or (.conclusion | type == "string")) and
+      (.details_url | type == "string") and
+      (.app.id | type == "number" and . >= 1 and . == floor) and
+      (.app.slug | type == "string"))
+  ' "$response" >/dev/null; then
+    echo "[ERROR] First-repository lint check response is malformed for ${slug}" >&2
+    rm -f "$response"
+    return 1
+  fi
+  required_count=$(jq -r '
+    [.check_runs[] |
+      select(.name == "lint / Lint Code Base" or
+        .name == "lint / Shell Unit Tests")] | length
+  ' "$response")
+  if [ "$required_count" -lt 2 ]; then
+    rm -f "$response"
+    return 76
+  fi
+  if [ "$required_count" -ne 2 ] || ! jq -e '
+    [.check_runs[] |
+      select(.name == "lint / Lint Code Base" or
+        .name == "lint / Shell Unit Tests") | .name] | sort ==
+    ["lint / Lint Code Base", "lint / Shell Unit Tests"]
+  ' "$response" >/dev/null; then
+    echo "[ERROR] First-repository lint checks are ambiguous for ${slug}" >&2
+    rm -f "$response"
+    return 1
+  fi
+  if ! jq -e --arg head "$head" --arg run_prefix "$run_prefix" '
+    [.check_runs[] |
+      select(.name == "lint / Lint Code Base" or
+        .name == "lint / Shell Unit Tests")] as $required |
+    all($required[];
+      .head_sha == $head and .app.id == 15368 and
+      .app.slug == "github-actions" and
+      (.details_url | startswith($run_prefix)) and
+      (.details_url |
+        test("/actions/runs/[1-9][0-9]*/job/[1-9][0-9]*$")))
+  ' "$response" >/dev/null; then
+    echo "[ERROR] First-repository lint checks are not authentic exact-head receipts for ${slug}" >&2
+    rm -f "$response"
+    return 1
+  fi
+  if jq -e '
+    [.check_runs[] |
+      select(.name == "lint / Lint Code Base" or
+        .name == "lint / Shell Unit Tests")] |
+    any(.[]; .status != "completed")
+  ' "$response" >/dev/null; then
+    rm -f "$response"
+    return 76
+  fi
+  if ! jq -e '
+    [.check_runs[] |
+      select(.name == "lint / Lint Code Base" or
+        .name == "lint / Shell Unit Tests")] |
+    all(.[]; .conclusion == "success")
+  ' "$response" >/dev/null; then
+    echo "[ERROR] First-repository lint checks did not succeed for ${slug}" >&2
+    rm -f "$response"
+    return 1
+  fi
+  if ! run_id=$(jq -er '
+    [.check_runs[] |
+      select(.name == "lint / Lint Code Base" or
+        .name == "lint / Shell Unit Tests") |
+      .details_url |
+      capture("/actions/runs/(?<run>[1-9][0-9]*)/job/[1-9][0-9]*$").run] |
+    unique | if length == 1 then .[0] else error("multiple workflow runs") end
+  ' "$response"); then
+    echo "[ERROR] First-repository lint checks do not share one workflow run for ${slug}" >&2
+    rm -f "$response"
+    return 1
+  fi
+  rm -f "$response"
+
+  run_response=$(mktemp "$work/first-repo-lint-run.XXXXXX")
+  set +e
+  gh api "repos/${slug}/actions/runs/${run_id}" >"$run_response"
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    rm -f "$run_response"
+    return "$rc"
+  fi
+  if ! jq -e --arg run "$run_id" --arg head "$head" --arg branch "$branch" \
+    --arg slug "$slug" --arg reusable "$reusable" --arg revision "$pin_revision" '
+    type == "object" and (.id | tostring) == $run and
+    .name == "Super-Linter" and .path == ".github/workflows/super-linter.yml" and
+    .event == "pull_request" and .head_branch == $branch and .head_sha == $head and
+    .head_commit.id == $head and
+    (.head_repository.id | type == "number" and . >= 1 and . == floor) and
+    .head_repository.id == .repository.id and
+    .head_repository.full_name == $slug and .repository.full_name == $slug and
+    .status == "completed" and .conclusion == "success" and
+    (.referenced_workflows | type == "array" and length == 1) and
+    .referenced_workflows[0].path == $reusable and
+    .referenced_workflows[0].sha == $revision
+  ' "$run_response" >/dev/null; then
+    echo "[ERROR] First-repository lint workflow run is not an exact trusted receipt for ${slug}" >&2
+    rm -f "$run_response"
+    return 1
+  fi
+  rm -f "$run_response"
 }
 
 reconcile_required_checks_to() {
@@ -1676,6 +1812,38 @@ bootstrap_one() {
     return 1
   fi
   if [ "$first_repo" = true ]; then
+    if [ "$manages_lint_caller" = true ]; then
+      if first_repo_lint_checks_are_successful "$slug" "$branch" "$verified_head"; then
+        rc=0
+      else
+        rc=$?
+      fi
+      if [ "$rc" -eq 76 ]; then
+        echo "[DEFER] Waiting for authentic Super-Linter checks on ${name} PR #${pr_number}"
+        return 76
+      fi
+      [ "$rc" -eq 0 ] || return "$rc"
+    fi
+
+    assert_source_current
+    current_base_sha=$(gh api \
+      "repos/${slug}/git/ref/heads/${default_branch}" --jq '.object.sha')
+    if [ "$current_base_sha" != "$base_sha" ]; then
+      echo "[ERROR] First-repository protected main changed before merge for ${name}" >&2
+      return 1
+    fi
+    reconcile_bootstrap_prs "$slug" "$branch"
+    if [ "$bootstrap_pr_number" != "$pr_number" ] ||
+      [ "$bootstrap_pr_head_oid" != "$verified_head" ]; then
+      echo "[ERROR] First-repository exact-caller PR owner changed before merge for ${name}" >&2
+      return 1
+    fi
+    current_branch_head=$(gh api \
+      "repos/${slug}/git/ref/heads/${branch}" --jq '.object.sha')
+    if [ "$current_branch_head" != "$verified_head" ]; then
+      echo "[ERROR] First-repository exact-caller head changed before merge for ${name}" >&2
+      return 1
+    fi
     jq -n --argjson pr "$pr_number" --arg head "$verified_head" \
       '{pull_request: $pr, head: $head}' >"$work/linked-transition-${name}.json"
   elif [ "$actual_linked_blob" != "$expected_linked_blob" ]; then
