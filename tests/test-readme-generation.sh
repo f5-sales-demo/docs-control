@@ -140,6 +140,117 @@ else
 fi
 
 echo ""
+echo "=== Section 2b: production rendering is isolated and fails closed ==="
+
+if grep -q 'SYNC_WORK_DIR=$(mktemp -d "${RUNNER_TEMP:?}/sync-managed-files.XXXXXX")' \
+  "$SYNC_WORKFLOW" &&
+  ! grep -qE '/tmp/(current_|generated_|extra_|language_nav|drift_content)' \
+    "$SYNC_WORKFLOW"; then
+  pass "2b.1 generated artifacts use one private per-job workspace"
+else
+  fail "2b.1 generated artifacts use one private per-job workspace" \
+    "the workflow still exposes generated state through fixed /tmp paths"
+fi
+
+if grep -q '^          replace_readme_marker() {' "$SYNC_WORKFLOW" &&
+  grep -q 'README marker .* must occur exactly once' "$SYNC_WORKFLOW" &&
+  grep -q 'replace_readme_marker.*__LANGUAGE_NAV__' "$SYNC_WORKFLOW"; then
+  pass "2b.2 optional README markers are replaced exactly once"
+else
+  fail "2b.2 optional README markers are replaced exactly once" \
+    "the production renderer can silently leave or duplicate a marker"
+fi
+
+if grep -q '^          validate_generated_readme() {' "$SYNC_WORKFLOW" &&
+  grep -q 'Generated README contains an unresolved placeholder' "$SYNC_WORKFLOW" &&
+  grep -q 'Generated README title does not match canonical metadata' "$SYNC_WORKFLOW" &&
+  grep -q 'Generated README documentation URL does not match canonical metadata' \
+    "$SYNC_WORKFLOW"; then
+  pass "2b.3 generated README identity and placeholders are validated"
+else
+  fail "2b.3 generated README identity and placeholders are validated" \
+    "the workflow can commit malformed or cross-repository README content"
+fi
+
+if grep -qF 'Full documentation is available at __[__DOCS_URL__](__DOCS_URL__)__.' \
+  "$TPL" &&
+  ! grep -qE 'Full documentation is available at \*\*' "$TPL"; then
+  pass "2b.4 documentation link follows governed MD050 strong style"
+else
+  fail "2b.4 documentation link follows governed MD050 strong style" \
+    "the template uses asterisk strong style rejected by markdownlint"
+fi
+
+awk '
+  /^          replace_readme_marker\(\) \{/ { found=1 }
+  found && /^          validate_generated_readme\(\) \{/ { exit }
+  found { sub(/^          /, ""); print }
+' "$SYNC_WORKFLOW" >"$WORK/replace-readme-marker.sh"
+
+printf '%s\n' 'before' '__MARKER__' 'after' >"$WORK/marker-target.md"
+printf '%s\n' 'inserted one' 'inserted two' >"$WORK/marker-content.md"
+if (
+  # shellcheck source=/dev/null
+  source "$WORK/replace-readme-marker.sh"
+  replace_readme_marker "__MARKER__" "$WORK/marker-content.md" "$WORK/marker-target.md"
+) &&
+  [ "$(printf '%s\n' 'before' 'inserted one' 'inserted two' 'after')" = \
+    "$(cat "$WORK/marker-target.md")" ]; then
+  pass "2b.5 production marker replacement emits exact inserted content"
+else
+  fail "2b.5 production marker replacement emits exact inserted content" \
+    "the extracted production helper did not render the expected bytes"
+fi
+
+printf '%s\n' '__MARKER__' '__MARKER__' >"$WORK/duplicate-marker.md"
+if ! (
+  # shellcheck source=/dev/null
+  source "$WORK/replace-readme-marker.sh"
+  replace_readme_marker "__MARKER__" "$WORK/marker-content.md" \
+    "$WORK/duplicate-marker.md"
+) >/dev/null 2>&1; then
+  pass "2b.6 production marker replacement rejects duplicate markers"
+else
+  fail "2b.6 production marker replacement rejects duplicate markers" \
+    "an ambiguous template marker was accepted"
+fi
+
+awk '
+  /^          validate_generated_readme\(\) \{/ { found=1 }
+  found && /^          select_owned_stale_issues\(\) \{/ { exit }
+  found { sub(/^          /, ""); print }
+' "$SYNC_WORKFLOW" >"$WORK/validate-generated-readme.sh"
+
+valid_readme=$(render "🌐 English" "" "")
+cp "$valid_readme" "$WORK/valid-readme.md"
+cp "$valid_readme" "$WORK/wrong-title.md"
+cp "$valid_readme" "$WORK/unresolved-placeholder.md"
+sed -i.bak '1s/Example Repo/Wrong Repo/' "$WORK/wrong-title.md"
+printf '%s\n' '__UNRESOLVED__' >>"$WORK/unresolved-placeholder.md"
+
+if (
+  # shellcheck source=/dev/null
+  source "$WORK/validate-generated-readme.sh"
+  validate_generated_readme "$WORK/valid-readme.md" "Example Repo" \
+    "An example description" "https://f5-sales-demo.github.io/example-repo/" \
+    "f5-sales-demo" "example-repo" &&
+    ! validate_generated_readme "$WORK/wrong-title.md" "Example Repo" \
+      "An example description" "https://f5-sales-demo.github.io/example-repo/" \
+      "f5-sales-demo" "example-repo" >/dev/null 2>&1 &&
+    ! validate_generated_readme "$WORK/unresolved-placeholder.md" "Example Repo" \
+      "An example description" "https://f5-sales-demo.github.io/example-repo/" \
+      "f5-sales-demo" "example-repo" >/dev/null 2>&1 &&
+    ! validate_generated_readme "$WORK/valid-readme.md" "Example Repo" \
+      "An example description" "https://f5-sales-demo.github.io/wrong-repo/" \
+      "f5-sales-demo" "example-repo" >/dev/null 2>&1
+); then
+  pass "2b.7 production README validation accepts only exact repository identity"
+else
+  fail "2b.7 production README validation accepts only exact repository identity" \
+    "a valid render was rejected or a malformed identity was accepted"
+fi
+
+echo ""
 echo "=== Section 4: api-specs-enriched README is governed and English-only ==="
 
 API_SITE=$(jq -c '.[] | select(.url | contains("/api-specs-enriched/"))' "$DOCS_SITES")

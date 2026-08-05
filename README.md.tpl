@@ -13,7 +13,7 @@ __EXTRA_CONTENT__
 
 ## Documentation
 
-Full documentation is available at **[__DOCS_URL__](__DOCS_URL__)**.
+Full documentation is available at __[__DOCS_URL__](__DOCS_URL__)__.
 
 ## Contributing
 
