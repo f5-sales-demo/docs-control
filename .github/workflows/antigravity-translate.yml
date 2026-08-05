@@ -86,6 +86,8 @@ jobs:
             .agents/skills/i18n-translate/SKILL.md /opt/agy-translation-contract/SKILL.md
           sudo install -o root -g root -m 0555 \
             scripts/validate-translations.sh /opt/agy-translation-contract/validate-translations.sh
+          sudo install -o root -g root -m 0555 \
+            scripts/run-with-progress.sh /opt/agy-translation-contract/run-with-progress.sh
           git fetch --no-tags origin "+refs/pull/${PR_NUMBER}/head:refs/agy/pr-head"
           test "$(git rev-parse refs/agy/pr-head)" = "$HEAD_SHA"
           git checkout --detach "$HEAD_SHA"
@@ -140,11 +142,12 @@ jobs:
             "Edit only corresponding Markdown or MDX files under the 12 locale directories." \
             "Do not run repository code, commit, push, contact GitHub, or read credentials." \
             "Preserve code, MDX structure, documentation-safe examples, and exact source hashes.")
-          env -u GH_TOKEN -u GITHUB_TOKEN -u GATEWAY_TOKEN -u GATEWAY_URL \
-            agy --new-project --sandbox --mode accept-edits --disable-slash-commands \
-            --add-dir /opt/agy-translation-contract \
-            --model "Gemini 3.6 Flash (High)" \
-            --print-timeout 25m --print "$prompt"
+          /opt/agy-translation-contract/run-with-progress.sh --phase translation-generation -- \
+            env -u GH_TOKEN -u GITHUB_TOKEN -u GATEWAY_TOKEN -u GATEWAY_URL \
+              agy --new-project --sandbox --mode accept-edits --disable-slash-commands \
+              --add-dir /opt/agy-translation-contract \
+              --model "Gemini 3.6 Flash (High)" \
+              --print-timeout 25m --print "$prompt"
           test "$(agy --version)" = "$AGY_VERSION"
           INNER
 
