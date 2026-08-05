@@ -1,6 +1,6 @@
 ---
 # GitHub Free-compatible fleet watcher. It uses scheduled/manual Actions, ordinary
-# organization variables, artifacts, comments, and a GitHub App; no rulesets,
+# organization variables, existing governance PATs, artifacts, and comments; no rulesets,
 # merge queues, audit streams, or environment-required reviewers are involved.
 name: Antigravity Fleet Watcher
 
@@ -31,33 +31,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Scope GitHub App token to governed repositories
-        id: inventory
-        run: |
-          set -euo pipefail
-          repositories=$(jq -r '.[]' .github/config/downstream-repos.json | {
-            printf '%s\n' docs-control
-            cat
-          } | paste -sd, -)
-          echo "repositories=$repositories" >>"$GITHUB_OUTPUT"
-
-      - name: Mint fleet read token
-        id: app-token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
-        with:
-          app-id: ${{ secrets.AUTOMATION_APP_ID }}
-          private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ steps.inventory.outputs.repositories }}
-          permission-actions: read
-          permission-contents: read
-          permission-issues: read
-          permission-pull-requests: read
-
       - name: Collect terminal heads and dispatch queue
         id: collect
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
           REVIEW_ENABLED: ${{ vars.ANTIGRAVITY_REVIEW_ENABLED }}
           TRANSLATIONS_ENABLED: ${{ vars.TRANSLATIONS_ENABLED }}
         run: |
@@ -334,29 +311,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Scope GitHub App token to governed repositories
-        id: inventory
-        run: |
-          set -euo pipefail
-          repositories=$(jq -r '.[]' .github/config/downstream-repos.json | {
-            printf '%s\n' docs-control
-            cat
-          } | paste -sd, -)
-          echo "repositories=$repositories" >>"$GITHUB_OUTPUT"
-
-      - name: Mint fleet publisher token
-        id: app-token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
-        with:
-          app-id: ${{ secrets.AUTOMATION_APP_ID }}
-          private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ steps.inventory.outputs.repositories }}
-          permission-actions: write
-          permission-contents: read
-          permission-issues: write
-          permission-pull-requests: read
-
       - name: Download exact-head receipts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -376,7 +330,7 @@ jobs:
           INPUT_DIR: ${{ runner.temp }}/fleet-watch
           TRIAGE_RESULT: ${{ needs.triage.result }}
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ secrets.REPO_SETTINGS_TOKEN }}
           script: |
             const fs = require('fs');
             const path = require('path');

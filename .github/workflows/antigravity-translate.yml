@@ -22,9 +22,7 @@ on:
         required: true
       GCP_PROJECT_ID:
         required: true
-      AUTOMATION_APP_ID:
-        required: true
-      AUTOMATION_APP_PRIVATE_KEY:
+      REPO_SYNC_TOKEN:
         required: true
 
 permissions: {}
@@ -99,6 +97,14 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
           set -euo pipefail
+          test -n "${ANTIGRAVITY_TOKEN:-}" || {
+            echo "[i18n] ANTIGRAVITY_TOKEN is required" >&2
+            exit 1
+          }
+          test -n "${GCP_PROJECT_ID:-}" || {
+            echo "[i18n] GCP_PROJECT_ID is required" >&2
+            exit 1
+          }
           dbus-run-session -- bash -euo pipefail <<'INNER'
           eval "$(printf '' | gnome-keyring-daemon --unlock --daemonize)"
           export SSH_AUTH_SOCK GNOME_KEYRING_CONTROL GNOME_KEYRING_PID
@@ -118,7 +124,8 @@ jobs:
             "Edit only corresponding Markdown or MDX files under the 12 locale directories." \
             "Do not run repository code, commit, push, contact GitHub, or read credentials." \
             "Preserve code, MDX structure, documentation-safe examples, and exact source hashes.")
-          agy --new-project --sandbox --mode accept-edits --disable-slash-commands \
+          env -u GH_TOKEN -u GITHUB_TOKEN -u GATEWAY_TOKEN -u GATEWAY_URL \
+            agy --new-project --sandbox --mode accept-edits --disable-slash-commands \
             --add-dir /opt/agy-translation-contract \
             --model "Gemini 3.6 Flash (High)" \
             --print-timeout 25m --print "$prompt"
@@ -141,14 +148,9 @@ jobs:
               echo "[i18n] out-of-scope path: $path" >&2
               exit 1
             }
+            git add -A -- "$path"
           done <"$RUNNER_TEMP/status.txt"
-          git add -A -- docs/fr docs/es docs/de docs/pt-br docs/ja docs/ko docs/zh-cn docs/zh-tw docs/ar docs/it docs/hi docs/th \
-            src/content/docs/fr src/content/docs/es src/content/docs/de src/content/docs/pt-br \
-            src/content/docs/ja src/content/docs/ko src/content/docs/zh-cn src/content/docs/zh-tw \
-            src/content/docs/ar src/content/docs/it src/content/docs/hi src/content/docs/th 2>/dev/null || true
-          while IFS= read -r entry; do
-            mode=${entry%% *}
-            path=${entry#*$'\t'}
+          while IFS=$'\t' read -r mode path; do
             [ "$mode" = "100644" ] || {
               echo "[i18n] prohibited file mode $mode for $path" >&2
               exit 1
@@ -187,9 +189,11 @@ jobs:
       contents: read
       pull-requests: read # verify the exact pull-request head before publication
     env:
+      AGY_VERSION: "1.1.10"
       BASE_SHA: ${{ inputs.expected_base_sha }}
       HEAD_SHA: ${{ inputs.expected_head_sha }}
       PR_NUMBER: ${{ inputs.pr_number }}
+      WORKFLOW_SHA: ${{ github.workflow_sha }}
 
     steps:
       - name: Checkout trusted validator
@@ -207,17 +211,6 @@ jobs:
             .trusted-base/scripts/validate-translations.sh \
             /opt/agy-publication-validator/validate-translations.sh
 
-      - name: Mint narrow publication token
-        id: app-token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2.2.2
-        with:
-          app-id: ${{ secrets.AUTOMATION_APP_ID }}
-          private-key: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-          permission-pull-requests: read
-
       - name: Download translation patch
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -229,19 +222,21 @@ jobs:
         with:
           ref: ${{ inputs.expected_head_sha }}
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ secrets.REPO_SYNC_TOKEN }}
           persist-credentials: false
 
       - name: Validate, commit, and publish translations
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}
         run: |
           set -euo pipefail
           receipt="$RUNNER_TEMP/translation-artifact/receipt.json"
           patch="$RUNNER_TEMP/translation-artifact/translations.patch"
-          jq -e --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" --arg head "$HEAD_SHA" '
+          jq -e --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" \
+            --arg head "$HEAD_SHA" --arg workflow "$WORKFLOW_SHA" --arg version "$AGY_VERSION" '
             .repository == $repository and .base_sha == $base and .head_sha == $head and
             (.head_ref | type == "string" and length > 0) and
+            .workflow_sha == $workflow and .agy_version == $version and
             .model == "Gemini 3.6 Flash (High)"
           ' "$receipt" >/dev/null
           HEAD_REF=$(jq -r .head_ref "$receipt")

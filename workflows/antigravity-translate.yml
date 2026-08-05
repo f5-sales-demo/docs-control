@@ -38,5 +38,4 @@ jobs:
     secrets:
       ANTIGRAVITY_TOKEN: ${{ secrets.ANTIGRAVITY_TOKEN }}
       GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      AUTOMATION_APP_ID: ${{ secrets.AUTOMATION_APP_ID }}
-      AUTOMATION_APP_PRIVATE_KEY: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+      REPO_SYNC_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}

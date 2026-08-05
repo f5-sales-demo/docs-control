@@ -46,6 +46,11 @@ orgs/example/actions/variables/TRANSLATIONS_ENABLED)
   printf '{"name":"TRANSLATIONS_ENABLED","value":"%s","visibility":"%s"}\n' \
     "${FAKE_TRANSLATION_VALUE:-false}" "${FAKE_VISIBILITY:-all}"
   ;;
+orgs/example/actions/variables/ANTIGRAVITY_REVIEW_ENABLED/repositories* | \
+  orgs/example/actions/variables/TRANSLATIONS_ENABLED/repositories*)
+  printf '[{"total_count":1,"repositories":[{"name":"%s"}]}]\n' \
+    "${FAKE_SELECTED_REPO:-repo-a}"
+  ;;
 repos/example/*/actions/variables*)
   repo=${endpoint#repos/example/}
   repo=${repo%%/*}
@@ -103,6 +108,24 @@ else
   fail "requested enabled values are enforced" "wrong diagnostic"
 fi
 unset FAKE_WORKFLOW_STATE
+
+setup_fixture
+export FAKE_VISIBILITY=selected
+if run_verifier --visibility selected --selected-repo repo-a --workflow-state held &&
+  grep -q 'visibility=selected repositories=repo-a' "$WORK/out"; then
+  pass "selected pilot visibility verifies the exact repository set"
+else
+  fail "selected pilot visibility verifies the exact repository set" "$(cat "$WORK/err")"
+fi
+export FAKE_SELECTED_REPO=wrong-repo
+if run_verifier --visibility selected --selected-repo repo-a --workflow-state held; then
+  fail "selected pilot visibility rejects repository drift" "mismatched selection passed"
+elif grep -q 'selected repositories' "$WORK/err"; then
+  pass "selected pilot visibility rejects repository drift"
+else
+  fail "selected pilot visibility rejects repository drift" "wrong diagnostic"
+fi
+unset FAKE_SELECTED_REPO FAKE_VISIBILITY
 
 setup_fixture
 export FAKE_SHADOW_REPO=repo-a

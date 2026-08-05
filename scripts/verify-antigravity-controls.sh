@@ -8,6 +8,8 @@ repos_file="$repo_root/.github/config/downstream-repos.json"
 review_enabled=false
 translations_enabled=false
 workflow_state=held
+visibility=all
+selected_repos=()
 
 usage() {
   cat <<'EOF'
@@ -19,12 +21,15 @@ Options:
   --review-enabled <true|false>   Expected organization review switch (default: false)
   --translations-enabled <value> Expected organization translation switch (default: false)
   --workflow-state <held|active>  Held source or fully active topology (default: held)
+  --visibility <all|selected>     Expected organization-variable visibility (default: all)
+  --selected-repo <name>         Exact selected repository; repeat for multiple repositories
 EOF
 }
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-  --org | --repos-file | --review-enabled | --translations-enabled | --workflow-state)
+  --org | --repos-file | --review-enabled | --translations-enabled | --workflow-state | \
+    --visibility | --selected-repo)
     [ "$#" -ge 2 ] || {
       echo "[ERROR] $1 requires a value" >&2
       exit 2
@@ -35,6 +40,8 @@ while [ "$#" -gt 0 ]; do
     --review-enabled) review_enabled="$2" ;;
     --translations-enabled) translations_enabled="$2" ;;
     --workflow-state) workflow_state="$2" ;;
+    --visibility) visibility="$2" ;;
+    --selected-repo) selected_repos+=("$2") ;;
     esac
     shift 2
     ;;
@@ -64,6 +71,18 @@ if [ "$workflow_state" != held ] && [ "$workflow_state" != active ]; then
   echo "[ERROR] --workflow-state must be held or active" >&2
   exit 2
 fi
+if [ "$visibility" != all ] && [ "$visibility" != selected ]; then
+  echo "[ERROR] --visibility must be all or selected" >&2
+  exit 2
+fi
+if [ "$visibility" = selected ] && [ "${#selected_repos[@]}" -eq 0 ]; then
+  echo "[ERROR] --visibility selected requires at least one --selected-repo" >&2
+  exit 2
+fi
+if [ "$visibility" = all ] && [ "${#selected_repos[@]}" -ne 0 ]; then
+  echo "[ERROR] --selected-repo requires --visibility selected" >&2
+  exit 2
+fi
 if ! command -v gh >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
   echo "[ERROR] gh and jq are required" >&2
   exit 1
@@ -75,6 +94,22 @@ if ! jq -e '
 ' "$repos_file" >/dev/null 2>&1; then
   echo "[ERROR] governed repository inventory must be a non-empty unique JSON array" >&2
   exit 1
+fi
+if [ "${#selected_repos[@]}" -ne 0 ]; then
+  for repo in "${selected_repos[@]}"; do
+    if ! printf '%s' "$repo" | grep -qE '^[A-Za-z0-9_.-]+$' ||
+      { [ "$repo" != docs-control ] &&
+        ! jq -e --arg repo "$repo" 'any(.[]; . == $repo)' "$repos_file" >/dev/null; }; then
+      echo "[ERROR] invalid selected governed repository: $repo" >&2
+      exit 2
+    fi
+  done
+  selected_unique=$(printf '%s\n' "${selected_repos[@]}" | LC_ALL=C sort -u)
+  if [ "$(printf '%s\n' "$selected_unique" | sed '/^$/d' | wc -l | tr -d ' ')" \
+    -ne "${#selected_repos[@]}" ]; then
+    echo "[ERROR] --selected-repo values must be unique" >&2
+    exit 2
+  fi
 fi
 
 work=$(mktemp -d)
@@ -117,17 +152,37 @@ read_api() {
 }
 
 verify_org_variable() {
-  local name="$1" expected="$2" payload=""
+  local name="$1" expected="$2" payload="" selection="" actual_selected expected_selected
   read_api payload "orgs/$org/actions/variables/$name"
-  if ! jq -e --arg name "$name" --arg expected "$expected" '
-    .name == $name and .value == $expected and .visibility == "all"
+  if ! jq -e --arg name "$name" --arg expected "$expected" --arg visibility "$visibility" '
+    .name == $name and .value == $expected and .visibility == $visibility
   ' <<<"$payload" >/dev/null; then
     actual=$(jq -r '[.value // "<missing>", .visibility // "<missing>"] | join(" visibility=")' \
       <<<"$payload" 2>/dev/null || echo '<malformed>')
-    echo "[ERROR] $name must equal $expected with visibility=all; found $actual" >&2
+    echo "[ERROR] $name must equal $expected with visibility=$visibility; found $actual" >&2
     exit 1
   fi
-  printf '[OK] organisation variable %s=%s visibility=all\n' "$name" "$expected"
+  if [ "$visibility" = selected ]; then
+    read_api selection "orgs/$org/actions/variables/$name/repositories?per_page=100" \
+      --paginate --slurp
+    if ! jq -e 'type == "array" and all(.[]; (.repositories // []) | type == "array")' \
+      <<<"$selection" >/dev/null; then
+      echo "[ERROR] malformed selected repositories for $name" >&2
+      exit 1
+    fi
+    actual_selected=$(jq -r '[.[] | .repositories[]?.name] | unique | sort | .[]' \
+      <<<"$selection")
+    expected_selected=$(printf '%s\n' "${selected_repos[@]}" | LC_ALL=C sort -u)
+    if [ "$actual_selected" != "$expected_selected" ]; then
+      echo "[ERROR] $name selected repositories differ from the expected pilot set" >&2
+      exit 1
+    fi
+    selected_list=$(printf '%s\n' "$expected_selected" | paste -sd, -)
+    printf '[OK] organisation variable %s=%s visibility=selected repositories=%s\n' \
+      "$name" "$expected" "$selected_list"
+  else
+    printf '[OK] organisation variable %s=%s visibility=all\n' "$name" "$expected"
+  fi
 }
 
 workflow_count=0

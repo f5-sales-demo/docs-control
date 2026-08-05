@@ -132,6 +132,12 @@ else
   fail 'privileged workflow behavior must match its API contract'
 fi
 
+if node "$REPO_ROOT/tests/antigravity-ci-feature-uat.mjs" "$REPO_ROOT"; then
+  pass 'Antigravity reviewer and translator feature behavior matches its trust contract'
+else
+  fail 'Antigravity reviewer and translator feature behavior must match its trust contract'
+fi
+
 if [ "$FAIL" -eq 0 ]; then
   printf 'PASS: privileged pull-request workflow contracts are secure\n'
 else

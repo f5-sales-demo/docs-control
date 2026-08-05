@@ -88,6 +88,14 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         run: |
           set -euo pipefail
+          test -n "${ANTIGRAVITY_TOKEN:-}" || {
+            echo "[review] ANTIGRAVITY_TOKEN is required" >&2
+            exit 1
+          }
+          test -n "${GCP_PROJECT_ID:-}" || {
+            echo "[review] GCP_PROJECT_ID is required" >&2
+            exit 1
+          }
           mkdir "$RUNNER_TEMP/review-artifact"
           dbus-run-session -- bash -euo pipefail <<'INNER'
           eval "$(printf '' | gnome-keyring-daemon --unlock --daemonize)"
@@ -151,9 +159,11 @@ jobs:
       contents: read
       pull-requests: write # publish an exact-head review comment
     env:
+      AGY_VERSION: "1.1.10"
       BASE_SHA: ${{ inputs.expected_base_sha }}
       HEAD_SHA: ${{ inputs.expected_head_sha }}
       PR_NUMBER: ${{ inputs.pr_number }}
+      WORKFLOW_SHA: ${{ github.workflow_sha }}
 
     steps:
       - name: Download review receipt
@@ -168,12 +178,14 @@ jobs:
         run: |
           set -euo pipefail
           report="$RUNNER_TEMP/review-artifact/report.json"
-          jq -e --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" --arg head "$HEAD_SHA" '
+          jq -e --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" \
+            --arg head "$HEAD_SHA" --arg workflow "$WORKFLOW_SHA" --arg version "$AGY_VERSION" '
             .receipt.repository == $repository and
             .receipt.base_sha == $base and
             .receipt.head_sha == $head and
+            .receipt.workflow_sha == $workflow and
+            .receipt.agy_version == $version and
             .receipt.model == "Gemini 3.6 Flash (High)" and
-            (.receipt.agy_version | type == "string") and
             (.receipt.tool_status | type == "number") and
             (.reviewer.findings | type == "array") and
             (.verifier.findings | type == "array")
