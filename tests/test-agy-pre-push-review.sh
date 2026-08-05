@@ -54,6 +54,9 @@ if [ -n "${FAKE_AGY_BUNDLE_CAPTURE:-}" ]; then
     fi
   done
 fi
+if [ "${FAKE_AGY_DELAY_CALL:-0}" -eq "$count" ]; then
+  sleep "${FAKE_AGY_DELAY_SECONDS:-2}"
+fi
 if [ "${FAKE_AGY_MALFORMED_CALL:-0}" -eq "$count" ]; then
   printf 'not-json\n'
 elif [ "${FAKE_AGY_BLOCK_CALL:-0}" -eq "$count" ]; then
@@ -101,6 +104,19 @@ if run_review "$WORK/bin:$PATH" env GATEWAY_TOKEN=private GITHUB_TOKEN=private \
   pass "two schema-validated Flash passes review a precomputed bundle without inherited credentials"
 else
   fail "clean branch receives two independent Antigravity passes" "$(cat "$WORK/output")"
+fi
+
+setup_repo
+if run_review "$WORK/bin:$PATH" env FAKE_AGY_DELAY_CALL=1 FAKE_AGY_DELAY_SECONDS=2 \
+  AGY_REVIEW_HEARTBEAT_SECONDS=1 &&
+  grep -q '\[review\] reviewer started; waiting for Antigravity' "$WORK/output" &&
+  grep -q '\[review\] reviewer still running (' "$WORK/output" &&
+  grep -q '\[review\] reviewer completed; validating structured output' "$WORK/output" &&
+  grep -q '\[review\] verifier started; waiting for Antigravity' "$WORK/output" &&
+  grep -q '\[review\] verifier completed; validating structured output' "$WORK/output"; then
+  pass "review wrapper emits phase start, heartbeat, and completion progress"
+else
+  fail "review wrapper emits unambiguous progress" "$(cat "$WORK/output")"
 fi
 
 setup_repo

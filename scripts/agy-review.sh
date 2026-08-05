@@ -98,6 +98,13 @@ done
   echo "[review] output schema is unavailable: $schema" >&2
   exit 1
 }
+heartbeat_seconds=${AGY_REVIEW_HEARTBEAT_SECONDS:-30}
+case "$heartbeat_seconds" in
+'' | 0 | *[!0-9]*)
+  echo "[review] AGY_REVIEW_HEARTBEAT_SECONDS must be a positive integer" >&2
+  exit 2
+  ;;
+esac
 
 target_description=""
 target_instructions=""
@@ -142,8 +149,18 @@ else
 fi
 
 work=$(mktemp -d "$repo_root/.agy-review.XXXXXX")
+agy_pid=""
+heartbeat_pid=""
 # shellcheck disable=SC2329 # invoked through the EXIT trap below
 cleanup() {
+  if [ -n "$heartbeat_pid" ]; then
+    kill "$heartbeat_pid" 2>/dev/null || true
+    wait "$heartbeat_pid" 2>/dev/null || true
+  fi
+  if [ -n "$agy_pid" ]; then
+    kill "$agy_pid" 2>/dev/null || true
+    wait "$agy_pid" 2>/dev/null || true
+  fi
   rm -rf -- "$work"
 }
 trap cleanup EXIT
@@ -162,16 +179,35 @@ if [ "$mode" = code ]; then
 fi
 
 invoke_agy() {
-  local prompt_file=$1 stream_file=$2 result_file=$3
-  if ! env -u GH_TOKEN -u GITHUB_TOKEN -u REPO_SETTINGS_TOKEN -u REPO_SYNC_TOKEN \
+  local phase=$1 prompt_file=$2 stream_file=$3 result_file=$4
+  local agy_status=0 started_at=$SECONDS
+  printf '[review] %s started; waiting for Antigravity (heartbeat every %ss)\n' \
+    "$phase" "$heartbeat_seconds" >&2
+  env -u GH_TOKEN -u GITHUB_TOKEN -u REPO_SETTINGS_TOKEN -u REPO_SYNC_TOKEN \
     -u GATEWAY_TOKEN -u GATEWAY_URL AGY_REVIEW_ACTIVE=1 \
     agy --new-project --sandbox --mode plan --disable-slash-commands \
     --model "Gemini 3.6 Flash (High)" \
     --output-format stream-json --json-schema "$schema" \
-    --print-timeout 25m --print "$(<"$prompt_file")" >"$stream_file"; then
+    --print-timeout 25m --print "$(<"$prompt_file")" >"$stream_file" &
+  agy_pid=$!
+  (
+    while sleep "$heartbeat_seconds"; do
+      kill -0 "$agy_pid" 2>/dev/null || exit 0
+      printf '[review] %s still running (%ss elapsed)\n' \
+        "$phase" "$((SECONDS - started_at))" >&2
+    done
+  ) &
+  heartbeat_pid=$!
+  wait "$agy_pid" || agy_status=$?
+  agy_pid=""
+  kill "$heartbeat_pid" 2>/dev/null || true
+  wait "$heartbeat_pid" 2>/dev/null || true
+  heartbeat_pid=""
+  if [ "$agy_status" -ne 0 ]; then
     echo "[review] Antigravity execution failed" >&2
     return 1
   fi
+  printf '[review] %s completed; validating structured output\n' "$phase" >&2
   if ! jq -s -e '
     [.[] | select(.event == "result")] as $results |
     if ($results | length) != 1 then error("expected one result event")
@@ -197,7 +233,7 @@ Paths in consumer_shell_tests.profiles are resolved under the named downstream r
 
 Review correctness, security, data loss, concurrency, rollback, maintainability, and privacy. Perform a dedicated semantic PII audit over changed inputs, schemas, fixtures, generated files, filenames, media metadata, logs, telemetry, errors, persistence, exports, and deletion. Never repeat a matched personal or infrastructure value; report only category, path, line, and redacted evidence. Classify confirmed PII and reproducible security/correctness defects as high or critical. Report only findings supported by repository evidence. Return only schema-valid JSON.
 EOF
-invoke_agy "$work/reviewer.prompt" "$work/reviewer.stream" "$work/reviewer.json"
+invoke_agy reviewer "$work/reviewer.prompt" "$work/reviewer.stream" "$work/reviewer.json"
 
 cat >"$work/verifier.prompt" <<EOF
 Act as a second independent Antigravity verifier for $target_description.
@@ -209,7 +245,7 @@ Do not execute repository test or lint suites, package builds, network commands,
 
 Paths in consumer_shell_tests.profiles are resolved under the named downstream repository checkout by scripts/run-consumer-shell-tests.sh, not under docs-control. Verify profile ownership and rollout evidence; local absence alone is not a defect.
 EOF
-invoke_agy "$work/verifier.prompt" "$work/verifier.stream" "$work/verifier.json"
+invoke_agy verifier "$work/verifier.prompt" "$work/verifier.stream" "$work/verifier.json"
 
 jq -n --slurpfile reviewer "$work/reviewer.json" --slurpfile verifier "$work/verifier.json" '{
   reviewer: $reviewer[0],
