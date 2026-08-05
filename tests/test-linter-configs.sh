@@ -452,11 +452,25 @@ fi
 KUBECONFORM_OPTIONS=$(grep -E \
   '^[[:space:]]*KUBERNETES_KUBECONFORM_OPTIONS:' "$SL_YML" || true)
 if printf '%s' "$KUBECONFORM_OPTIONS" |
-  grep -Fq "inputs.classify_xc_minimum_configs && '-ignore-filename-pattern=(^|/)tools/minimum-configs/' || ''"; then
+  grep -Fq "inputs.classify_xc_minimum_configs && '-ignore-filename-pattern=tools/minimum-configs/' || ''"; then
   pass "5e.6 XC classification affects only Kubeconform's filename set"
 else
   fail "5e.6 XC classification affects only Kubeconform's filename set" \
     "the fixed minimum-config path must be routed through KUBERNETES_KUBECONFORM_OPTIONS"
+fi
+
+KUBECONFORM_ARGUMENT=$(printf '%s\n' "$KUBECONFORM_OPTIONS" |
+  sed -nE "s/.*&& '([^']+)' \\|\\| ''.*/\\1/p")
+if [ -z "$KUBECONFORM_ARGUMENT" ]; then
+  fail "5e.6a Kubeconform options survive Super-Linter's shell reparse" \
+    "could not extract the enabled Kubeconform argument"
+elif bash -c \
+  'expected="$1"; shift; set -- kubeconform '"$KUBECONFORM_ARGUMENT"'; [ "$#" -eq 2 ] && [ "$2" = "$expected" ]' \
+  bash "$KUBECONFORM_ARGUMENT" 2>/dev/null; then
+  pass "5e.6a Kubeconform options survive Super-Linter's shell reparse"
+else
+  fail "5e.6a Kubeconform options survive Super-Linter's shell reparse" \
+    "the argument is not one shell-safe word after bash -c reparsing"
 fi
 
 FILTER_REGEX=$(grep -E '^[[:space:]]*FILTER_REGEX_EXCLUDE:' "$SL_YML" | head -1)

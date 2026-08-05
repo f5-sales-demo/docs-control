@@ -336,8 +336,10 @@ jobs:
           # F5 XC API objects also use top-level apiVersion and kind fields.
           # Super-Linter otherwise misclassifies their native YAML sources as
           # Kubernetes. Limit this option to Kubeconform so YAML and security
-          # validators still inspect every minimum configuration.
-          KUBERNETES_KUBECONFORM_OPTIONS: ${{ inputs.classify_xc_minimum_configs && '-ignore-filename-pattern=(^|/)tools/minimum-configs/' || '' }}
+          # validators still inspect every minimum configuration. Super-Linter
+          # reparses validator options through bash -c, so keep this regex free
+          # of shell metacharacters.
+          KUBERNETES_KUBECONFORM_OPTIONS: ${{ inputs.classify_xc_minimum_configs && '-ignore-filename-pattern=tools/minimum-configs/' || '' }}
           # tree-sitter-<grammar>/src/{parser,scanner}.c are either machine-
           # generated (parser.c from `tree-sitter generate`) or hand-written
           # to upstream tree-sitter conventions that do not match
