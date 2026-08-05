@@ -1,5 +1,5 @@
 {
-  "source_commit": "7cdc32872bacbd391511b4887761ae9830a6e8c7",
+  "source_commit": "55ae62a404638f630f55e7ff47abeb21cff402b5",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -158,8 +158,8 @@
     ".pre-commit-config.yaml": {
       "src": ".pre-commit-config.yaml",
       "dest": ".pre-commit-config.yaml",
-      "sha": "fd8c1d1cbee5f19a70dbe73150e86f2a3dd9c098",
-      "size": 12818,
+      "sha": "118a205aace0b8602b4f53db2dde820fa37174b0",
+      "size": 12908,
       "mode": "100644"
     },
     ".yamllint.yaml": {
