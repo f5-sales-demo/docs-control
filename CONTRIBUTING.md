@@ -192,26 +192,24 @@ work but do not review code, specs, plans, pull requests, or CI failures.
 | ----- | --------------- | --------- |
 | **Local document review** | A spec or implementation plan | Antigravity advisory gate |
 | **Local Antigravity review** | The committed branch diff before a PR push | Required workflow step |
-| **CI Antigravity review** | The exact pull-request head | Advisory after the controlled pilot |
+| **CI Antigravity review** | The exact pull-request head | Advisory automation |
 
 ### CI review
 
-The Gemini Antigravity reviewer remains disabled and fail-closed behind
-`ANTIGRAVITY_REVIEW_ENABLED` until docs-control#1016 is resolved.
-It is advisory and must not be added to required status contexts. Automated branches that bypass
-the linked-issue check are reserved for machine-generated work; the authoritative prefix list lives
-in `require-linked-issue.yml` and must never be used for human or agent work.
+The Gemini Antigravity reviewer is fail-closed behind the organisation variable
+`ANTIGRAVITY_REVIEW_ENABLED`. Its immutable runtime, exact-head and workflow receipts, separated
+model and publication credentials, and rejection paths are covered by executable security UAT.
+It is advisory and must not be added to required status contexts. Automated branches that bypass the
+linked-issue check are reserved for machine-generated work; the authoritative prefix list lives in
+`require-linked-issue.yml` and must never be used for human or agent work.
 
-#### Restoring Antigravity review
+#### Operating Antigravity review
 
-Keep the source gate in place. After docs-control#1016 is verified, create the organisation Actions
-variable `ANTIGRAVITY_REVIEW_ENABLED` with value `false`, remove any same-named repository variables,
-and keep the reusable and governed `workflow_dispatch` callers enabled. The scheduled/manual
-docs-control watcher dispatches only exact same-repository heads from trusted default-branch workflow
-definitions. Pilot with selected visibility and the literal value `true`; after a real pull request
-completes safely, expand visibility to every governed repository. Future toggles change only the
-organisation variable, never workflow state. The Antigravity CI review is advisory and must not be
-added to required status contexts.
+Keep the source gate in place, remove any same-named repository variables, and keep the reusable and
+governed `workflow_dispatch` callers enabled. The scheduled/manual docs-control watcher dispatches
+only exact same-repository heads from trusted default-branch workflow definitions. Future toggles
+change only the organisation variable, never workflow state. The Antigravity CI review is advisory
+and must not be added to required status contexts.
 
 ### Local review before a pull-request push
 
@@ -253,18 +251,19 @@ Local hooks validate translation structure and hashes but do not invoke a model.
 generation belongs to the governed Antigravity workflow so Claude and Codex never generate locale
 content and developer workstations do not duplicate automation work.
 
-GitHub Actions translation remains held until the security boundary in docs-control#1016 is fixed.
-Both the governed caller and reusable workflow fail closed unless the organisation variable
-`TRANSLATIONS_ENABLED` is the literal string `true`. The workflow files must remain enabled once the
-security fix lands; the organisation variable is the only runtime switch. Repository variables with
-the same name are forbidden because they override the organisation value.
+GitHub Actions translation is fail-closed unless the organisation variable `TRANSLATIONS_ENABLED`
+is the literal string `true`. Its immutable runtime, exact-head and workflow receipts, isolated model
+credentials, 12-locale validation, allowlisted patch, and guarded publication are covered by
+executable security UAT. The workflow files remain enabled; the organisation variable is the only
+runtime switch. Repository variables with the same name are forbidden because they override the
+organisation value.
 
 How the translation pipeline operates:
 
 | Part | Where | How it Works |
 | ---- | ----- | ------------ |
 | Local Translation | Pre-commit locale/hash validation | **Deterministic only.** Never invokes a model. |
-| Automated Translation | `.github/workflows/antigravity-translate.yml` — invokes `agy` on a GitHub Actions runner | **Security hold.** After docs-control#1016, the organisation variable controls execution. |
+| Automated Translation | `.github/workflows/antigravity-translate.yml` — invokes `agy` on a GitHub Actions runner | The organisation variable controls execution. |
 | Freshness Audit | `.github/workflows/translation-audit.yml` — compares each translation's `i18n.sourceHash` against English source SHA-256 | **Advisory when enabled.** It shares the Actions switch but is not a required context. |
 | Required Context | `audit / Translation freshness` in branch protection | **Not required.** Requiring a check while its job can skip would deadlock pull requests. |
 
@@ -293,7 +292,8 @@ boundary; configure no reviewers, wait timer, or deployment rule on it.
 
 3. Set selected visibility for a pilot same-repository documentation pull request. Set each desired
    variable to `true`, then require a completed Antigravity review and 12 validated locale outputs.
-   If the pilot fails, set the relevant variable to `false` before cancelling in-flight runs.
+   Verify the exact pilot scope with `--visibility selected --selected-repo <repository>`. If the
+   pilot fails, set the relevant variable to `false` before cancelling in-flight runs.
 
 4. Expand visibility to all governed repositories after the pilot. Future suspension changes only
    the organisation variable value and cancels any already-running jobs; workflow states remain
