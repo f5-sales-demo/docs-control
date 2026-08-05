@@ -971,30 +971,38 @@ else
 fi
 
 echo ""
-echo "=== Section 9: generated Dependabot updates enforce cooldown ==="
+echo "=== Section 9: generated Dependabot updates are worktree-isolated ==="
 
 awk '
-  /# --- Dynamic dependabot.yml generation/ { found=1 }
-  found { sub(/^              /, ""); print }
-  found && /printf .%b. .*DEPBOT.*generated_dependabot.yml/ { exit }
-' "$SYNC" >"$WORK/dependabot-generator.sh"
+  /^          render_dependabot_config\(\)/ { found=1 }
+  found {
+    line=$0
+    sub(/^          /, "")
+    print
+    if (line == "          }") exit
+  }
+' "$SYNC" >"$WORK/render-dependabot-config.sh"
 
-if [ -s "$WORK/dependabot-generator.sh" ]; then
-  pass "9.1 located the production Dependabot generator"
+if [ -s "$WORK/render-dependabot-config.sh" ]; then
+  pass "9.1 located the bounded production Dependabot renderer"
 else
-  fail "9.1 located the production Dependabot generator" \
-    "the workflow generator could not be extracted"
+  fail "9.1 located the bounded production Dependabot renderer" \
+    "the workflow renderer could not be extracted"
 fi
 
-DEPENDABOT_FIXTURE="$WORK/dependabot-fixture"
-mkdir -p "$DEPENDABOT_FIXTURE"
-touch "$DEPENDABOT_FIXTURE/package.json" \
-  "$DEPENDABOT_FIXTURE/requirements.txt" \
-  "$DEPENDABOT_FIXTURE/Dockerfile"
+GENERATED_DEPENDABOT="$WORK/dependabot.yml"
 
-if [ -s "$WORK/dependabot-generator.sh" ] &&
-  (cd "$DEPENDABOT_FIXTURE" && OWNER=f5-sales-demo bash "$WORK/dependabot-generator.sh") &&
-  python3 - /tmp/generated_dependabot.yml <<'PY'; then
+if [ -s "$WORK/render-dependabot-config.sh" ]; then
+  # shellcheck source=/dev/null
+  source "$WORK/render-dependabot-config.sh"
+  OWNER=f5-sales-demo
+  HAS_NPM=true
+  HAS_PIP=true
+  HAS_DOCKER=true
+  render_dependabot_config "$GENERATED_DEPENDABOT"
+fi
+
+if [ -f "$GENERATED_DEPENDABOT" ] && python3 - "$GENERATED_DEPENDABOT" <<'PY'; then
 import sys
 
 import yaml
@@ -1015,8 +1023,7 @@ else
 fi
 
 if command -v zizmor >/dev/null 2>&1; then
-  cp /tmp/generated_dependabot.yml "$WORK/dependabot.yml"
-  if zizmor --no-config --no-ignores "$WORK/dependabot.yml" >/dev/null 2>&1; then
+  if zizmor --no-config --no-ignores "$GENERATED_DEPENDABOT" >/dev/null 2>&1; then
     pass "9.3 generated Dependabot configuration passes Zizmor"
   else
     fail "9.3 generated Dependabot configuration passes Zizmor" \
@@ -1024,6 +1031,14 @@ if command -v zizmor >/dev/null 2>&1; then
   fi
 else
   echo "  SKIP: zizmor CLI not installed in this environment"
+fi
+
+GLOBAL_DEPENDABOT_FIXTURE="/tmp/generated_"'dependabot.yml'
+if ! grep -Fq "$GLOBAL_DEPENDABOT_FIXTURE" "$0"; then
+  pass "9.4 concurrent tests never share a global generated fixture"
+else
+  fail "9.4 concurrent tests never share a global generated fixture" \
+    "the test still reads or writes ${GLOBAL_DEPENDABOT_FIXTURE}"
 fi
 
 echo ""
