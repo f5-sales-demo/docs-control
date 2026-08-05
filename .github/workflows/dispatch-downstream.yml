@@ -56,7 +56,7 @@ jobs:
           GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
           REPO_SETTINGS_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
           REPO_SYNC_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}
-          PROVISION_REQUEST_DELAY_SECONDS: 1
+          PROVISION_REQUEST_DELAY_SECONDS: 2
           SOURCE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -207,11 +207,11 @@ jobs:
           done
           TOTAL=${#REPOS[@]}
           BATCH_SIZE=5
-          # Seven fan-out gaps consume 175 seconds. Combined with the 37
-          # one-second repository-secret inventory gaps, deterministic waits
-          # consume 212 seconds and leave 88 seconds of the runner's
+          # Seven fan-out gaps consume 140 seconds. Combined with the 37
+          # two-second repository-secret inventory gaps, deterministic waits
+          # consume 214 seconds and leave 86 seconds of the runner's
           # five-minute budget for API work and retries.
-          BATCH_DELAY=25
+          BATCH_DELAY=20
           echo "Dispatching enforce-repo-settings to ${TOTAL} repos (batches of ${BATCH_SIZE}, ${BATCH_DELAY}s delay)..."
 
           LOG=$(mktemp)

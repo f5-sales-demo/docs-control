@@ -46,8 +46,8 @@ RUNNER_BUDGET_SECONDS=300
 RUNNER_RESERVE_SECONDS=60
 check "inventory pacing and inter-batch sleeps leave 60s of the runner budget" \
   "[ '$SCHEDULED_SLEEP_SECONDS' -le '$((RUNNER_BUDGET_SECONDS - RUNNER_RESERVE_SECONDS))' ]"
-check "repository-secret inventory is paced at one request per second" \
-  "[ '$PROVISION_DELAY_VALUE' -eq 1 ]"
+check "repository-secret inventory stays below 30 requests per minute" \
+  "[ '$PROVISION_DELAY_VALUE' -eq 2 ]"
 
 # Retry-with-backoff preserved (2s → 4s → 8s).
 check "retry max=3 attempts" "grep -Eq 'max=3' '$WF'"
