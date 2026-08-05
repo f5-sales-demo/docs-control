@@ -50,12 +50,12 @@ done
 for document in AGENTS.md CLAUDE.md CONTRIBUTING.md; do
   contains "$REPO_ROOT/$document" 'scripts/agy-pre-push-review.sh' \
     "$document routes branch review to Antigravity"
-  if grep -qiE 'Claude, Codex|Claude or Codex|Codex review commands' "$REPO_ROOT/$document" &&
-    grep -qiE 'not reviewers|do not (use|review|substitute|invoke)|Prohibited' "$REPO_ROOT/$document"; then
-    pass "$document prohibits Claude/Codex semantic review"
-  else
-    fail "$document prohibits Claude/Codex semantic review" "explicit prohibition is missing"
-  fi
+  contains "$REPO_ROOT/$document" 'Route semantic review through Antigravity' \
+    "$document states the positive semantic-review route"
+  rejects "$REPO_ROOT/$document" 'not reviewers' \
+    "$document avoids negative semantic-review routing"
+  rejects "$REPO_ROOT/$document" 'Codex review commands' \
+    "$document avoids assistant-specific stopper prose"
 done
 contains "$REPO_ROOT/AGENTS.md" 'scripts/agy-review.sh document' \
   "AGENTS routes specs and plans directly to agy"

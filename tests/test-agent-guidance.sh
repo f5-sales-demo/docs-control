@@ -43,6 +43,9 @@ OPENAI_YAML="$REPO_ROOT/.agents/skills/demo-components/agents/openai.yaml"
 REPO_SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
 GOVERNANCE="$REPO_ROOT/.claude/governance.json"
 MANIFEST_WORKFLOW="$REPO_ROOT/.github/workflows/build-managed-files-manifest.yml"
+CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
+CONTRIBUTING_MD="$REPO_ROOT/CONTRIBUTING.md"
+PR_TEMPLATE="$REPO_ROOT/.github/PULL_REQUEST_TEMPLATE.md"
 
 echo ""
 echo "=== Section 1: AGENTS.md is slim and agent-neutral ==="
@@ -75,7 +78,37 @@ done
 assert_not_contains "$AGENTS_MD" "demo-components" "AGENTS.md keeps skills out of project instructions"
 
 echo ""
-echo "=== Section 2: managed-file governance covers Codex surfaces ==="
+echo "=== Section 2: agent guidance carries work through the protected-branch lifecycle ==="
+
+for file in "$AGENTS_MD" "$CLAUDE_MD" "$CONTRIBUTING_MD" "$PR_TEMPLATE"; do
+  relative=${file#"$REPO_ROOT"/}
+  for token in "detailed issue" "feature branch" "MERGED" "fleet convergence"; do
+    assert_contains "$file" "$token" "$relative carries lifecycle state: $token"
+  done
+done
+
+for file in "$AGENTS_MD" "$CLAUDE_MD" "$CONTRIBUTING_MD"; do
+  relative=${file#"$REPO_ROOT"/}
+  for token in "gh pr checks --watch" "BEHIND" "gh pr update-branch" "DIRTY" \
+    "gh pr merge --auto --squash"; do
+    assert_contains "$file" "$token" "$relative defines active PR handling: $token"
+  done
+done
+
+for token in \
+  "Never commit or push directly to the protected default branch" \
+  "After opening a PR, return control" \
+  "do not spend a coding-agent session polling GitHub Actions" \
+  "Do not poll or wait on GitHub Actions" \
+  "CI watched to green (not just queued)"; do
+  for file in "$AGENTS_MD" "$CLAUDE_MD" "$CONTRIBUTING_MD" "$PR_TEMPLATE"; do
+    relative=${file#"$REPO_ROOT"/}
+    assert_not_contains "$file" "$token" "$relative excludes legacy stopper: $token"
+  done
+done
+
+echo ""
+echo "=== Section 3: managed-file governance covers Codex surfaces ==="
 
 MANAGED_PATHS="AGENTS.md
 .agents/skills/demo-components/SKILL.md
@@ -118,7 +151,7 @@ assert_contains "$MANIFEST_WORKFLOW" "- 'AGENTS.md'" "manifest rebuild watches A
 assert_contains "$MANIFEST_WORKFLOW" "- '.agents/**'" "manifest rebuild watches shared skills"
 
 echo ""
-echo "=== Section 3: demo-components uses current progressive-discovery endpoints ==="
+echo "=== Section 4: demo-components uses current progressive-discovery endpoints ==="
 
 FRONTMATTER_KEYS=$(awk 'NR == 1 { next } /^---$/ { exit } /^[a-zA-Z0-9_-]+:/ { print $1 }' \
   "$SKILL_MD" | tr '\n' ' ')
