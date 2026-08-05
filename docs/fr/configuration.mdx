@@ -4,7 +4,7 @@ description: Référence de configuration centrale repo-settings.json pour l'app
 sidebar:
   order: 3
 i18n:
-  sourceHash: "6604310303ba"
+  sourceHash: "c71bd436ec77"
   translator: "machine"
 ---
 
@@ -49,7 +49,21 @@ Le fichier de configuration central pilote tout le comportement d'application, d
         ],
         "self_contexts": ["Check linked issues", "Lint Code Base", "Shell Unit Tests"]
       },
-      "required_pull_request_reviews": null,
+      "required_pull_request_reviews": {
+        "dismiss_stale_reviews": false,
+        "require_code_owner_reviews": false,
+        "required_approving_review_count": 0,
+        "require_last_push_approval": false,
+        "dismissal_restrictions": {
+          "users": [],
+          "teams": []
+        },
+        "bypass_pull_request_allowances": {
+          "users": [],
+          "teams": [],
+          "apps": []
+        }
+      },
       "restrictions": null,
       "required_linear_history": false,
       "allow_force_pushes": false,
@@ -122,7 +136,9 @@ Champs clés :
 - `required_status_checks.strict: true` -- les branches doivent être à jour avant la fusion
 - `required_status_checks.contexts` -- les noms de vérification que les dépôts en aval doivent valider (par exemple, `Check linked issues` et `lint / Shell Unit Tests`)
 - `required_status_checks.self_contexts` -- les noms de vérification que docs-control lui-même doit valider (par exemple, `Check linked issues` et `Shell Unit Tests`)
-- `required_pull_request_reviews: null` -- aucune approbation de revue de PR n'est requise
+- `required_pull_request_reviews` -- exige que toutes les modifications passent par une pull request tandis que
+  `required_approving_review_count: 0` maintient l'approbation humaine optionnelle ; les listes de rejet et de contournement
+  restent vides
 - `restrictions: null` -- aucune restriction de push au-delà de la protection des branches
 
 #### `contexts` par rapport à `self_contexts`

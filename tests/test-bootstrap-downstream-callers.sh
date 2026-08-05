@@ -51,7 +51,21 @@ cat >"$WORK/repo-settings.json" <<'EOF'
         ],
         "self_contexts": ["Check linked issues", "Lint Code Base", "Shell Unit Tests"]
       },
-      "required_pull_request_reviews": null,
+      "required_pull_request_reviews": {
+        "dismiss_stale_reviews": false,
+        "require_code_owner_reviews": false,
+        "required_approving_review_count": 0,
+        "require_last_push_approval": false,
+        "dismissal_restrictions": {
+          "users": [],
+          "teams": []
+        },
+        "bypass_pull_request_allowances": {
+          "users": [],
+          "teams": [],
+          "apps": []
+        }
+      },
       "restrictions": null,
       "required_linear_history": false,
       "allow_force_pushes": false,
@@ -581,7 +595,14 @@ case "$1 $endpoint" in
         .enforce_admins == true and
         .required_status_checks.strict == true and
         .required_status_checks.contexts == ["Example CI", "lint / Lint Code Base"] and
-        .required_pull_request_reviews == null and .restrictions == null and
+        .required_pull_request_reviews == {
+          dismiss_stale_reviews: false,
+          require_code_owner_reviews: false,
+          required_approving_review_count: 0,
+          require_last_push_approval: false,
+          dismissal_restrictions: {users: [], teams: []},
+          bypass_pull_request_allowances: {users: [], teams: [], apps: []}
+        } and .restrictions == null and
         .allow_force_pushes == false and .allow_deletions == false
       ' "$input" >/dev/null || exit 65
       cp "$input" "$FAKE_STATE/transition-protection.json"
@@ -594,7 +615,16 @@ case "$1 $endpoint" in
         $desired[0] | {
           enforce_admins:{enabled:.enforce_admins},
           required_status_checks:.required_status_checks,
-          required_pull_request_reviews:.required_pull_request_reviews,
+          required_pull_request_reviews:(.required_pull_request_reviews + {
+            url:"https://api.github.test/protection/required_pull_request_reviews",
+            dismissal_restrictions:(.required_pull_request_reviews.dismissal_restrictions + {
+              url:"https://api.github.test/protection/dismissal_restrictions"
+            }),
+            bypass_pull_request_allowances:
+              (.required_pull_request_reviews.bypass_pull_request_allowances + {
+                url:"https://api.github.test/protection/bypass_pull_request_allowances"
+              })
+          }),
           restrictions:.restrictions,
           required_linear_history:{enabled:.required_linear_history},
           allow_force_pushes:{enabled:.allow_force_pushes},
@@ -605,7 +635,7 @@ case "$1 $endpoint" in
           allow_fork_syncing:{enabled:.allow_fork_syncing}
         }'
     else
-      printf '%s\n' '{"enforce_admins":{"enabled":true},"required_status_checks":{"strict":true,"contexts":["Check linked issues","Example CI","lint / Lint Code Base"]},"required_pull_request_reviews":null,"restrictions":null,"required_linear_history":{"enabled":false},"allow_force_pushes":{"enabled":false},"allow_deletions":{"enabled":false},"block_creations":{"enabled":false},"required_conversation_resolution":{"enabled":false},"lock_branch":{"enabled":false},"allow_fork_syncing":{"enabled":false}}'
+      printf '%s\n' '{"enforce_admins":{"enabled":true},"required_status_checks":{"strict":true,"contexts":["Check linked issues","Example CI","lint / Lint Code Base"]},"required_pull_request_reviews":{"url":"https://api.github.test/protection/required_pull_request_reviews","dismiss_stale_reviews":false,"require_code_owner_reviews":false,"required_approving_review_count":0,"require_last_push_approval":false,"dismissal_restrictions":{"url":"https://api.github.test/protection/dismissal_restrictions","users":[],"teams":[]},"bypass_pull_request_allowances":{"url":"https://api.github.test/protection/bypass_pull_request_allowances","users":[],"teams":[],"apps":[]}},"restrictions":null,"required_linear_history":{"enabled":false},"allow_force_pushes":{"enabled":false},"allow_deletions":{"enabled":false},"block_creations":{"enabled":false},"required_conversation_resolution":{"enabled":false},"lock_branch":{"enabled":false},"allow_fork_syncing":{"enabled":false}}'
     fi
     ;;
   'api repos/f5-sales-demo/example')
@@ -1560,6 +1590,21 @@ if [ "$rc" = 0 ] || [ -s "$WORK/gh.log" ]; then
 fi
 echo "[OK] invalid required-check configuration is rejected before network access"
 
+jq '.branch_protection[0].required_pull_request_reviews = null' \
+  "$WORK/repo-settings.json" >"$WORK/repo-settings-null-pr-requirement.json"
+: >"$WORK/gh.log"
+set +e
+TEST_REPO_SETTINGS_CONFIG="$WORK/repo-settings-null-pr-requirement.json" \
+  run_bootstrap "$state" >/dev/null 2>&1
+rc=$?
+set -e
+unset TEST_REPO_SETTINGS_CONFIG
+if [ "$rc" = 0 ] || [ -s "$WORK/gh.log" ]; then
+  echo "[FAIL] null pull-request requirement was not rejected before network access"
+  exit 1
+fi
+echo "[OK] null pull-request requirement is rejected before network access"
+
 state="$WORK/state-internal-preflight-superseded"
 mkdir -p "$state"
 : >"$WORK/gh.log"
@@ -1866,7 +1911,7 @@ if [ "$rc" != 0 ] ||
   cat "$WORK/resume-first-repo-protection.err"
   exit 1
 fi
-echo "[OK] exact first-repository protection receipt resumes without replacement"
+echo "[OK] first-repository protection ignores response metadata and resumes without replacement"
 
 state="$WORK/state-recover-first-repo"
 mkdir -p "$state"
