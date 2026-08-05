@@ -971,6 +971,62 @@ else
 fi
 
 echo ""
+echo "=== Section 9: generated Dependabot updates enforce cooldown ==="
+
+awk '
+  /# --- Dynamic dependabot.yml generation/ { found=1 }
+  found { sub(/^              /, ""); print }
+  found && /printf .%b. .*DEPBOT.*generated_dependabot.yml/ { exit }
+' "$SYNC" >"$WORK/dependabot-generator.sh"
+
+if [ -s "$WORK/dependabot-generator.sh" ]; then
+  pass "9.1 located the production Dependabot generator"
+else
+  fail "9.1 located the production Dependabot generator" \
+    "the workflow generator could not be extracted"
+fi
+
+DEPENDABOT_FIXTURE="$WORK/dependabot-fixture"
+mkdir -p "$DEPENDABOT_FIXTURE"
+touch "$DEPENDABOT_FIXTURE/package.json" \
+  "$DEPENDABOT_FIXTURE/requirements.txt" \
+  "$DEPENDABOT_FIXTURE/Dockerfile"
+
+if [ -s "$WORK/dependabot-generator.sh" ] &&
+  (cd "$DEPENDABOT_FIXTURE" && OWNER=f5-sales-demo bash "$WORK/dependabot-generator.sh") &&
+  python3 - /tmp/generated_dependabot.yml <<'PY'; then
+import sys
+
+import yaml
+
+with open(sys.argv[1], encoding="utf-8") as generated:
+    config = yaml.safe_load(generated)
+
+updates = config.get("updates", [])
+expected = {"github-actions", "npm", "pip", "docker"}
+actual = {update.get("package-ecosystem") for update in updates}
+assert actual == expected, (actual, expected)
+assert all(update.get("cooldown", {}).get("default-days") == 7 for update in updates)
+PY
+  pass "9.2 every generated ecosystem has a seven-day default cooldown"
+else
+  fail "9.2 every generated ecosystem has a seven-day default cooldown" \
+    "the generated YAML is incomplete or has an unsafe cooldown"
+fi
+
+if command -v zizmor >/dev/null 2>&1; then
+  cp /tmp/generated_dependabot.yml "$WORK/dependabot.yml"
+  if zizmor --no-config --no-ignores "$WORK/dependabot.yml" >/dev/null 2>&1; then
+    pass "9.3 generated Dependabot configuration passes Zizmor"
+  else
+    fail "9.3 generated Dependabot configuration passes Zizmor" \
+      "Zizmor reported a security finding"
+  fi
+else
+  echo "  SKIP: zizmor CLI not installed in this environment"
+fi
+
+echo ""
 echo "════════════════════════════════════════════"
 echo "  Results: $PASS passed, $FAIL failed ($TESTS_RUN total)"
 echo "════════════════════════════════════════════"

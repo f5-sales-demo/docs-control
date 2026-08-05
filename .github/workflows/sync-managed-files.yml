@@ -956,18 +956,18 @@ jobs:
               done
 
               # Build dependabot.yml content
-              DEPBOT="---\nversion: 2\nupdates:\n  # --- GitHub Actions ---\n  - package-ecosystem: \"github-actions\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      actions-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+              DEPBOT="---\nversion: 2\nupdates:\n  # --- GitHub Actions ---\n  - package-ecosystem: \"github-actions\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      actions-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\"\n    cooldown:\n      default-days: 7"
 
               if [ "$HAS_NPM" = true ]; then
-                DEPBOT="${DEPBOT}\n\n  # --- npm ---\n  - package-ecosystem: \"npm\"\n    directory: \"/\"\n    schedule:\n      interval: \"daily\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      # First-party @${OWNER}/* packages: track latest daily, all update types\n      # (auto-merged once CI is green) so internal deps never drift behind.\n      f5-internal:\n        patterns:\n          - \"@${OWNER}/*\"\n        update-types:\n          - \"major\"\n          - \"minor\"\n          - \"patch\"\n      npm-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+                DEPBOT="${DEPBOT}\n\n  # --- npm ---\n  - package-ecosystem: \"npm\"\n    directory: \"/\"\n    schedule:\n      interval: \"daily\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      # First-party @${OWNER}/* packages: track latest daily, all update types\n      # (auto-merged once CI is green) so internal deps never drift behind.\n      f5-internal:\n        patterns:\n          - \"@${OWNER}/*\"\n        update-types:\n          - \"major\"\n          - \"minor\"\n          - \"patch\"\n      npm-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\"\n    cooldown:\n      default-days: 7"
               fi
 
               if [ "$HAS_PIP" = true ]; then
-                DEPBOT="${DEPBOT}\n\n  # --- pip ---\n  - package-ecosystem: \"pip\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      pip-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+                DEPBOT="${DEPBOT}\n\n  # --- pip ---\n  - package-ecosystem: \"pip\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 10\n    groups:\n      pip-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\"\n    cooldown:\n      default-days: 7"
               fi
 
               if [ "$HAS_DOCKER" = true ]; then
-                DEPBOT="${DEPBOT}\n\n  # --- Docker ---\n  - package-ecosystem: \"docker\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 5\n    groups:\n      docker-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\""
+                DEPBOT="${DEPBOT}\n\n  # --- Docker ---\n  - package-ecosystem: \"docker\"\n    directory: \"/\"\n    schedule:\n      interval: \"weekly\"\n      day: \"monday\"\n    commit-message:\n      prefix: \"chore(deps):\"\n    labels:\n      - \"dependencies\"\n    open-pull-requests-limit: 5\n    groups:\n      docker-minor-patch:\n        update-types:\n          - \"minor\"\n          - \"patch\"\n    cooldown:\n      default-days: 7"
               fi
 
               DEPBOT="${DEPBOT}\n"
