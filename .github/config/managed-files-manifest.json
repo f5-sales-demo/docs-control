@@ -1,5 +1,5 @@
 {
-  "source_commit": "a0a431dfae205b34a239afb2a7cd71c64a8b3a32",
+  "source_commit": "84c3b85793dc8060aacedad82f22855a9fccca68",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -88,8 +88,8 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "25626aad7e0182853dce719b5fdefe3d3cf9a3fc",
-      "size": 41960,
+      "sha": "422b11397985f05bd12dc2e1b03cd2745dde1498",
+      "size": 42553,
       "mode": "100644"
     },
     "CLAUDE.md": {
@@ -330,6 +330,13 @@
       "size": 1293,
       "mode": "100644"
     },
+    "scripts/github-api-resilience.cjs": {
+      "src": "scripts/github-api-resilience.cjs",
+      "dest": "scripts/github-api-resilience.cjs",
+      "sha": "3e8f5a53569286e9fddb220e6312724b630e7cdb",
+      "size": 11521,
+      "mode": "100644"
+    },
     "scripts/validate-translations.sh": {
       "src": "scripts/validate-translations.sh",
       "dest": "scripts/validate-translations.sh",
@@ -393,6 +400,13 @@
       "size": 6988,
       "mode": "100755"
     },
+    "tests/test-github-api-resilience.sh": {
+      "src": "tests/test-github-api-resilience.sh",
+      "dest": "tests/test-github-api-resilience.sh",
+      "sha": "eff984eb52619f4a3942de3046c013426f917594",
+      "size": 9901,
+      "mode": "100644"
+    },
     "tests/test-validate-translations.sh": {
       "src": "tests/test-validate-translations.sh",
       "dest": "tests/test-validate-translations.sh",
@@ -403,8 +417,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "f9ce9f5a9dce1442c71cffed0170434dec12ae16",
-      "size": 5779,
+      "sha": "23bbca704e726e86549b7d5c4ae41e9e68766247",
+      "size": 5863,
       "mode": "100644"
     },
     ".claude/settings.json": {
