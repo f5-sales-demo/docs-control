@@ -180,6 +180,27 @@ api_value_or_404() {
   return 1
 }
 
+branch_protection_state() {
+  local slug="$1" protection rc
+  set +e
+  protection=$(api_value_or_404 \
+    "repos/${slug}/branches/main/protection" '.' "$REPO_SETTINGS_TOKEN")
+  rc=$?
+  set -e
+  case "$rc" in
+  0)
+    if ! printf '%s' "$protection" | jq -e 'type == "object"' >/dev/null; then
+      echo "[ERROR] Branch-protection response is malformed for ${slug}" >&2
+      return 1
+    fi
+    printf 'protected'
+    ;;
+  44) printf 'unprotected' ;;
+  84) return 84 ;;
+  *) return 1 ;;
+  esac
+}
+
 retry() {
   local max="$1"
   shift
@@ -349,7 +370,34 @@ normalize_current_bootstrap_protection() {
 reconcile_first_repo_controls() {
   local name="$1" slug desired_repo current_repo verified_repo repo_payload verified_protection
   local desired_protection desired_state current_protection current_state rc protection_payload
+  local created_protection=false
   slug="${owner}/${name}"
+  desired_protection=$(first_transition_protection_for_repo "$name") || {
+    echo "[ERROR] Could not derive first-repository protection for ${slug}" >&2
+    return 1
+  }
+  desired_state=$(printf '%s' "$desired_protection" | normalize_desired_bootstrap_protection)
+  set +e
+  current_protection=$(api_value_or_404 \
+    "repos/${slug}/branches/main/protection" '.' "$REPO_SETTINGS_TOKEN")
+  rc=$?
+  set -e
+  case "$rc" in
+  0)
+    current_state=$(printf '%s' "$current_protection" | normalize_current_bootstrap_protection) || {
+      echo "[ERROR] Branch-protection response is malformed for ${slug}" >&2
+      return 1
+    }
+    if [ "$current_state" != "$desired_state" ]; then
+      echo "[ERROR] Refusing first-repository transition over existing protection for ${slug}" >&2
+      return 1
+    fi
+    ;;
+  44) current_state="" ;;
+  84) return 84 ;;
+  *) return 1 ;;
+  esac
+
   desired_repo=$(jq -c '{
     allow_squash_merge: .repository.allow_squash_merge,
     allow_auto_merge: .repository.allow_auto_merge,
@@ -380,34 +428,38 @@ reconcile_first_repo_controls() {
     return 1
   fi
 
-  desired_protection=$(first_transition_protection_for_repo "$name") || {
-    echo "[ERROR] Could not derive first-repository protection for ${slug}" >&2
-    return 1
-  }
-  desired_state=$(printf '%s' "$desired_protection" | normalize_desired_bootstrap_protection)
-  set +e
-  current_protection=$(api_value_or_404 \
-    "repos/${slug}/branches/main/protection" '.' "$REPO_SETTINGS_TOKEN")
-  rc=$?
-  set -e
-  case "$rc" in
-  0)
-    current_state=$(printf '%s' "$current_protection" | normalize_current_bootstrap_protection) || {
-      echo "[ERROR] Branch-protection response is malformed for ${slug}" >&2
-      return 1
-    }
-    ;;
-  44) current_state="" ;;
-  84) return 84 ;;
-  *) return 1 ;;
-  esac
-  if [ "$current_state" != "$desired_state" ]; then
+  if [ -z "$current_state" ]; then
+    set +e
+    current_protection=$(api_value_or_404 \
+      "repos/${slug}/branches/main/protection" '.' "$REPO_SETTINGS_TOKEN")
+    rc=$?
+    set -e
+    case "$rc" in
+    0)
+      current_state=$(printf '%s' "$current_protection" | normalize_current_bootstrap_protection) || {
+        echo "[ERROR] Branch-protection response is malformed for ${slug}" >&2
+        return 1
+      }
+      if [ "$current_state" != "$desired_state" ]; then
+        echo "[ERROR] Branch protection changed before first-repository creation for ${slug}" >&2
+        return 1
+      fi
+      ;;
+    44)
+      assert_source_current
+      protection_payload="$work/first-repo-protection-${name}.json"
+      printf '%s\n' "$desired_protection" >"$protection_payload"
+      GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
+        "repos/${slug}/branches/main/protection" --method PUT \
+        --input "$protection_payload" >/dev/null
+      created_protection=true
+      ;;
+    84) return 84 ;;
+    *) return 1 ;;
+    esac
+  fi
+  if [ "$created_protection" = true ]; then
     assert_source_current
-    protection_payload="$work/first-repo-protection-${name}.json"
-    printf '%s\n' "$desired_protection" >"$protection_payload"
-    GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
-      "repos/${slug}/branches/main/protection" --method PUT \
-      --input "$protection_payload" >/dev/null
   fi
   verified_protection=$(api_value_or_404 \
     "repos/${slug}/branches/main/protection" '.' "$REPO_SETTINGS_TOKEN") || return $?
@@ -1183,7 +1235,8 @@ echo "[OK] Downstream enforcement workflows are disabled with no active runs"
 
 bootstrap_one() {
   local name="$1" slug default_branch base_sha main_sha actual_blob actual_lint_blob
-  local actual_linked_blob rc branch_head branch_blob branch_lint_blob branch_linked_blob
+  local actual_linked_blob protection_state rc branch_head branch_blob branch_lint_blob
+  local branch_linked_blob
   local expected_change_count first_repo=false
   local branch manages_lint_caller=true lint_caller_exact=true
   local pr_number pr_url pr_body created_pr_number compare_file pr_file verified_head verified_blob
@@ -1262,6 +1315,13 @@ bootstrap_one() {
     [ "$lint_caller_exact" = true ] &&
     [ "$actual_linked_blob" = "$expected_linked_blob" ]; then
     return 0
+  fi
+  if [ "$first_repo" != true ]; then
+    protection_state=$(branch_protection_state "$slug") || return $?
+    if [ "$protection_state" = unprotected ]; then
+      echo "[ERROR] Unprotected main is not a pristine governed repository for ${slug}" >&2
+      return 1
+    fi
   fi
   expected_change_count=0
   [ "$actual_blob" = "$expected_blob" ] || expected_change_count=$((expected_change_count + 1))

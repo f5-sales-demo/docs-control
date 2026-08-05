@@ -178,7 +178,8 @@ case "$1 $endpoint" in
     printf '%s\n' "$BASE_SHA"
     ;;
   'api repos/f5-sales-demo/example/actions/workflows/enforce-repo-settings.yml')
-    if { [ "${FAKE_MISSING_WORKFLOW:-}" = 1 ] || [ "${FAKE_FIRST_REPO:-}" = 1 ]; } &&
+    if { [ "${FAKE_MISSING_WORKFLOW:-}" = 1 ] || [ "${FAKE_FIRST_REPO:-}" = 1 ] ||
+      [ "${FAKE_PROTECTED_EMPTY_CALLERS:-}" = 1 ]; } &&
       [ ! -f "$FAKE_STATE/merged" ]; then
       echo 'gh: Not Found (HTTP 404)' >&2
       exit 1
@@ -434,7 +435,11 @@ case "$1 $endpoint" in
       exit 1
     fi
     ref=${endpoint##*ref=}
-    if { [ "${FAKE_MISSING_WORKFLOW:-}" = 1 ] || [ "${FAKE_FIRST_REPO:-}" = 1 ]; } &&
+    if [ "${FAKE_FIRST_REPO_PARTIAL:-}" = 1 ] && [ ! -f "$FAKE_STATE/merged" ] &&
+      [ "$ref" != "$BRANCH_HEAD" ]; then
+      printf '%s\n' "$OLD_BLOB"
+    elif { [ "${FAKE_MISSING_WORKFLOW:-}" = 1 ] || [ "${FAKE_FIRST_REPO:-}" = 1 ] ||
+      [ "${FAKE_PROTECTED_EMPTY_CALLERS:-}" = 1 ]; } &&
       [ ! -f "$FAKE_STATE/merged" ] &&
       [ "$ref" != "$BRANCH_HEAD" ]; then
       echo 'gh: Not Found (HTTP 404)' >&2
@@ -456,7 +461,9 @@ case "$1 $endpoint" in
       exit 65
     fi
     ref=${endpoint##*ref=}
-    if [ "${FAKE_FIRST_REPO:-}" = 1 ] && [ ! -f "$FAKE_STATE/merged" ] &&
+    if { [ "${FAKE_FIRST_REPO:-}" = 1 ] ||
+      [ "${FAKE_PROTECTED_EMPTY_CALLERS:-}" = 1 ]; } &&
+      [ ! -f "$FAKE_STATE/merged" ] &&
       [ "$ref" != "$BRANCH_HEAD" ]; then
       echo 'gh: Not Found (HTTP 404)' >&2
       exit 1
@@ -475,7 +482,9 @@ case "$1 $endpoint" in
     ref=${endpoint##*ref=}
     if [ "${FAKE_BAD_RECOVER_LINKED:-}" = 1 ] && [ "$ref" = "$BRANCH_HEAD" ]; then
       printf '%s\n' "$OLD_BLOB"
-    elif [ "${FAKE_FIRST_REPO:-}" = 1 ] && [ ! -f "$FAKE_STATE/merged" ] &&
+    elif { [ "${FAKE_FIRST_REPO:-}" = 1 ] ||
+      [ "${FAKE_PROTECTED_EMPTY_CALLERS:-}" = 1 ]; } &&
+      [ ! -f "$FAKE_STATE/merged" ] &&
       [ "$ref" != "$BRANCH_HEAD" ]; then
       echo 'gh: Not Found (HTTP 404)' >&2
       exit 1
@@ -513,7 +522,7 @@ case "$1 $endpoint" in
     elif [ "${FAKE_FIRST_REPO:-}" = 1 ] && [ ! -f "$FAKE_STATE/protection-created" ]; then
       echo 'gh: Branch not protected (HTTP 404)' >&2
       exit 1
-    else
+    elif [ "${FAKE_FIRST_REPO:-}" = 1 ]; then
       jq -cn --slurpfile desired "$FAKE_STATE/transition-protection.json" '
         $desired[0] | {
           enforce_admins:{enabled:.enforce_admins},
@@ -528,6 +537,8 @@ case "$1 $endpoint" in
           lock_branch:{enabled:.lock_branch},
           allow_fork_syncing:{enabled:.allow_fork_syncing}
         }'
+    else
+      printf '%s\n' '{"enforce_admins":{"enabled":true},"required_status_checks":{"strict":true,"contexts":["Check linked issues","Example CI","lint / Lint Code Base"]},"required_pull_request_reviews":null,"restrictions":null,"required_linear_history":{"enabled":false},"allow_force_pushes":{"enabled":false},"allow_deletions":{"enabled":false},"block_creations":{"enabled":false},"required_conversation_resolution":{"enabled":false},"lock_branch":{"enabled":false},"allow_fork_syncing":{"enabled":false}}'
     fi
     ;;
   'api repos/f5-sales-demo/example')
@@ -837,6 +848,8 @@ run_bootstrap() {
     FAKE_LEGACY_LINKED_CHECK="${FAKE_LEGACY_LINKED_CHECK:-}" \
     FAKE_RECOVER_MERGED_TRANSITION="${FAKE_RECOVER_MERGED_TRANSITION:-}" \
     FAKE_FIRST_REPO="${FAKE_FIRST_REPO:-}" \
+    FAKE_FIRST_REPO_PARTIAL="${FAKE_FIRST_REPO_PARTIAL:-}" \
+    FAKE_PROTECTED_EMPTY_CALLERS="${FAKE_PROTECTED_EMPTY_CALLERS:-}" \
     FAKE_BAD_RECOVER_LINKED="${FAKE_BAD_RECOVER_LINKED:-}" \
     FAKE_FAIL_SECOND_BOOTSTRAP="${FAKE_FAIL_SECOND_BOOTSTRAP:-}" \
     REPO_SETTINGS_TOKEN=settings-token \
@@ -1610,6 +1623,48 @@ if [ "$rc" != 0 ] || [ ! -f "$state/legacy-canceled" ] ||
 fi
 echo "[OK] missing current workflow still inventories and cancels active legacy runs"
 
+state="$WORK/state-protected-empty-callers"
+mkdir -p "$state"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
+FAKE_PROTECTED_EMPTY_CALLERS=1
+set +e
+run_bootstrap "$state" >"$WORK/protected-empty-callers.out" \
+  2>"$WORK/protected-empty-callers.err"
+rc=$?
+set -e
+unset FAKE_PROTECTED_EMPTY_CALLERS
+if [ "$rc" = 0 ] ||
+  grep -qE 'repos/f5-sales-demo/example --method PATCH|branches/main/protection --method PUT|git/refs --method POST|contents/.* --method PUT|^pr (create|merge)' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] protected callerless repository entered the first-repository transition"
+  cat "$WORK/protected-empty-callers.err"
+  exit 1
+fi
+echo "[OK] existing protection cannot be replaced by the first-repository transition"
+
+state="$WORK/state-unprotected-partial-callers"
+mkdir -p "$state"
+: >"$WORK/gh.log"
+FAKE_FIRST_REPO=1
+FAKE_FIRST_REPO_PARTIAL=1
+set +e
+run_bootstrap "$state" >"$WORK/unprotected-partial-callers.out" \
+  2>"$WORK/unprotected-partial-callers.err"
+rc=$?
+set -e
+unset FAKE_FIRST_REPO FAKE_FIRST_REPO_PARTIAL
+if [ "$rc" = 0 ] ||
+  grep -qE 'repos/f5-sales-demo/example --method PATCH|branches/main/protection --method PUT|git/refs --method POST|contents/.* --method PUT|^pr (create|merge)' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] unprotected partial caller set entered a bootstrap mutation"
+  cat "$WORK/unprotected-partial-callers.err"
+  exit 1
+fi
+echo "[OK] unprotected partial caller set fails before bootstrap mutation"
+
 state="$WORK/state-first-repo"
 mkdir -p "$state"
 : >"$WORK/gh.log"
@@ -1647,6 +1702,32 @@ if [ "$rc" != 0 ] || [ -z "$protection_line" ] || [ -z "$merge_line" ] ||
   exit 1
 fi
 echo "[OK] first governed repository installs three exact callers before restoring protection"
+
+state="$WORK/state-resume-first-repo-protection"
+mkdir -p "$state"
+touch "$state/protection-created"
+cp "$WORK/state-first-repo/transition-protection.json" \
+  "$state/transition-protection.json"
+: >"$WORK/gh.log"
+DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
+FAKE_FIRST_REPO=1
+FAKE_MERGE_LANDS=1
+set +e
+run_bootstrap "$state" >"$WORK/resume-first-repo-protection.out" \
+  2>"$WORK/resume-first-repo-protection.err"
+rc=$?
+set -e
+unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINKED_BLOB FAKE_FIRST_REPO FAKE_MERGE_LANDS
+if [ "$rc" != 0 ] ||
+  grep -q 'branches/main/protection --method PUT' "$WORK/gh.log" ||
+  ! grep -q '^pr merge ' "$WORK/gh.log" ||
+  ! grep -q 'require-linked-issue.yml/dispatches --method POST' "$WORK/gh.log"; then
+  echo "[FAIL] exact first-repository protection receipt did not resume safely"
+  cat "$WORK/resume-first-repo-protection.err"
+  exit 1
+fi
+echo "[OK] exact first-repository protection receipt resumes without replacement"
 
 state="$WORK/state-recover-first-repo"
 mkdir -p "$state"
