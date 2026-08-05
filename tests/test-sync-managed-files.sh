@@ -48,7 +48,7 @@ else
     "extraction produced nothing; the assertions below would be vacuous"
 fi
 
-if grep -q 'gh pr close' "$WORK/existing_pr_block.txt"; then
+if grep -q 'pulls/${EXISTING_PR}' "$WORK/existing_pr_block.txt"; then
   pass "1.2 the existing-PR path retires the superseded automation PR"
 else
   fail "1.2 the existing-PR path retires the superseded automation PR" \
@@ -91,8 +91,9 @@ else
     "the workflow still depends on a shared mutable automation branch"
 fi
 
-if grep -q 'gh pr close "$EXISTING_PR"' "$SYNC" &&
-  grep -q -- '--comment "Superseded by exact managed-file receipt' "$SYNC"; then
+if grep -q 'CLOSE_PR_JSON=.*state.*closed' "$SYNC" &&
+  grep -q 'pulls/${EXISTING_PR}.*--method PATCH' \
+    <(perl -0pe 's/\\\n\s*/ /g' "$SYNC"); then
   pass "3.2 a proved prior automation PR is closed before replacement"
 else
   fail "3.2 a proved prior automation PR is closed before replacement" \
@@ -100,7 +101,7 @@ else
 fi
 
 if ! grep -qE '"force": *(true|\$force)|base_override' "$SYNC" &&
-  grep -q -- '--base main' "$SYNC"; then
+  grep -q 'base:"main"' "$SYNC"; then
   pass "3.3 sync branch updates are non-force and PR base is explicit"
 else
   fail "3.3 sync branch updates are non-force and PR base is explicit" \
@@ -691,7 +692,8 @@ fi
 echo ""
 echo "=== Section 8: protected-source and exact mutation receipts ==="
 
-if grep -q -- '--match-head-commit "$expected_sha"' "$SYNC" &&
+if grep -q 'MERGE_JSON=.*--arg sha "$expected_sha"' "$SYNC" &&
+  grep -q 'pulls/${pr_num}/merge' "$SYNC" &&
   grep -q -- '--match-head-commit "$EXPECTED_HEAD"' "$MANIFEST_BUILDER"; then
   pass "8.1 every sync and manifest merge is bound to its verified head"
 else

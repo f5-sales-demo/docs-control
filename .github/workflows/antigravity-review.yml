@@ -49,16 +49,33 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Validate exact pull-request head
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const path = require('path');
+            const {readPrimaryRateLimit, retryGitHub} = require(
+              path.join(process.env.GITHUB_WORKSPACE, 'scripts/github-api-resilience.cjs'),
+            );
+            const pullNumber = Number(process.env.PR_NUMBER);
+            const response = await retryGitHub(
+              () => github.rest.pulls.get({...context.repo, pull_number: pullNumber}),
+              {
+                operationName: `validate review head ${process.env.HEAD_SHA}`,
+                totalWaitBudgetSeconds: 420,
+                readPrimaryRateLimit: () => readPrimaryRateLimit({request: github.request}),
+              },
+            );
+            const pull = response.data;
+            if (pull.head.repo.full_name !== process.env.GITHUB_REPOSITORY ||
+                pull.base.sha !== process.env.BASE_SHA || pull.head.sha !== process.env.HEAD_SHA) {
+              throw new Error('pull request no longer matches the exact review receipt');
+            }
+
       - name: Fetch exact pull-request head as data
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$BASE_SHA"
-          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" >"$RUNNER_TEMP/pull.json"
-          jq -e --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" --arg head "$HEAD_SHA" '
-            .head.repo.full_name == $repository and .base.sha == $base and .head.sha == $head
-          ' "$RUNNER_TEMP/pull.json" >/dev/null
           git fetch --no-tags origin "+refs/pull/${PR_NUMBER}/head:refs/agy/pr-head"
           test "$(git rev-parse refs/agy/pr-head)" = "$HEAD_SHA"
           tool_dir="$RUNNER_TEMP/agy-review-tool"
@@ -166,15 +183,19 @@ jobs:
       WORKFLOW_SHA: ${{ github.workflow_sha }}
 
     steps:
+      - name: Checkout trusted retry helper
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_base_sha }}
+          persist-credentials: false
+
       - name: Download review receipt
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: antigravity-review-${{ inputs.expected_head_sha }}
           path: ${{ runner.temp }}/review-artifact
 
-      - name: Validate receipt and exact current head
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Validate receipt
         run: |
           set -euo pipefail
           report="$RUNNER_TEMP/review-artifact/report.json"
@@ -190,10 +211,29 @@ jobs:
             (.reviewer.findings | type == "array") and
             (.verifier.findings | type == "array")
           ' "$report" >/dev/null
-          gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" >"$RUNNER_TEMP/current-pull.json"
-          jq -e --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" --arg head "$HEAD_SHA" '
-            .head.repo.full_name == $repository and .base.sha == $base and .head.sha == $head
-          ' "$RUNNER_TEMP/current-pull.json" >/dev/null
+
+      - name: Validate exact current head
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const path = require('path');
+            const {readPrimaryRateLimit, retryGitHub} = require(
+              path.join(process.env.GITHUB_WORKSPACE, 'scripts/github-api-resilience.cjs'),
+            );
+            const pullNumber = Number(process.env.PR_NUMBER);
+            const response = await retryGitHub(
+              () => github.rest.pulls.get({...context.repo, pull_number: pullNumber}),
+              {
+                operationName: `revalidate review head ${process.env.HEAD_SHA}`,
+                totalWaitBudgetSeconds: 420,
+                readPrimaryRateLimit: () => readPrimaryRateLimit({request: github.request}),
+              },
+            );
+            const pull = response.data;
+            if (pull.head.repo.full_name !== process.env.GITHUB_REPOSITORY ||
+                pull.base.sha !== process.env.BASE_SHA || pull.head.sha !== process.env.HEAD_SHA) {
+              throw new Error('pull request no longer matches the exact review receipt');
+            }
 
       - name: Publish deduplicated review comment
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -202,6 +242,10 @@ jobs:
         with:
           script: |
             const fs = require('fs');
+            const path = require('path');
+            const {readPrimaryRateLimit, retryGitHub} = require(
+              path.join(process.env.GITHUB_WORKSPACE, 'scripts/github-api-resilience.cjs'),
+            );
             const report = JSON.parse(fs.readFileSync(process.env.REPORT_PATH, 'utf8'));
             const pullNumber = Number(process.env.PR_NUMBER);
             if (!Number.isSafeInteger(pullNumber) || pullNumber < 1) {
@@ -214,21 +258,35 @@ jobs:
               [...report.reviewer.findings, ...report.verifier.findings]
                 .map((finding) => [findingKey(finding), finding]),
             ).values()];
-            const marker = '<!-- antigravity-pr-review -->';
+            const marker = `<!-- antigravity-pr-review:${report.receipt.head_sha} -->`;
             const blocking = findings.filter((finding) => ['critical', 'high'].includes(finding.severity));
             const lines = [marker, '## Antigravity PR review', '', `Head: \`${report.receipt.head_sha}\``, `Model: ${report.receipt.model}`, ''];
             lines.push(blocking.length ? `Blocking findings: ${blocking.length}` : 'No critical or high findings remain.');
             for (const finding of findings) {
               lines.push('', `- **${finding.severity.toUpperCase()}** ${finding.title} — \`${finding.file}:${finding.line_start}\``, `  ${finding.body}`);
             }
-            const comments = await github.paginate(github.rest.issues.listComments, {...context.repo, issue_number: pullNumber, per_page: 100});
-            const previous = comments.find((comment) => comment.user?.type === 'Bot' && comment.body?.includes(marker));
             const body = lines.join('\n');
-            if (previous) {
-              await github.rest.issues.updateComment({...context.repo, comment_id: previous.id, body});
-            } else {
-              await github.rest.issues.createComment({...context.repo, issue_number: pullNumber, body});
-            }
+            await retryGitHub(async () => {
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                ...context.repo,
+                issue_number: pullNumber,
+                per_page: 100,
+              });
+              const previous = comments.find((comment) =>
+                comment.user?.type === 'Bot' && comment.body?.includes(marker));
+              if (previous) {
+                return github.rest.issues.updateComment({...context.repo, comment_id: previous.id, body});
+              }
+              return github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: pullNumber,
+                body,
+              });
+            }, {
+              operationName: `publish exact-head review ${report.receipt.head_sha}`,
+              totalWaitBudgetSeconds: 420,
+              readPrimaryRateLimit: () => readPrimaryRateLimit({request: github.request}),
+            });
 
       - name: Enforce Antigravity gate
         run: |

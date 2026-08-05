@@ -187,6 +187,7 @@ if jq -e '
     "tests/test-check-pii.sh",
     "tests/test-check-repo-hygiene.sh",
     "tests/test-fetch-governed.sh",
+    "tests/test-github-api-resilience.sh",
     "tests/test-hook-neutralization.sh",
     "tests/test-inlined-helpers-match.sh",
     "tests/test-lint-mdx-prose.sh",
