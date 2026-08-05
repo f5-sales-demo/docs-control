@@ -312,13 +312,14 @@ jobs:
             'Do not review code, edit files, contact GitHub, or infer missing secrets.' \
             'Classify likely cause, cite only redacted evidence, and give the smallest next action.' \
             'Return one schema-valid entry for every JSON header in the failure logs.')
-          env -u GH_TOKEN -u GITHUB_TOKEN -u GATEWAY_TOKEN -u GATEWAY_URL \
-            agy --new-project --sandbox --mode plan --disable-slash-commands \
-            --add-dir "$RUNNER_TEMP/fleet-watch" \
-            --model "Gemini 3.6 Flash (High)" \
-            --output-format stream-json \
-            --json-schema "$GITHUB_WORKSPACE/scripts/agy-triage-output.schema.json" \
-            --print-timeout 25m --print "$prompt" >"$RUNNER_TEMP/triage.stream"
+          scripts/run-with-progress.sh --phase fleet-triage -- \
+            env -u GH_TOKEN -u GITHUB_TOKEN -u GATEWAY_TOKEN -u GATEWAY_URL \
+              agy --new-project --sandbox --mode plan --disable-slash-commands \
+              --add-dir "$RUNNER_TEMP/fleet-watch" \
+              --model "Gemini 3.6 Flash (High)" \
+              --output-format stream-json \
+              --json-schema "$GITHUB_WORKSPACE/scripts/agy-triage-output.schema.json" \
+              --print-timeout 25m --print "$prompt" >"$RUNNER_TEMP/triage.stream"
           jq -s -e '
             [.[] | select(.event == "result")] as $results |
             if ($results | length) != 1 then error("expected one result event")

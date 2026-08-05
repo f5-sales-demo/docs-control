@@ -350,6 +350,10 @@
         "dest": "scripts/agy-review-output.schema.json"
       },
       {
+        "src": "scripts/run-with-progress.sh",
+        "dest": "scripts/run-with-progress.sh"
+      },
+      {
         "src": "scripts/github-api-resilience.cjs",
         "dest": "scripts/github-api-resilience.cjs"
       },

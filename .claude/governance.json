@@ -70,6 +70,7 @@
     "scripts/agy-pre-push-review.sh",
     "scripts/agy-review.sh",
     "scripts/agy-review-output.schema.json",
+    "scripts/run-with-progress.sh",
     "scripts/github-api-resilience.cjs",
     "scripts/agy-triage-output.schema.json",
     "scripts/redact_automation_log.py",

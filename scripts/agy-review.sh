@@ -87,6 +87,7 @@ repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || {
 cd "$repo_root"
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 schema="$script_dir/agy-review-output.schema.json"
+progress_runner="$script_dir/run-with-progress.sh"
 
 for command in agy jq; do
   command -v "$command" >/dev/null 2>&1 || {
@@ -98,13 +99,10 @@ done
   echo "[review] output schema is unavailable: $schema" >&2
   exit 1
 }
-heartbeat_seconds=${AGY_REVIEW_HEARTBEAT_SECONDS:-30}
-case "$heartbeat_seconds" in
-'' | 0 | *[!0-9]*)
-  echo "[review] AGY_REVIEW_HEARTBEAT_SECONDS must be a positive integer" >&2
-  exit 2
-  ;;
-esac
+[ -x "$progress_runner" ] || {
+  echo "[review] progress runner is unavailable: $progress_runner" >&2
+  exit 1
+}
 
 target_description=""
 target_instructions=""
@@ -124,7 +122,8 @@ if [ "$mode" = code ]; then
     exit 0
   fi
   if [ "${AGY_REVIEW_SKIP_LOCAL_PII:-0}" != "1" ] && [ -x scripts/check-pii.sh ]; then
-    bash scripts/check-pii.sh --scope head --mode enforce
+    "$progress_runner" --phase pii-preflight -- \
+      bash scripts/check-pii.sh --scope head --mode enforce
   fi
   target_description="branch range ${base_sha}...${head_sha}"
 else
@@ -149,18 +148,8 @@ else
 fi
 
 work=$(mktemp -d "$repo_root/.agy-review.XXXXXX")
-agy_pid=""
-heartbeat_pid=""
 # shellcheck disable=SC2329 # invoked through the EXIT trap below
 cleanup() {
-  if [ -n "$heartbeat_pid" ]; then
-    kill "$heartbeat_pid" 2>/dev/null || true
-    wait "$heartbeat_pid" 2>/dev/null || true
-  fi
-  if [ -n "$agy_pid" ]; then
-    kill "$agy_pid" 2>/dev/null || true
-    wait "$agy_pid" 2>/dev/null || true
-  fi
   rm -rf -- "$work"
 }
 trap cleanup EXIT
@@ -180,30 +169,13 @@ fi
 
 invoke_agy() {
   local phase=$1 prompt_file=$2 stream_file=$3 result_file=$4
-  local agy_status=0 started_at=$SECONDS
-  printf '[review] %s started; waiting for Antigravity (heartbeat every %ss)\n' \
-    "$phase" "$heartbeat_seconds" >&2
-  env -u GH_TOKEN -u GITHUB_TOKEN -u REPO_SETTINGS_TOKEN -u REPO_SYNC_TOKEN \
+  if ! "$progress_runner" --phase "$phase" -- \
+    env -u GH_TOKEN -u GITHUB_TOKEN -u REPO_SETTINGS_TOKEN -u REPO_SYNC_TOKEN \
     -u GATEWAY_TOKEN -u GATEWAY_URL AGY_REVIEW_ACTIVE=1 \
     agy --new-project --sandbox --mode plan --disable-slash-commands \
     --model "Gemini 3.6 Flash (High)" \
     --output-format stream-json --json-schema "$schema" \
-    --print-timeout 25m --print "$(<"$prompt_file")" >"$stream_file" &
-  agy_pid=$!
-  (
-    while sleep "$heartbeat_seconds"; do
-      kill -0 "$agy_pid" 2>/dev/null || exit 0
-      printf '[review] %s still running (%ss elapsed)\n' \
-        "$phase" "$((SECONDS - started_at))" >&2
-    done
-  ) &
-  heartbeat_pid=$!
-  wait "$agy_pid" || agy_status=$?
-  agy_pid=""
-  kill "$heartbeat_pid" 2>/dev/null || true
-  wait "$heartbeat_pid" 2>/dev/null || true
-  heartbeat_pid=""
-  if [ "$agy_status" -ne 0 ]; then
+    --print-timeout 25m --print "$(<"$prompt_file")" >"$stream_file"; then
     echo "[review] Antigravity execution failed" >&2
     return 1
   fi

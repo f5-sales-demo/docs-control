@@ -250,6 +250,13 @@ closed. Each phase emits an immediate start marker, a periodic stderr heartbeat,
 marker so automation can distinguish a live silent model call from a finished review. This managed
 command is the semantic-review route.
 
+Every Antigravity model phase uses `scripts/run-with-progress.sh`. It emits a line-oriented
+`[PROGRESS]` record every 30 seconds with the component, phase, state, elapsed seconds, heartbeat
+interval, and UTC timestamp, followed by a terminal record with the real exit code. GitHub Actions
+streams those records into the live log while retaining the diagnostic log, and appends one terminal
+Markdown record to `GITHUB_STEP_SUMMARY`. Heartbeats report liveness only: the model print timeout
+and the workflow's `timeout-minutes` remain the authoritative execution bounds.
+
 Branch review is mandatory before every push that opens or updates a pull request:
 
 ```bash

@@ -44,7 +44,9 @@ assert_contains() {
 run_selector() {
   local root="$1" config="$2" repository="$3"
   LAST_RC=0
-  LAST_OUTPUT=$(TEST_LOG="${root}/executed.log" bash "$RUNNER" \
+  LAST_OUTPUT=$(GITHUB_EVENT_NAME="${SELECTOR_EVENT_NAME:-}" \
+    GITHUB_HEAD_REF="${SELECTOR_HEAD_REF:-}" \
+    TEST_LOG="${root}/executed.log" bash "$RUNNER" \
     --root "$root" --config "$config" --repository "$repository" 2>&1) || LAST_RC=$?
 }
 
@@ -133,6 +135,79 @@ write_probe "$root" test-unit.sh
 run_selector "$root" "$config" f5-sales-demo/profiled
 assert_rc 1 "missing classified test fails the profile"
 assert_contains "inventory does not match" "missing-test failure explains the drift"
+
+# Exact-caller bootstrap can precede managed-file delivery. Only a missing test
+# declared by the canonical managed-file inventory may be deferred, and only on
+# the strictly formed generated receipt branch.
+bootstrap_branch="sync/exact-caller-$(printf 'a%.0s' {1..120})"
+config=$(write_config bootstrap-managed '{
+  "managed_files": {
+    "files": [
+      {"src":"tests/test-managed.sh","dest":"tests/test-managed.sh"}
+    ],
+    "skip_files": {}
+  },
+  "consumer_shell_tests": {
+    "profiles": {
+      "bootstrap-managed": {
+        "unit": [
+          {"path":"tests/test-present.sh","args":[]},
+          {"path":"tests/test-managed.sh","args":[]}
+        ],
+        "environment": []
+      }
+    }
+  }
+}')
+
+root=$(new_root bootstrap-managed)
+write_probe "$root" test-present.sh
+SELECTOR_EVENT_NAME=pull_request SELECTOR_HEAD_REF="$bootstrap_branch" \
+  run_selector "$root" "$config" f5-sales-demo/bootstrap-managed
+assert_rc 0 "exact-caller bootstrap defers a missing canonically managed test"
+assert_contains "Deferring managed test until synchronization: tests/test-managed.sh" \
+  "managed-test deferral is visible"
+actual=$(cat "${root}/executed.log" 2>/dev/null || true)
+if [ "$actual" = "test-present.sh:" ]; then
+  pass "bootstrap transition still runs every present unit test"
+else
+  fail "bootstrap transition still runs every present unit test" "got: $actual"
+fi
+
+SELECTOR_EVENT_NAME=pull_request SELECTOR_HEAD_REF=feature/not-generated \
+  run_selector "$root" "$config" f5-sales-demo/bootstrap-managed
+assert_rc 1 "ordinary pull requests cannot defer a managed test"
+assert_contains "inventory does not match" "ordinary pull request stays fail-closed"
+
+config=$(write_config bootstrap-unmanaged '{
+  "managed_files": {"files": [], "skip_files": {}},
+  "consumer_shell_tests": {
+    "profiles": {
+      "bootstrap-unmanaged": {
+        "unit": [
+          {"path":"tests/test-present.sh","args":[]},
+          {"path":"tests/test-unmanaged.sh","args":[]}
+        ],
+        "environment": []
+      }
+    }
+  }
+}')
+root=$(new_root bootstrap-unmanaged)
+write_probe "$root" test-present.sh
+SELECTOR_EVENT_NAME=pull_request SELECTOR_HEAD_REF="$bootstrap_branch" \
+  run_selector "$root" "$config" f5-sales-demo/bootstrap-unmanaged
+assert_rc 1 "exact-caller bootstrap cannot defer an unmanaged test"
+assert_contains "inventory does not match" "unmanaged missing test stays fail-closed"
+
+root=$(new_root bootstrap-extra)
+write_probe "$root" test-present.sh
+write_probe "$root" test-unclassified.sh
+SELECTOR_EVENT_NAME=pull_request SELECTOR_HEAD_REF="$bootstrap_branch" \
+  run_selector "$root" "$config" f5-sales-demo/bootstrap-unmanaged
+assert_rc 1 "exact-caller bootstrap cannot hide an unclassified test"
+assert_contains "inventory does not match" "extra test stays fail-closed during bootstrap"
+unset SELECTOR_EVENT_NAME SELECTOR_HEAD_REF
 
 # Duplicate and unsafe paths are rejected even if the inventory could otherwise match.
 root=$(new_root duplicate)

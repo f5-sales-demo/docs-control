@@ -63,6 +63,8 @@ contains "$REPO_ROOT/CLAUDE.md" 'scripts/agy-review.sh document' \
   "CLAUDE routes specs and plans directly to agy"
 contains "$REPO_ROOT/CONTRIBUTING.md" 'scripts/agy-review.sh document' \
   "CONTRIBUTING routes specs and plans directly to agy"
+contains "$REPO_ROOT/scripts/agy-review.sh" '--phase pii-preflight' \
+  "Antigravity review reports deterministic PII preflight progress"
 
 for mapping in \
   'workflows/code-review.yml|.github/workflows/code-review.yml' \
@@ -86,6 +88,7 @@ MANAGED_REVIEW_FILES=(
   scripts/agy-pre-push-review.sh
   scripts/agy-review.sh
   scripts/agy-review-output.schema.json
+  scripts/run-with-progress.sh
   scripts/validate-translations.sh
   tests/test-agy-pre-push-review.sh
   tests/test-validate-translations.sh
@@ -120,6 +123,18 @@ rejects "$REVIEW_WORKFLOW" 'context.issue.number' \
   "Antigravity reusable workflow does not depend on event issue context"
 contains "$REVIEW_WORKFLOW" 'const findings = [...new Map(' \
   "Antigravity review comments deduplicate independently verified findings"
+contains "$REVIEW_WORKFLOW" 'cp scripts/agy-review.sh scripts/run-with-progress.sh' \
+  "Antigravity review captures the trusted progress runner before head checkout"
+contains "$REVIEW_WORKFLOW" '2>&1 | tee "$RUNNER_TEMP/review.log"' \
+  "Antigravity review streams live progress while retaining its diagnostic log"
+
+TRANSLATION_WORKFLOW="$REPO_ROOT/.github/workflows/antigravity-translate.yml"
+contains "$TRANSLATION_WORKFLOW" \
+  'scripts/run-with-progress.sh /opt/agy-translation-contract/run-with-progress.sh' \
+  "Antigravity translation installs the trusted progress runner before head checkout"
+contains "$TRANSLATION_WORKFLOW" \
+  '/opt/agy-translation-contract/run-with-progress.sh --phase translation-generation' \
+  "Antigravity translation emits structured generation heartbeats"
 
 contains "$REPO_ROOT/.gitignore" '.agy-review.*' \
   "Antigravity temporary review directories are ignored"
@@ -136,6 +151,8 @@ done
 contains "$WATCHER" 'GitHub Free-compatible' "watcher declares its GitHub Free contract"
 contains "$WATCHER" 'python3 scripts/redact_automation_log.py' \
   "watcher redacts logs with the tested trusted helper"
+contains "$WATCHER" 'scripts/run-with-progress.sh --phase fleet-triage' \
+  "watcher triage emits structured model heartbeats"
 
 REDACTOR="$REPO_ROOT/scripts/redact_automation_log.py"
 redacted=$(printf '%s\n' \

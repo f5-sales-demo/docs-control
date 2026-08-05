@@ -140,15 +140,51 @@ duplicates=$(jq -r '[.unit[].path, .environment[].path][]' <<<"$profile" |
 [ -z "$duplicates" ] || die "duplicate test path in ${repo_name} profile: $duplicates"
 
 expected=$(jq -r '[.unit[].path, .environment[].path][]' <<<"$profile" | LC_ALL=C sort)
+deferred_managed_tests=""
 if [ "$discovered" != "$expected" ]; then
-  {
-    echo "::error::${repo_name} test inventory does not match its canonical profile"
-    echo "--- discovered tests"
-    printf '%s\n' "$discovered"
-    echo "--- configured tests"
-    printf '%s\n' "$expected"
-  } >&2
-  exit 1
+  unexpected=$(comm -23 \
+    <(printf '%s\n' "$discovered" | sed '/^$/d') \
+    <(printf '%s\n' "$expected" | sed '/^$/d'))
+  missing=$(comm -13 \
+    <(printf '%s\n' "$discovered" | sed '/^$/d') \
+    <(printf '%s\n' "$expected" | sed '/^$/d'))
+
+  bootstrap_transition=false
+  if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] &&
+    [[ "${GITHUB_HEAD_REF:-}" =~ ^sync/exact-caller-[0-9a-f]{40}(skipped|[0-9a-f]{40})[0-9a-f]{40}$ ]] &&
+    [ -z "$unexpected" ] && [ -n "$missing" ]; then
+    bootstrap_transition=true
+    while IFS= read -r path; do
+      [ -n "$path" ] || continue
+      if ! jq -e --arg path "$path" --arg repo "$repo_name" '
+        (.managed_files | type == "object") and
+        (.managed_files.files | type == "array") and
+        any(.managed_files.files[];
+          type == "object" and .dest == $path) and
+        (((.managed_files.skip_files // {})[$repo] // []) | index($path) == null)
+      ' "$CONFIG" >/dev/null 2>&1; then
+        bootstrap_transition=false
+        break
+      fi
+      deferred_managed_tests="${deferred_managed_tests}${path}"$'\n'
+    done <<<"$missing"
+  fi
+
+  if [ "$bootstrap_transition" = true ]; then
+    while IFS= read -r path; do
+      [ -n "$path" ] || continue
+      echo "::notice::Deferring managed test until synchronization: ${path}"
+    done <<<"$deferred_managed_tests"
+  else
+    {
+      echo "::error::${repo_name} test inventory does not match its canonical profile"
+      echo "--- discovered tests"
+      printf '%s\n' "$discovered"
+      echo "--- configured tests"
+      printf '%s\n' "$expected"
+    } >&2
+    exit 1
+  fi
 fi
 
 rc=0
@@ -157,6 +193,10 @@ index=0
 while [ "$index" -lt "$unit_count" ]; do
   path=$(jq -r --argjson index "$index" '.unit[$index].path' <<<"$profile")
   args_json=$(jq -c --argjson index "$index" '.unit[$index].args' <<<"$profile")
+  if grep -Fqx -- "$path" <<<"$deferred_managed_tests"; then
+    index=$((index + 1))
+    continue
+  fi
   if [ "$args_json" = "[]" ]; then
     run_one "$path" || rc=1
   else

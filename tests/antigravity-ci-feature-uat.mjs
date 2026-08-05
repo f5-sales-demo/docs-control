@@ -153,6 +153,16 @@ function testNoAppTokenRouting() {
   );
 }
 
+function testProgressRouting() {
+  const review = fs.readFileSync(reviewWorkflow, 'utf8');
+  const translation = fs.readFileSync(translationWorkflow, 'utf8');
+  const watcher = fs.readFileSync(watcherWorkflow, 'utf8');
+  assert.match(review, /cp scripts\/agy-review[.]sh scripts\/run-with-progress[.]sh/);
+  assert.match(review, /2>&1 \| tee "\$RUNNER_TEMP\/review[.]log"/);
+  assert.match(translation, /\/opt\/agy-translation-contract\/run-with-progress[.]sh --phase translation-generation/);
+  assert.match(watcher, /scripts\/run-with-progress[.]sh --phase fleet-triage/);
+}
+
 function writeExecutable(file, body) {
   fs.writeFileSync(file, body, { mode: 0o755 });
 }
@@ -266,6 +276,10 @@ function initializeExactHeadFixture() {
   fs.mkdirSync(path.join(repository, '.agents/skills/i18n-translate'), { recursive: true });
   fs.mkdirSync(path.join(repository, 'docs/en'), { recursive: true });
   writeExecutable(path.join(repository, 'scripts/agy-review.sh'), '#!/usr/bin/env bash\necho trusted-review-tool\n');
+  writeExecutable(
+    path.join(repository, 'scripts/run-with-progress.sh'),
+    '#!/usr/bin/env bash\necho trusted-progress-tool\n',
+  );
   fs.writeFileSync(path.join(repository, 'scripts/agy-review-output.schema.json'), '{}\n');
   writeExecutable(
     path.join(repository, 'scripts/validate-translations.sh'),
@@ -280,6 +294,10 @@ function initializeExactHeadFixture() {
   git(repository, 'push', '-q', 'origin', 'HEAD:refs/heads/main');
 
   fs.writeFileSync(path.join(repository, 'scripts/agy-review.sh'), '#!/usr/bin/env bash\necho untrusted-head-tool\n');
+  fs.writeFileSync(
+    path.join(repository, 'scripts/run-with-progress.sh'),
+    '#!/usr/bin/env bash\necho untrusted-head-progress-tool\n',
+  );
   fs.writeFileSync(
     path.join(repository, 'scripts/validate-translations.sh'),
     '#!/usr/bin/env bash\necho untrusted-head-validator\n',
@@ -332,9 +350,17 @@ async function testReviewerPreparation() {
   assert.equal(result.status, 0, result.stderr);
   assert.equal(git(fixture.repository, 'rev-parse', 'HEAD'), fixture.head);
   assert.match(fs.readFileSync(path.join(runner, 'agy-review-tool/agy-review.sh'), 'utf8'), /trusted-review-tool/);
+  assert.match(
+    fs.readFileSync(path.join(runner, 'agy-review-tool/run-with-progress.sh'), 'utf8'),
+    /trusted-progress-tool/,
+  );
   assert.doesNotMatch(
     fs.readFileSync(path.join(runner, 'agy-review-tool/agy-review.sh'), 'utf8'),
     /untrusted-head-tool/,
+  );
+  assert.doesNotMatch(
+    fs.readFileSync(path.join(runner, 'agy-review-tool/run-with-progress.sh'), 'utf8'),
+    /untrusted-head-progress-tool/,
   );
 
   const forkFixture = initializeExactHeadFixture();
@@ -410,6 +436,11 @@ async function testTranslationPreparation() {
   assert.doesNotMatch(
     fs.readFileSync(path.join(prepared.installed, 'validate-translations.sh'), 'utf8'),
     /untrusted-head/,
+  );
+  assert.match(fs.readFileSync(path.join(prepared.installed, 'run-with-progress.sh'), 'utf8'), /trusted-progress-tool/);
+  assert.doesNotMatch(
+    fs.readFileSync(path.join(prepared.installed, 'run-with-progress.sh'), 'utf8'),
+    /untrusted-head-progress-tool/,
   );
 
   const forkFixture = initializeExactHeadFixture();
@@ -525,6 +556,7 @@ function runReviewerModel({ fail = false, missingSecret = false } = {}) {
     `#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >"$RUNNER_TEMP/review-invocation"
+printf '%s\n' '[PROGRESS] component=antigravity phase=fixture state=running elapsed_seconds=1' >&2
 if [ "\${STUB_REVIEW_FAIL:-false}" = true ]; then
   exit 19
 fi
@@ -565,6 +597,7 @@ function runReviewGate(report) {
 function testReviewerModelAndGate() {
   const completed = runReviewerModel();
   assert.equal(completed.result.status, 0, completed.result.stderr);
+  assert.match(completed.result.stdout, /component=antigravity phase=fixture state=running/);
   assert.equal(
     fs.readFileSync(path.join(completed.work, 'review-invocation'), 'utf8').trim(),
     `code --base ${'b'.repeat(40)}`,
@@ -694,7 +727,11 @@ printf '%s|%s|%s|%s\n' "\${GH_TOKEN:-}" "\${GITHUB_TOKEN:-}" "\${GATEWAY_TOKEN:-
   );
   const changedEnglish = path.join(work, 'changed-english.txt');
   fs.writeFileSync(changedEnglish, 'docs/en/page.mdx\n');
-  const result = runShell(extractStepBlock(translationWorkflow, 'Generate translations without write credentials'), {
+  const script = extractStepBlock(translationWorkflow, 'Generate translations without write credentials').replace(
+    '/opt/agy-translation-contract/run-with-progress.sh',
+    path.join(root, 'scripts/run-with-progress.sh'),
+  );
+  const result = runShell(script, {
     cwd: work,
     env: {
       AGY_VERSION: '1.1.10',
@@ -1008,6 +1045,7 @@ assert.notEqual(
 
 await testReviewerPreparation();
 testNoAppTokenRouting();
+testProgressRouting();
 await testTranslationPreparation();
 testPinnedInstallers();
 testReviewerModelAndGate();

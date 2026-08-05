@@ -80,8 +80,9 @@ jobs:
           test "$(git rev-parse refs/agy/pr-head)" = "$HEAD_SHA"
           tool_dir="$RUNNER_TEMP/agy-review-tool"
           mkdir -p "$tool_dir"
-          cp scripts/agy-review.sh scripts/agy-review-output.schema.json "$tool_dir/"
-          chmod 0555 "$tool_dir/agy-review.sh"
+          cp scripts/agy-review.sh scripts/run-with-progress.sh \
+            scripts/agy-review-output.schema.json "$tool_dir/"
+          chmod 0555 "$tool_dir/agy-review.sh" "$tool_dir/run-with-progress.sh"
           git checkout --detach "$HEAD_SHA"
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
 
@@ -130,8 +131,8 @@ jobs:
           AGY_REVIEW_SKIP_LOCAL_PII=1 \
             AGY_REVIEW_REPORT_FILE="$RUNNER_TEMP/review-artifact/report.json" \
             bash "$RUNNER_TEMP/agy-review-tool/agy-review.sh" code --base "$BASE_SHA" \
-            >"$RUNNER_TEMP/review.log" 2>&1
-          review_rc=$?
+            2>&1 | tee "$RUNNER_TEMP/review.log"
+          review_rc=${PIPESTATUS[0]}
           set -e
           printf '%s\n' "$review_rc" >"$RUNNER_TEMP/review-artifact/tool-status"
           if [ ! -s "$RUNNER_TEMP/review-artifact/report.json" ]; then
