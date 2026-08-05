@@ -49,15 +49,18 @@ jobs:
           set -euo pipefail
 
           # --- Retry helpers -------------------------------------------------
-          # Exponential backoff capped at 8 s per attempt to limit retry-storm
-          # amplification. On rate-limit (primary 429 or secondary), sleep
-          # until reset and abort the loop so retries don't deepen the storm.
+          # Ordinary transport failures use a short exponential backoff. Primary
+          # limits wait for X-RateLimit-Reset (or GET /rate_limit when the header
+          # is unavailable). Secondary limits never poll: honor Retry-After or
+          # wait 60, 120, 240... seconds within a bounded per-operation budget.
           retry() {
             local max="$1"; shift
             local attempt=1
             local delay=2
             local max_delay=8
-            local err_file err_content out_file
+            local total_wait=0
+            local wait_budget="${GITHUB_API_WAIT_BUDGET_SECONDS:-600}"
+            local err_file out_file response_content
             err_file=$(mktemp)
             out_file=$(mktemp)
             while true; do
@@ -74,23 +77,52 @@ jobs:
                 rm -f "$err_file" "$out_file"
                 return 0
               fi
-              err_content=$(cat "$err_file")
+              response_content=$(cat "$out_file" "$err_file")
               cat "$err_file" >&2
               : >"$err_file"
-              if echo "$err_content" | grep -qiE '(rate limit|HTTP 429|secondary rate|abuse detection|API rate limit exceeded)'; then
-                local reset now wait_s
-                reset=$(gh api rate_limit --jq '.rate.reset' 2>/dev/null || echo "0")
+              local retry_after remaining reset now wait_s next_at kind
+              retry_after=$(awk 'tolower($1) == "retry-after:" {gsub("\r", "", $2); print $2; exit}' \
+                <<<"$response_content")
+              remaining=$(awk 'tolower($1) == "x-ratelimit-remaining:" {gsub("\r", "", $2); print $2; exit}' \
+                <<<"$response_content")
+              reset=$(awk 'tolower($1) == "x-ratelimit-reset:" {gsub("\r", "", $2); print $2; exit}' \
+                <<<"$response_content")
+              kind=""
+              if [ -n "$retry_after" ] ||
+                grep -qiE '(secondary rate|abuse detection|submitted too quickly|temporarily blocked from content creation)' \
+                  <<<"$response_content" || {
+                    grep -qi 'HTTP 429' <<<"$response_content" && [ "${remaining:-unknown}" != 0 ]
+                  }; then
+                kind=secondary
+                if [[ "$retry_after" =~ ^[0-9]+$ ]]; then
+                  wait_s="$retry_after"
+                else
+                  wait_s=$((60 * (2 ** (attempt - 1))))
+                  [ "$wait_s" -gt 600 ] && wait_s=600
+                fi
+              elif [ "${remaining:-unknown}" = 0 ] ||
+                grep -qiE '(API rate limit exceeded|primary rate limit)' <<<"$response_content"; then
+                kind=primary
+                if ! [[ "$reset" =~ ^[0-9]+$ ]]; then
+                  reset=$(gh api rate_limit --jq '.rate.reset' 2>/dev/null || echo 0)
+                fi
                 now=$(date +%s)
                 wait_s=$((reset - now + 5))
-                if [ "$wait_s" -gt 0 ] && [ "$wait_s" -lt 1800 ]; then
-                  echo "[WARN] Rate limit hit -- sleeping ${wait_s}s until reset, then aborting retry" >&2
-                  sleep "$wait_s"
-                else
-                  echo "[WARN] Secondary rate limit -- sleeping 60s, then aborting retry" >&2
-                  sleep 60
+                [ "$wait_s" -gt 0 ] || wait_s=60
+              fi
+              if [ -n "$kind" ]; then
+                if [ "$attempt" -ge "$max" ] || [ $((total_wait + wait_s)) -gt "$wait_budget" ]; then
+                  echo "[DEFER] $kind GitHub limit requires ${wait_s}s; retry budget exhausted" >&2
+                  rm -f "$err_file" "$out_file"
+                  return 84
                 fi
-                rm -f "$err_file" "$out_file"
-                return 1
+                now=$(date +%s)
+                next_at=$(python3 -c 'import datetime,sys; print(datetime.datetime.fromtimestamp(int(sys.argv[1]), datetime.timezone.utc).isoformat().replace("+00:00", "Z"))' "$((now + wait_s))")
+                echo "[WAIT] $kind GitHub limit on attempt ${attempt}/${max}; waiting ${wait_s}s; next attempt ${next_at}" >&2
+                sleep "$wait_s"
+                total_wait=$((total_wait + wait_s))
+                attempt=$((attempt + 1))
+                continue
               fi
               if [ "$attempt" -ge "$max" ]; then
                 echo "[ERROR] Failed after ${max} attempts: $*" >&2
@@ -110,7 +142,34 @@ jobs:
             shift
             require_current_source_main
             require_current_downstream_main
-            printf '%s' "$json" | gh api "$@" --input -
+            local endpoint="$1" method=POST response_file error_file rc
+            shift
+            while [ "$#" -gt 0 ]; do
+              case "$1" in
+                --method) method="$2"; shift 2 ;;
+                *) echo "[ERROR] Unsupported JSON request option: $1" >&2; return 2 ;;
+              esac
+            done
+            response_file=$(mktemp)
+            error_file=$(mktemp)
+            set +e
+            printf '%s' "$json" | gh api "$endpoint" --method "$method" --input - --include \
+              >"$response_file" 2>"$error_file"
+            rc=$?
+            set -e
+            if [ "$rc" -eq 0 ]; then
+              if head -n 1 "$response_file" | grep -q '^HTTP/'; then
+                awk 'body {print} /^\r?$/ {body=1}' "$response_file"
+              else
+                cat "$response_file"
+              fi
+              cat "$error_file" >&2
+              rm -f "$response_file" "$error_file"
+              return 0
+            fi
+            cat "$response_file" "$error_file" >&2
+            rm -f "$response_file" "$error_file"
+            return 1
           }
 
           retry_current_json() {
@@ -568,6 +627,56 @@ jobs:
             '
           }
 
+          create_or_find_sync_issue() {
+            local title="$1" body="$2" marker="$3" inventory count payload response
+            require_current_source_main
+            require_current_downstream_main
+            inventory=$(gh api "repos/${OWNER}/${REPO}/issues?state=open&per_page=100")
+            count=$(jq --arg marker "$marker" '[.[] | select(.pull_request == null) |
+              select(.body != null and (.body | contains($marker)))] | length' <<<"$inventory")
+            if [ "$count" -eq 1 ]; then
+              jq -r --arg marker "$marker" '.[] | select(.pull_request == null) |
+                select(.body != null and (.body | contains($marker))) | .number' <<<"$inventory"
+              return 0
+            fi
+            [ "$count" -eq 0 ] || {
+              echo "[ERROR] Multiple issues claim the exact managed-file receipt" >&2
+              return 1
+            }
+            payload=$(jq -n --arg title "$title" --arg body "$body" '{title:$title,body:$body}')
+            response=$(current_json_request "$payload" \
+              "repos/${OWNER}/${REPO}/issues" --method POST)
+            jq -er '.number | select(type == "number" and floor == . and . >= 1)' <<<"$response"
+          }
+
+          create_or_find_sync_pr() {
+            local title="$1" body="$2" inventory count payload response
+            require_current_source_main
+            require_current_downstream_main
+            inventory=$(gh api \
+              "repos/${OWNER}/${REPO}/pulls?state=open&base=main&head=${OWNER}:${SYNC_BRANCH}&per_page=100")
+            count=$(jq --arg repo "${OWNER}/${REPO}" --arg branch "$SYNC_BRANCH" \
+              --arg sha "$LAST_COMMIT_SHA" '[.[] | select(.head.repo.full_name == $repo and
+                .head.ref == $branch and .head.sha == $sha and .base.ref == "main")] | length' \
+              <<<"$inventory")
+            if [ "$count" -eq 1 ]; then
+              jq -r --arg repo "${OWNER}/${REPO}" --arg branch "$SYNC_BRANCH" \
+                --arg sha "$LAST_COMMIT_SHA" '.[] | select(.head.repo.full_name == $repo and
+                  .head.ref == $branch and .head.sha == $sha and .base.ref == "main") | .number' \
+                <<<"$inventory"
+              return 0
+            fi
+            [ "$count" -eq 0 ] || {
+              echo "[ERROR] Multiple PRs claim the exact managed-file head" >&2
+              return 1
+            }
+            payload=$(jq -n --arg title "$title" --arg body "$body" --arg head "$SYNC_BRANCH" \
+              '{title:$title,body:$body,head:$head,base:"main"}')
+            response=$(current_json_request "$payload" \
+              "repos/${OWNER}/${REPO}/pulls" --method POST)
+            jq -er '.number | select(type == "number" and floor == . and . >= 1)' <<<"$response"
+          }
+
           # --- Helper: merge only while both receipts remain current --------
           auto_merge() {
             local pr_num="$1"
@@ -601,8 +710,11 @@ jobs:
                 retry 3 assert_sync_pr_head "$pr_num" "$SYNC_BRANCH" "$expected_sha"
                 require_current_source_main
                 require_current_downstream_main
-                if gh pr merge "${pr_num}" --repo "${repo_slug}" --squash \
-                  --delete-branch --match-head-commit "$expected_sha" 2>/dev/null; then
+                MERGE_JSON=$(jq -n --arg sha "$expected_sha" \
+                  '{sha:$sha,merge_method:"squash"}')
+                if MERGE_RESPONSE=$(retry_current_json 3 "$MERGE_JSON" \
+                  "repos/${repo_slug}/pulls/${pr_num}/merge" --method PUT) &&
+                  jq -e '.merged == true' <<<"$MERGE_RESPONSE" >/dev/null; then
                   echo "[OK] Merged sync PR #${pr_num}"
                   return 0
                 fi
@@ -1237,17 +1349,17 @@ jobs:
                     "$EXISTING_PR" "$EXISTING_BRANCH" "$EXISTING_HEAD"
                   require_current_source_main
                   require_current_downstream_main
-                  gh pr close "$EXISTING_PR" --repo "${OWNER}/${REPO}" \
-                    --comment "Superseded by exact managed-file receipt ${expected_source_sha:0:12} on run-owned branch ${SYNC_BRANCH}."
+                  CLOSE_PR_JSON=$(jq -n '{state:"closed"}')
+                  retry_current_json 3 "$CLOSE_PR_JSON" \
+                    "repos/${OWNER}/${REPO}/pulls/${EXISTING_PR}" --method PATCH >/dev/null
                   echo "[OK] Closed superseded sync PR #${EXISTING_PR} without deleting its branch"
                 fi
 
                 # Close only issues carrying the exact automation ownership marker.
                 STALE_ISSUE_INVENTORY=$(mktemp)
-                if ! gh issue list --repo "${OWNER}/${REPO}" \
-                  --state open \
-                  --search 'chore: sync managed files from governance template' \
-                  --limit 1000 --json number,title,body >"$STALE_ISSUE_INVENTORY"; then
+                if ! retry 3 gh api --paginate --slurp \
+                  "repos/${OWNER}/${REPO}/issues?state=open&per_page=100" \
+                  --jq 'add' >"$STALE_ISSUE_INVENTORY"; then
                   echo "[ERROR] Could not inventory stale sync issues" >&2
                   rm -f "$STALE_ISSUE_INVENTORY"
                   exit 1
@@ -1261,21 +1373,22 @@ jobs:
                 for stale_num in $STALE_ISSUES; do
                   require_current_source_main
                   require_current_downstream_main
-                  gh issue close "$stale_num" --repo "${OWNER}/${REPO}" \
-                    --comment "Superseded by exact managed-file receipt ${expected_source_sha:0:12}."
+                  CLOSE_ISSUE_JSON=$(jq -n '{state:"closed",state_reason:"completed"}')
+                  retry_current_json 3 "$CLOSE_ISSUE_JSON" \
+                    "repos/${OWNER}/${REPO}/issues/${stale_num}" --method PATCH >/dev/null
                   echo "[OK] Closed stale owned sync issue #${stale_num}"
                 done
 
                 DRIFT_LIST=$(printf '%b' "$DRIFT_FILES" | sed '/^$/d' | sed 's/^/- /')
-                ISSUE_BODY=$(printf 'The following managed files have drifted from the canonical source in `%s`:\n\n%s\n\nThis issue was created automatically by the governance enforcement workflow.' \
-                  "$SOURCE_REPO" "$DRIFT_LIST")
+                ISSUE_MARKER="<!-- managed-file-sync:${expected_source_sha}:${expected_downstream_sha} -->"
+                ISSUE_BODY=$(printf "%s\n\nThe following managed files have drifted from the canonical source in \`%s\`:\n\n%s\n\nThis issue was created automatically by the governance enforcement workflow." \
+                  "$ISSUE_MARKER" "$SOURCE_REPO" "$DRIFT_LIST")
                 require_current_source_main
                 require_current_downstream_main
-                ISSUE_NUM=$(gh issue create --repo "${OWNER}/${REPO}" \
-                  --title "chore: sync managed files from governance template" \
-                  --body "$ISSUE_BODY" | grep -o '[0-9]*$')
+                ISSUE_NUM=$(retry 3 create_or_find_sync_issue \
+                  "chore: sync managed files from governance template" "$ISSUE_BODY" "$ISSUE_MARKER")
                 if ! printf '%s' "$ISSUE_NUM" | grep -qE '^[1-9][0-9]*$'; then
-                  echo "[ERROR] Issue creation returned an invalid URL" >&2
+                  echo "[ERROR] Issue creation returned an invalid number" >&2
                   exit 1
                 fi
                 echo "[OK] Created issue #${ISSUE_NUM}"
@@ -1310,17 +1423,14 @@ jobs:
                 commit_tree "$SYNC_BRANCH" \
                   "chore: sync managed files from governance template"
 
-                PR_BODY=$(printf 'Closes #%s\n\nSynced managed files from `%s` canonical source:\n\n%s' \
+                PR_BODY=$(printf "Closes #%s\n\nSynced managed files from \`%s\` canonical source:\n\n%s" \
                   "$ISSUE_NUM" "$SOURCE_REPO" "$DRIFT_LIST")
                 require_current_source_main
                 require_current_downstream_main
-                PR_URL=$(gh pr create --repo "${OWNER}/${REPO}" \
-                  --base main --head "$SYNC_BRANCH" \
-                  --title "chore: sync managed files from governance template" \
-                  --body "$PR_BODY")
-                PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
+                PR_NUM=$(retry 3 create_or_find_sync_pr \
+                  "chore: sync managed files from governance template" "$PR_BODY")
                 if ! printf '%s' "$PR_NUM" | grep -qE '^[1-9][0-9]*$'; then
-                  echo "[ERROR] PR creation returned an invalid URL" >&2
+                  echo "[ERROR] PR creation returned an invalid number" >&2
                   exit 1
                 fi
                 echo "[OK] Created sync PR #${PR_NUM}"

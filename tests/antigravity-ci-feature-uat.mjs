@@ -54,6 +54,52 @@ function extractJobBlock(workflowPath, jobName) {
   return lines.slice(start, end === -1 ? undefined : end).join('\n');
 }
 
+async function runExactHeadValidation(workflowPath, stepName, pull, expected = {}) {
+  const script = new AsyncFunction(
+    'github',
+    'context',
+    'core',
+    'require',
+    extractStepBlock(workflowPath, stepName, 'script'),
+  );
+  const environment = {
+    BASE_SHA: expected.baseSha ?? pull.base.sha,
+    GITHUB_REPOSITORY: repositoryName,
+    GITHUB_WORKSPACE: root,
+    HEAD_SHA: expected.headSha ?? pull.head.sha,
+    PR_NUMBER: '42',
+  };
+  const previous = Object.fromEntries([...Object.keys(environment), 'HEAD_REF'].map((key) => [key, process.env[key]]));
+  Object.assign(process.env, environment);
+  const exported = {};
+  try {
+    await script(
+      {
+        request: async () => {
+          throw new Error('rate-limit lookup was not expected');
+        },
+        rest: { pulls: { get: async () => ({ data: pull }) } },
+      },
+      { repo: { owner: 'f5-sales-demo', repo: 'example' } },
+      {
+        exportVariable(name, value) {
+          exported[name] = value;
+          process.env[name] = String(value);
+        },
+      },
+      require,
+    );
+    return { exported, status: 0 };
+  } catch (error) {
+    return { error, exported, status: 1 };
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  }
+}
+
 function testNoAppTokenRouting() {
   const translation = fs.readFileSync(translationWorkflow, 'utf8');
   const caller = fs.readFileSync(translationCaller, 'utf8');
@@ -73,17 +119,21 @@ function testNoAppTokenRouting() {
     assert.doesNotMatch(contents, /actions\/create-github-app-token/, `${name} must not mint GitHub App tokens`);
   }
 
-  assert.match(translation, /REPO_SYNC_TOKEN:\n\s+required: true/, 'reusable translation must require REPO_SYNC_TOKEN');
+  assert.match(
+    translation,
+    /REPO_SYNC_TOKEN:\n\s+required: true/,
+    'reusable translation must require the existing fleet PAT',
+  );
   assert.match(
     caller,
     /REPO_SYNC_TOKEN: \$\{\{ secrets\.REPO_SYNC_TOKEN \}\}/,
-    'managed translation caller must explicitly pass REPO_SYNC_TOKEN',
+    'managed translation caller must explicitly pass the existing fleet PAT',
   );
   assert.doesNotMatch(translateJob, /REPO_SYNC_TOKEN/, 'translation model job must not receive the publication token');
   assert.match(
     translationPublishJob,
     /GH_TOKEN: \$\{\{ secrets\.REPO_SYNC_TOKEN \}\}/,
-    'translation publication must use REPO_SYNC_TOKEN',
+    'translation publication must use the existing fleet PAT so the push retriggers CI',
   );
 
   assert.match(
@@ -149,12 +199,6 @@ function repositoryIdentity() {
   return { ['full' + '_name']: repositoryName };
 }
 
-function writeFakeGh(bin, pull) {
-  const pullPath = path.join(bin, 'pull.json');
-  fs.writeFileSync(pullPath, `${JSON.stringify(pull)}\n`);
-  writeExecutable(path.join(bin, 'gh'), `#!/usr/bin/env bash\nset -euo pipefail\ncat ${JSON.stringify(pullPath)}\n`);
-}
-
 function validReviewReport({ base, head, workflow }) {
   return {
     receipt: {
@@ -173,20 +217,16 @@ function validReviewReport({ base, head, workflow }) {
 
 function runReviewReceiptValidation({ report, pull }) {
   const work = temporaryDirectory('agy-review-receipt-');
-  const bin = path.join(work, 'bin');
   const artifact = path.join(work, 'review-artifact');
-  fs.mkdirSync(bin);
   fs.mkdirSync(artifact);
   fs.writeFileSync(path.join(artifact, 'report.json'), `${JSON.stringify(report)}\n`);
-  writeFakeGh(bin, pull);
-  return runShell(extractStepBlock(reviewWorkflow, 'Validate receipt and exact current head'), {
+  return runShell(extractStepBlock(reviewWorkflow, 'Validate receipt'), {
     cwd: work,
     env: {
       AGY_VERSION: '1.1.10',
       BASE_SHA: pull.base.sha,
       GITHUB_REPOSITORY: 'f5-sales-demo/example',
       HEAD_SHA: pull.head.sha,
-      PATH: `${bin}:${process.env.PATH}`,
       PR_NUMBER: '42',
       RUNNER_TEMP: work,
       WORKFLOW_SHA: 'workflow-current',
@@ -196,13 +236,10 @@ function runReviewReceiptValidation({ report, pull }) {
 
 function runTranslationReceiptValidation({ receipt, pull }) {
   const work = temporaryDirectory('agy-translation-receipt-');
-  const bin = path.join(work, 'bin');
   const artifact = path.join(work, 'translation-artifact');
-  fs.mkdirSync(bin);
   fs.mkdirSync(artifact);
   fs.writeFileSync(path.join(artifact, 'receipt.json'), `${JSON.stringify(receipt)}\n`);
   fs.writeFileSync(path.join(artifact, 'translations.patch'), '');
-  writeFakeGh(bin, pull);
   return runShell(extractStepBlock(translationWorkflow, 'Validate, commit, and publish translations'), {
     cwd: work,
     env: {
@@ -211,7 +248,7 @@ function runTranslationReceiptValidation({ receipt, pull }) {
       GH_TOKEN: 'fixture-token',
       GITHUB_REPOSITORY: 'f5-sales-demo/example',
       HEAD_SHA: pull.head.sha,
-      PATH: `${bin}:${process.env.PATH}`,
+      HEAD_REF: pull.head.ref,
       PR_NUMBER: '42',
       RUNNER_TEMP: work,
       WORKFLOW_SHA: 'workflow-current',
@@ -270,19 +307,14 @@ function initializeExactHeadFixture() {
   };
 }
 
-function runReviewerPreparation(fixture, pull = fixture.pull) {
+function runReviewerPreparation(fixture) {
   const runner = temporaryDirectory('agy-review-prepare-');
-  const bin = path.join(runner, 'bin');
-  fs.mkdirSync(bin);
-  writeFakeGh(bin, pull);
   const result = runShell(extractStepBlock(reviewWorkflow, 'Fetch exact pull-request head as data'), {
     cwd: fixture.repository,
     env: {
       BASE_SHA: fixture.base,
-      GH_TOKEN: 'read-only-fixture',
       GITHUB_REPOSITORY: 'f5-sales-demo/example',
       HEAD_SHA: fixture.head,
-      PATH: `${bin}:${process.env.PATH}`,
       PR_NUMBER: '42',
       RUNNER_TEMP: runner,
     },
@@ -290,8 +322,12 @@ function runReviewerPreparation(fixture, pull = fixture.pull) {
   return { result, runner };
 }
 
-function testReviewerPreparation() {
+async function testReviewerPreparation() {
   const fixture = initializeExactHeadFixture();
+  assert.equal(
+    (await runExactHeadValidation(reviewWorkflow, 'Validate exact pull-request head', fixture.pull)).status,
+    0,
+  );
   const { result, runner } = runReviewerPreparation(fixture);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(git(fixture.repository, 'rev-parse', 'HEAD'), fixture.head);
@@ -304,21 +340,27 @@ function testReviewerPreparation() {
   const forkFixture = initializeExactHeadFixture();
   const fork = structuredClone(forkFixture.pull);
   fork.head.repo.full_name = 'outsider/fork';
-  assert.notEqual(runReviewerPreparation(forkFixture, fork).result.status, 0);
+  assert.notEqual((await runExactHeadValidation(reviewWorkflow, 'Validate exact pull-request head', fork)).status, 0);
 
   const staleFixture = initializeExactHeadFixture();
   const stale = structuredClone(staleFixture.pull);
   stale.head.sha = 'd'.repeat(40);
-  assert.notEqual(runReviewerPreparation(staleFixture, stale).result.status, 0);
+  assert.notEqual(
+    (
+      await runExactHeadValidation(reviewWorkflow, 'Validate exact pull-request head', stale, {
+        headSha: staleFixture.head,
+      })
+    ).status,
+    0,
+  );
 }
 
-function runTranslationPreparation(fixture, pull = fixture.pull) {
+function runTranslationPreparation(fixture) {
   const runner = temporaryDirectory('agy-translation-prepare-');
   const bin = path.join(runner, 'bin');
   const installed = path.join(runner, 'installed');
   fs.mkdirSync(bin);
   fs.mkdirSync(installed);
-  writeFakeGh(bin, pull);
   writeExecutable(
     path.join(bin, 'sudo'),
     `#!/usr/bin/env bash
@@ -336,14 +378,12 @@ done
 cp "$source_path" "$FAKE_INSTALL_DIR/$(basename "$previous")"
 `,
   );
-  const githubEnvironment = path.join(runner, 'github.env');
   const result = runShell(extractStepBlock(translationWorkflow, 'Prepare exact pull-request snapshot'), {
     cwd: fixture.repository,
     env: {
       BASE_SHA: fixture.base,
       FAKE_INSTALL_DIR: installed,
       GH_TOKEN: 'read-only-fixture',
-      GITHUB_ENV: githubEnvironment,
       GITHUB_REPOSITORY: 'f5-sales-demo/example',
       HEAD_SHA: fixture.head,
       PATH: `${bin}:${process.env.PATH}`,
@@ -351,11 +391,18 @@ cp "$source_path" "$FAKE_INSTALL_DIR/$(basename "$previous")"
       RUNNER_TEMP: runner,
     },
   });
-  return { githubEnvironment, installed, result };
+  return { installed, result };
 }
 
-function testTranslationPreparation() {
+async function testTranslationPreparation() {
   const fixture = initializeExactHeadFixture();
+  const validation = await runExactHeadValidation(
+    translationWorkflow,
+    'Validate exact pull-request head',
+    fixture.pull,
+  );
+  assert.equal(validation.status, 0);
+  assert.equal(validation.exported.HEAD_REF, 'feature/1246-uat');
   const prepared = runTranslationPreparation(fixture);
   assert.equal(prepared.result.status, 0, prepared.result.stderr);
   assert.equal(git(fixture.repository, 'rev-parse', 'HEAD'), fixture.head);
@@ -364,12 +411,14 @@ function testTranslationPreparation() {
     fs.readFileSync(path.join(prepared.installed, 'validate-translations.sh'), 'utf8'),
     /untrusted-head/,
   );
-  assert.match(fs.readFileSync(prepared.githubEnvironment, 'utf8'), /^HEAD_REF=feature\/1246-uat$/m);
 
   const forkFixture = initializeExactHeadFixture();
   const fork = structuredClone(forkFixture.pull);
   fork.head.repo.full_name = 'outsider/fork';
-  assert.notEqual(runTranslationPreparation(forkFixture, fork).result.status, 0);
+  assert.notEqual(
+    (await runExactHeadValidation(translationWorkflow, 'Validate exact pull-request head', fork)).status,
+    0,
+  );
 }
 
 function runPinnedInstaller(workflowPath, { digestOverride, runtimeVersion = '1.1.10' } = {}) {
@@ -592,13 +641,15 @@ async function testReviewCommentPublication() {
   };
   const previousReportPath = process.env.REPORT_PATH;
   const previousPullNumber = process.env.PR_NUMBER;
+  const previousWorkspace = process.env.GITHUB_WORKSPACE;
   process.env.REPORT_PATH = reportPath;
   process.env.PR_NUMBER = '42';
+  process.env.GITHUB_WORKSPACE = root;
   try {
     await script(github, { repo: { owner: 'f5-sales-demo', repo: 'example' } }, require);
     assert.equal(created.length, 1);
     assert.equal((created[0].body.match(/Example finding/g) ?? []).length, 1);
-    assert.match(created[0].body, /<!-- antigravity-pr-review -->/);
+    assert.match(created[0].body, /<!-- antigravity-pr-review:h{40} -->/);
 
     existingComments = [{ body: created[0].body, id: 99, user: { type: 'Bot' } }];
     await script(github, { repo: { owner: 'f5-sales-demo', repo: 'example' } }, require);
@@ -618,6 +669,8 @@ async function testReviewCommentPublication() {
     else process.env.REPORT_PATH = previousReportPath;
     if (previousPullNumber === undefined) delete process.env.PR_NUMBER;
     else process.env.PR_NUMBER = previousPullNumber;
+    if (previousWorkspace === undefined) delete process.env.GITHUB_WORKSPACE;
+    else process.env.GITHUB_WORKSPACE = previousWorkspace;
   }
 }
 
@@ -810,10 +863,8 @@ function runTranslationPublication(packaged, { missingToken = false, remoteDrift
   const repository = path.join(work, 'repository');
   const runner = path.join(work, 'runner');
   const artifact = path.join(runner, 'translation-artifact');
-  const bin = path.join(work, 'bin');
   fs.mkdirSync(runner);
   fs.mkdirSync(artifact);
-  fs.mkdirSync(bin);
   run('git', ['clone', '-q', packaged.fixture.remote, repository]);
   git(repository, 'checkout', '-q', '--detach', packaged.fixture.head);
   fs.copyFileSync(path.join(packaged.runner, 'translation-artifact/receipt.json'), path.join(artifact, 'receipt.json'));
@@ -821,7 +872,6 @@ function runTranslationPublication(packaged, { missingToken = false, remoteDrift
     path.join(packaged.runner, 'translation-artifact/translations.patch'),
     path.join(artifact, 'translations.patch'),
   );
-  writeFakeGh(bin, packaged.fixture.pull);
   const script = extractStepBlock(translationWorkflow, 'Validate, commit, and publish translations').replace(
     '/opt/agy-publication-validator/validate-translations.sh',
     path.join(root, 'scripts/validate-translations.sh'),
@@ -834,7 +884,7 @@ function runTranslationPublication(packaged, { missingToken = false, remoteDrift
       GH_TOKEN: missingToken ? null : 'fixture-publication-token',
       GITHUB_REPOSITORY: 'f5-sales-demo/example',
       HEAD_SHA: packaged.fixture.head,
-      PATH: `${bin}:${process.env.PATH}`,
+      HEAD_REF: packaged.fixture.pull.head.ref,
       PR_NUMBER: '42',
       RUNNER_TEMP: runner,
       WORKFLOW_SHA: 'workflow-current',
@@ -911,7 +961,7 @@ assert.notEqual(
 const forkPull = structuredClone(pull);
 forkPull.head.repo.full_name = 'outsider/fork';
 assert.notEqual(
-  runReviewReceiptValidation({ report: validReview, pull: forkPull }).status,
+  (await runExactHeadValidation(reviewWorkflow, 'Validate exact current head', forkPull)).status,
   0,
   'review publication must reject a fork head',
 );
@@ -951,14 +1001,14 @@ assert.notEqual(
   'translation publication must reject an unexpected runtime receipt',
 );
 assert.notEqual(
-  runTranslationReceiptValidation({ receipt: validTranslation, pull: forkPull }).status,
+  (await runExactHeadValidation(translationWorkflow, 'Validate exact pull-request head', forkPull)).status,
   0,
   'translation publication must reject a fork head',
 );
 
-testReviewerPreparation();
+await testReviewerPreparation();
 testNoAppTokenRouting();
-testTranslationPreparation();
+await testTranslationPreparation();
 testPinnedInstallers();
 testReviewerModelAndGate();
 await testReviewCommentPublication();

@@ -59,7 +59,50 @@ echo '${ERR_BODY}'
 exit 1
 EOF
 
-chmod +x "$FLAKY" "$OK" "$MULTI" "$ALWAYS"
+SECONDARY="${TMPDIR_BASE}/secondary"
+cat >"$SECONDARY" <<'EOF'
+#!/usr/bin/env bash
+count=$(cat "$1" 2>/dev/null || echo 0)
+if [ "$count" -lt 2 ]; then
+  printf '%s\n' "$((count + 1))" >"$1"
+  echo 'temporarily blocked from content creation; was submitted too quickly' >&2
+  exit 1
+fi
+echo 'secondary-recovered'
+EOF
+
+RETRY_AFTER="${TMPDIR_BASE}/retry-after"
+cat >"$RETRY_AFTER" <<'EOF'
+#!/usr/bin/env bash
+if [ ! -f "$1" ]; then
+  touch "$1"
+  printf 'HTTP/2.0 403 Forbidden\nRetry-After: 7\n\n' >&2
+  exit 1
+fi
+echo 'header-recovered'
+EOF
+
+SECONDARY_ALWAYS="${TMPDIR_BASE}/secondary-always"
+cat >"$SECONDARY_ALWAYS" <<'EOF'
+#!/usr/bin/env bash
+printf 'HTTP/2.0 403 Forbidden\nRetry-After: 120\n\n' >&2
+exit 1
+EOF
+
+RETRY_BIN="${TMPDIR_BASE}/retry-bin"
+mkdir -p "$RETRY_BIN"
+cat >"${RETRY_BIN}/sleep" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$1" >>"${SLEEP_LOG:?}"
+EOF
+cat >"${RETRY_BIN}/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'rate probe\n' >>"${RATE_PROBE_LOG:?}"
+exit 1
+EOF
+
+chmod +x "$FLAKY" "$OK" "$MULTI" "$ALWAYS" "$SECONDARY" "$RETRY_AFTER" \
+  "$SECONDARY_ALWAYS" "${RETRY_BIN}/sleep" "${RETRY_BIN}/gh"
 
 # Pull the retry() definition out of a workflow and make it callable here.
 extract_retry() {
@@ -140,6 +183,57 @@ for wf in "${WORKFLOWS[@]}"; do
     pass "${name}: exhausted retries emit no stdout"
   else
     fail "${name}: exhausted retries emit no stdout" "captured $(printf '%q' "$captured")"
+  fi
+
+  # 5. A headerless secondary limit must cool down without polling /rate_limit.
+  secondary_marker="${TMPDIR_BASE}/secondary-${name}"
+  secondary_sleeps="${TMPDIR_BASE}/secondary-sleeps-${name}"
+  rate_probes="${TMPDIR_BASE}/rate-probes-${name}"
+  captured=$(
+    export PATH="${RETRY_BIN}:${PATH}"
+    export SLEEP_LOG="$secondary_sleeps" RATE_PROBE_LOG="$rate_probes"
+    eval "$body"
+    retry 4 "$SECONDARY" "$secondary_marker" 2>/dev/null
+  )
+  if [ "$captured" = secondary-recovered ] &&
+    [ "$(cat "$secondary_sleeps")" = $'60\n120' ] && [ ! -e "$rate_probes" ]; then
+    pass "${name}: secondary cooldown uses 60/120 backoff without a rate probe"
+  else
+    fail "${name}: secondary cooldown uses 60/120 backoff without a rate probe" \
+      "output=$(printf '%q' "$captured") sleeps=$(cat "$secondary_sleeps" 2>/dev/null || true)"
+  fi
+
+  # 6. Retry-After overrides the fallback secondary schedule.
+  header_marker="${TMPDIR_BASE}/header-${name}"
+  header_sleeps="${TMPDIR_BASE}/header-sleeps-${name}"
+  captured=$(
+    export PATH="${RETRY_BIN}:${PATH}"
+    export SLEEP_LOG="$header_sleeps" RATE_PROBE_LOG="$rate_probes"
+    eval "$body"
+    retry 3 "$RETRY_AFTER" "$header_marker" 2>/dev/null
+  )
+  if [ "$captured" = header-recovered ] && [ "$(cat "$header_sleeps")" = 7 ]; then
+    pass "${name}: Retry-After controls the secondary cooldown"
+  else
+    fail "${name}: Retry-After controls the secondary cooldown" \
+      "output=$(printf '%q' "$captured") sleeps=$(cat "$header_sleeps" 2>/dev/null || true)"
+  fi
+
+  # 7. A wait beyond the operation budget defers immediately with exit code 84.
+  budget_sleep="${TMPDIR_BASE}/budget-sleep-${name}"
+  rc=0
+  (
+    export PATH="${RETRY_BIN}:${PATH}"
+    export SLEEP_LOG="$budget_sleep" RATE_PROBE_LOG="$rate_probes"
+    export GITHUB_API_WAIT_BUDGET_SECONDS=60
+    eval "$body"
+    retry 3 "$SECONDARY_ALWAYS" >/dev/null 2>/dev/null
+  ) || rc=$?
+  if [ "$rc" -eq 84 ] && [ ! -e "$budget_sleep" ]; then
+    pass "${name}: over-budget secondary wait defers without probing"
+  else
+    fail "${name}: over-budget secondary wait defers without probing" \
+      "rc=$rc sleep_called=$([ -e "$budget_sleep" ] && echo yes || echo no)"
   fi
 done
 
