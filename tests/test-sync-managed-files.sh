@@ -972,6 +972,23 @@ else
     "free-text search results can still close unrelated issues"
 fi
 
+awk '
+  /select_owned_stale_issues\(\)/ { found=1 }
+  found { print }
+  found && /^          }$/ { exit }
+' "$SYNC" >"$WORK/stale-issue-selector.sh"
+if grep -qE 'gh api --paginate --slurp .*issues\?state=open&per_page=100.*--jq' \
+  "$WORK/sync-joined.txt"; then
+  fail "8.11 stale issue pagination is compatible with GitHub CLI" \
+    "gh api combines --slurp with --jq, which current GitHub CLI rejects"
+elif grep -q 'any(.\[\]; type != "array")' "$WORK/stale-issue-selector.sh" &&
+  grep -q 'any(.\[\]\[\];' "$WORK/stale-issue-selector.sh"; then
+  pass "8.11 stale issue pagination is compatible with GitHub CLI"
+else
+  fail "8.11 stale issue pagination is compatible with GitHub CLI" \
+    "the local selector does not validate and iterate every paginated response page"
+fi
+
 echo ""
 echo "=== Section 9: generated Dependabot updates enforce cooldown ==="
 

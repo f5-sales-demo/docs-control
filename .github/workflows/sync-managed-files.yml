@@ -615,11 +615,12 @@ jobs:
           select_owned_stale_issues() {
             jq -r '
               if type != "array" or
-                any(.[]; (.number | type != "number" or floor != . or . < 1) or
+                any(.[]; type != "array") or
+                any(.[][]; (.number | type != "number" or floor != . or . < 1) or
                   (.title | type != "string") or (.body | type != "string"))
               then error("invalid issue inventory")
               else
-                .[] |
+                .[][] |
                 select(.title == "chore: sync managed files from governance template") |
                 select(.body | contains("This issue was created automatically by the governance enforcement workflow.")) |
                 .number
@@ -1359,7 +1360,7 @@ jobs:
                 STALE_ISSUE_INVENTORY=$(mktemp)
                 if ! retry 3 gh api --paginate --slurp \
                   "repos/${OWNER}/${REPO}/issues?state=open&per_page=100" \
-                  --jq 'add' >"$STALE_ISSUE_INVENTORY"; then
+                  >"$STALE_ISSUE_INVENTORY"; then
                   echo "[ERROR] Could not inventory stale sync issues" >&2
                   rm -f "$STALE_ISSUE_INVENTORY"
                   exit 1
