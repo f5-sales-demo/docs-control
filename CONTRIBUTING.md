@@ -221,7 +221,9 @@ bash scripts/agy-review.sh document --kind plan --file path/to/plan.md
 ```
 
 The command runs independent reviewer and verifier sessions, validates structured output, and fails
-closed. Do not substitute Claude, Codex, a model-invocable review skill, or a PR-diff plugin.
+closed. Each phase emits an immediate start marker, a periodic stderr heartbeat, and a completion
+marker so automation can distinguish a live silent model call from a finished review. Do not
+substitute Claude, Codex, a model-invocable review skill, or a PR-diff plugin.
 
 Branch review is mandatory before every push that opens or updates a pull request:
 
@@ -274,9 +276,12 @@ variables. Unset, `false`, or any other value disables the corresponding automat
 literal string `true` enables it.
 
 The implementation uses GitHub Free features only: scheduled/manual Actions, ordinary organisation
-variables, GitHub App tokens, artifacts, pull-request comments, and classic branch protection. Do
-not add organisation rulesets, merge queues, audit-log streaming, or environment required reviewers.
-The `antigravity-automation` environment on the public docs-control repository is only a secret
+variables, the existing `REPO_SETTINGS_TOKEN` and `REPO_SYNC_TOKEN` governance PATs, artifacts,
+pull-request comments, and classic branch protection. It does not require a GitHub App. Keep
+`REPO_SETTINGS_TOKEN` limited to watcher collection/publication and `REPO_SYNC_TOKEN` limited to
+translation publication; Antigravity model jobs receive neither token. Do not add organisation
+rulesets, merge queues, audit-log streaming, or environment required reviewers. The
+`antigravity-automation` environment on the public docs-control repository is only a secret
 boundary; configure no reviewers, wait timer, or deployment rule on it.
 
 1. Verify docs-control#1016 in the live workflow bytes, not merely by issue state. The installer must

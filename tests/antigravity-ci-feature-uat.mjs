@@ -12,6 +12,8 @@ const root = path.resolve(process.argv[2]);
 
 const reviewWorkflow = path.join(root, '.github/workflows/antigravity-review.yml');
 const translationWorkflow = path.join(root, '.github/workflows/antigravity-translate.yml');
+const translationCaller = path.join(root, 'workflows/antigravity-translate.yml');
+const watcherWorkflow = path.join(root, '.github/workflows/antigravity-fleet-watcher.yml');
 const repositoryName = ['f5-sales-demo', 'example'].join('/');
 const temporaryDirectories = [];
 const require = createRequire(import.meta.url);
@@ -42,6 +44,63 @@ function extractStepBlock(workflowPath, stepName, key = 'run') {
     .slice(marker + 1)
     .map((line) => (line.length >= indentation ? line.slice(indentation) : ''))
     .join('\n');
+}
+
+function extractJobBlock(workflowPath, jobName) {
+  const lines = fs.readFileSync(workflowPath, 'utf8').split('\n');
+  const start = lines.indexOf(`  ${jobName}:`);
+  if (start === -1) throw new Error(`job not found: ${jobName}`);
+  const end = lines.findIndex((line, index) => index > start && /^ {2}[A-Za-z0-9_-]+:$/.test(line));
+  return lines.slice(start, end === -1 ? undefined : end).join('\n');
+}
+
+function testNoAppTokenRouting() {
+  const translation = fs.readFileSync(translationWorkflow, 'utf8');
+  const caller = fs.readFileSync(translationCaller, 'utf8');
+  const watcher = fs.readFileSync(watcherWorkflow, 'utf8');
+  const translateJob = extractJobBlock(translationWorkflow, 'translate');
+  const translationPublishJob = extractJobBlock(translationWorkflow, 'publish');
+  const collectJob = extractJobBlock(watcherWorkflow, 'collect');
+  const triageJob = extractJobBlock(watcherWorkflow, 'triage');
+  const watcherPublishJob = extractJobBlock(watcherWorkflow, 'publish');
+
+  for (const [name, contents] of [
+    ['translation workflow', translation],
+    ['translation caller', caller],
+    ['fleet watcher', watcher],
+  ]) {
+    assert.doesNotMatch(contents, /AUTOMATION_APP_(?:ID|PRIVATE_KEY)/, `${name} must not require a GitHub App`);
+    assert.doesNotMatch(contents, /actions\/create-github-app-token/, `${name} must not mint GitHub App tokens`);
+  }
+
+  assert.match(translation, /REPO_SYNC_TOKEN:\n\s+required: true/, 'reusable translation must require REPO_SYNC_TOKEN');
+  assert.match(
+    caller,
+    /REPO_SYNC_TOKEN: \$\{\{ secrets\.REPO_SYNC_TOKEN \}\}/,
+    'managed translation caller must explicitly pass REPO_SYNC_TOKEN',
+  );
+  assert.doesNotMatch(translateJob, /REPO_SYNC_TOKEN/, 'translation model job must not receive the publication token');
+  assert.match(
+    translationPublishJob,
+    /GH_TOKEN: \$\{\{ secrets\.REPO_SYNC_TOKEN \}\}/,
+    'translation publication must use REPO_SYNC_TOKEN',
+  );
+
+  assert.match(
+    collectJob,
+    /GH_TOKEN: \$\{\{ secrets\.REPO_SETTINGS_TOKEN \}\}/,
+    'watcher collection must use REPO_SETTINGS_TOKEN',
+  );
+  assert.doesNotMatch(
+    triageJob,
+    /REPO_SETTINGS_TOKEN|REPO_SYNC_TOKEN/,
+    'Antigravity triage must receive no governance token',
+  );
+  assert.match(
+    watcherPublishJob,
+    /github-token: \$\{\{ secrets\.REPO_SETTINGS_TOKEN \}\}/,
+    'watcher publication must use REPO_SETTINGS_TOKEN',
+  );
 }
 
 function writeExecutable(file, body) {
@@ -898,6 +957,7 @@ assert.notEqual(
 );
 
 testReviewerPreparation();
+testNoAppTokenRouting();
 testTranslationPreparation();
 testPinnedInstallers();
 testReviewerModelAndGate();
