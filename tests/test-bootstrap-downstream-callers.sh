@@ -265,8 +265,53 @@ case "$1 $endpoint" in
       printf '{"strict":true,"contexts":["Check linked issues","Example CI","lint / Lint Code Base"]}\n'
     fi
     ;;
-  'api repos/f5-sales-demo/example/commits/'*'/check-runs')
-    if [ "${FAKE_LEGACY_LINKED_CHECK:-}" = 1 ]; then
+  'api repos/f5-sales-demo/example/commits/'*'/check-runs'*)
+    if [ "${FAKE_FIRST_REPO:-}" = 1 ]; then
+      if [ "${FAKE_FAST_FAIL:-}" = 1 ]; then
+        touch "$FAKE_STATE/advance-main"
+      fi
+      case "${FAKE_FIRST_REPO_LINT_MODE:-success}" in
+      absent)
+        printf '{"total_count":0,"check_runs":[]}\n'
+        ;;
+      malformed)
+        printf '{"total_count":2,"check_runs":"invalid"}\n'
+        ;;
+      *)
+        lint_status=completed
+        lint_conclusion=success
+        app_id=15368
+        app_slug=github-actions
+        case "${FAKE_FIRST_REPO_LINT_MODE:-success}" in
+        pending)
+          lint_status=in_progress
+          lint_conclusion=null
+          ;;
+        failed) lint_conclusion=failure ;;
+        spoofed)
+          app_id=99999
+          app_slug=untrusted-check-writer
+          ;;
+        success | wrong-pr | wrong-run) ;;
+        *) exit 64 ;;
+        esac
+        jq -cn --arg sha "$BRANCH_HEAD" --arg status "$lint_status" \
+          --arg conclusion "$lint_conclusion" \
+          --argjson app_id "$app_id" --arg app_slug "$app_slug" '
+          {total_count:2,check_runs:[
+            {id:10001,name:"lint / Lint Code Base",head_sha:$sha,
+             status:$status,
+             conclusion:(if $conclusion == "null" then null else $conclusion end),
+             details_url:"https://github.com/f5-sales-demo/example/actions/runs/1001/job/10001",
+             app:{id:$app_id,slug:$app_slug},pull_requests:[]},
+            {id:10002,name:"lint / Shell Unit Tests",head_sha:$sha,
+             status:"completed",conclusion:"success",
+             details_url:"https://github.com/f5-sales-demo/example/actions/runs/1001/job/10002",
+             app:{id:$app_id,slug:$app_slug},pull_requests:[]}
+          ]}'
+        ;;
+      esac
+    elif [ "${FAKE_LEGACY_LINKED_CHECK:-}" = 1 ]; then
       jq -cn --arg sha "$BRANCH_HEAD" \
         '{check_runs:[{name:"check / Check linked issues",head_sha:$sha,status:"completed",conclusion:"success",details_url:"https://github.com/f5-sales-demo/example/actions/runs/999/job/1000",app:{id:15368,slug:"github-actions"}}]}'
     else
@@ -276,6 +321,28 @@ case "$1 $endpoint" in
   'api repos/f5-sales-demo/example/actions/runs/999')
     jq -cn --arg sha "$BRANCH_HEAD" \
       '{path:".github/workflows/require-linked-issue.yml",event:"pull_request_target",head_sha:$sha,status:"completed",conclusion:"success"}'
+    ;;
+  'api repos/f5-sales-demo/example/actions/runs/1001')
+    run_path=.github/workflows/super-linter.yml
+    pr_number=42
+    if [ "${FAKE_FIRST_REPO_LINT_MODE:-success}" = wrong-run ]; then
+      run_path=.github/workflows/untrusted.yml
+    elif [ "${FAKE_FIRST_REPO_LINT_MODE:-success}" = wrong-pr ]; then
+      pr_number=43
+    fi
+    jq -cn --arg sha "$BRANCH_HEAD" --arg branch "$EXPECTED_BRANCH" \
+      --arg path "$run_path" --arg revision "$PIN_SHA" \
+      --arg slug f5-sales-demo/example --argjson pr "$pr_number" '
+      {id:1001,name:"Super-Linter",path:$path,event:"pull_request",head_sha:$sha,
+       head_branch:$branch,head_commit:{id:$sha},
+       head_repository:{id:123,full_name:$slug},
+       repository:{id:123,full_name:$slug},
+       status:"completed",conclusion:"success",
+       pull_requests:[{number:$pr,head:{sha:$sha,ref:$branch},base:{ref:"main"}}],
+       referenced_workflows:[{
+         path:("f5-sales-demo/docs-control/.github/workflows/super-linter.yml@" + $revision),
+         sha:$revision
+       }]}'
     ;;
   'api repos/f5-sales-demo/example/actions/workflows/require-linked-issue.yml/dispatches')
     input=""
@@ -850,11 +917,51 @@ run_bootstrap() {
     FAKE_FIRST_REPO="${FAKE_FIRST_REPO:-}" \
     FAKE_FIRST_REPO_PARTIAL="${FAKE_FIRST_REPO_PARTIAL:-}" \
     FAKE_PROTECTED_EMPTY_CALLERS="${FAKE_PROTECTED_EMPTY_CALLERS:-}" \
+    FAKE_FIRST_REPO_LINT_MODE="${FAKE_FIRST_REPO_LINT_MODE:-}" \
+    FAKE_FAST_FAIL="${FAKE_FAST_FAIL:-}" \
     FAKE_BAD_RECOVER_LINKED="${FAKE_BAD_RECOVER_LINKED:-}" \
     FAKE_FAIL_SECOND_BOOTSTRAP="${FAKE_FAIL_SECOND_BOOTSTRAP:-}" \
     REPO_SETTINGS_TOKEN=settings-token \
     "$SOURCE"
 }
+
+DOWNSTREAM_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
+for lint_mode in absent pending failed malformed spoofed wrong-pr wrong-run; do
+  state="$WORK/state-first-repo-${lint_mode}-lint"
+  mkdir -p "$state"
+  : >"$WORK/gh.log"
+  FAKE_FIRST_REPO=1
+  FAKE_FIRST_REPO_LINT_MODE="$lint_mode"
+  FAKE_FAST_FAIL=1
+  FAKE_MERGE_LANDS=1
+  set +e
+  run_bootstrap "$state" >"$WORK/first-repo-${lint_mode}-lint.out" \
+    2>"$WORK/first-repo-${lint_mode}-lint.err"
+  rc=$?
+  set -e
+  unset FAKE_FIRST_REPO FAKE_FIRST_REPO_LINT_MODE FAKE_FAST_FAIL FAKE_MERGE_LANDS
+  case "$lint_mode" in
+  absent | pending) expected_error='Waiting for authentic Super-Linter checks' ;;
+  failed) expected_error='First-repository lint checks did not succeed' ;;
+  malformed) expected_error='First-repository lint check response is malformed' ;;
+  spoofed) expected_error='First-repository lint checks are not authentic exact-head receipts' ;;
+  wrong-pr) expected_error='First-repository lint workflow run is not an exact trusted receipt' ;;
+  wrong-run) expected_error='First-repository lint workflow run is not an exact trusted receipt' ;;
+  esac
+  if [ "$rc" = 0 ] || grep -qE '^pr merge |require-linked-issue.yml/dispatches' \
+    "$WORK/gh.log" || ! grep -q "$expected_error" \
+    "$WORK/first-repo-${lint_mode}-lint.out" \
+    "$WORK/first-repo-${lint_mode}-lint.err"; then
+    echo "[FAIL] first-repository ${lint_mode} lint receipt did not fail closed"
+    cat "$WORK/first-repo-${lint_mode}-lint.err"
+    sed 's/^/  log: /' "$WORK/gh.log"
+    exit 1
+  fi
+done
+unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINKED_BLOB
+echo "[OK] absent, pending, failed, malformed, spoofed, and untrusted first-repository lint receipts fail closed"
 
 state="$WORK/state-stale"
 mkdir -p "$state"
@@ -1665,6 +1772,31 @@ if [ "$rc" = 0 ] ||
 fi
 echo "[OK] unprotected partial caller set fails before bootstrap mutation"
 
+state="$WORK/state-first-repo-without-governed-lint"
+mkdir -p "$state"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
+FAKE_FIRST_REPO=1
+FAKE_SKIP_LINT_CALLER=1
+FAKE_FORBID_LINT_READ=1
+set +e
+TEST_GOVERNANCE_CONFIG="$WORK/governance-skip-lint.json" run_bootstrap "$state" \
+  >"$WORK/first-repo-without-governed-lint.out" \
+  2>"$WORK/first-repo-without-governed-lint.err"
+rc=$?
+set -e
+unset DOWNSTREAM_LINKED_BLOB FAKE_FIRST_REPO FAKE_SKIP_LINT_CALLER \
+  FAKE_FORBID_LINT_READ TEST_GOVERNANCE_CONFIG
+if [ "$rc" = 0 ] ||
+  grep -qE 'repos/f5-sales-demo/example --method PATCH|branches/main/protection --method PUT|git/refs --method POST|contents/.* --method PUT|^pr (create|merge)' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] first repository without governed lint entered a bootstrap mutation"
+  cat "$WORK/first-repo-without-governed-lint.err"
+  exit 1
+fi
+echo "[OK] first repository without governed Super-Linter fails before mutation"
+
 state="$WORK/state-first-repo"
 mkdir -p "$state"
 : >"$WORK/gh.log"
@@ -1672,23 +1804,30 @@ DOWNSTREAM_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
 FAKE_FIRST_REPO=1
+FAKE_FIRST_REPO_LINT_MODE=success
 FAKE_MERGE_LANDS=1
 set +e
 run_bootstrap "$state" >"$WORK/first-repo.out" 2>"$WORK/first-repo.err"
 rc=$?
 set -e
-unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINKED_BLOB FAKE_FIRST_REPO FAKE_MERGE_LANDS
+unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINKED_BLOB FAKE_FIRST_REPO \
+  FAKE_FIRST_REPO_LINT_MODE FAKE_MERGE_LANDS
 protection_line=$(grep -n 'branches/main/protection --method PUT' "$WORK/gh.log" |
   head -1 | cut -d: -f1 || true)
+check_line=$(grep -n '/check-runs' "$WORK/gh.log" | head -1 | cut -d: -f1 || true)
+run_line=$(grep -n 'actions/runs/1001' "$WORK/gh.log" | head -1 | cut -d: -f1 || true)
 merge_line=$(grep -n '^pr merge ' "$WORK/gh.log" | head -1 | cut -d: -f1 || true)
 dispatch_line=$(grep -n 'require-linked-issue.yml/dispatches --method POST' "$WORK/gh.log" |
   head -1 | cut -d: -f1 || true)
 final_context_line=$(grep -n 'required_status_checks --method PATCH' "$WORK/gh.log" |
   tail -1 | cut -d: -f1 || true)
-if [ "$rc" != 0 ] || [ -z "$protection_line" ] || [ -z "$merge_line" ] ||
+if [ "$rc" != 0 ] || [ -z "$protection_line" ] || [ -z "$check_line" ] ||
+  [ -z "$run_line" ] || [ -z "$merge_line" ] ||
   [ -z "$dispatch_line" ] || [ -z "$final_context_line" ] ||
-  [ "$protection_line" -ge "$merge_line" ] || [ "$merge_line" -ge "$dispatch_line" ] ||
+  [ "$protection_line" -ge "$check_line" ] || [ "$check_line" -ge "$run_line" ] ||
+  [ "$run_line" -ge "$merge_line" ] || [ "$merge_line" -ge "$dispatch_line" ] ||
   [ "$dispatch_line" -ge "$final_context_line" ] ||
+  ! grep -q -- "--match-head-commit $BRANCH_HEAD" "$WORK/gh.log" ||
   ! grep -q 'repos/f5-sales-demo/example --method PATCH' "$WORK/gh.log" ||
   [ "$(grep -c 'required_status_checks --method PATCH' "$WORK/gh.log")" -ne 1 ] ||
   ! jq -e '.required_status_checks.contexts | index("Check linked issues") == null' \
@@ -1701,7 +1840,7 @@ if [ "$rc" != 0 ] || [ -z "$protection_line" ] || [ -z "$merge_line" ] ||
   sed 's/^/  log: /' "$WORK/gh.log"
   exit 1
 fi
-echo "[OK] first governed repository installs three exact callers before restoring protection"
+echo "[OK] first repository verifies authentic exact-head lint before merge and protection restoration"
 
 state="$WORK/state-resume-first-repo-protection"
 mkdir -p "$state"
