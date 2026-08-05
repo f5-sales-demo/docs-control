@@ -84,8 +84,8 @@ assert_contains "$CONTRIBUTING" "ANTIGRAVITY_REVIEW_ENABLED" \
 assert_contains "$CONTRIBUTING" "TRANSLATIONS_ENABLED" \
   "CONTRIBUTING documents the translation runtime switch"
 assert_contains "$CONTRIBUTING" "same-named repository variables" \
-  "CONTRIBUTING forbids repository variables that shadow central controls"
-assert_contains "$CONTRIBUTING" "do not manually disable" \
+  "CONTRIBUTING keeps central controls free of repository-variable shadows"
+assert_contains "$CONTRIBUTING" "Enable and keep active" \
   "CONTRIBUTING keeps workflows active after the security hold"
 assert_contains "$CONTRIBUTING" "Deterministic only" \
   "CONTRIBUTING keeps local validation model-free"
