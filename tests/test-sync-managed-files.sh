@@ -976,7 +976,7 @@ echo "=== Section 9: generated Dependabot updates enforce cooldown ==="
 awk '
   /# --- Dynamic dependabot.yml generation/ { found=1 }
   found { sub(/^              /, ""); print }
-  found && /printf .%b. .*DEPBOT.*generated_dependabot.yml/ { exit }
+  found && /printf .%b. .*DEPBOT.*generated-dependabot.yml/ { exit }
 ' "$SYNC" >"$WORK/dependabot-generator.sh"
 
 if [ -s "$WORK/dependabot-generator.sh" ]; then
@@ -987,14 +987,17 @@ else
 fi
 
 DEPENDABOT_FIXTURE="$WORK/dependabot-fixture"
+DEPENDABOT_OUTPUT="$WORK/dependabot-output"
 mkdir -p "$DEPENDABOT_FIXTURE"
+mkdir -p "$DEPENDABOT_OUTPUT"
 touch "$DEPENDABOT_FIXTURE/package.json" \
   "$DEPENDABOT_FIXTURE/requirements.txt" \
   "$DEPENDABOT_FIXTURE/Dockerfile"
 
 if [ -s "$WORK/dependabot-generator.sh" ] &&
-  (cd "$DEPENDABOT_FIXTURE" && OWNER=f5-sales-demo bash "$WORK/dependabot-generator.sh") &&
-  python3 - /tmp/generated_dependabot.yml <<'PY'; then
+  (cd "$DEPENDABOT_FIXTURE" && OWNER=f5-sales-demo SYNC_WORK_DIR="$DEPENDABOT_OUTPUT" \
+    bash "$WORK/dependabot-generator.sh") &&
+  python3 - "$DEPENDABOT_OUTPUT/generated-dependabot.yml" <<'PY'; then
 import sys
 
 import yaml
@@ -1015,7 +1018,7 @@ else
 fi
 
 if command -v zizmor >/dev/null 2>&1; then
-  cp /tmp/generated_dependabot.yml "$WORK/dependabot.yml"
+  cp "$DEPENDABOT_OUTPUT/generated-dependabot.yml" "$WORK/dependabot.yml"
   if zizmor --no-config --no-ignores "$WORK/dependabot.yml" >/dev/null 2>&1; then
     pass "9.3 generated Dependabot configuration passes Zizmor"
   else

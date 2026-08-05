@@ -341,6 +341,8 @@ jobs:
             exit 1
           fi
           SYNC_BRANCH="governance/sync-managed-files-${expected_source_sha:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          SYNC_WORK_DIR=$(mktemp -d "${RUNNER_TEMP:?}/sync-managed-files.XXXXXX")
+          mkdir -p "${SYNC_WORK_DIR}/drift-content"
 
           read_sync_prs() {
             local destination="$1"
@@ -422,7 +424,7 @@ jobs:
             local dest_file="$1" cache_key
             cache_key=$(printf '%s' "$dest_file" | git hash-object --stdin)
             require_sha "managed cache key" "$cache_key" || return 1
-            printf '/tmp/drift_content/%s' "$cache_key"
+            printf '%s/drift-content/%s' "$SYNC_WORK_DIR" "$cache_key"
           }
 
           validate_managed_routing() {
@@ -486,6 +488,69 @@ jobs:
               else error("readme_english_only must be a boolean")
               end
             '
+          }
+
+          replace_readme_marker() {
+            local marker="$1" insertion_file="$2" target_file="$3"
+            local marker_count next_file
+
+            marker_count=$(grep -Fxc -- "$marker" "$target_file" || true)
+            if [ "$marker_count" -ne 1 ]; then
+              echo "[ERROR] README marker ${marker} must occur exactly once; found ${marker_count}" >&2
+              return 1
+            fi
+            if [ ! -f "$insertion_file" ]; then
+              echo "[ERROR] README marker content is unavailable for ${marker}" >&2
+              return 1
+            fi
+
+            next_file=$(mktemp "${target_file}.marker.XXXXXX")
+            if ! awk -v marker="$marker" -v insertion="$insertion_file" '
+              $0 == marker {
+                while ((read_status = (getline line < insertion)) > 0) print line
+                if (read_status < 0) exit 2
+                close(insertion)
+                next
+              }
+              { print }
+            ' "$target_file" >"$next_file"; then
+              rm -f "$next_file"
+              echo "[ERROR] Could not replace README marker ${marker}" >&2
+              return 1
+            fi
+            mv "$next_file" "$target_file"
+          }
+
+          validate_generated_readme() {
+            local readme_file="$1" title="$2" description="$3" docs_url="$4"
+            local owner="$5" repo="$6" first_line h1_count expected_docs
+
+            if grep -qE '__[A-Z][A-Z0-9_]*__' "$readme_file"; then
+              echo "[ERROR] Generated README contains an unresolved placeholder" >&2
+              return 1
+            fi
+            IFS= read -r first_line <"$readme_file" || {
+              echo "[ERROR] Generated README is empty" >&2
+              return 1
+            }
+            h1_count=$(grep -c '^# ' "$readme_file" || true)
+            if [ "$first_line" != "# ${title}" ] || [ "$h1_count" -ne 1 ]; then
+              echo "[ERROR] Generated README title does not match canonical metadata" >&2
+              return 1
+            fi
+            if ! grep -Fqx -- "$description" "$readme_file"; then
+              echo "[ERROR] Generated README description does not match canonical metadata" >&2
+              return 1
+            fi
+            expected_docs="Full documentation is available at __[${docs_url}](${docs_url})__."
+            if ! grep -Fqx -- "$expected_docs" "$readme_file"; then
+              echo "[ERROR] Generated README documentation URL does not match canonical metadata" >&2
+              return 1
+            fi
+            if ! grep -Fq -- "https://img.shields.io/github/license/${owner}/${repo}" "$readme_file"; then
+              echo "[ERROR] Generated README repository identity does not match the caller" >&2
+              return 1
+            fi
           }
 
           select_owned_stale_issues() {
@@ -648,13 +713,13 @@ jobs:
                 append_tree_deletion "$tree_items_file" "$dest_file"
                 continue
               elif [ "$dest_file" = ".github/dependabot.yml" ] && [ "$DEPENDABOT_DRIFT" = true ]; then
-                source_file="/tmp/generated_dependabot.yml"
+                source_file="${SYNC_WORK_DIR}/generated-dependabot.yml"
                 item_index=$((item_index + 1))
                 content_file="${payload_dir}/content-${item_index}"
                 normalize_tree_content "$source_file" "$content_file"
                 file_mode=100644
               elif [ "$dest_file" = "README.md" ] && [ "$README_DRIFT" = true ]; then
-                source_file="/tmp/generated_readme.md"
+                source_file="${SYNC_WORK_DIR}/generated-readme.md"
                 item_index=$((item_index + 1))
                 content_file="${payload_dir}/content-${item_index}"
                 normalize_tree_content "$source_file" "$content_file"
@@ -860,8 +925,6 @@ jobs:
               fi
               echo "[INFO] Using exact manifest from ${SOURCE_REPO}@${MANIFEST_COMMIT} for drift detection"
 
-              mkdir -p /tmp/drift_content
-
               for file_obj in $(echo "$MANAGED_FILES" | jq -c '.files[]'); do
                 src=$(echo "$file_obj" | jq -r '.src')
                 dest=$(echo "$file_obj" | jq -r '.dest')
@@ -972,17 +1035,18 @@ jobs:
 
               DEPBOT="${DEPBOT}\n"
               # Write generated dependabot.yml to temp file (preserves trailing newline)
-              printf '%b' "$DEPBOT" > /tmp/generated_dependabot.yml
+              printf '%b' "$DEPBOT" >"${SYNC_WORK_DIR}/generated-dependabot.yml"
 
               # Compare with current dependabot.yml in target repo (local disk,
               # no API call -- file was checked out by actions/checkout@v6).
               if [ -f .github/dependabot.yml ]; then
-                cp .github/dependabot.yml /tmp/current_dependabot.yml
+                cp .github/dependabot.yml "${SYNC_WORK_DIR}/current-dependabot.yml"
               else
-                : > /tmp/current_dependabot.yml
+                : >"${SYNC_WORK_DIR}/current-dependabot.yml"
               fi
 
-              if ! diff -q /tmp/generated_dependabot.yml /tmp/current_dependabot.yml >/dev/null 2>&1; then
+              if ! diff -q "${SYNC_WORK_DIR}/generated-dependabot.yml" \
+                "${SYNC_WORK_DIR}/current-dependabot.yml" >/dev/null 2>&1; then
                 echo "[DRIFT] .github/dependabot.yml needs update"
                 DEPENDABOT_DRIFT=true
                 DRIFT_FILES="${DRIFT_FILES}.github/dependabot.yml\n"
@@ -1040,7 +1104,7 @@ jobs:
                     readme_english_only)
                 case "$README_ENGLISH_ONLY" in
                   true)
-                    printf '%s\n' '🌐 English' > /tmp/language_nav.tmp
+                    printf '%s\n' '🌐 English' >"${SYNC_WORK_DIR}/language-nav.txt"
                     ;;
                   false)
                     printf '%s\n' \
@@ -1057,7 +1121,7 @@ jobs:
                       "[العربية](https://${OWNER}.github.io/${REPO}/ar/) |" \
                       "[हिन्दी](https://${OWNER}.github.io/${REPO}/hi/) |" \
                       "[ไทย](https://${OWNER}.github.io/${REPO}/th/)" \
-                      > /tmp/language_nav.tmp
+                      >"${SYNC_WORK_DIR}/language-nav.txt"
                     ;;
                   *)
                     echo "[ERROR] readme_english_only must be true or false for ${REPO}" >&2
@@ -1066,7 +1130,12 @@ jobs:
                 esac
 
                 # Fetch README.md.tpl from docs-control
-                README_TPL=$(fetch_governed "README.md.tpl" "repos/${CONFIG_REPO}/contents/README.md.tpl")
+                README_TEMPLATE_FILE="${SYNC_WORK_DIR}/README.md.tpl"
+                if ! fetch_governed "README.md.tpl" \
+                  "repos/${CONFIG_REPO}/contents/README.md.tpl" >"$README_TEMPLATE_FILE"; then
+                  echo "[ERROR] Could not fetch canonical README template" >&2
+                  exit 1
+                fi
 
                 # Escape sed replacement-string metacharacters (backslash, &, and the
                 # | delimiter) in substitution values, so a value containing them (e.g.
@@ -1081,35 +1150,31 @@ jobs:
 
                 # Substitute placeholders
                 # Write generated README.md to temp file (preserves trailing newline)
-                echo "$README_TPL" | \
-                  sed "s|__ORG_NAME__|${ORG_NAME_ESC}|g" | \
-                  sed "s|__TITLE__|${README_TITLE_ESC}|g" | \
-                  sed "s|__DESCRIPTION__|${README_DESC_ESC}|g" | \
-                  sed "s|__REPO_NAME__|${REPO_NAME_ESC}|g" | \
-                  sed "s|__DOCS_URL__|${DOCS_URL_ESC}|g" > /tmp/generated_readme.md
+                sed \
+                  -e "s|__ORG_NAME__|${ORG_NAME_ESC}|g" \
+                  -e "s|__TITLE__|${README_TITLE_ESC}|g" \
+                  -e "s|__DESCRIPTION__|${README_DESC_ESC}|g" \
+                  -e "s|__REPO_NAME__|${REPO_NAME_ESC}|g" \
+                  -e "s|__DOCS_URL__|${DOCS_URL_ESC}|g" \
+                  "$README_TEMPLATE_FILE" >"${SYNC_WORK_DIR}/generated-readme.md"
 
-                sed -i '/__LANGUAGE_NAV__/{r /tmp/language_nav.tmp
-                d;}' /tmp/generated_readme.md
+                replace_readme_marker "__LANGUAGE_NAV__" \
+                  "${SYNC_WORK_DIR}/language-nav.txt" "${SYNC_WORK_DIR}/generated-readme.md"
 
-                # Replace __EXTRA_BADGES__ placeholder — inject per-repo badge lines or remove
+                : >"${SYNC_WORK_DIR}/extra-badges.md"
                 if [ -n "$README_BADGES" ]; then
-                  printf '%s\n' "$README_BADGES" > /tmp/extra_badges.tmp
-                  sed -i '/__EXTRA_BADGES__/{r /tmp/extra_badges.tmp
-                  d;}' /tmp/generated_readme.md
-                else
-                  sed -i '/__EXTRA_BADGES__/d' /tmp/generated_readme.md
+                  printf '%s\n' "$README_BADGES" >"${SYNC_WORK_DIR}/extra-badges.md"
                 fi
+                replace_readme_marker "__EXTRA_BADGES__" \
+                  "${SYNC_WORK_DIR}/extra-badges.md" "${SYNC_WORK_DIR}/generated-readme.md"
 
-                # Replace __EXTRA_CONTENT__ placeholder — inject per-repo markdown content or remove
                 README_CONTENT=$(printf '%s' "$DOCS_SITE_ENTRY" | jq -r '.readme_content // ""')
-
+                : >"${SYNC_WORK_DIR}/extra-content.md"
                 if [ -n "$README_CONTENT" ]; then
-                  printf '%s\n' "$README_CONTENT" > /tmp/extra_content.tmp
-                  sed -i '/__EXTRA_CONTENT__/{r /tmp/extra_content.tmp
-                  d;}' /tmp/generated_readme.md
-                else
-                  sed -i '/__EXTRA_CONTENT__/d' /tmp/generated_readme.md
+                  printf '%s\n' "$README_CONTENT" >"${SYNC_WORK_DIR}/extra-content.md"
                 fi
+                replace_readme_marker "__EXTRA_CONTENT__" \
+                  "${SYNC_WORK_DIR}/extra-content.md" "${SYNC_WORK_DIR}/generated-readme.md"
 
                 # Collapse runs of blank lines left behind by deleting an optional
                 # placeholder. __EXTRA_CONTENT__ sits on its own line between two blank
@@ -1118,17 +1183,23 @@ jobs:
                 # so that path remains used by most repos in the fleet, and README.md is
                 # protected, so no consumer can fix it locally. Squeezing here fixes the
                 # existing case and any optional placeholder added later.
-                cat -s /tmp/generated_readme.md > /tmp/generated_readme.squeezed
-                mv /tmp/generated_readme.squeezed /tmp/generated_readme.md
+                cat -s "${SYNC_WORK_DIR}/generated-readme.md" \
+                  >"${SYNC_WORK_DIR}/generated-readme.squeezed"
+                mv "${SYNC_WORK_DIR}/generated-readme.squeezed" \
+                  "${SYNC_WORK_DIR}/generated-readme.md"
+
+                validate_generated_readme "${SYNC_WORK_DIR}/generated-readme.md" \
+                  "$README_TITLE" "$README_DESC" "$DOCS_URL" "$OWNER" "$REPO"
 
                 # Compare with current README.md in target repo (local disk, no API).
                 if [ -f README.md ]; then
-                  cp README.md /tmp/current_readme.md
+                  cp README.md "${SYNC_WORK_DIR}/current-readme.md"
                 else
-                  : > /tmp/current_readme.md
+                  : >"${SYNC_WORK_DIR}/current-readme.md"
                 fi
 
-                if ! diff -q /tmp/generated_readme.md /tmp/current_readme.md >/dev/null 2>&1; then
+                if ! diff -q "${SYNC_WORK_DIR}/generated-readme.md" \
+                  "${SYNC_WORK_DIR}/current-readme.md" >/dev/null 2>&1; then
                   echo "[DRIFT] README.md needs update"
                   README_DRIFT=true
                   DRIFT_FILES="${DRIFT_FILES}README.md\n"
