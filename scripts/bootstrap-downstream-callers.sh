@@ -478,7 +478,7 @@ reconcile_first_repo_controls() {
 }
 
 first_repo_lint_checks_are_successful() {
-  local slug="$1" branch="$2" head="$3"
+  local slug="$1" pr_number="$2" branch="$3" head="$4" base="$5"
   local response run_response required_count run_id rc
   local run_prefix="https://github.com/${slug}/actions/runs/"
   local reusable="${repository}/.github/workflows/super-linter.yml@${pin_revision}"
@@ -585,7 +585,8 @@ first_repo_lint_checks_are_successful() {
     rm -f "$run_response"
     return "$rc"
   fi
-  if ! jq -e --arg run "$run_id" --arg head "$head" --arg branch "$branch" \
+  if ! jq -e --arg run "$run_id" --argjson pr "$pr_number" \
+    --arg head "$head" --arg branch "$branch" --arg base "$base" \
     --arg slug "$slug" --arg reusable "$reusable" --arg revision "$pin_revision" '
     type == "object" and (.id | tostring) == $run and
     .name == "Super-Linter" and .path == ".github/workflows/super-linter.yml" and
@@ -595,6 +596,10 @@ first_repo_lint_checks_are_successful() {
     .head_repository.id == .repository.id and
     .head_repository.full_name == $slug and .repository.full_name == $slug and
     .status == "completed" and .conclusion == "success" and
+    (.pull_requests | type == "array") and
+    any(.pull_requests[];
+      .number == $pr and .head.sha == $head and .head.ref == $branch and
+      .base.ref == $base) and
     (.referenced_workflows | type == "array" and length == 1) and
     .referenced_workflows[0].path == $reusable and
     .referenced_workflows[0].sha == $revision
@@ -1447,6 +1452,10 @@ bootstrap_one() {
     { [ "$manages_lint_caller" = false ] || [ -z "$actual_lint_blob" ]; }; then
     first_repo=true
   fi
+  if [ "$first_repo" = true ] && [ "$manages_lint_caller" != true ]; then
+    echo "[ERROR] First governed repository ${name} must install the Super-Linter caller" >&2
+    return 1
+  fi
   if [ "$actual_blob" = "$expected_blob" ] &&
     [ "$lint_caller_exact" = true ] &&
     [ "$actual_linked_blob" = "$expected_linked_blob" ]; then
@@ -1812,18 +1821,17 @@ bootstrap_one() {
     return 1
   fi
   if [ "$first_repo" = true ]; then
-    if [ "$manages_lint_caller" = true ]; then
-      if first_repo_lint_checks_are_successful "$slug" "$branch" "$verified_head"; then
-        rc=0
-      else
-        rc=$?
-      fi
-      if [ "$rc" -eq 76 ]; then
-        echo "[DEFER] Waiting for authentic Super-Linter checks on ${name} PR #${pr_number}"
-        return 76
-      fi
-      [ "$rc" -eq 0 ] || return "$rc"
+    if first_repo_lint_checks_are_successful \
+      "$slug" "$pr_number" "$branch" "$verified_head" "$default_branch"; then
+      rc=0
+    else
+      rc=$?
     fi
+    if [ "$rc" -eq 76 ]; then
+      echo "[DEFER] Waiting for authentic Super-Linter checks on ${name} PR #${pr_number}"
+      return 76
+    fi
+    [ "$rc" -eq 0 ] || return "$rc"
 
     assert_source_current
     current_base_sha=$(gh api \

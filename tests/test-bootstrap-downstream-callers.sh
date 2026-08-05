@@ -292,7 +292,7 @@ case "$1 $endpoint" in
           app_id=99999
           app_slug=untrusted-check-writer
           ;;
-        success | wrong-run) ;;
+        success | wrong-pr | wrong-run) ;;
         *) exit 64 ;;
         esac
         jq -cn --arg sha "$BRANCH_HEAD" --arg status "$lint_status" \
@@ -324,17 +324,21 @@ case "$1 $endpoint" in
     ;;
   'api repos/f5-sales-demo/example/actions/runs/1001')
     run_path=.github/workflows/super-linter.yml
+    pr_number=42
     if [ "${FAKE_FIRST_REPO_LINT_MODE:-success}" = wrong-run ]; then
       run_path=.github/workflows/untrusted.yml
+    elif [ "${FAKE_FIRST_REPO_LINT_MODE:-success}" = wrong-pr ]; then
+      pr_number=43
     fi
     jq -cn --arg sha "$BRANCH_HEAD" --arg branch "$EXPECTED_BRANCH" \
       --arg path "$run_path" --arg revision "$PIN_SHA" \
-      --arg slug f5-sales-demo/example '
+      --arg slug f5-sales-demo/example --argjson pr "$pr_number" '
       {id:1001,name:"Super-Linter",path:$path,event:"pull_request",head_sha:$sha,
        head_branch:$branch,head_commit:{id:$sha},
        head_repository:{id:123,full_name:$slug},
        repository:{id:123,full_name:$slug},
        status:"completed",conclusion:"success",
+       pull_requests:[{number:$pr,head:{sha:$sha,ref:$branch},base:{ref:"main"}}],
        referenced_workflows:[{
          path:("f5-sales-demo/docs-control/.github/workflows/super-linter.yml@" + $revision),
          sha:$revision
@@ -924,7 +928,7 @@ run_bootstrap() {
 DOWNSTREAM_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
-for lint_mode in absent pending failed malformed spoofed wrong-run; do
+for lint_mode in absent pending failed malformed spoofed wrong-pr wrong-run; do
   state="$WORK/state-first-repo-${lint_mode}-lint"
   mkdir -p "$state"
   : >"$WORK/gh.log"
@@ -943,6 +947,7 @@ for lint_mode in absent pending failed malformed spoofed wrong-run; do
   failed) expected_error='First-repository lint checks did not succeed' ;;
   malformed) expected_error='First-repository lint check response is malformed' ;;
   spoofed) expected_error='First-repository lint checks are not authentic exact-head receipts' ;;
+  wrong-pr) expected_error='First-repository lint workflow run is not an exact trusted receipt' ;;
   wrong-run) expected_error='First-repository lint workflow run is not an exact trusted receipt' ;;
   esac
   if [ "$rc" = 0 ] || grep -qE '^pr merge |require-linked-issue.yml/dispatches' \
@@ -1766,6 +1771,31 @@ if [ "$rc" = 0 ] ||
   exit 1
 fi
 echo "[OK] unprotected partial caller set fails before bootstrap mutation"
+
+state="$WORK/state-first-repo-without-governed-lint"
+mkdir -p "$state"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
+FAKE_FIRST_REPO=1
+FAKE_SKIP_LINT_CALLER=1
+FAKE_FORBID_LINT_READ=1
+set +e
+TEST_GOVERNANCE_CONFIG="$WORK/governance-skip-lint.json" run_bootstrap "$state" \
+  >"$WORK/first-repo-without-governed-lint.out" \
+  2>"$WORK/first-repo-without-governed-lint.err"
+rc=$?
+set -e
+unset DOWNSTREAM_LINKED_BLOB FAKE_FIRST_REPO FAKE_SKIP_LINT_CALLER \
+  FAKE_FORBID_LINT_READ TEST_GOVERNANCE_CONFIG
+if [ "$rc" = 0 ] ||
+  grep -qE 'repos/f5-sales-demo/example --method PATCH|branches/main/protection --method PUT|git/refs --method POST|contents/.* --method PUT|^pr (create|merge)' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] first repository without governed lint entered a bootstrap mutation"
+  cat "$WORK/first-repo-without-governed-lint.err"
+  exit 1
+fi
+echo "[OK] first repository without governed Super-Linter fails before mutation"
 
 state="$WORK/state-first-repo"
 mkdir -p "$state"
