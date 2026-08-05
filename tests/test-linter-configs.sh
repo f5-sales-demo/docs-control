@@ -435,6 +435,57 @@ for v in POWERSHELL HTML CPP DOCKERFILE_HADOLINT BASH_EXEC EDITORCONFIG PROTOBUF
   fi
 done
 
+if printf '%s' "$WORKFLOW_CALL_BLOCK" |
+  grep -qE '^[[:space:]]+classify_xc_minimum_configs:' &&
+  printf '%s' "$WORKFLOW_CALL_BLOCK" |
+  grep -A4 'classify_xc_minimum_configs:' |
+    grep -qE '^[[:space:]]+type:[[:space:]]+boolean$' &&
+  printf '%s' "$WORKFLOW_CALL_BLOCK" |
+  grep -A5 'classify_xc_minimum_configs:' |
+    grep -qE '^[[:space:]]+default:[[:space:]]+false$'; then
+  pass "5e.5 reusable workflow declares fail-closed XC YAML classification"
+else
+  fail "5e.5 reusable workflow declares fail-closed XC YAML classification" \
+    "the boolean input must default to false"
+fi
+
+KUBECONFORM_OPTIONS=$(grep -E \
+  '^[[:space:]]*KUBERNETES_KUBECONFORM_OPTIONS:' "$SL_YML" || true)
+if printf '%s' "$KUBECONFORM_OPTIONS" |
+  grep -Fq "inputs.classify_xc_minimum_configs && '-ignore-filename-pattern=(^|/)tools/minimum-configs/' || ''"; then
+  pass "5e.6 XC classification affects only Kubeconform's filename set"
+else
+  fail "5e.6 XC classification affects only Kubeconform's filename set" \
+    "the fixed minimum-config path must be routed through KUBERNETES_KUBECONFORM_OPTIONS"
+fi
+
+FILTER_REGEX=$(grep -E '^[[:space:]]*FILTER_REGEX_EXCLUDE:' "$SL_YML" | head -1)
+if ! printf '%s' "$FILTER_REGEX" | grep -Fq 'tools/minimum-configs'; then
+  pass "5e.7 XC minimum configs remain visible to non-Kubernetes validators"
+else
+  fail "5e.7 XC minimum configs remain visible to non-Kubernetes validators" \
+    "the global filter must not exclude the F5 XC YAML sources"
+fi
+
+if ! grep -qE \
+  '^[[:space:]]*VALIDATE_KUBERNETES_KUBECONFORM:[[:space:]]+false' "$SL_YML" &&
+  ! printf '%s' "$KUBECONFORM_OPTIONS" | grep -Fq 'ignore-missing-schemas'; then
+  pass "5e.8 Kubeconform remains fail-closed for Kubernetes manifests"
+else
+  fail "5e.8 Kubeconform remains fail-closed for Kubernetes manifests" \
+    "do not disable Kubeconform or allow missing Kubernetes schemas"
+fi
+
+MANAGED_LINT_CALLER="$REPO_ROOT/workflows/super-linter.yml"
+if grep -Fq \
+  "classify_xc_minimum_configs: \${{ github.repository == 'f5-sales-demo/terraform-provider-xcsh' }}" \
+  "$MANAGED_LINT_CALLER"; then
+  pass "5e.9 managed caller enables classification only for the provider"
+else
+  fail "5e.9 managed caller enables classification only for the provider" \
+    "the exact repository predicate must supply the reusable-workflow input"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5f: the repo-hygiene gate never executes PR-head code.
 #             The Lint Code Base job holds
