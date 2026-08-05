@@ -66,8 +66,7 @@
       "additional_contexts": ["Run plugin test suites"]
     },
     "xcsh": {
-      "additional_contexts": ["check", "pii-guard", "test"],
-      "excluded_required_contexts": ["lint / Lint Code Base", "lint / Shell Unit Tests"]
+      "additional_contexts": ["check", "pii-guard", "test"]
     },
     "vscode-xcsh": {
       "additional_contexts": ["Validate Generation", "Test (ubuntu-latest)", "Build VSIX"]
