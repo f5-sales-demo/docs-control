@@ -80,13 +80,15 @@
     "profiles": {
       "devcontainer": {
         "unit": [
+          { "path": "tests/test-agy-pre-push-review.sh", "args": [] },
           { "path": "tests/test-check-pii.sh", "args": [] },
           { "path": "tests/test-check-repo-hygiene.sh", "args": [] },
           { "path": "tests/test-fetch-governed.sh", "args": [] },
           { "path": "tests/test-hook-neutralization.sh", "args": ["--unit-only"] },
           { "path": "tests/test-inlined-helpers-match.sh", "args": [] },
           { "path": "tests/test-lint-mdx-prose.sh", "args": [] },
-          { "path": "tests/test-review-plugin-removal.sh", "args": [] }
+          { "path": "tests/test-review-plugin-removal.sh", "args": [] },
+          { "path": "tests/test-validate-translations.sh", "args": [] }
         ],
         "environment": [
           {

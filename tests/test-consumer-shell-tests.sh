@@ -183,13 +183,15 @@ assert_contains "malformed repository" "repository-name failure is explicit"
 if jq -e '
   .consumer_shell_tests.profiles.devcontainer as $p |
   ($p.unit | map(.path)) == [
+    "tests/test-agy-pre-push-review.sh",
     "tests/test-check-pii.sh",
     "tests/test-check-repo-hygiene.sh",
     "tests/test-fetch-governed.sh",
     "tests/test-hook-neutralization.sh",
     "tests/test-inlined-helpers-match.sh",
     "tests/test-lint-mdx-prose.sh",
-    "tests/test-review-plugin-removal.sh"
+    "tests/test-review-plugin-removal.sh",
+    "tests/test-validate-translations.sh"
   ] and
   ($p.unit[] | select(.path == "tests/test-hook-neutralization.sh") | .args) == ["--unit-only"] and
   ($p.environment | map(.path)) == [
