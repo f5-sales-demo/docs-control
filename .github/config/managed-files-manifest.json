@@ -1,5 +1,5 @@
 {
-  "source_commit": "4308c9ccb6d99bacd68cc1e4dd8e280686bf3f79",
+  "source_commit": "8fa31156566112a0955c5569db9766099ff480e4",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -25,8 +25,8 @@
     ".github/workflows/super-linter.yml": {
       "src": "workflows/super-linter.yml",
       "dest": ".github/workflows/super-linter.yml",
-      "sha": "d2c1e3c5c71be4da4b4a28621d3a47da133b0e3a",
-      "size": 800,
+      "sha": "cdc9899279d26e9ba39997cfc199458b398dffc8",
+      "size": 913,
       "mode": "100644"
     },
     ".github/workflows/translation-audit.yml": {
