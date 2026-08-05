@@ -1,17 +1,17 @@
 {
-  "source_commit": "68a4c40b14aef25827dc8d98dc3cfb4b251b7235",
+  "source_commit": "241d73875f5f72ac0c4843f93cfa37503547c8ba",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
       "dest": ".github/workflows/github-pages-deploy.yml",
-      "sha": "191e6924d56746165a35bfe86602013f5709a5c7",
+      "sha": "be302376c2118cc95a0be3e3699263b3c1e1a0f7",
       "size": 855,
       "mode": "100644"
     },
     ".github/workflows/enforce-repo-settings.yml": {
       "src": "workflows/enforce-repo-settings.yml",
       "dest": ".github/workflows/enforce-repo-settings.yml",
-      "sha": "cf1a2c6aba6c2c28db877b1aa514a7066c9f3d37",
+      "sha": "831a2debee78e36ee7723955c54235ef7110439c",
       "size": 11734,
       "mode": "100644"
     },
@@ -25,28 +25,28 @@
     ".github/workflows/super-linter.yml": {
       "src": "workflows/super-linter.yml",
       "dest": ".github/workflows/super-linter.yml",
-      "sha": "803b50e0fcf649d9234f70a65a409b3ba34a7b4a",
+      "sha": "71f9000f9d7a3310249113775939885a3d3dd167",
       "size": 913,
       "mode": "100644"
     },
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
       "dest": ".github/workflows/translation-audit.yml",
-      "sha": "102e0ffc586b6ca445958bde80dff11621e4dfc8",
+      "sha": "41175ce03dabe81fe7259f4c32cfe21c2c52617d",
       "size": 1697,
       "mode": "100644"
     },
     ".github/workflows/antigravity-review.yml": {
       "src": "workflows/antigravity-review.yml",
       "dest": ".github/workflows/antigravity-review.yml",
-      "sha": "5b6c6e14afbe0bbe366348be3b281ce5ee29c63f",
+      "sha": "d257d3b76dcb56412c6c18426844f062d5a5dc12",
       "size": 1309,
       "mode": "100644"
     },
     ".github/workflows/antigravity-translate.yml": {
       "src": "workflows/antigravity-translate.yml",
       "dest": ".github/workflows/antigravity-translate.yml",
-      "sha": "660d6598fb87ff7a15e8cd05af863cf23a1317f9",
+      "sha": "726d3da069855102574cdc17f377aedf57e327f4",
       "size": 1395,
       "mode": "100644"
     },
@@ -88,8 +88,8 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "ddf58e5e578e9d4f9dfbb452be1b37b44eb414d2",
-      "size": 42491,
+      "sha": "4ca17202fd72dc29ab64533881914e0d0b009f96",
+      "size": 43061,
       "mode": "100644"
     },
     "CLAUDE.md": {
@@ -186,7 +186,7 @@
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "864044249ad865aec6fd4ce05088b519c434d97f",
+      "sha": "95e5179e53265a9b49336ba6cb1de154ec3b73e4",
       "size": 3093,
       "mode": "100644"
     },
@@ -319,8 +319,8 @@
     "scripts/agy-review.sh": {
       "src": "scripts/agy-review.sh",
       "dest": "scripts/agy-review.sh",
-      "sha": "a269cba53a35e58de7f6b2f8335720bd5b501f4a",
-      "size": 10403,
+      "sha": "3e821fcb397354735d301f7e5d0e8b735288f8aa",
+      "size": 9602,
       "mode": "100755"
     },
     "scripts/agy-review-output.schema.json": {
@@ -329,6 +329,13 @@
       "sha": "455f616e09504d903354c6b66dbfd753ac599572",
       "size": 1293,
       "mode": "100644"
+    },
+    "scripts/run-with-progress.sh": {
+      "src": "scripts/run-with-progress.sh",
+      "dest": "scripts/run-with-progress.sh",
+      "sha": "eca2ff0a05196ab0bbe6a2aaa1e6ec9826e4f5dd",
+      "size": 3484,
+      "mode": "100755"
     },
     "scripts/github-api-resilience.cjs": {
       "src": "scripts/github-api-resilience.cjs",
@@ -396,8 +403,8 @@
     "tests/test-agy-pre-push-review.sh": {
       "src": "tests/test-agy-pre-push-review.sh",
       "dest": "tests/test-agy-pre-push-review.sh",
-      "sha": "228d9312857fcf61200c388a00dde4baf1fb0585",
-      "size": 6988,
+      "sha": "107e63f93306eaec6e19bb269ea85e9787cfcde7",
+      "size": 9514,
       "mode": "100755"
     },
     "tests/test-github-api-resilience.sh": {
@@ -417,8 +424,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "23bbca704e726e86549b7d5c4ae41e9e68766247",
-      "size": 5863,
+      "sha": "d63e394656367d28aae724a4fca075e3e5f1ffc9",
+      "size": 5899,
       "mode": "100644"
     },
     ".claude/settings.json": {
