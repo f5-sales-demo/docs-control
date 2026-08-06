@@ -327,6 +327,9 @@ jobs:
           sudo install -o root -g root -m 0555 \
             .trusted-base/scripts/validate-translations.sh \
             /opt/agy-publication-validator/validate-translations.sh
+          sudo install -o root -g root -m 0444 \
+            .trusted-base/scripts/github-api-resilience.cjs \
+            /opt/agy-publication-validator/github-api-resilience.cjs
 
       - name: Download translation patch
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -348,7 +351,7 @@ jobs:
           script: |
             const path = require('path');
             const {readPrimaryRateLimit, retryGitHub} = require(
-              path.join(process.env.GITHUB_WORKSPACE, '.trusted-base/scripts/github-api-resilience.cjs'),
+              '/opt/agy-publication-validator/github-api-resilience.cjs',
             );
             const pullNumber = Number(process.env.PR_NUMBER);
             const response = await retryGitHub(
