@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Structural check on dispatch-downstream.yml: a single runner must
-# fan out to every downstream repo, cap parallelism at 5, keep
-# retry-with-backoff, and aggregate per-repo failures.
+# fan out to every downstream repo, cap parallelism at 5, keep bounded
+# receipt-aware retry-with-backoff, and aggregate per-repo terminal states.
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
@@ -29,9 +29,8 @@ check "no read-config job (consolidated)" "! grep -q '^  read-config:$' '$WF'"
 # Parallelism cap stays at 5 via batched dispatch loop.
 check "BATCH_SIZE=5 for parallelism cap" "grep -q 'BATCH_SIZE=5' '$WF'"
 
-# The repository runner cancels jobs at five minutes. Keep at least 60 seconds
-# for preflight, API calls, and retry backoff instead of spending the entire
-# budget in deterministic inter-batch sleeps.
+# Leave room for one complete secondary-limit cooldown plus preflight and the
+# deterministic fleet pacing inside the explicit GitHub Free-compatible job timeout.
 BATCH_SIZE_VALUE=$(sed -nE 's/^[[:space:]]*BATCH_SIZE=([0-9]+)$/\1/p' "$WF")
 BATCH_DELAY_VALUE=$(sed -nE 's/^[[:space:]]*BATCH_DELAY=([0-9]+)$/\1/p' "$WF")
 PROVISION_DELAY_VALUE=$(sed -nE \
@@ -42,20 +41,31 @@ BATCH_COUNT=$(((FLEET_SIZE + BATCH_SIZE_VALUE - 1) / BATCH_SIZE_VALUE))
 SCHEDULED_SLEEP_SECONDS=$(((\
   BATCH_COUNT - 1) * BATCH_DELAY_VALUE + (\
   FLEET_SIZE - 1) * PROVISION_DELAY_VALUE))
-RUNNER_BUDGET_SECONDS=300
-RUNNER_RESERVE_SECONDS=60
-check "inventory pacing and inter-batch sleeps leave 60s of the runner budget" \
-  "[ '$SCHEDULED_SLEEP_SECONDS' -le '$((RUNNER_BUDGET_SECONDS - RUNNER_RESERVE_SECONDS))' ]"
+JOB_TIMEOUT_MINUTES=$(sed -nE 's/^[[:space:]]*timeout-minutes: ([0-9]+)$/\1/p' "$WF")
+DISPATCH_WAIT_BUDGET_SECONDS=$(sed -nE \
+  's/^[[:space:]]*DISPATCH_WAIT_BUDGET_SECONDS: ([0-9]+)$/\1/p' "$WF")
+RUNNER_RESERVE_SECONDS=300
+check "job has a bounded 30-minute timeout" \
+  "[ '$JOB_TIMEOUT_MINUTES' -eq 30 ]"
+check "one full secondary cooldown and deterministic pacing fit with five minutes reserved" \
+  "[ '$((SCHEDULED_SLEEP_SECONDS + DISPATCH_WAIT_BUDGET_SECONDS))' -le '$((JOB_TIMEOUT_MINUTES * 60 - RUNNER_RESERVE_SECONDS))' ]"
 check "repository-secret inventory stays below 30 requests per minute" \
   "[ '$PROVISION_DELAY_VALUE' -eq 2 ]"
 
-# Retry-with-backoff preserved (2s → 4s → 8s).
-check "retry max=3 attempts" "grep -Eq 'max=3' '$WF'"
-check "backoff delay starts at 2s" "grep -Eq 'delay=2' '$WF'"
+# The shared helper reads response headers, honors Retry-After, and applies the
+# tested 60/120/240-second missing-header contract.
+check "dispatch uses the receipt-aware resilience helper" \
+  "grep -qF 'github-api-resilience.cjs dispatch' '$WF'"
+check "dispatch preserves GitHub response diagnostics" \
+  "! grep -qF '>/dev/null 2>&1' '$WF'"
+check "dispatch has an explicit 15-minute wait budget" \
+  "[ '$DISPATCH_WAIT_BUDGET_SECONDS' -eq 900 ]"
 
 # Failure aggregation — step fails iff at least one dispatch failed.
 check "emits [FAIL] markers" "grep -q '\[FAIL\]' '$WF'"
 check "aggregates FAIL_COUNT" "grep -q 'FAIL_COUNT' '$WF'"
+check "emits durable [DEFER] markers" "grep -q '\[DEFER\]' '$WF'"
+check "aggregates DEFER_COUNT" "grep -q 'DEFER_COUNT' '$WF'"
 
 # Config still drives the fan-out.
 check "consumes downstream-repos.json" "grep -q 'downstream-repos.json' '$WF'"
@@ -100,7 +110,7 @@ check "queues transitions instead of cancelling a mutating bootstrap" \
 check "captures the exact triggering commit" \
   "grep -Fq 'SOURCE_SHA: \${{ github.sha }}' '$WF'"
 check "forwards the exact source receipt to every downstream run" \
-  "grep -Fq -- '-f source_sha=\"\$SOURCE_SHA\"' '$WF'"
+  "grep -Fq -- 'dispatch \"\$repo\" \"\$SOURCE_SHA\"' '$WF'"
 check "runs exact-source and immutable-pin preflight before fan-out" \
   "grep -q 'scripts/preflight-downstream-dispatch.sh' '$WF'"
 PROVISION_LINE=$(grep -n '^[[:space:]]*scripts/provision-governance-secrets.sh$' "$WF" |
