@@ -365,7 +365,7 @@ check 'unconfigured GitHub App credentials are absent' \
   bash -c '! grep -qE '\''AUTOMATION_APP_ID|AUTOMATION_APP_PRIVATE_KEY|create-github-app-token'\'' "$@"' \
   _ "${credential_files[@]}"
 
-if [ -f "$repo_settings" ]; then
+if [ -f "$watcher" ]; then
   for workflow in "$review" "$translation"; do
     check "$(basename "$workflow") loads the governed retry helper" \
       grep -qF 'github-api-resilience.cjs' "$workflow"
@@ -422,7 +422,7 @@ else
   skip_source_contract 'managed-file sync implementation contract'
 fi
 
-if [ -f "$repo_settings" ]; then
+if [ -f "$watcher" ]; then
   check 'retry helper is managed fleet-wide' jq -e \
     '.managed_files.files | any(.src == "scripts/github-api-resilience.cjs" and .dest == "scripts/github-api-resilience.cjs")' \
     "$repo_settings"
@@ -434,14 +434,17 @@ check 'retry helper is governance-protected' jq -e \
   '.protected_files | index("scripts/github-api-resilience.cjs") != null' \
   "$repo_root/.claude/governance.json"
 
-if [ -f "$repo_settings" ]; then
+if [ -f "$watcher" ]; then
   downstream_fixture=$(mktemp -d)
   trap 'rm -rf "$downstream_fixture"' EXIT
   mkdir -p \
     "$downstream_fixture/.claude" \
+    "$downstream_fixture/.github/config" \
     "$downstream_fixture/.github/workflows" \
     "$downstream_fixture/scripts" \
     "$downstream_fixture/tests"
+  printf '{"repository":"downstream-local"}\n' \
+    >"$downstream_fixture/.github/config/repo-settings.json"
   cp "$repo_root/.claude/governance.json" "$downstream_fixture/.claude/governance.json"
   cp "$repo_root/workflows/antigravity-review.yml" \
     "$downstream_fixture/.github/workflows/antigravity-review.yml"
@@ -462,10 +465,10 @@ if [ -f "$repo_settings" ]; then
 
   if downstream_output=$(cd "$downstream_fixture" &&
     bash tests/test-github-api-resilience.sh 2>&1); then
-    printf '[OK] downstream-shaped managed checkout passes\n'
+    printf '[OK] downstream-shaped managed checkout with local repo settings passes\n'
   else
     printf '%s\n' "$downstream_output" >&2
-    printf '[FAIL] downstream-shaped managed checkout passes\n' >&2
+    printf '[FAIL] downstream-shaped managed checkout with local repo settings passes\n' >&2
     fail=1
   fi
 
