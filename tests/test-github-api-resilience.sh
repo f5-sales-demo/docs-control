@@ -249,20 +249,30 @@ check() {
   fi
 }
 
+skip_source_contract() {
+  printf '[SKIP] %s -- docs-control-only subject is absent\n' "$1"
+}
+
 watcher="$repo_root/.github/workflows/antigravity-fleet-watcher.yml"
 review="$repo_root/.github/workflows/antigravity-review.yml"
 translation="$repo_root/.github/workflows/antigravity-translate.yml"
 translation_caller="$repo_root/workflows/antigravity-translate.yml"
+sync_workflow="$repo_root/.github/workflows/sync-managed-files.yml"
+repo_settings="$repo_root/.github/config/repo-settings.json"
+
+credential_files=("$review" "$translation")
+if [ -f "$watcher" ]; then
+  credential_files+=("$watcher")
+fi
+if [ -f "$translation_caller" ]; then
+  credential_files+=("$translation_caller")
+fi
 
 check 'unconfigured GitHub App credentials are absent' \
-  bash -c "! grep -qE 'AUTOMATION_APP_ID|AUTOMATION_APP_PRIVATE_KEY|create-github-app-token' \
-    '$watcher' '$translation' '$translation_caller'"
-check 'fleet watcher uses the existing fleet token' \
-  grep -qF 'secrets.REPO_SETTINGS_TOKEN' "$watcher"
-check 'translation caller uses the existing fleet sync token' \
-  grep -qF 'REPO_SYNC_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}' "$translation_caller"
+  bash -c '! grep -qE '\''AUTOMATION_APP_ID|AUTOMATION_APP_PRIVATE_KEY|create-github-app-token'\'' "$@"' \
+  _ "${credential_files[@]}"
 
-for workflow in "$watcher" "$review" "$translation"; do
+for workflow in "$review" "$translation"; do
   check "$(basename "$workflow") loads the governed retry helper" \
     grep -qF 'github-api-resilience.cjs' "$workflow"
   check "$(basename "$workflow") uses bounded GitHub retry" \
@@ -271,26 +281,85 @@ done
 
 check 'review receipts are exact-head markers' \
   grep -qE 'antigravity-pr-review:\$\{?[^}]*HEAD|antigravity-pr-review:\$\{report[.]receipt[.]head_sha\}' "$review"
-check 'watcher redispatches failed or unpublished exact reviews' \
-  grep -qF 'reviewNeedsRecovery' "$watcher"
-check 'watcher redispatches failed exact translations' \
-  grep -qF 'translationNeedsRecovery' "$watcher"
-check 'watcher emits per-repository progress heartbeats' \
-  grep -qE '\[PROGRESS\].*repository' "$watcher"
-check 'Free-tier contract remains explicit' \
-  grep -qF 'GitHub Free-compatible' "$watcher"
+
+if [ -f "$watcher" ]; then
+  check 'fleet watcher uses the existing fleet token' \
+    grep -qF 'secrets.REPO_SETTINGS_TOKEN' "$watcher"
+  check 'antigravity-fleet-watcher.yml loads the governed retry helper' \
+    grep -qF 'github-api-resilience.cjs' "$watcher"
+  check 'antigravity-fleet-watcher.yml uses bounded GitHub retry' \
+    grep -qF 'retryGitHub' "$watcher"
+  check 'watcher redispatches failed or unpublished exact reviews' \
+    grep -qF 'reviewNeedsRecovery' "$watcher"
+  check 'watcher redispatches failed exact translations' \
+    grep -qF 'translationNeedsRecovery' "$watcher"
+  check 'watcher emits per-repository progress heartbeats' \
+    grep -qE '\[PROGRESS\].*repository' "$watcher"
+  check 'Free-tier contract remains explicit' \
+    grep -qF 'GitHub Free-compatible' "$watcher"
+else
+  skip_source_contract 'fleet watcher wiring contract'
+fi
+
+if [ -f "$translation_caller" ]; then
+  check 'translation caller uses the existing fleet sync token' \
+    grep -qF 'REPO_SYNC_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}' "$translation_caller"
+else
+  skip_source_contract 'translation source caller contract'
+fi
+
 check 'operator guidance documents secondary cooldown without polling' \
   bash -c "grep -qF 'Secondary limits never poll during cooldown' '$repo_root/CONTRIBUTING.md' && \
     grep -qF 'Retry-After' '$repo_root/CONTRIBUTING.md'"
-check 'managed-file sync avoids GraphQL content mutations' \
-  bash -c "! grep -qE 'gh (issue create|issue close|pr create|pr close|pr merge)' \
-    '$repo_root/.github/workflows/sync-managed-files.yml'"
 
-check 'retry helper is managed fleet-wide' jq -e \
-  '.managed_files.files | any(.src == "scripts/github-api-resilience.cjs" and .dest == "scripts/github-api-resilience.cjs")' \
-  "$repo_root/.github/config/repo-settings.json"
+if [ -f "$sync_workflow" ]; then
+  check 'managed-file sync avoids GraphQL content mutations' \
+    bash -c "! grep -qE 'gh (issue create|issue close|pr create|pr close|pr merge)' \
+      '$sync_workflow'"
+else
+  skip_source_contract 'managed-file sync implementation contract'
+fi
+
+if [ -f "$repo_settings" ]; then
+  check 'retry helper is managed fleet-wide' jq -e \
+    '.managed_files.files | any(.src == "scripts/github-api-resilience.cjs" and .dest == "scripts/github-api-resilience.cjs")' \
+    "$repo_settings"
+else
+  skip_source_contract 'managed-file inventory contract'
+fi
+
 check 'retry helper is governance-protected' jq -e \
   '.protected_files | index("scripts/github-api-resilience.cjs") != null' \
   "$repo_root/.claude/governance.json"
+
+if [ "${GITHUB_API_RESILIENCE_FIXTURE_MODE:-0}" != "1" ]; then
+  downstream_fixture=$(mktemp -d)
+  trap 'rm -rf "$downstream_fixture"' EXIT
+  mkdir -p \
+    "$downstream_fixture/.claude" \
+    "$downstream_fixture/.github/workflows" \
+    "$downstream_fixture/scripts" \
+    "$downstream_fixture/tests"
+  cp "$repo_root/.claude/governance.json" "$downstream_fixture/.claude/governance.json"
+  cp "$repo_root/.github/workflows/antigravity-review.yml" \
+    "$downstream_fixture/.github/workflows/antigravity-review.yml"
+  cp "$repo_root/.github/workflows/antigravity-translate.yml" \
+    "$downstream_fixture/.github/workflows/antigravity-translate.yml"
+  cp "$repo_root/CONTRIBUTING.md" "$downstream_fixture/CONTRIBUTING.md"
+  cp "$repo_root/scripts/github-api-resilience.cjs" \
+    "$downstream_fixture/scripts/github-api-resilience.cjs"
+  cp "$repo_root/tests/test-github-api-resilience.sh" \
+    "$downstream_fixture/tests/test-github-api-resilience.sh"
+
+  if downstream_output=$(cd "$downstream_fixture" &&
+    GITHUB_API_RESILIENCE_FIXTURE_MODE=1 \
+      bash tests/test-github-api-resilience.sh 2>&1); then
+    printf '[OK] downstream-shaped managed checkout passes\n'
+  else
+    printf '%s\n' "$downstream_output" >&2
+    printf '[FAIL] downstream-shaped managed checkout passes\n' >&2
+    fail=1
+  fi
+fi
 
 exit "$fail"
