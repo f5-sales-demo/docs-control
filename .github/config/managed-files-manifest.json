@@ -1,5 +1,5 @@
 {
-  "source_commit": "ea18c2101be90a65b17bb7b098ffc4fcf9a5fbc3",
+  "source_commit": "3db9cbddf559808eacfb73774d2e6ba0b2aa146d",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -410,8 +410,8 @@
     "tests/test-github-api-resilience.sh": {
       "src": "tests/test-github-api-resilience.sh",
       "dest": "tests/test-github-api-resilience.sh",
-      "sha": "eb6ff26e0fed3e4b524ffdaa78c8f27b7c3fea9a",
-      "size": 18441,
+      "sha": "81a3de36880e8663a1579d12326813047fbc9676",
+      "size": 18319,
       "mode": "100644"
     },
     "tests/test-validate-translations.sh": {
