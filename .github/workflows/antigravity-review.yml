@@ -39,6 +39,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: antigravity-reusable-review-${{ github.repository }}-${{ inputs.pr_number }}-${{ inputs.expected_head_sha }}
+  cancel-in-progress: true
+
 jobs:
   review:
     name: PR review with Antigravity
