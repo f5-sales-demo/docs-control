@@ -296,6 +296,8 @@ jobs:
         run: |
           set -euo pipefail
           dbus-run-session -- bash -euo pipefail <<'INNER'
+          rm -rf "$HOME/.local/share/keyrings"
+          mkdir -p "$HOME/.local/share/keyrings"
           keyring_password=$(openssl rand -hex 32)
           eval "$(printf '%s\n' "$keyring_password" | gnome-keyring-daemon --unlock --daemonize --components=secrets)"
           unset keyring_password
