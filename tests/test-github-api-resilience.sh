@@ -253,6 +253,99 @@ skip_source_contract() {
   printf '[SKIP] %s -- docs-control-only subject is absent\n' "$1"
 }
 
+# shellcheck disable=SC2329 # Invoked indirectly through check.
+validate_downstream_caller() {
+  python3 - "$@" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+job, reusable_workflow, pull_request_permission, *secret_names = sys.argv[2:]
+text = path.read_text(encoding="utf-8")
+
+
+def reject(message):
+    print(f"{path}: {message}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def indented_block(name):
+    matches = list(re.finditer(rf"(?m)^    {re.escape(name)}:\s*(?:#.*)?$", text))
+    if len(matches) != 1:
+        reject(f"expected one job-level {name} block, found {len(matches)}")
+    lines = text[matches[0].end():].splitlines()
+    values = {}
+    for line in lines:
+        if not line.strip():
+            continue
+        indentation = len(line) - len(line.lstrip(" "))
+        if indentation <= 4:
+            break
+        match = re.fullmatch(r"      ([A-Za-z0-9_-]+):\s*(.*?)\s*", line)
+        if not match:
+            reject(f"invalid {name} entry: {line.strip()}")
+        key, value = match.groups()
+        value = re.sub(r"\s+#.*$", "", value)
+        if key in values:
+            reject(f"duplicate {name} entry: {key}")
+        values[key] = value
+    return values
+
+
+if len(re.findall(r"(?m)^permissions:\s*\{\}\s*$", text)) != 1:
+    reject("workflow-level permissions must be exactly permissions: {}")
+
+job_matches = re.findall(rf"(?m)^  {re.escape(job)}:\s*$", text)
+if len(job_matches) != 1:
+    reject(f"expected exactly one {job} job")
+
+uses_pattern = (
+    rf"(?m)^    uses: f5-sales-demo/docs-control/\.github/workflows/"
+    rf"{re.escape(reusable_workflow)}@([0-9a-f]{{40}})\s*$"
+)
+pins = re.findall(uses_pattern, text)
+if len(pins) != 1:
+    reject(f"expected one immutable {reusable_workflow} pin, found {len(pins)}")
+
+input_block = re.search(r"(?m)^    inputs:\s*$", text)
+if not input_block:
+    reject("workflow_dispatch inputs block is absent")
+input_lines = text[input_block.end():].splitlines()
+declared_inputs = []
+for line in input_lines:
+    if not line.strip():
+        continue
+    indentation = len(line) - len(line.lstrip(" "))
+    if indentation <= 4:
+        break
+    match = re.fullmatch(r"      ([A-Za-z0-9_-]+):\s*", line)
+    if match:
+        declared_inputs.append(match.group(1))
+if declared_inputs != ["pr_number", "expected_base_sha", "expected_head_sha"]:
+    reject(f"unexpected workflow_dispatch inputs: {declared_inputs}")
+
+expected_with = {
+    "pr_number": "${{ inputs.pr_number }}",
+    "expected_base_sha": "${{ inputs.expected_base_sha }}",
+    "expected_head_sha": "${{ inputs.expected_head_sha }}",
+}
+if indented_block("with") != expected_with:
+    reject("job must pass only the three exact pull-request inputs")
+
+expected_permissions = {
+    "contents": "read",
+    "pull-requests": pull_request_permission,
+}
+if indented_block("permissions") != expected_permissions:
+    reject(f"unexpected job permissions; expected {expected_permissions}")
+
+expected_secrets = {name: f"${{{{ secrets.{name} }}}}" for name in secret_names}
+if indented_block("secrets") != expected_secrets:
+    reject(f"unexpected secret mappings; expected {sorted(expected_secrets)}")
+PY
+}
+
 watcher="$repo_root/.github/workflows/antigravity-fleet-watcher.yml"
 review="$repo_root/.github/workflows/antigravity-review.yml"
 translation="$repo_root/.github/workflows/antigravity-translate.yml"
@@ -272,15 +365,24 @@ check 'unconfigured GitHub App credentials are absent' \
   bash -c '! grep -qE '\''AUTOMATION_APP_ID|AUTOMATION_APP_PRIVATE_KEY|create-github-app-token'\'' "$@"' \
   _ "${credential_files[@]}"
 
-for workflow in "$review" "$translation"; do
-  check "$(basename "$workflow") loads the governed retry helper" \
-    grep -qF 'github-api-resilience.cjs' "$workflow"
-  check "$(basename "$workflow") uses bounded GitHub retry" \
-    grep -qF 'retryGitHub' "$workflow"
-done
+if [ -f "$repo_settings" ]; then
+  for workflow in "$review" "$translation"; do
+    check "$(basename "$workflow") loads the governed retry helper" \
+      grep -qF 'github-api-resilience.cjs' "$workflow"
+    check "$(basename "$workflow") uses bounded GitHub retry" \
+      grep -qF 'retryGitHub' "$workflow"
+  done
 
-check 'review receipts are exact-head markers' \
-  grep -qE 'antigravity-pr-review:\$\{?[^}]*HEAD|antigravity-pr-review:\$\{report[.]receipt[.]head_sha\}' "$review"
+  check 'review receipts are exact-head markers' \
+    grep -qE 'antigravity-pr-review:\$\{?[^}]*HEAD|antigravity-pr-review:\$\{report[.]receipt[.]head_sha\}' "$review"
+else
+  check 'downstream review caller has an immutable exact least-privilege contract' \
+    validate_downstream_caller "$review" review antigravity-review.yml write \
+    ANTIGRAVITY_TOKEN GCP_PROJECT_ID
+  check 'downstream translation caller has an immutable exact least-privilege contract' \
+    validate_downstream_caller "$translation" translate antigravity-translate.yml read \
+    ANTIGRAVITY_TOKEN GCP_PROJECT_ID REPO_SYNC_TOKEN
+fi
 
 if [ -f "$watcher" ]; then
   check 'fleet watcher uses the existing fleet token' \
@@ -341,15 +443,22 @@ if [ "${GITHUB_API_RESILIENCE_FIXTURE_MODE:-0}" != "1" ]; then
     "$downstream_fixture/scripts" \
     "$downstream_fixture/tests"
   cp "$repo_root/.claude/governance.json" "$downstream_fixture/.claude/governance.json"
-  cp "$repo_root/.github/workflows/antigravity-review.yml" \
+  cp "$repo_root/workflows/antigravity-review.yml" \
     "$downstream_fixture/.github/workflows/antigravity-review.yml"
-  cp "$repo_root/.github/workflows/antigravity-translate.yml" \
+  cp "$repo_root/workflows/antigravity-translate.yml" \
     "$downstream_fixture/.github/workflows/antigravity-translate.yml"
   cp "$repo_root/CONTRIBUTING.md" "$downstream_fixture/CONTRIBUTING.md"
   cp "$repo_root/scripts/github-api-resilience.cjs" \
     "$downstream_fixture/scripts/github-api-resilience.cjs"
   cp "$repo_root/tests/test-github-api-resilience.sh" \
     "$downstream_fixture/tests/test-github-api-resilience.sh"
+
+  check 'downstream fixture uses the managed review caller bytes' \
+    cmp -s "$repo_root/workflows/antigravity-review.yml" \
+    "$downstream_fixture/.github/workflows/antigravity-review.yml"
+  check 'downstream fixture uses the managed translation caller bytes' \
+    cmp -s "$repo_root/workflows/antigravity-translate.yml" \
+    "$downstream_fixture/.github/workflows/antigravity-translate.yml"
 
   if downstream_output=$(cd "$downstream_fixture" &&
     GITHUB_API_RESILIENCE_FIXTURE_MODE=1 \
@@ -360,6 +469,68 @@ if [ "${GITHUB_API_RESILIENCE_FIXTURE_MODE:-0}" != "1" ]; then
     printf '[FAIL] downstream-shaped managed checkout passes\n' >&2
     fail=1
   fi
+
+  assert_downstream_contract_rejects() {
+    local label="$1"
+    local relative_path="$2"
+    local mutation="$3"
+    local target="$downstream_fixture/$relative_path"
+    local backup="$target.contract-baseline"
+    cp "$target" "$backup"
+    python3 - "$target" "$mutation" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1])
+mutation = sys.argv[2]
+text = path.read_text(encoding="utf-8")
+replacements = {
+    "mutable-pin": (r"(@)[0-9a-f]{40}", r"\1main"),
+    "misbound-input": (
+        re.escape("      expected_head_sha: ${{ inputs.expected_head_sha }}"),
+        "      expected_head_sha: ${{ inputs.expected_base_sha }}",
+    ),
+    "elevated-permission": (
+        r"      pull-requests: write(?=\s+#)",
+        "      pull-requests: admin",
+    ),
+    "misbound-secret": (
+        re.escape("      REPO_SYNC_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}"),
+        "      REPO_SYNC_TOKEN: ${{ secrets.GCP_PROJECT_ID }}",
+    ),
+}
+pattern, replacement = replacements[mutation]
+mutated, count = re.subn(pattern, replacement, text, count=1)
+if count != 1:
+    raise SystemExit(f"could not apply {mutation} mutation to {path}")
+path.write_text(mutated, encoding="utf-8")
+PY
+    if (
+      cd "$downstream_fixture"
+      GITHUB_API_RESILIENCE_FIXTURE_MODE=1 \
+        bash tests/test-github-api-resilience.sh >/dev/null 2>&1
+    ); then
+      printf '[FAIL] %s\n' "$label" >&2
+      fail=1
+    else
+      printf '[OK] %s\n' "$label"
+    fi
+    mv "$backup" "$target"
+  }
+
+  assert_downstream_contract_rejects \
+    'downstream contract rejects a mutable reusable-workflow pin' \
+    '.github/workflows/antigravity-review.yml' mutable-pin
+  assert_downstream_contract_rejects \
+    'downstream contract rejects a misbound exact-head input' \
+    '.github/workflows/antigravity-review.yml' misbound-input
+  assert_downstream_contract_rejects \
+    'downstream contract rejects elevated review permissions' \
+    '.github/workflows/antigravity-review.yml' elevated-permission
+  assert_downstream_contract_rejects \
+    'downstream contract rejects a misbound translation publication secret' \
+    '.github/workflows/antigravity-translate.yml' misbound-secret
 fi
 
 exit "$fail"
