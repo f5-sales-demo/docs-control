@@ -27,7 +27,7 @@ concurrency:
 jobs:
   translate:
     if: vars.TRANSLATIONS_ENABLED == 'true'
-    uses: f5-sales-demo/docs-control/.github/workflows/antigravity-translate.yml@e1693e7d2f88c615b18728e4b430326e83e11546
+    uses: f5-sales-demo/docs-control/.github/workflows/antigravity-translate.yml@f5d418b01c0723cee110e876503e1a7cb4058e4b
     with:
       pr_number: ${{ inputs.pr_number }}
       expected_base_sha: ${{ inputs.expected_base_sha }}
