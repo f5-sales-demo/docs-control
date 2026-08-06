@@ -163,6 +163,23 @@ function testProgressRouting() {
   assert.match(watcher, /scripts\/run-with-progress[.]sh --phase fleet-triage/);
 }
 
+function testHeadlessKeyringBootstrap() {
+  for (const [workflow, stepName] of [
+    [reviewWorkflow, 'Run isolated reviewer and verifier'],
+    [translationWorkflow, 'Generate translations without write credentials'],
+    [watcherWorkflow, 'Triage redacted failure logs'],
+  ]) {
+    const script = extractStepBlock(workflow, stepName);
+    assert.match(script, /keyring_password=\$\(openssl rand -hex 32\)/);
+    assert.match(
+      script,
+      /printf '%s\\n' "\$keyring_password" \| gnome-keyring-daemon --unlock --daemonize --components=secrets/,
+    );
+    assert.match(script, /unset keyring_password/);
+    assert.doesNotMatch(script, /printf '' \| gnome-keyring-daemon/);
+  }
+}
+
 function writeExecutable(file, body) {
   fs.writeFileSync(file, body, { mode: 0o755 });
 }
@@ -538,7 +555,16 @@ function writeSandboxCommandFakes(bin) {
     path.join(bin, 'dbus-run-session'),
     '#!/usr/bin/env bash\nset -euo pipefail\ntest "$1" = --\nshift\nexec "$@"\n',
   );
-  writeExecutable(path.join(bin, 'gnome-keyring-daemon'), '#!/usr/bin/env bash\nexit 0\n');
+  writeExecutable(
+    path.join(bin, 'gnome-keyring-daemon'),
+    `#!/usr/bin/env bash
+set -euo pipefail
+test "$*" = "--unlock --daemonize --components=secrets"
+IFS= read -r password
+test "\${#password}" -eq 64
+printf 'GNOME_KEYRING_CONTROL=%q\nGNOME_KEYRING_PID=%q\n' "$RUNNER_TEMP/keyring" "12345"
+`,
+  );
   writeExecutable(path.join(bin, 'python3'), '#!/usr/bin/env bash\ncat >/dev/null\n');
 }
 
@@ -1046,6 +1072,7 @@ assert.notEqual(
 await testReviewerPreparation();
 testNoAppTokenRouting();
 testProgressRouting();
+testHeadlessKeyringBootstrap();
 await testTranslationPreparation();
 testPinnedInstallers();
 testReviewerModelAndGate();

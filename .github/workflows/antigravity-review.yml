@@ -134,7 +134,9 @@ jobs:
           }
           mkdir "$RUNNER_TEMP/review-artifact"
           dbus-run-session -- bash -euo pipefail <<'INNER'
-          eval "$(printf '' | gnome-keyring-daemon --unlock --daemonize)"
+          keyring_password=$(openssl rand -hex 32)
+          eval "$(printf '%s\n' "$keyring_password" | gnome-keyring-daemon --unlock --daemonize --components=secrets)"
+          unset keyring_password
           export SSH_AUTH_SOCK GNOME_KEYRING_CONTROL GNOME_KEYRING_PID
           printf '%s' "${ANTIGRAVITY_TOKEN#go-keyring-base64:}" | base64 -d |
             python3 -c 'import keyring,sys; keyring.set_password("gemini", "antigravity", sys.stdin.read())'
