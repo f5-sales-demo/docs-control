@@ -758,6 +758,10 @@ permission-denied)
   printf '{"event":"step_update","step_update":{"state":"DONE","step_type":"tool","tool_info":{"name":"view_file","parameters":{"AbsolutePath":"%s/docs/en/page.mdx"},"output":"read_file permission was auto-denied"}}}\n' "$RUNNER_TEMP"
   printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"no output produced because a read_file permission was denied"}}'
   ;;
+permission-recovered)
+  printf '{"event":"step_update","step_update":{"state":"DONE","step_type":"tool","tool_info":{"name":"view_file","parameters":{"AbsolutePath":"%s/.git/logs/HEAD"},"output":"read_file permission was auto-denied"}}}\n' "$RUNNER_TEMP"
+  printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"translations completed"}}'
+  ;;
 failed)
   printf '%s\n' '{"event":"result","result":{"status":"ERROR","response":"model execution failed"}}'
   ;;
@@ -818,6 +822,7 @@ function testTranslationModel() {
     /Use only sandboxed terminal commands for file inspection and updates/,
     'the headless translator must use the already-authorized command route instead of interactive file prompts',
   );
+  assert.match(argumentsUsed, /Do not inspect Git metadata/);
   const settings = JSON.parse(
     fs.readFileSync(path.join(completed.work, 'home/.gemini/antigravity-cli/settings.json'), 'utf8'),
   );
@@ -836,7 +841,7 @@ function testTranslationModel() {
       'write_file(/opt/agy-translation-contract)',
       `write_file(${completed.work}/docs/en)`,
       `write_file(${completed.work}/src/content/docs/en)`,
-      `write_file(${completed.work}/.git)`,
+      `read_file(${completed.work}/.git)`,
     ],
   });
   assert.equal(
@@ -852,6 +857,11 @@ function testTranslationModel() {
     'the diagnostic stream must retain the denied tool metadata',
   );
   assert.match(denied.result.stderr, /model tool=view_file target=.*docs\/en\/page[.]mdx/);
+  assert.equal(
+    runTranslationModel({ modelResult: 'permission-recovered' }).result.status,
+    0,
+    'an intermediate denial may recover when the final result and deterministic locale validation succeed',
+  );
   assert.notEqual(
     runTranslationModel({ modelResult: 'failed' }).result.status,
     0,
