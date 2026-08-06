@@ -157,16 +157,25 @@ jobs:
             model: "Gemini 3.6 Flash (High)",
             trustedWorkspaces: [$workspace],
             permissions: {
-              allow: [
+              allow: ([
                 "command(*)",
                 ("read_file(" + $workspace + ")"),
                 "read_file(/opt/agy-translation-contract)"
-              ],
+              ] + (
+                ["fr", "es", "de", "pt-br", "ja", "ko", "zh-cn", "zh-tw", "ar", "it", "hi", "th"] |
+                map("write_file(" + $workspace + "/docs/" + . + ")")
+              ) + (
+                ["fr", "es", "de", "pt-br", "ja", "ko", "zh-cn", "zh-tw", "ar", "it", "hi", "th"] |
+                map("write_file(" + $workspace + "/src/content/docs/" + . + ")")
+              )),
               deny: [
                 "unsandboxed(*)",
                 "read_url(*)",
                 "execute_url(*)",
-                "write_file(/opt/agy-translation-contract)"
+                "write_file(/opt/agy-translation-contract)",
+                ("write_file(" + $workspace + "/docs/en)"),
+                ("write_file(" + $workspace + "/src/content/docs/en)"),
+                ("write_file(" + $workspace + "/.git)")
               ]
             }
           }' >"$HOME/.gemini/antigravity-cli/settings.json"
