@@ -41,6 +41,7 @@ jobs:
   dispatch:
     name: Dispatch downstream enforcement
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment: repository-settings
     # No conclusion guard needed: dispatch now fires only when the manifest has
     # already landed on main. A bad manifest fails the sync/manifest PR's checks
@@ -57,6 +58,7 @@ jobs:
           REPO_SETTINGS_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
           REPO_SYNC_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}
           PROVISION_REQUEST_DELAY_SECONDS: 2
+          DISPATCH_WAIT_BUDGET_SECONDS: 900
           SOURCE_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -179,24 +181,26 @@ jobs:
 
           dispatch_one() {
             local repo="$1"
-            local attempt=1
-            local max=3
-            local delay=2
-            while true; do
-              if gh workflow run enforce-repo-settings.yml \
-                  --repo "$repo" \
-                  -f source_sha="$SOURCE_SHA" >/dev/null 2>&1; then
-                printf '[OK]   %s\n' "$repo"
-                return 0
-              fi
-              if [ "$attempt" -ge "$max" ]; then
-                printf '[FAIL] %s\n' "$repo"
-                return 1
-              fi
-              sleep "$delay"
-              attempt=$((attempt + 1))
-              delay=$((delay * 2))
-            done
+            local result_file="$2"
+            local rc
+            set +e
+            node scripts/github-api-resilience.cjs dispatch "$repo" "$SOURCE_SHA"
+            rc=$?
+            set -e
+            case "$rc" in
+              0)
+                printf 'ok\n' >"$result_file"
+                ;;
+              84)
+                printf '[DEFER] %s exhausted its bounded GitHub cooldown budget\n' "$repo"
+                printf 'defer\n' >"$result_file"
+                ;;
+              *)
+                printf '[FAIL] %s returned non-retryable dispatch error rc=%d\n' "$repo" "$rc"
+                printf 'fail\n' >"$result_file"
+                ;;
+            esac
+            return 0
           }
           export -f dispatch_one
 
@@ -209,13 +213,15 @@ jobs:
           BATCH_SIZE=5
           # Seven fan-out gaps consume 140 seconds. Combined with the 37
           # two-second repository-secret inventory gaps, deterministic waits
-          # consume 214 seconds and leave 86 seconds of the runner's
-          # five-minute budget for API work and retries.
+          # consume 214 seconds. One complete 900-second secondary cooldown
+          # still leaves more than eleven minutes inside the 30-minute bound.
           BATCH_DELAY=20
           echo "Dispatching enforce-repo-settings to ${TOTAL} repos (batches of ${BATCH_SIZE}, ${BATCH_DELAY}s delay)..."
 
-          LOG=$(mktemp)
+          RESULTS=$(mktemp -d)
+          trap 'rm -rf "$RESULTS"' EXIT
           FAIL_COUNT=0
+          DEFER_COUNT=0
           batch=0
 
           for ((i = 0; i < TOTAL; i += BATCH_SIZE)); do
@@ -224,18 +230,45 @@ jobs:
             echo ""
             echo "--- Batch ${batch} (repos $((i+1))-$((i+${#batch_repos[@]})) of ${TOTAL}) ---"
 
+            result_files=()
+            result_index=0
             for repo in "${batch_repos[@]}"; do
-              dispatch_one "$repo" >> "$LOG" 2>&1 &
+              result_file="$RESULTS/${batch}-${result_index}"
+              result_files+=("$result_file")
+              dispatch_one "$repo" "$result_file" &
+              result_index=$((result_index + 1))
             done
             wait
 
-            # Show batch results
-            cat "$LOG"
-
-            # Count failures so far
-            BATCH_FAILS=$(grep -c '^\[FAIL\]' "$LOG" || true)
+            BATCH_FAILS=0
+            BATCH_DEFERS=0
+            for result_file in "${result_files[@]}"; do
+              if [ ! -s "$result_file" ]; then
+                echo "::error::A dispatch worker did not emit a terminal result"
+                BATCH_FAILS=$((BATCH_FAILS + 1))
+                continue
+              fi
+              case "$(cat "$result_file")" in
+                ok) ;;
+                defer) BATCH_DEFERS=$((BATCH_DEFERS + 1)) ;;
+                fail) BATCH_FAILS=$((BATCH_FAILS + 1)) ;;
+                *)
+                  echo "::error::A dispatch worker emitted an invalid terminal result"
+                  BATCH_FAILS=$((BATCH_FAILS + 1))
+                  ;;
+              esac
+            done
             FAIL_COUNT=$((FAIL_COUNT + BATCH_FAILS))
-            : > "$LOG"
+            DEFER_COUNT=$((DEFER_COUNT + BATCH_DEFERS))
+
+            if [ "$FAIL_COUNT" -gt 0 ]; then
+              echo "::error::${FAIL_COUNT} non-retryable dispatch(es) failed"
+              exit 1
+            fi
+            if [ "$DEFER_COUNT" -gt 0 ]; then
+              echo "[DEFER] ${DEFER_COUNT} dispatch(es) exhausted the bounded wait budget; scheduled recovery is active"
+              exit 0
+            fi
 
             # Delay between batches (skip after last)
             remaining=$((TOTAL - i - ${#batch_repos[@]}))
@@ -244,12 +277,6 @@ jobs:
               sleep "$BATCH_DELAY"
             fi
           done
-
-          if [ "${FAIL_COUNT}" -gt 0 ]; then
-            echo ""
-            echo "::error::${FAIL_COUNT} dispatch(es) failed"
-            exit 1
-          fi
 
           echo ""
           echo "All ${TOTAL} dispatches succeeded."
