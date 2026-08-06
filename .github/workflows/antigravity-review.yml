@@ -22,6 +22,20 @@ on:
         required: true
       GCP_PROJECT_ID:
         required: true
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Same-repository pilot pull request number
+        required: true
+        type: string
+      expected_base_sha:
+        description: Exact pilot pull-request base SHA
+        required: true
+        type: string
+      expected_head_sha:
+        description: Exact pilot pull-request head SHA
+        required: true
+        type: string
 
 permissions: {}
 

@@ -31,6 +31,60 @@ assert_contains() {
 
 echo "Antigravity runtime-control guards"
 
+if node "$REPO_ROOT/tests/antigravity-control-activation.test.cjs"; then
+  pass "activation phases and pilot proof pass behavioral tests"
+else
+  fail "activation phases and pilot proof pass behavioral tests" \
+    "the organization-control state machine failed"
+fi
+
+ACTIVATION="$REPO_ROOT/.github/workflows/configure-antigravity-controls.yml"
+for token in \
+  'workflow_dispatch:' \
+  'type: choice' \
+  'disabled' \
+  'pilot' \
+  'all' \
+  'environment: antigravity-automation' \
+  'secrets.REPO_SETTINGS_TOKEN' \
+  'configure-antigravity-controls.cjs'; do
+  assert_contains "$ACTIVATION" "$token" \
+    "activation workflow contains $token"
+done
+
+assert_contains "$ACTIVATION" "permissions: {}" \
+  "activation denies default workflow permissions"
+assert_contains "$ACTIVATION" "contents: read" \
+  "activation grants only read access to the built-in token"
+
+for protected in \
+  '.github/workflows/configure-antigravity-controls.yml' \
+  'scripts/configure-antigravity-controls.cjs'; do
+  if jq -e --arg protected "$protected" \
+    '[.protected_files[] | select(. == $protected)] | length == 1' \
+    "$GOVERNANCE" >/dev/null; then
+    pass "$protected is protected by docs-control governance"
+  else
+    fail "$protected is protected by docs-control governance" \
+      "missing or duplicated protected_files entry"
+  fi
+done
+
+if ! grep -qE 'AUTOMATION_APP_ID|AUTOMATION_APP_PRIVATE_KEY|create-github-app-token|ruleset|merge-queue' \
+  "$ACTIVATION" "$REPO_ROOT/scripts/configure-antigravity-controls.cjs"; then
+  pass "activation uses no GitHub App or Enterprise-only control"
+else
+  fail "activation uses no GitHub App or Enterprise-only control" \
+    "an unsupported credential or control is present"
+fi
+
+for workflow in \
+  "$REPO_ROOT/.github/workflows/antigravity-review.yml" \
+  "$REPO_ROOT/.github/workflows/antigravity-translate.yml"; do
+  assert_contains "$workflow" "workflow_dispatch:" \
+    "$(basename "$workflow") supports the same-repository pilot"
+done
+
 for file in \
   "$REPO_ROOT/.github/workflows/antigravity-review.yml" \
   "$REPO_ROOT/workflows/antigravity-review.yml"; do
@@ -85,7 +139,7 @@ assert_contains "$CONTRIBUTING" "TRANSLATIONS_ENABLED" \
   "CONTRIBUTING documents the translation runtime switch"
 assert_contains "$CONTRIBUTING" "same-named repository variables" \
   "CONTRIBUTING keeps central controls free of repository-variable shadows"
-assert_contains "$CONTRIBUTING" "Enable and keep active" \
+assert_contains "$CONTRIBUTING" "active the reusable workflows" \
   "CONTRIBUTING keeps workflows active after the security hold"
 assert_contains "$CONTRIBUTING" "Deterministic only" \
   "CONTRIBUTING keeps local validation model-free"
