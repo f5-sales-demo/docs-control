@@ -734,7 +734,7 @@ async function testReviewCommentPublication() {
   }
 }
 
-function runTranslationModel({ missingSecret = false } = {}) {
+function runTranslationModel({ missingSecret = false, modelResult = 'success' } = {}) {
   const work = temporaryDirectory('agy-translation-model-');
   const bin = path.join(work, 'bin');
   fs.mkdirSync(bin);
@@ -750,6 +750,21 @@ if [ "\${1:-}" = --version ]; then
 fi
 printf '%s\n' "$@" >"$RUNNER_TEMP/translation-arguments"
 printf '%s|%s|%s|%s\n' "\${GH_TOKEN:-}" "\${GITHUB_TOKEN:-}" "\${GATEWAY_TOKEN:-}" "\${GATEWAY_URL:-}" >"$RUNNER_TEMP/translation-credentials"
+case "\${AGY_MODEL_RESULT:-success}" in
+success)
+  printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"translations completed"}}'
+  ;;
+permission-denied)
+  printf '{"event":"step_update","step_update":{"state":"DONE","step_type":"tool","tool_info":{"name":"view_file","parameters":{"AbsolutePath":"%s/docs/en/page.mdx"},"output":"read_file permission was auto-denied"}}}\n' "$RUNNER_TEMP"
+  printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","response":"no output produced because a read_file permission was denied"}}'
+  ;;
+failed)
+  printf '%s\n' '{"event":"result","result":{"status":"ERROR","response":"model execution failed"}}'
+  ;;
+*)
+  printf '%s\n' 'not-json'
+  ;;
+esac
 `,
   );
   const changedEnglish = path.join(work, 'changed-english.txt');
@@ -770,6 +785,7 @@ printf '%s|%s|%s|%s\n' "\${GH_TOKEN:-}" "\${GITHUB_TOKEN:-}" "\${GATEWAY_TOKEN:-
       GITHUB_TOKEN: 'must-not-reach-model',
       GITHUB_WORKSPACE: work,
       HOME: path.join(work, 'home'),
+      AGY_MODEL_RESULT: modelResult,
       PATH: `${bin}:${process.env.PATH}`,
       RUNNER_TEMP: work,
     },
@@ -781,7 +797,14 @@ function testTranslationModel() {
   const completed = runTranslationModel();
   assert.equal(completed.result.status, 0, completed.result.stderr);
   const argumentsUsed = fs.readFileSync(path.join(completed.work, 'translation-arguments'), 'utf8');
-  for (const argument of ['--sandbox', '--mode', 'accept-edits', '--disable-slash-commands']) {
+  for (const argument of [
+    '--sandbox',
+    '--mode',
+    'accept-edits',
+    '--disable-slash-commands',
+    '--output-format',
+    'stream-json',
+  ]) {
     assert.match(argumentsUsed, new RegExp(`^${argument}$`, 'm'));
   }
   assert.match(
@@ -790,6 +813,11 @@ function testTranslationModel() {
     'the translator prompt must use the exact-head manifest copied into its sandbox-readable contract directory',
   );
   assert.doesNotMatch(argumentsUsed, /--dangerously-skip-permissions/);
+  assert.match(
+    argumentsUsed,
+    /Use only sandboxed terminal commands for file inspection and updates/,
+    'the headless translator must use the already-authorized command route instead of interactive file prompts',
+  );
   const settings = JSON.parse(
     fs.readFileSync(path.join(completed.work, 'home/.gemini/antigravity-cli/settings.json'), 'utf8'),
   );
@@ -815,6 +843,24 @@ function testTranslationModel() {
     fs.readFileSync(path.join(completed.work, 'translation-credentials'), 'utf8').trim(),
     '|||',
     'the sandboxed translator must not receive GitHub or gateway credentials',
+  );
+  const denied = runTranslationModel({ modelResult: 'permission-denied' });
+  assert.notEqual(denied.result.status, 0, 'a soft-denied Antigravity tool must fail the model step');
+  assert.match(
+    fs.readFileSync(path.join(denied.work, 'translation.stream'), 'utf8'),
+    /"name":"view_file"/,
+    'the diagnostic stream must retain the denied tool metadata',
+  );
+  assert.match(denied.result.stderr, /model tool=view_file target=.*docs\/en\/page[.]mdx/);
+  assert.notEqual(
+    runTranslationModel({ modelResult: 'failed' }).result.status,
+    0,
+    'a non-success Antigravity result must fail even when the CLI exits zero',
+  );
+  assert.notEqual(
+    runTranslationModel({ modelResult: 'malformed' }).result.status,
+    0,
+    'malformed Antigravity event streams must fail closed',
   );
   assert.notEqual(runTranslationModel({ missingSecret: true }).result.status, 0);
 }
