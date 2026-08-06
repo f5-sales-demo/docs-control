@@ -1,17 +1,17 @@
 {
-  "source_commit": "425a7bbd542a4461935acde65812be04c0c5a746",
+  "source_commit": "0b4e675e91d5b2cfdcb2ccbaba3e3e812b1707c2",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
       "dest": ".github/workflows/github-pages-deploy.yml",
-      "sha": "45e52b050a4ec7b68fe630d71fba3f9e34758aae",
+      "sha": "1f9f4a774bf7d94f9bd2f062171de4d6b10a5c6f",
       "size": 855,
       "mode": "100644"
     },
     ".github/workflows/enforce-repo-settings.yml": {
       "src": "workflows/enforce-repo-settings.yml",
       "dest": ".github/workflows/enforce-repo-settings.yml",
-      "sha": "5e197515382a332b214082f6bc9f19f89e1c59f9",
+      "sha": "b19510d6e1eaa6a0a5586921d9172079b1c18b99",
       "size": 11814,
       "mode": "100644"
     },
@@ -25,28 +25,28 @@
     ".github/workflows/super-linter.yml": {
       "src": "workflows/super-linter.yml",
       "dest": ".github/workflows/super-linter.yml",
-      "sha": "efc661a7277c927d1bd92a5ca668b762877c0667",
+      "sha": "a1e96935f5dd96e2b1f184988212ccc2de8bc04f",
       "size": 913,
       "mode": "100644"
     },
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
       "dest": ".github/workflows/translation-audit.yml",
-      "sha": "102d5b4243450657588bdb7c7c6d471ee83250ec",
+      "sha": "afebfdaef02af903e6d031b10d4bb141f231a908",
       "size": 1697,
       "mode": "100644"
     },
     ".github/workflows/antigravity-review.yml": {
       "src": "workflows/antigravity-review.yml",
       "dest": ".github/workflows/antigravity-review.yml",
-      "sha": "782b609e99333a2cf9fca3e1af2701149b0b9e7c",
+      "sha": "09601b3973e5a7a50af820713bd7f50f233d975b",
       "size": 1309,
       "mode": "100644"
     },
     ".github/workflows/antigravity-translate.yml": {
       "src": "workflows/antigravity-translate.yml",
       "dest": ".github/workflows/antigravity-translate.yml",
-      "sha": "ecdba10e63b107a606c36fbf360a68c88eb25c77",
+      "sha": "9e9fc5268ca5262c15ec6998c588a0751f522c28",
       "size": 1395,
       "mode": "100644"
     },
@@ -88,8 +88,8 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "4ca17202fd72dc29ab64533881914e0d0b009f96",
-      "size": 43061,
+      "sha": "d39ca2ee78082af95fa7563ccfb3f729f3ac5f92",
+      "size": 44451,
       "mode": "100644"
     },
     "CLAUDE.md": {
@@ -186,7 +186,7 @@
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "19527a59a75aa6e1ceb1a23c59463d9ec865eb4a",
+      "sha": "a5b36b8b387ee1b7d3cc702e10307dafbd6ab5bd",
       "size": 3093,
       "mode": "100644"
     },
@@ -424,8 +424,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "d63e394656367d28aae724a4fca075e3e5f1ffc9",
-      "size": 5899,
+      "sha": "56585088487032560b43f46e7fade674eb8bb149",
+      "size": 6009,
       "mode": "100644"
     },
     ".claude/settings.json": {
