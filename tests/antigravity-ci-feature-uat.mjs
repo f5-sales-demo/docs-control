@@ -522,6 +522,7 @@ for argument in "$@"; do
   source_path=$previous
   previous=$argument
 done
+rm -f "$FAKE_AGY_PATH"
 cp "$source_path" "$FAKE_AGY_PATH"
 chmod 0555 "$FAKE_AGY_PATH"
 `,
@@ -537,7 +538,7 @@ actual=$(/usr/bin/shasum -a 512 "$file" | awk '{print $1}')
 test "$actual" = "$expected"
 `,
   );
-  return runShell(extractStepBlock(workflowPath, 'Install pinned Antigravity runtime'), {
+  const options = {
     cwd: work,
     env: {
       AGY_SHA512: digestOverride ?? digest,
@@ -548,7 +549,11 @@ test "$actual" = "$expected"
       PATH: `${bin}:${process.env.PATH}`,
       RUNNER_TEMP: work,
     },
-  });
+  };
+  const block = extractStepBlock(workflowPath, 'Install pinned Antigravity runtime');
+  const firstRun = runShell(block, options);
+  if (firstRun.status !== 0) return firstRun;
+  return runShell(block, options);
 }
 
 function testPinnedInstallers() {
