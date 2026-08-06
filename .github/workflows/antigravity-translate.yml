@@ -157,7 +157,11 @@ jobs:
             model: "Gemini 3.6 Flash (High)",
             trustedWorkspaces: [$workspace],
             permissions: {
-              allow: ["command(*)", "read_file(/opt/agy-translation-contract)"],
+              allow: [
+                "command(*)",
+                ("read_file(" + $workspace + ")"),
+                "read_file(/opt/agy-translation-contract)"
+              ],
               deny: [
                 "unsandboxed(*)",
                 "read_url(*)",
