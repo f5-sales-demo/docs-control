@@ -459,6 +459,7 @@ async function testTranslationPreparation() {
     fs.readFileSync(path.join(prepared.installed, 'run-with-progress.sh'), 'utf8'),
     /untrusted-head-progress-tool/,
   );
+  assert.equal(fs.readFileSync(path.join(prepared.installed, 'changed-english.txt'), 'utf8'), 'docs/en/page.mdx\n');
 
   const forkFixture = initializeExactHeadFixture();
   const fork = structuredClone(forkFixture.pull);
@@ -783,6 +784,11 @@ function testTranslationModel() {
   for (const argument of ['--sandbox', '--mode', 'accept-edits', '--disable-slash-commands']) {
     assert.match(argumentsUsed, new RegExp(`^${argument}$`, 'm'));
   }
+  assert.match(
+    argumentsUsed,
+    /\/opt\/agy-translation-contract\/changed-english[.]txt/,
+    'the translator prompt must use the exact-head manifest copied into its sandbox-readable contract directory',
+  );
   assert.equal(
     fs.readFileSync(path.join(completed.work, 'translation-credentials'), 'utf8').trim(),
     '|||',
