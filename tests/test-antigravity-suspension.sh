@@ -83,7 +83,16 @@ for workflow in \
   "$REPO_ROOT/.github/workflows/antigravity-translate.yml"; do
   assert_contains "$workflow" "workflow_dispatch:" \
     "$(basename "$workflow") supports the same-repository pilot"
+  assert_contains "$workflow" "cancel-in-progress: true" \
+    "$(basename "$workflow") cancels duplicate exact-head runs"
 done
+
+assert_contains "$REPO_ROOT/.github/workflows/antigravity-review.yml" \
+  'group: antigravity-reusable-review-${{ github.repository }}-${{ inputs.pr_number }}-${{ inputs.expected_head_sha }}' \
+  "review workflow uses a caller-distinct exact-head concurrency group"
+assert_contains "$REPO_ROOT/.github/workflows/antigravity-translate.yml" \
+  'group: antigravity-reusable-translation-${{ github.repository }}-${{ inputs.pr_number }}-${{ inputs.expected_head_sha }}' \
+  "translation workflow uses a caller-distinct exact-head concurrency group"
 
 for file in \
   "$REPO_ROOT/.github/workflows/antigravity-review.yml" \

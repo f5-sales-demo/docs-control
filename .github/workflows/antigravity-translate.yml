@@ -41,6 +41,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: antigravity-reusable-translation-${{ github.repository }}-${{ inputs.pr_number }}-${{ inputs.expected_head_sha }}
+  cancel-in-progress: true
+
 jobs:
   translate:
     name: Generate isolated translations
