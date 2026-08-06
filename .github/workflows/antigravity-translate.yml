@@ -155,7 +155,11 @@ jobs:
           jq -n --arg project "$GCP_PROJECT_ID" --arg workspace "$GITHUB_WORKSPACE" '{
             gcp: {project: $project, location: "global"},
             model: "Gemini 3.6 Flash (High)",
-            trustedWorkspaces: [$workspace]
+            trustedWorkspaces: [$workspace],
+            permissions: {
+              allow: ["command(*)"],
+              deny: ["unsandboxed(*)", "read_url(*)", "execute_url(*)"]
+            }
           }' >"$HOME/.gemini/antigravity-cli/settings.json"
           prompt=$(printf '%s\n' \
             "Translate the exact English documentation changes listed in /opt/agy-translation-contract/changed-english.txt into every required locale." \
