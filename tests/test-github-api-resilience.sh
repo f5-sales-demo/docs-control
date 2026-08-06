@@ -434,7 +434,7 @@ check 'retry helper is governance-protected' jq -e \
   '.protected_files | index("scripts/github-api-resilience.cjs") != null' \
   "$repo_root/.claude/governance.json"
 
-if [ "${GITHUB_API_RESILIENCE_FIXTURE_MODE:-0}" != "1" ]; then
+if [ -f "$repo_settings" ]; then
   downstream_fixture=$(mktemp -d)
   trap 'rm -rf "$downstream_fixture"' EXIT
   mkdir -p \
@@ -461,8 +461,7 @@ if [ "${GITHUB_API_RESILIENCE_FIXTURE_MODE:-0}" != "1" ]; then
     "$downstream_fixture/.github/workflows/antigravity-translate.yml"
 
   if downstream_output=$(cd "$downstream_fixture" &&
-    GITHUB_API_RESILIENCE_FIXTURE_MODE=1 \
-      bash tests/test-github-api-resilience.sh 2>&1); then
+    bash tests/test-github-api-resilience.sh 2>&1); then
     printf '[OK] downstream-shaped managed checkout passes\n'
   else
     printf '%s\n' "$downstream_output" >&2
@@ -508,8 +507,7 @@ path.write_text(mutated, encoding="utf-8")
 PY
     if (
       cd "$downstream_fixture"
-      GITHUB_API_RESILIENCE_FIXTURE_MODE=1 \
-        bash tests/test-github-api-resilience.sh >/dev/null 2>&1
+      bash tests/test-github-api-resilience.sh >/dev/null 2>&1
     ); then
       printf '[FAIL] %s\n' "$label" >&2
       fail=1
