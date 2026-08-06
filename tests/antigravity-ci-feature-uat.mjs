@@ -460,6 +460,15 @@ async function testTranslationPreparation() {
     /untrusted-head-progress-tool/,
   );
   assert.equal(fs.readFileSync(path.join(prepared.installed, 'changed-english.txt'), 'utf8'), 'docs/en/page.mdx\n');
+  const expectedHash = createHash('sha256')
+    .update(fs.readFileSync(path.join(fixture.repository, 'docs/en/page.mdx')))
+    .digest('hex')
+    .slice(0, 12);
+  assert.equal(
+    fs.readFileSync(path.join(prepared.installed, 'expected-source-hashes.tsv'), 'utf8'),
+    `docs/en/page.mdx\t${expectedHash}\n`,
+    'the root-owned contract must carry the exact checked-out English source hash',
+  );
 
   const forkFixture = initializeExactHeadFixture();
   const fork = structuredClone(forkFixture.pull);
@@ -815,6 +824,11 @@ function testTranslationModel() {
     argumentsUsed,
     /\/opt\/agy-translation-contract\/changed-english[.]txt/,
     'the translator prompt must use the exact-head manifest copied into its sandbox-readable contract directory',
+  );
+  assert.match(
+    argumentsUsed,
+    /\/opt\/agy-translation-contract\/expected-source-hashes[.]tsv/,
+    'the translator prompt must use deterministic hashes derived from the exact PR head',
   );
   assert.doesNotMatch(argumentsUsed, /--dangerously-skip-permissions/);
   assert.match(
