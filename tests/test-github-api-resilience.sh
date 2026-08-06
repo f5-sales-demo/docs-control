@@ -256,6 +256,7 @@ skip_source_contract() {
 watcher="$repo_root/.github/workflows/antigravity-fleet-watcher.yml"
 review="$repo_root/.github/workflows/antigravity-review.yml"
 translation="$repo_root/.github/workflows/antigravity-translate.yml"
+review_caller="$repo_root/workflows/antigravity-review.yml"
 translation_caller="$repo_root/workflows/antigravity-translate.yml"
 sync_workflow="$repo_root/.github/workflows/sync-managed-files.yml"
 repo_settings="$repo_root/.github/config/repo-settings.json"
@@ -272,17 +273,17 @@ check 'unconfigured GitHub App credentials are absent' \
   bash -c '! grep -qE '\''AUTOMATION_APP_ID|AUTOMATION_APP_PRIVATE_KEY|create-github-app-token'\'' "$@"' \
   _ "${credential_files[@]}"
 
-for workflow in "$review" "$translation"; do
-  check "$(basename "$workflow") loads the governed retry helper" \
-    grep -qF 'github-api-resilience.cjs' "$workflow"
-  check "$(basename "$workflow") uses bounded GitHub retry" \
-    grep -qF 'retryGitHub' "$workflow"
-done
-
-check 'review receipts are exact-head markers' \
-  grep -qE 'antigravity-pr-review:\$\{?[^}]*HEAD|antigravity-pr-review:\$\{report[.]receipt[.]head_sha\}' "$review"
-
 if [ -f "$watcher" ]; then
+  for workflow in "$review" "$translation"; do
+    check "$(basename "$workflow") loads the governed retry helper" \
+      grep -qF 'github-api-resilience.cjs' "$workflow"
+    check "$(basename "$workflow") uses bounded GitHub retry" \
+      grep -qF 'retryGitHub' "$workflow"
+  done
+
+  check 'review receipts are exact-head markers' \
+    grep -qE 'antigravity-pr-review:\$\{?[^}]*HEAD|antigravity-pr-review:\$\{report[.]receipt[.]head_sha\}' "$review"
+
   check 'fleet watcher uses the existing fleet token' \
     grep -qF 'secrets.REPO_SETTINGS_TOKEN' "$watcher"
   check 'antigravity-fleet-watcher.yml loads the governed retry helper' \
@@ -298,6 +299,13 @@ if [ -f "$watcher" ]; then
   check 'Free-tier contract remains explicit' \
     grep -qF 'GitHub Free-compatible' "$watcher"
 else
+  for workflow in "$review" "$translation"; do
+    workflow_name=$(basename "$workflow")
+    check "$workflow_name delegates retry handling to the governed implementation" \
+      grep -qE "uses: f5-sales-demo/docs-control/[.]github/workflows/$workflow_name@[0-9a-f]{40}" \
+      "$workflow"
+  done
+  skip_source_contract 'review receipt implementation contract'
   skip_source_contract 'fleet watcher wiring contract'
 fi
 
@@ -332,7 +340,8 @@ check 'retry helper is governance-protected' jq -e \
   '.protected_files | index("scripts/github-api-resilience.cjs") != null' \
   "$repo_root/.claude/governance.json"
 
-if [ "${GITHUB_API_RESILIENCE_FIXTURE_MODE:-0}" != "1" ]; then
+if [ "${GITHUB_API_RESILIENCE_FIXTURE_MODE:-0}" != "1" ] &&
+  [ -f "$review_caller" ] && [ -f "$translation_caller" ]; then
   downstream_fixture=$(mktemp -d)
   trap 'rm -rf "$downstream_fixture"' EXIT
   mkdir -p \
@@ -341,9 +350,9 @@ if [ "${GITHUB_API_RESILIENCE_FIXTURE_MODE:-0}" != "1" ]; then
     "$downstream_fixture/scripts" \
     "$downstream_fixture/tests"
   cp "$repo_root/.claude/governance.json" "$downstream_fixture/.claude/governance.json"
-  cp "$repo_root/.github/workflows/antigravity-review.yml" \
+  cp "$review_caller" \
     "$downstream_fixture/.github/workflows/antigravity-review.yml"
-  cp "$repo_root/.github/workflows/antigravity-translate.yml" \
+  cp "$translation_caller" \
     "$downstream_fixture/.github/workflows/antigravity-translate.yml"
   cp "$repo_root/CONTRIBUTING.md" "$downstream_fixture/CONTRIBUTING.md"
   cp "$repo_root/scripts/github-api-resilience.cjs" \
@@ -360,6 +369,8 @@ if [ "${GITHUB_API_RESILIENCE_FIXTURE_MODE:-0}" != "1" ]; then
     printf '[FAIL] downstream-shaped managed checkout passes\n' >&2
     fail=1
   fi
+elif [ "${GITHUB_API_RESILIENCE_FIXTURE_MODE:-0}" != "1" ]; then
+  skip_source_contract 'downstream-shaped managed checkout fixture'
 fi
 
 exit "$fail"
