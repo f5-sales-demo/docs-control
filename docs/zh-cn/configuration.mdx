@@ -4,7 +4,7 @@ description: 中央 repo-settings.json 配置参考，用于强制执行、同�
 sidebar:
   order: 3
 i18n:
-  sourceHash: "c71bd436ec77"
+  sourceHash: "51c06147e69f"
   translator: "machine"
 ---
 
@@ -125,6 +125,18 @@ i18n:
 
 - `default_workflow_permissions: "write"` -- 工作流默认获得对仓库的读/写权限
 - `can_approve_pull_request_reviews: true` -- 允许工作流批准 PR
+
+### Antigravity 自动化控制
+
+`Configure Antigravity Controls` 工作流可更改控制 Antigravity 审查员和翻译员的
+组织变量。每个阶段都可以安全地重新运行：
+
+- `disabled` 将两个变量均设置为 `false`，并具有 `all` 可见性。
+- `pilot` 将两个变量均设置为 `true`，并将 `selected` 可见性限制为 docs-control。
+- `all` 仅在验证了所选试点精确 HEAD 的审查收据和 12 个语言区域的翻译发布之后，才将两个变量均设置为 `true` 并具有 `all` 可见性。
+
+该工作流使用现有的治理个人访问令牌、受限的 GitHub API 重试和
+结构化的进度心跳。它不需要 GitHub App 或 GitHub Enterprise 功能。
 
 ### `branch_protection`
 

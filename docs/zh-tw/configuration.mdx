@@ -4,7 +4,7 @@ description: 中央 repo-settings.json 設定參考，用於強制執行、同�
 sidebar:
   order: 3
 i18n:
-  sourceHash: "c71bd436ec77"
+  sourceHash: "51c06147e69f"
   translator: "machine"
 ---
 
@@ -126,6 +126,18 @@ i18n:
 - `default_workflow_permissions: "write"` -- 工作流程預設取得儲存庫的讀取/寫入權限
 - `can_approve_pull_request_reviews: true` -- 允許工作流程核准 PR
 
+### Antigravity 自動化控制
+
+`Configure Antigravity Controls` 工作流程可變更控制 Antigravity 審查員與翻譯員的
+組織變數。每個階段都可以安全地重新執行：
+
+- `disabled` 將兩個變數均設定為 `false`，並具有 `all` 能見度。
+- `pilot` 將兩個變數均設定為 `true`，並將 `selected` 能見度限制為 docs-control。
+- `all` 僅在驗證了所選試點精確 HEAD 的審查收據和 12 個語言區域的翻譯發布之後，才將兩個變數均設定為 `true` 並具有 `all` 能見度。
+
+該工作流程使用現有的治理個人存取權牌、受限的 GitHub API 重試和
+結構化的進度心跳。它不需要 GitHub App 或 GitHub Enterprise 功能。
+
 ### `branch_protection`
 
 分支保護規則陣列。每個項目指定一個 `branch` 名稱和所需的保護設定。目前僅保護 `main`。
@@ -151,7 +163,7 @@ i18n:
 
 #### 取用者 Shell 測試設定檔
 
-預設設定假設每個根目錄層級的 `tests/test-*.sh` 指令稿在未經設定的 GitHub 託管執行器上都是密封（hermetic）的。在該萬用字元下同時儲存容器或服務整合測試的儲存庫需要在 `repo-settings.json` 中新增 `consumer_shell_tests.profiles` 項目。
+預設設定假設每個根目錄層級的 `tests/test-*.sh` 指令稿在未經設定的 GitHub 託管執行器上 salaried 都是密封（hermetic）的。在該萬用字元下同時儲存容器或服務整合測試的儲存庫需要在 `repo-settings.json` 中新增 `consumer_shell_tests.profiles` 項目。
 
 每個設定檔對完整的符合清單進行分類：
 

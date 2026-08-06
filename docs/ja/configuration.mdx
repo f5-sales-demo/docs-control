@@ -4,7 +4,7 @@ description: 強制、同期、Antigravity AI 自動化、およびディスパ�
 sidebar:
   order: 3
 i18n:
-  sourceHash: "c71bd436ec77"
+  sourceHash: "51c06147e69f"
   translator: "machine"
 ---
 
@@ -125,6 +125,18 @@ i18n:
 
 - `default_workflow_permissions: "write"` -- ワークフローはデフォルトでリポジトリへの読み取り/書き込みアクセス権を取得します
 - `can_approve_pull_request_reviews: true` -- ワークフローによる PR の承認を許可します
+
+### Antigravity 自動化コントロール
+
+`Configure Antigravity Controls` ワークフローは、Antigravity レビュアーおよびトランスレーターを
+制御する組織変数を変更します。各フェーズは安全に再実行できます:
+
+- `disabled` は、両方の変数を `false` に設定し、`all` 可視性を指定します。
+- `pilot` は、両方の変数を `true` に設定し、`selected` 可視性を docs-control に限定します。
+- `all` は、選択されたパイロットの exact-head レビュー受領書と 12 ロケールの翻訳公開を検証した後にのみ、両方の変数を `true` に設定し、`all` 可視性を指定します。
+
+このワークフローは、既存のガバナンス個人アクセス トークン、制限付き GitHub API 再試行、および
+構造化された進行状況ハートビートを使用します。GitHub アプリや GitHub Enterprise 機能は必要ありません。
 
 ### `branch_protection`
 

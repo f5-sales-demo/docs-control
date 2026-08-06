@@ -4,7 +4,7 @@ description: Référence de configuration centrale repo-settings.json pour l'app
 sidebar:
   order: 3
 i18n:
-  sourceHash: "c71bd436ec77"
+  sourceHash: "51c06147e69f"
   translator: "machine"
 ---
 
@@ -125,6 +125,19 @@ Contrôle les permissions des workflows GitHub Actions pour le dépôt :
 
 - `default_workflow_permissions: "write"` -- les workflows obtiennent un accès en lecture/écriture au dépôt par défaut
 - `can_approve_pull_request_reviews: true` -- permet aux workflows d'approuver les PRs
+
+### Contrôles d'automatisation Antigravity
+
+Le workflow `Configure Antigravity Controls` modifie les variables d'organisation qui régissent le
+vérificateur et le traducteur Antigravity. Chaque phase peut être réexécutée en toute sécurité :
+
+- `disabled` définit les deux variables sur `false` avec une visibilité `all`.
+- `pilot` définit les deux variables sur `true` avec une visibilité `selected` restreinte à docs-control.
+- `all` définit les deux variables sur `true` avec une visibilité `all` uniquement après avoir validé le
+  recu de révision exact-head du pilote sélectionné et la publication de la traduction dans les 12 locales.
+
+Le workflow utilise le jeton d'accès personnel de gouvernance existant, des réessais limités de l'API GitHub et des
+battements de cœur de progression structurés. Il ne nécessite pas d'application GitHub ni de fonctionnalités GitHub Enterprise.
 
 ### `branch_protection`
 
