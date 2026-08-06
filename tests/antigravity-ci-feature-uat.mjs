@@ -789,6 +789,14 @@ function testTranslationModel() {
     /\/opt\/agy-translation-contract\/changed-english[.]txt/,
     'the translator prompt must use the exact-head manifest copied into its sandbox-readable contract directory',
   );
+  assert.doesNotMatch(argumentsUsed, /--dangerously-skip-permissions/);
+  const settings = JSON.parse(
+    fs.readFileSync(path.join(completed.work, 'home/.gemini/antigravity-cli/settings.json'), 'utf8'),
+  );
+  assert.deepEqual(settings.permissions, {
+    allow: ['command(*)'],
+    deny: ['unsandboxed(*)', 'read_url(*)', 'execute_url(*)'],
+  });
   assert.equal(
     fs.readFileSync(path.join(completed.work, 'translation-credentials'), 'utf8').trim(),
     '|||',
