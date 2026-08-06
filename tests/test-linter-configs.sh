@@ -373,11 +373,12 @@ fi
 XCSH_EXCLUDED=$(jq -c '.repo_overrides.xcsh.excluded_required_contexts // []' \
   "$REPO_SETTINGS")
 if echo "$XCSH_EXCLUDED" | jq -e \
-  'index("lint / Shell Unit Tests") != null' >/dev/null; then
-  pass "7e.6 xcsh opts out of the Super-Linter shell context it does not emit"
+  'index("lint / Lint Code Base") == null and
+   index("lint / Shell Unit Tests") == null' >/dev/null; then
+  pass "7e.6 xcsh requires both Super-Linter contexts"
 else
-  fail "7e.6 xcsh opts out of the Super-Linter shell context it does not emit" \
-    "fleet verification proves xcsh never reports lint / Shell Unit Tests"
+  fail "7e.6 xcsh requires both Super-Linter contexts" \
+    "remove the stale xcsh exclusions for Lint Code Base and Shell Unit Tests"
 fi
 
 # ════════════════════════════════════════════════════════════════════
