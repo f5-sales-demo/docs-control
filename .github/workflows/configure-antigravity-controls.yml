@@ -1,0 +1,88 @@
+---
+name: Configure Antigravity Controls
+run-name: Configure Antigravity controls / ${{ inputs.phase }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: Fail-closed state transition
+        required: true
+        type: choice
+        default: pilot
+        options:
+          - disabled
+          - pilot
+          - all
+      pilot_pr_number:
+        description: Required for all - selected pilot pull request
+        required: false
+        type: string
+      pilot_translation_head_sha:
+        description: Required for all - exact head translated by Antigravity
+        required: false
+        type: string
+      pilot_translation_run_id:
+        description: Required for all - successful translation workflow run
+        required: false
+        type: string
+      pilot_review_head_sha:
+        description: Required for all - exact post-translation head reviewed by Antigravity
+        required: false
+        type: string
+      pilot_review_run_id:
+        description: Required for all - successful exact-head review workflow run
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: configure-antigravity-controls
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    name: Apply fail-closed organization controls
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: antigravity-automation
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout protected control implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Require the protected default branch
+        env:
+          EVENT_REF: ${{ github.ref }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = refs/heads/main
+          test "$(git rev-parse HEAD)" = "$EVENT_SHA"
+
+      - name: Configure and verify organization variables
+        env:
+          GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
+          GITHUB_ORGANIZATION: f5-sales-demo
+          PILOT_REPOSITORY: docs-control
+          PILOT_PR_NUMBER: ${{ inputs.pilot_pr_number }}
+          PILOT_TRANSLATION_HEAD_SHA: ${{ inputs.pilot_translation_head_sha }}
+          PILOT_TRANSLATION_RUN_ID: ${{ inputs.pilot_translation_run_id }}
+          PILOT_REVIEW_HEAD_SHA: ${{ inputs.pilot_review_head_sha }}
+          PILOT_REVIEW_RUN_ID: ${{ inputs.pilot_review_run_id }}
+          CONTROL_WAIT_BUDGET_SECONDS: "900"
+          CONTROL_PHASE: ${{ inputs.phase }}
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}" || {
+            echo "[ERROR] REPO_SETTINGS_TOKEN is required" >&2
+            exit 1
+          }
+          scripts/run-with-progress.sh --phase "antigravity-control-$CONTROL_PHASE" -- \
+            node scripts/configure-antigravity-controls.cjs "$CONTROL_PHASE"
