@@ -123,6 +123,19 @@ Controls GitHub Actions workflow permissions for the repository:
 - `default_workflow_permissions: "write"` -- workflows get read/write access to the repository by default
 - `can_approve_pull_request_reviews: true` -- allows workflows to approve PRs
 
+### Antigravity automation controls
+
+The `Configure Antigravity Controls` workflow changes the organization variables that gate the
+Antigravity reviewer and translator. Each phase is safe to rerun:
+
+- `disabled` sets both variables to `false` with `all` visibility.
+- `pilot` sets both variables to `true` with `selected` visibility restricted to docs-control.
+- `all` sets both variables to `true` with `all` visibility only after it validates the selected
+  pilot's exact-head review receipt and 12-locale translation publication.
+
+The workflow uses the existing governance personal access token, bounded GitHub API retries, and
+structured progress heartbeats. It does not require a GitHub App or GitHub Enterprise features.
+
 ### `branch_protection`
 
 An array of branch protection rules. Each entry specifies a `branch` name and the desired protection settings. Currently only `main` is protected.
