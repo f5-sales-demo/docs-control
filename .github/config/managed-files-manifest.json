@@ -1,5 +1,5 @@
 {
-  "source_commit": "131eb37d9abf32eb928947abf56f7835c10a8e65",
+  "source_commit": "425a7bbd542a4461935acde65812be04c0c5a746",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -11,8 +11,8 @@
     ".github/workflows/enforce-repo-settings.yml": {
       "src": "workflows/enforce-repo-settings.yml",
       "dest": ".github/workflows/enforce-repo-settings.yml",
-      "sha": "d99d2d9b8a1e6aa996b5e96e2e01a3691a8b2b41",
-      "size": 11734,
+      "sha": "5e197515382a332b214082f6bc9f19f89e1c59f9",
+      "size": 11814,
       "mode": "100644"
     },
     ".github/workflows/require-linked-issue.yml": {
@@ -340,8 +340,8 @@
     "scripts/github-api-resilience.cjs": {
       "src": "scripts/github-api-resilience.cjs",
       "dest": "scripts/github-api-resilience.cjs",
-      "sha": "3e8f5a53569286e9fddb220e6312724b630e7cdb",
-      "size": 11521,
+      "sha": "68ad9ec375aa3384d4db211197e5c8878f5854b9",
+      "size": 15962,
       "mode": "100644"
     },
     "scripts/validate-translations.sh": {
@@ -410,8 +410,8 @@
     "tests/test-github-api-resilience.sh": {
       "src": "tests/test-github-api-resilience.sh",
       "dest": "tests/test-github-api-resilience.sh",
-      "sha": "d5b02f058bd0ec50d65a1ce0577ce7ed79f1b4b1",
-      "size": 18504,
+      "sha": "5d5b888dff2c8c332fc25623ecf0d6715d03a54a",
+      "size": 22485,
       "mode": "100644"
     },
     "tests/test-validate-translations.sh": {
