@@ -794,8 +794,8 @@ function testTranslationModel() {
     fs.readFileSync(path.join(completed.work, 'home/.gemini/antigravity-cli/settings.json'), 'utf8'),
   );
   assert.deepEqual(settings.permissions, {
-    allow: ['command(*)'],
-    deny: ['unsandboxed(*)', 'read_url(*)', 'execute_url(*)'],
+    allow: ['command(*)', 'read_file(/opt/agy-translation-contract)'],
+    deny: ['unsandboxed(*)', 'read_url(*)', 'execute_url(*)', 'write_file(/opt/agy-translation-contract)'],
   });
   assert.equal(
     fs.readFileSync(path.join(completed.work, 'translation-credentials'), 'utf8').trim(),

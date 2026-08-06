@@ -157,8 +157,13 @@ jobs:
             model: "Gemini 3.6 Flash (High)",
             trustedWorkspaces: [$workspace],
             permissions: {
-              allow: ["command(*)"],
-              deny: ["unsandboxed(*)", "read_url(*)", "execute_url(*)"]
+              allow: ["command(*)", "read_file(/opt/agy-translation-contract)"],
+              deny: [
+                "unsandboxed(*)",
+                "read_url(*)",
+                "execute_url(*)",
+                "write_file(/opt/agy-translation-contract)"
+              ]
             }
           }' >"$HOME/.gemini/antigravity-cli/settings.json"
           prompt=$(printf '%s\n' \
