@@ -112,7 +112,8 @@ jobs:
           archive="$RUNNER_TEMP/agy-${AGY_VERSION}.tar.gz"
           curl --fail --silent --show-error --location "$AGY_URL" --output "$archive"
           printf '%s  %s\n' "$AGY_SHA512" "$archive" | sha512sum --check --strict
-          mkdir "$RUNNER_TEMP/agy-extract"
+          rm -rf "$RUNNER_TEMP/agy-extract"
+          mkdir -p "$RUNNER_TEMP/agy-extract"
           tar -xzf "$archive" -C "$RUNNER_TEMP/agy-extract" antigravity
           sudo install -o root -g root -m 0555 "$RUNNER_TEMP/agy-extract/antigravity" /usr/local/bin/agy
           test "$(agy --version)" = "$AGY_VERSION"
