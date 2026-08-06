@@ -142,6 +142,10 @@ jobs:
                       echo "[DEFER] bootstrap state changed; scheduled recovery remains active"
                       exit 0
                       ;;
+                    84)
+                      echo "[DEFER] GitHub API rate capacity was exhausted after bootstrap; scheduled recovery is active"
+                      exit 0
+                      ;;
                     *)
                       echo "::error::Post-bootstrap preflight failed"
                       exit "$postflight_rc"
