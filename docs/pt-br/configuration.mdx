@@ -4,7 +4,7 @@ description: Referência de configuração central do repo-settings.json para im
 sidebar:
   order: 3
 i18n:
-  sourceHash: "c71bd436ec77"
+  sourceHash: "51c06147e69f"
   translator: "machine"
 ---
 
@@ -125,6 +125,19 @@ Controla as permissões do fluxo de trabalho do GitHub Actions para o repositór
 
 - `default_workflow_permissions: "write"` -- os fluxos de trabalho recebem acesso de leitura/gravação ao repositório por padrão
 - `can_approve_pull_request_reviews: true` -- permite que fluxos de trabalho aprovem revisões de PR
+
+### Controles de automação do Antigravity
+
+O fluxo de trabalho `Configure Antigravity Controls` altera as variáveis da organização que controlam o
+revisor e o tradutor do Antigravity. Cada fase é segura para ser reexecutada:
+
+- `disabled` define ambas as variáveis para `false` com visibilidade `all`.
+- `pilot` define ambas as variáveis para `true` com visibilidade `selected` restrita ao docs-control.
+- `all` define ambas as variáveis para `true` com visibilidade `all` somente após validar o
+  comprovante de revisão do commit exato da ramificação do piloto selecionado e a publicação da tradução em 12 idiomas.
+
+O fluxo de trabalho usa o token de acesso pessoal de governança existente, tentativas limitadas da API do GitHub e
+sinais de vida estruturados de progresso. Ele não requer um aplicativo do GitHub ou recursos do GitHub Enterprise.
 
 ### `branch_protection`
 

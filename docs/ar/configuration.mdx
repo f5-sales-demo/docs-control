@@ -4,7 +4,7 @@ description: مرجع التكوين المركزي repo-settings.json للإن�
 sidebar:
   order: 3
 i18n:
-  sourceHash: "c71bd436ec77"
+  sourceHash: "51c06147e69f"
   translator: "machine"
 ---
 
@@ -125,6 +125,18 @@ i18n:
 
 - `default_workflow_permissions: "write"` -- تحصل سيور العمل على وصول للقراءة/الكتابة إلى المستودع بشكل افتراضي
 - `can_approve_pull_request_reviews: true` -- يسمح لسيور العمل بالموافقة على طلبات السحب (PRs)
+
+### عناصر تحكم أتمتة Antigravity
+
+يغير سير عمل `Configure Antigravity Controls` متغيرات المؤسسة التي تتحكم في
+مراجع ومترجم Antigravity. كل مرحلة آمنة للإعادة:
+
+- يحدد `disabled` كلا المتغيرين على `false` مع رؤية `all`.
+- يحدد `pilot` كلا المتغيرين على `true` مع رؤية `selected` مقتصرة على docs-control.
+- يحدد `all` كلا المتغيرين على `true` مع رؤية `all` فقط بعد التحقق من إيصال المراجعة exact-head للطيار المحدد ونشر الترجمة في 12 لغة.
+
+يستخدم سير العمل رمز الوصول الشخصي للحوكمة الحالي، وإعادات المحاولة المحدودة لـ GitHub API، و
+نبضات التقدم المهيكلة. لا يتطلب تطبيق GitHub App أو ميزات GitHub Enterprise.
 
 ### `branch_protection`
 
