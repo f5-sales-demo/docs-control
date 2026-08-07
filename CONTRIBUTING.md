@@ -178,11 +178,11 @@ exact-HEAD Antigravity review, then push the repaired branch.
 ## Step 4: Open a Pull Request
 
 **Pause for operational review before pushing.** All contributors (human and AI) must stop here and
-output a summary of completed work, tests run, verification evidence, and remaining TODOs. Prompt
-the human to approve transitioning to GitHub operational tasks (pushing, PR creation, CI monitoring)
-or to perform a manual review, or execute an independent review using codex. Approval applies only
-to the reviewed exact HEAD. If edits are made, require another exact-HEAD review and pause. Wait for
-explicit human authorization (e.g., typing "approve" or "proceed") before continuing.
+output a summary of completed work, tests run, verification evidence, and remaining TODOs. AI
+assistants must prompt the user; human contributors must seek independent approval for GitHub
+operational tasks (pushing, PR creation, CI monitoring), manual review, or codex review. Approval
+applies only to the reviewed exact HEAD. If edits are made, require another exact-HEAD review and
+pause. Wait for explicit human authorization (e.g., typing "approve" or "proceed") before continuing.
 
 1. Push the feature branch and open a PR against `main`
 
@@ -206,9 +206,9 @@ background:
 3. For failed checks, inspect logs, repair the root cause, verify locally, rerun
    `bash scripts/agy-pre-push-review.sh` against the committed exact HEAD, pause for operational
    review, and push the feature branch. Restart the loop for the new head.
-4. For mergeable `BEHIND`, run `gh pr update-branch <pr>` and follow the new checks. For `DIRTY`,
-   merge current `origin/main` into the feature branch, resolve conflicts, verify, rerun Antigravity
-   review, pause for operational review, and push.
+4. For mergeable `BEHIND` or `DIRTY`, fetch and merge current `origin/main` into the feature
+   branch (avoid `gh pr update-branch`), resolve conflicts, verify locally, rerun Antigravity review,
+   pause for operational review, and push.
 5. When auto-merge is absent, run `gh pr merge --auto --squash <pr>`.
 6. Query `gh pr view <pr> --json state,mergeStateStatus,autoMergeRequest` and repeat until `state` is
    `MERGED`.
@@ -216,7 +216,7 @@ background:
    compare each changed file's manifest blob SHA across the complete downstream inventory and repair
    missing files, API errors, or mismatches until fleet convergence is complete.
 
-Pause this loop only for uncertain authorization, destructive-risk approval, an unavailable
+Outside the repair loop, pause for uncertain authorization, destructive-risk approval, an unavailable
 credential, or a product decision that requires the user.
 
 ## Automated code review
@@ -552,7 +552,7 @@ apply what fits.
   that the pipeline reported success.
 - Leaving a clean workspace is part of "done": once merge is confirmed and CI is green,
   retire the worktree you worked in, then return to `main`, delete your merged local
-  branch, remove any `audit_result.json` left by Codex-Rigor, and proactively report git hygiene — current branch, uncommitted or unmerged
+  branch, and proactively report git hygiene — current branch, uncommitted or unmerged
   changes, stale `[gone]` branches, and leftover worktrees — rather than waiting to be
   asked. The worktree comes first; the branch cannot be deleted while it is still checked
   out in one. See "After merge: clean up local branches and worktrees" for the safe
