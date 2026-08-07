@@ -162,10 +162,9 @@ A long-running session goes stale the same way, since nothing re-checks after st
 before branching a second time, and before creating a git worktree — a worktree inherits whatever
 the cached remote ref says, so it can be born behind (see CLAUDE.md).
 
-If a mergeable PR reports `BEHIND`, use the **Update branch** button or
-`gh pr update-branch <pr>` (`allow_update_branch` is enabled fleet-wide). A `DIRTY` PR needs conflict
-resolution on the feature branch: fetch, merge current `origin/main`, resolve and verify, rerun the
-exact-HEAD Antigravity review, then push the repaired branch.
+If a mergeable PR reports `BEHIND` or `DIRTY`, it requires resolution on the feature branch:
+fetch, merge current `origin/main`, resolve any conflicts and verify locally, rerun the
+exact-HEAD Antigravity review, pause for operational review, then push the repaired branch.
 
 ## Step 3: Make Changes and Commit
 
@@ -207,8 +206,8 @@ background:
    `bash scripts/agy-pre-push-review.sh` against the committed exact HEAD, pause for operational
    review, and push the feature branch. Restart the loop for the new head.
 4. For mergeable `BEHIND` or `DIRTY`, fetch and merge current `origin/main` into the feature
-   branch (avoid `gh pr update-branch`), resolve conflicts, verify locally, rerun Antigravity review,
-   pause for operational review, and push.
+   branch, resolve conflicts, verify locally, rerun Antigravity review, pause for operational
+   review, and push.
 5. When auto-merge is absent, run `gh pr merge --auto --squash <pr>`.
 6. Query `gh pr view <pr> --json state,mergeStateStatus,autoMergeRequest` and repeat until `state` is
    `MERGED`.

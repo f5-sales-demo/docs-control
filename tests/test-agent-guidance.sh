@@ -89,7 +89,7 @@ done
 
 for file in "$AGENTS_MD" "$CLAUDE_MD" "$CONTRIBUTING_MD"; do
   relative=${file#"$REPO_ROOT"/}
-  for token in "gh pr checks --watch" "BEHIND" "gh pr update-branch" "DIRTY" \
+  for token in "gh pr checks --watch" "BEHIND" "DIRTY" \
     "gh pr merge --auto --squash"; do
     assert_contains "$file" "$token" "$relative defines active PR handling: $token"
   done
@@ -100,7 +100,8 @@ for token in \
   "After opening a PR, return control" \
   "do not spend a coding-agent session polling GitHub Actions" \
   "Do not poll or wait on GitHub Actions" \
-  "CI watched to green (not just queued)"; do
+  "CI watched to green (not just queued)" \
+  "gh pr update-branch"; do
   for file in "$AGENTS_MD" "$CLAUDE_MD" "$CONTRIBUTING_MD" "$PR_TEMPLATE"; do
     relative=${file#"$REPO_ROOT"/}
     assert_not_contains "$file" "$token" "$relative excludes legacy stopper: $token"

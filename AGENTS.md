@@ -40,7 +40,7 @@ review → pause for operational review → push feature branch → linked PR �
 5. Push the branch and open a PR with `Closes #<issue>`. Enable auto-merge: `gh pr merge --auto --squash <pr>`.
 6. Start `gh pr checks --watch <pr> &` as a background waiter and loop:
    - Pending: leave waiter running, continue work.
-   - Failed, `BEHIND`, or `DIRTY`: fetch, merge `origin/<default-branch>` (avoid `gh pr update-branch`), fix/resolve conflicts, verify, rerun exact-HEAD Antigravity review, pause for operational review, and push.
+   - Failed, `BEHIND`, or `DIRTY`: fetch, merge `origin/<default-branch>`, fix/resolve conflicts, verify, rerun exact-HEAD Antigravity review, pause for operational review, and push.
    - Auto-merge absent: run `gh pr merge --auto --squash <pr>`.
 7. Wait until PR state is `MERGED`. Outside the repair loop, pause for uncertain authorization,
    destructive risks, missing credentials, or product decisions.

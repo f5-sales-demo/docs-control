@@ -26,13 +26,13 @@ detailed docs-control issue and let the managed-file workflow propagate the resu
 - Open a completed PR with `Closes #<issue>` and enable authorized squash auto-merge when absent:
   `gh pr merge --auto --squash <pr>`.
 - Start `gh pr checks --watch <pr> &` as a background waiter. Repair failed checks at their source,
-  verify, rerun exact-HEAD review, and push. For mergeable `BEHIND`, run
-  `gh pr update-branch <pr>`. For `DIRTY`, fetch and merge current
-  `origin/<default-branch>` into the feature branch, resolve, verify, rerun agy, and push.
+  verify, rerun exact-HEAD review, pause for operational review, and push. For mergeable `BEHIND`
+  or `DIRTY`, fetch and merge current `origin/<default-branch>` into the feature branch, resolve,
+  verify, rerun exact-HEAD review, pause for operational review, and push.
 - Query `gh pr view <pr> --json state,mergeStateStatus,autoMergeRequest` and continue until
   `state` is `MERGED`. Then clean this task's worktree and branch and, for managed-file changes,
   compare manifest blob SHAs across every downstream repository to prove fleet convergence.
-- Pause only for uncertain authorization, destructive-risk approval, an unavailable credential, or
+- Outside the repair loop, pause for uncertain authorization, destructive-risk approval, an unavailable credential, or
   a product decision that requires the user.
 
 ## Review routing
