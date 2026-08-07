@@ -51,7 +51,7 @@ Carry every change through this complete path:
 
 ```text
 detailed issue → fresh feature branch → implement and verify → exact-HEAD Antigravity review
-→ linked PR → CI and branch-state repair loop → MERGED → cleanup → fleet convergence
+→ pause for operational review → push feature branch → linked PR → CI and branch-state repair loop → MERGED → cleanup → fleet convergence
 ```
 
 The protected default branch accepts changes through pull requests. The linked-issue check verifies
@@ -90,7 +90,6 @@ can also be clean.
 ```bash
 git fetch --prune        # establishes the current remote base required for branching
 git switch --no-track -c feature/42-add-rate-limiting origin/main
-git push -u origin HEAD  # on your first push — sets the branch's own upstream
 ```
 
 Branch from `origin/main`. Local `main` can be *ahead* with unpushed commits,
@@ -99,7 +98,7 @@ Branching from the fetched ref also works when `main` is checked out in another 
 `git checkout main` fails outright (`fatal: 'main' is already used by worktree at …`), and a pasted
 `git checkout -b` would quietly branch from whatever you were on instead.
 
-`--no-track` and the `-u` on first push matter together. Without `--no-track`, Git's default
+`--no-track` and the `-u` on first push (in Step 4) matter together. Without `--no-track`, Git's default
 `branch.autoSetupMerge` makes a branch created from `origin/main` *track* `origin/main`: a bare
 `git pull` would then merge `main` into your feature branch, and the branch would never be marked
 `[gone]` once its own remote branch is deleted — silently defeating the cleanup procedure below.
@@ -178,7 +177,17 @@ exact-HEAD Antigravity review, then push the repaired branch.
 
 ## Step 4: Open a Pull Request
 
+**Pause for operational review before pushing.** All contributors (human and AI) must stop here and
+output a summary of completed work, tests run, verification evidence, and remaining TODOs. Prompt
+the human to approve transitioning to GitHub operational tasks (pushing, PR creation, CI monitoring)
+or to perform a manual review, or execute an independent review using codex. Approval applies only
+to the reviewed exact HEAD. If edits are made, require another exact-HEAD review and pause. Wait for
+explicit human authorization before continuing.
+
 1. Push the feature branch and open a PR against `main`
+   ```bash
+   git push -u origin HEAD  # on your first push — sets the branch's own upstream
+   ```
 2. **Link the issue** — use `Closes #42` in the PR description, or link from the sidebar
 3. Fill out the PR template (it loads automatically)
 4. The `Check linked issues`, `Lint Code Base`, and `Shell Unit Tests` checks enforce the closing

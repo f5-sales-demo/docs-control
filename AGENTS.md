@@ -31,7 +31,7 @@ repository classes for every coding assistant.
 Carry non-trivial work through this path:
 
 `detailed issue → fresh worktree and feature branch → implement and verify → exact-HEAD Antigravity
-review → push feature branch → linked PR → repair loop → MERGED → cleanup → fleet convergence`
+review → pause for operational review → push feature branch → linked PR → repair loop → MERGED → cleanup → fleet convergence`
 
 1. Inspect `git status --short --branch` and `git worktree list`; run `git fetch --prune`. Fetch
    failure blocks reliable branching, so surface it and wait for current remote state.
@@ -42,19 +42,25 @@ review → push feature branch → linked PR → repair loop → MERGED → clea
    use `scripts/agy-review.sh document` for specs and plans. Before every PR
    push, commit and run `bash scripts/agy-pre-push-review.sh`; fix blockers, commit, and rerun so the
    exact pushed HEAD passes.
-4. Push the feature branch and open a completed PR with `Closes #<issue>`. Enable authorized squash
+4. **Pause for operational review.** Stop before pushing the branch or opening the PR. Output a summary
+   of the completed work, verification evidence, and the remaining TODO list. Prompt the user to proceed
+   with GitHub operations (pushing, PR comments, merging, watching CI, or following logs), perform a
+   manual review, or execute an independent review using codex. Approval applies only to the reviewed
+   exact HEAD. If manual review or CI causes edits, require another exact-HEAD Antigravity review
+   and pause. Do not continue until the user explicitly approves the transition.
+5. Push the feature branch and open a completed PR with `Closes #<issue>`. Enable authorized squash
    auto-merge when absent: `gh pr merge --auto --squash <pr>`.
-5. Start `gh pr checks --watch <pr> &` as a background waiter and keep working through this loop:
+6. Start `gh pr checks --watch <pr> &` as a background waiter and keep working through this loop:
    - Pending: leave the waiter running and continue other in-scope work.
    - Failed: inspect logs, fix the root cause, verify, rerun exact-HEAD Antigravity review, and push.
    - `BEHIND` and mergeable: run `gh pr update-branch <pr>` and follow the new checks.
    - `DIRTY`: fetch, merge `origin/<default-branch>` into the feature branch, resolve, verify, rerun
      Antigravity review, and push.
    - Auto-merge absent: run `gh pr merge --auto --squash <pr>`.
-6. Query `gh pr view <pr> --json state,mergeStateStatus,autoMergeRequest`; repeat until `state` is
+7. Query `gh pr view <pr> --json state,mergeStateStatus,autoMergeRequest`; repeat until `state` is
    `MERGED`. Pause only for uncertain authorization, destructive-risk approval, an unavailable
    credential, or a product decision requiring the user.
-7. After merge, follow `CONTRIBUTING.md`: inspect ignored files, retire this task's worktree, delete
+8. After merge, follow `CONTRIBUTING.md`: inspect ignored files, retire this task's worktree, delete
    its confirmed-merged local branch, fetch/prune, and report git hygiene. For docs-control managed
    changes, confirm fleet convergence by matching each changed file's manifest blob SHA in every
    downstream repository; missing files, API errors, or mismatches remain active work.
