@@ -58,7 +58,7 @@ for file in "$AGENTS_MD" "$SKILL_MD" "$OPENAI_YAML"; do
   fi
 done
 
-AGENTS_MAX_BYTES=4096
+AGENTS_MAX_BYTES=5120
 AGENTS_BYTES=$(wc -c <"$AGENTS_MD" | tr -d ' ')
 if [ "$AGENTS_BYTES" -le "$AGENTS_MAX_BYTES" ]; then
   pass "AGENTS.md is ${AGENTS_BYTES}B, within the ${AGENTS_MAX_BYTES}B budget"

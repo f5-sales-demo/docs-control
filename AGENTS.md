@@ -47,23 +47,25 @@ review → pause for operational review → push feature branch → linked PR �
    with GitHub operations (pushing, PR comments, merging, watching CI, or following logs), perform a
    manual review, or execute an independent review using codex. Approval applies only to the reviewed
    exact HEAD. If manual review or CI causes edits, require another exact-HEAD Antigravity review
-   and pause. Do not continue until the user explicitly approves the transition.
+   and pause. Do not continue until the user explicitly approves the transition (e.g., typing
+   "approve" or "proceed").
 5. Push the feature branch and open a completed PR with `Closes #<issue>`. Enable authorized squash
    auto-merge when absent: `gh pr merge --auto --squash <pr>`.
 6. Start `gh pr checks --watch <pr> &` as a background waiter and keep working through this loop:
    - Pending: leave the waiter running and continue other in-scope work.
-   - Failed: inspect logs, fix the root cause, verify, rerun exact-HEAD Antigravity review, and push.
+   - Failed: inspect logs, fix the root cause, verify, rerun exact-HEAD Antigravity review, pause for operational review, and push.
    - `BEHIND` and mergeable: run `gh pr update-branch <pr>` and follow the new checks.
    - `DIRTY`: fetch, merge `origin/<default-branch>` into the feature branch, resolve, verify, rerun
-     Antigravity review, and push.
+     Antigravity review, pause for operational review, and push.
    - Auto-merge absent: run `gh pr merge --auto --squash <pr>`.
 7. Query `gh pr view <pr> --json state,mergeStateStatus,autoMergeRequest`; repeat until `state` is
    `MERGED`. Pause only for uncertain authorization, destructive-risk approval, an unavailable
    credential, or a product decision requiring the user.
 8. After merge, follow `CONTRIBUTING.md`: inspect ignored files, retire this task's worktree, delete
-   its confirmed-merged local branch, fetch/prune, and report git hygiene. For docs-control managed
-   changes, confirm fleet convergence by matching each changed file's manifest blob SHA in every
-   downstream repository; missing files, API errors, or mismatches remain active work.
+   its confirmed-merged local branch, remove any `audit_result.json`, fetch/prune, and report git
+   hygiene. For docs-control managed changes, confirm fleet convergence by matching each changed
+   file's manifest blob SHA in every downstream repository; missing files, API errors, or
+   mismatches remain active work.
 
 ## Engineering and verification
 

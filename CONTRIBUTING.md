@@ -182,12 +182,14 @@ output a summary of completed work, tests run, verification evidence, and remain
 the human to approve transitioning to GitHub operational tasks (pushing, PR creation, CI monitoring)
 or to perform a manual review, or execute an independent review using codex. Approval applies only
 to the reviewed exact HEAD. If edits are made, require another exact-HEAD review and pause. Wait for
-explicit human authorization before continuing.
+explicit human authorization (e.g., typing "approve" or "proceed") before continuing.
 
 1. Push the feature branch and open a PR against `main`
+
    ```bash
    git push -u origin HEAD  # on your first push — sets the branch's own upstream
    ```
+
 2. **Link the issue** — use `Closes #42` in the PR description, or link from the sidebar
 3. Fill out the PR template (it loads automatically)
 4. The `Check linked issues`, `Lint Code Base`, and `Shell Unit Tests` checks enforce the closing
@@ -202,11 +204,11 @@ background:
 1. Start `gh pr checks --watch <pr> &` as a background waiter.
 2. For pending checks, leave the waiter running and continue other in-scope work.
 3. For failed checks, inspect logs, repair the root cause, verify locally, rerun
-   `bash scripts/agy-pre-push-review.sh` against the committed exact HEAD, and push the feature
-   branch. Restart the loop for the new head.
+   `bash scripts/agy-pre-push-review.sh` against the committed exact HEAD, pause for operational
+   review, and push the feature branch. Restart the loop for the new head.
 4. For mergeable `BEHIND`, run `gh pr update-branch <pr>` and follow the new checks. For `DIRTY`,
    merge current `origin/main` into the feature branch, resolve conflicts, verify, rerun Antigravity
-   review, and push.
+   review, pause for operational review, and push.
 5. When auto-merge is absent, run `gh pr merge --auto --squash <pr>`.
 6. Query `gh pr view <pr> --json state,mergeStateStatus,autoMergeRequest` and repeat until `state` is
    `MERGED`.
@@ -550,7 +552,7 @@ apply what fits.
   that the pipeline reported success.
 - Leaving a clean workspace is part of "done": once merge is confirmed and CI is green,
   retire the worktree you worked in, then return to `main`, delete your merged local
-  branch, and proactively report git hygiene — current branch, uncommitted or unmerged
+  branch, remove any `audit_result.json` left by Codex-Rigor, and proactively report git hygiene — current branch, uncommitted or unmerged
   changes, stale `[gone]` branches, and leftover worktrees — rather than waiting to be
   asked. The worktree comes first; the branch cannot be deleted while it is still checked
   out in one. See "After merge: clean up local branches and worktrees" for the safe
