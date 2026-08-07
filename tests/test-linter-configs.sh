@@ -1126,12 +1126,21 @@ echo "SECTION 8: .gitignore Go vendor rule is root-anchored"
 GI_TMP=$(mktemp -d /tmp/test-linter-configs-gitignore-XXXXXX)
 git -C "$GI_TMP" init -q
 cp "$REPO_ROOT/.gitignore" "$GI_TMP/.gitignore"
-mkdir -p "$GI_TMP/vendor" "$GI_TMP/src/vendor/chat-ui" "$GI_TMP/plugins/example" "$GI_TMP/packages/example"
+mkdir -p \
+  "$GI_TMP/vendor" \
+  "$GI_TMP/src/vendor/chat-ui" \
+  "$GI_TMP/plugins/example" \
+  "$GI_TMP/packages/example" \
+  "$GI_TMP/superpowers" \
+  "$GI_TMP/docs/superpowers"
 : >"$GI_TMP/vendor/modules.txt"
 : >"$GI_TMP/src/vendor/chat-ui/index.ts"
 : >"$GI_TMP/bun.lock"
 : >"$GI_TMP/plugins/example/bun.lock"
 : >"$GI_TMP/packages/example/bun.lock"
+: >"$GI_TMP/superpowers/session.txt"
+: >"$GI_TMP/docs/superpowers/session.txt"
+: >"$GI_TMP/superpowers.txt"
 ln -s /tmp/example-venv "$GI_TMP/.venv"
 
 # A top-level vendor/ tree must still be ignored — that is the rule's purpose.
@@ -1172,6 +1181,29 @@ for nested_lock in plugins/example/bun.lock packages/example/bun.lock; do
     pass "8.5 nested bun.lock is trackable ($nested_lock)"
   fi
 done
+
+if git -C "$GI_TMP" check-ignore -q superpowers/session.txt; then
+  pass "8.6 repository-root superpowers/ workspace is ignored"
+else
+  fail "8.6 repository-root superpowers/ workspace is ignored" \
+    "superpowers/session.txt is trackable because the managed rule is scoped under docs/"
+fi
+
+# The replacement remains intentionally unanchored, retaining the old nested behavior.
+if git -C "$GI_TMP" check-ignore -q docs/superpowers/session.txt; then
+  pass "8.7 nested docs/superpowers/ workspace remains ignored"
+else
+  fail "8.7 nested docs/superpowers/ workspace remains ignored" \
+    "docs/superpowers/session.txt is unexpectedly trackable"
+fi
+
+# A directory-only rule must not swallow similarly named ordinary files.
+if git -C "$GI_TMP" check-ignore -q superpowers.txt; then
+  fail "8.8 superpowers.txt remains trackable" \
+    "the directory rule unexpectedly ignores a similarly named file"
+else
+  pass "8.8 superpowers.txt remains trackable"
+fi
 
 rm -rf "$GI_TMP"
 
