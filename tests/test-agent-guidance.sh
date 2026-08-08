@@ -67,11 +67,12 @@ else
 fi
 
 for token in "CONTRIBUTING.md" "DEVELOPING.md" ".claude/governance.json" \
-  "origin/<default-branch>" "normal defaults" "scripts/agy-review.sh"; do
+  "origin/<default-branch>" "normal defaults"; do
   assert_contains "$AGENTS_MD" "$token" "AGENTS.md retains ecosystem routing: $token"
 done
 
 for token in "EnterWorktree" ".claude/settings.json" "codex:verified-code-review" \
+  "scripts/agy-review.sh" \
   "pr-review-toolkit" "/security-review" "Opus" "Sonnet" "Haiku"; do
   assert_not_contains "$AGENTS_MD" "$token" "AGENTS.md excludes assistant-specific token: $token"
 done
