@@ -34,7 +34,7 @@ detailed docs-control issue and let the managed-file workflow propagate the resu
 - Query `gh pr view <pr> --json state,mergeStateStatus,autoMergeRequest` and continue until
   `state` is `MERGED`. Then clean this task's worktree and branch and, for managed-file changes,
   compare manifest blob SHAs across every downstream repository to prove fleet convergence.
-- Outside the repair loop, pause for uncertain authorization, destructive-risk approval, an unavailable credential, or
+- At any stage, pause and wait for explicit approval for uncertain authorization, destructive-risk approval, an unavailable credential, or
   a product decision that requires the user.
 
 ## Review routing
