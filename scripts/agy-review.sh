@@ -178,7 +178,7 @@ invoke_agy() {
     --print-timeout 25m --print "$(<"$prompt_file")" >"$stream_file"; then
     echo "[review] Antigravity execution failed" >&2
     jq -n --arg phase "$phase" \
-      '{"verdict":"needs-attention","summary":"System Error: Antigravity execution failed during \($phase)","findings":[{"severity":"critical","title":"LLM Execution Failure","body":"Antigravity returned a non-zero exit code.","file":"scripts/agy-review.sh","line_start":0,"line_end":0,"confidence":1,"recommendation":"Retry the operation. If the issue persists, check network or LLM availability."}],"next_steps":["retry"]}' >"$result_file"
+      '{"verdict":"needs-attention","summary":"System Error: Antigravity execution failed during \($phase)","findings":[{"severity":"critical","title":"LLM Execution Failure","body":"Antigravity returned a non-zero exit code.","file":"scripts/agy-review.sh","line_start":1,"line_end":1,"confidence":1,"recommendation":"Retry the operation. If the issue persists, check network or LLM availability."}],"next_steps":["retry"]}' >"$result_file"
     return 0
   fi
   printf '[review] %s completed; validating structured output\n' "$phase" >&2
@@ -193,7 +193,7 @@ invoke_agy() {
   ' "$stream_file" 2>&1 >"$result_file"); then
     echo "[review] Antigravity returned malformed or incomplete structured output" >&2
     jq -n --arg err "$parse_error" --arg raw "$(head -n 50 "$stream_file" || true)" --arg phase "$phase" \
-      '{"verdict":"needs-attention","summary":"System Error: Malformed JSON from Antigravity during \($phase)","findings":[{"severity":"critical","title":"JSON Parse Error","body":"jq error:\n```\n\($err)\n```\nRaw output (truncated):\n```\n\($raw)\n```","file":"scripts/agy-review.sh","line_start":0,"line_end":0,"confidence":1,"recommendation":"Retry the operation."}],"next_steps":["retry"]}' >"$result_file"
+      '{"verdict":"needs-attention","summary":"System Error: Malformed JSON from Antigravity during \($phase)","findings":[{"severity":"critical","title":"JSON Parse Error","body":"jq error:\n```\n\($err)\n```\nRaw output (truncated):\n```\n\($raw)\n```","file":"scripts/agy-review.sh","line_start":1,"line_end":1,"confidence":1,"recommendation":"Retry the operation."}],"next_steps":["retry"]}' >"$result_file"
     return 0
   fi
 }
