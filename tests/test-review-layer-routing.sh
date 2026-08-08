@@ -48,21 +48,21 @@ for skill in code-review:code-review pr-review-toolkit:review-pr verified-review
 done
 
 for document in AGENTS.md CLAUDE.md CONTRIBUTING.md; do
-  contains "$REPO_ROOT/$document" 'scripts/agy-pre-push-review.sh' \
-    "$document routes branch review to Antigravity"
-  contains "$REPO_ROOT/$document" 'Route semantic review through Antigravity' \
-    "$document states the positive semantic-review route"
+  rejects "$REPO_ROOT/$document" 'scripts/agy-pre-push-review.sh' \
+    "$document avoids branch review routing to Antigravity"
+  rejects "$REPO_ROOT/$document" 'Route semantic review through Antigravity' \
+    "$document avoids the positive semantic-review route"
   rejects "$REPO_ROOT/$document" 'not reviewers' \
     "$document avoids negative semantic-review routing"
   rejects "$REPO_ROOT/$document" 'Codex review commands' \
     "$document avoids assistant-specific stopper prose"
 done
-contains "$REPO_ROOT/AGENTS.md" 'scripts/agy-review.sh document' \
-  "AGENTS routes specs and plans directly to agy"
-contains "$REPO_ROOT/CLAUDE.md" 'scripts/agy-review.sh document' \
-  "CLAUDE routes specs and plans directly to agy"
-contains "$REPO_ROOT/CONTRIBUTING.md" 'scripts/agy-review.sh document' \
-  "CONTRIBUTING routes specs and plans directly to agy"
+rejects "$REPO_ROOT/AGENTS.md" 'scripts/agy-review.sh document' \
+  "AGENTS avoids routing specs and plans directly to agy"
+rejects "$REPO_ROOT/CLAUDE.md" 'scripts/agy-review.sh document' \
+  "CLAUDE avoids routing specs and plans directly to agy"
+rejects "$REPO_ROOT/CONTRIBUTING.md" 'scripts/agy-review.sh document' \
+  "CONTRIBUTING avoids routing specs and plans directly to agy"
 contains "$REPO_ROOT/scripts/agy-review.sh" '--phase pii-preflight' \
   "Antigravity review reports deterministic PII preflight progress"
 
