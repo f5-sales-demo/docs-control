@@ -169,6 +169,15 @@ fi
 
 invoke_agy() {
   local phase=$1 prompt_file=$2 stream_file=$3 result_file=$4
+  local parse_error
+
+  fallback_error() {
+    local summary=$1 msg=$2
+    jq -n --arg phase "$phase" --arg summary "$summary" --arg msg "$msg" \
+      '{"verdict":"needs-attention","summary":$summary,"findings":[{"severity":"critical","title":"LLM Execution Failure","body":$msg,"file":"scripts/agy-review.sh","line_start":1,"line_end":1,"confidence":1,"recommendation":"Retry the operation or check local logs."}],"next_steps":["retry"]}' >"$result_file"
+    jsonschema -i "$result_file" "$schema" >/dev/null 2>&1 || exit 1
+  }
+
   if ! "$progress_runner" --phase "$phase" -- \
     env -u GH_TOKEN -u GITHUB_TOKEN -u REPO_SETTINGS_TOKEN -u REPO_SYNC_TOKEN \
     -u GATEWAY_TOKEN -u GATEWAY_URL AGY_REVIEW_ACTIVE=1 \
@@ -177,12 +186,10 @@ invoke_agy() {
     --output-format stream-json --json-schema "$schema" \
     --print-timeout 25m --print "$(<"$prompt_file")" >"$stream_file"; then
     echo "[review] Antigravity execution failed" >&2
-    jq -n --arg phase "$phase" \
-      '{"verdict":"needs-attention","summary":"System Error: Antigravity execution failed during \($phase)","findings":[{"severity":"critical","title":"LLM Execution Failure","body":"Antigravity returned a non-zero exit code.","file":"scripts/agy-review.sh","line_start":1,"line_end":1,"confidence":1,"recommendation":"Retry the operation. If the issue persists, check network or LLM availability."}],"next_steps":["retry"]}' >"$result_file"
+    fallback_error "System Error: Antigravity execution failed during $phase" "Antigravity returned a non-zero exit code."
     return 0
   fi
   printf '[review] %s completed; validating structured output\n' "$phase" >&2
-  local parse_error
   if ! parse_error=$(jq -s -e '
     [.[] | select(.event == "result")] as $results |
     if ($results | length) != 1 then error("expected one result event")
@@ -192,8 +199,13 @@ invoke_agy() {
     else $results[0].result.structured_output end
   ' "$stream_file" 2>&1 >"$result_file"); then
     echo "[review] Antigravity returned malformed or incomplete structured output" >&2
-    jq -n --arg err "$parse_error" --arg raw "$(head -n 50 "$stream_file" || true)" --arg phase "$phase" \
-      '{"verdict":"needs-attention","summary":"System Error: Malformed JSON from Antigravity during \($phase)","findings":[{"severity":"critical","title":"JSON Parse Error","body":"jq error:\n```\n\($err)\n```\nRaw output (truncated):\n```\n\($raw)\n```","file":"scripts/agy-review.sh","line_start":1,"line_end":1,"confidence":1,"recommendation":"Retry the operation."}],"next_steps":["retry"]}' >"$result_file"
+    fallback_error "System Error: Malformed JSON from Antigravity during $phase" "jq error:\n\`\`\`\n${parse_error}\n\`\`\`\nCheck local logs for diagnostics."
+    return 0
+  fi
+
+  if ! jsonschema -i "$result_file" "$schema" >/dev/null 2>&1; then
+    echo "[review] Antigravity structured output failed schema validation" >&2
+    fallback_error "System Error: Schema validation failed during $phase" "The provider output did not conform to the required JSON schema."
     return 0
   fi
 }

@@ -59,7 +59,8 @@ if [ "${FAKE_AGY_DELAY_CALL:-0}" -eq "$count" ]; then
   sleep "${FAKE_AGY_DELAY_SECONDS:-2}"
 fi
 if [ "${FAKE_AGY_MALFORMED_CALL:-0}" -eq "$count" ]; then
-  printf 'not-json\n'
+  head -c 1048576 /dev/zero | tr '\0' 'a'
+  printf '\xff\n'
 elif [ "${FAKE_AGY_BLOCK_CALL:-0}" -eq "$count" ]; then
   printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","structured_output":{"verdict":"needs-attention","summary":"blocking finding","findings":[{"severity":"high","title":"bug","body":"redacted evidence","file":"file.txt","line_start":1,"line_end":1,"confidence":1,"recommendation":"fix it"}],"next_steps":["fix"]}}}'
 else
@@ -175,12 +176,15 @@ else
 fi
 
 setup_repo
-if run_review "$WORK/bin:$PATH" env FAKE_AGY_MALFORMED_CALL=1; then
+if run_review "$WORK/bin:$PATH" env FAKE_AGY_MALFORMED_CALL=1 AGY_REVIEW_REPORT_FILE="$WORK/repo/report.json"; then
   fail "malformed provider output blocks" "review returned success"
-elif [ "$?" -eq 3 ] && grep -q 'malformed or incomplete' "$WORK/output"; then
-  pass "malformed provider output fails closed"
+elif [ "$?" -eq 3 ] && grep -q 'malformed or incomplete' "$WORK/output" &&
+  jq .reviewer "$WORK/repo/report.json" >"$WORK/repo/reviewer.json" &&
+  jsonschema -i "$WORK/repo/reviewer.json" scripts/agy-review-output.schema.json &&
+  ! grep -q 'aaaaaaaaaa' "$WORK/repo/report.json"; then
+  pass "malformed provider output fails closed, validates schema, and redacts"
 else
-  fail "malformed provider output fails closed" "$(cat "$WORK/output")"
+  fail "malformed provider output fails closed, validates schema, and redacts" "$(cat "$WORK/output")"
 fi
 
 setup_repo
