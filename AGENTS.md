@@ -42,8 +42,8 @@ review → pause for operational review → push feature branch → linked PR �
    - Pending: leave waiter running, continue work.
    - Failed, `BEHIND`, or `DIRTY`: fetch, merge `origin/<default-branch>`, fix/resolve conflicts, verify, rerun exact-HEAD Antigravity review, pause for operational review, and push.
    - Auto-merge absent: run `gh pr merge --auto --squash <pr>`.
-7. Wait until PR state is `MERGED`. Outside the repair loop, pause for uncertain authorization,
-   destructive risks, missing credentials, or product decisions.
+7. Wait until PR state is `MERGED`. At any stage, pause and wait for explicit approval for uncertain
+   authorization, destructive risks, missing credentials, or product decisions.
 8. After merge: retire worktree, delete local branch, fetch/prune, and report git hygiene. Confirm
    fleet convergence by matching manifest blob SHAs in downstream repositories.
 

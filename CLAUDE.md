@@ -22,7 +22,9 @@ detailed docs-control issue and let the managed-file workflow propagate the resu
 - **Never sync by overwriting the working tree.** `git checkout <ref> -- .`, `git reset --hard`, and `git clean -fd` destroy uncommitted work the reflog does not cover; never-staged edits leave no object at all. Behind with work in progress? Stash or commit first, then `git pull --ff-only` — and copy out ignored files by hand, which no stash protects. See CONTRIBUTING.md.
 - Carry the complete lifecycle through:
   `detailed issue → feature branch → implementation and verification → exact-HEAD agy review →
-  push feature branch → linked PR → repair loop → MERGED → cleanup → fleet convergence`.
+  pause for operational review → push feature branch → linked PR → repair loop → MERGED → cleanup → fleet convergence`.
+- **Pause for operational review.** Stop before pushing. Output a summary of work, verification
+  evidence, and TODOs. Wait for the user to explicitly approve before proceeding to push.
 - Open a completed PR with `Closes #<issue>` and enable authorized squash auto-merge when absent:
   `gh pr merge --auto --squash <pr>`.
 - Start `gh pr checks --watch <pr> &` as a background waiter. Repair failed checks at their source,

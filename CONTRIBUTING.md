@@ -215,7 +215,7 @@ background:
    compare each changed file's manifest blob SHA across the complete downstream inventory and repair
    missing files, API errors, or mismatches until fleet convergence is complete.
 
-Outside the repair loop, pause for uncertain authorization, destructive-risk approval, an unavailable
+At any stage, pause and wait for explicit approval for uncertain authorization, destructive-risk approval, an unavailable
 credential, or a product decision that requires the user.
 
 ## Automated code review
