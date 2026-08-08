@@ -1,5 +1,5 @@
 {
-  "source_commit": "a63c712f8ffbea25941a76384e6a4ec06eea8b5d",
+  "source_commit": "1c0469d4587cba81bfee255a9ee79bfb90b14c9d",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -53,8 +53,8 @@
     ".github/PULL_REQUEST_TEMPLATE.md": {
       "src": ".github/PULL_REQUEST_TEMPLATE.md",
       "dest": ".github/PULL_REQUEST_TEMPLATE.md",
-      "sha": "c83e4ce4a7d034225c55e8449759ed63d9f004ce",
-      "size": 1253,
+      "sha": "c6c6f6cc5a4c7a21119d032c855d5b6312b6a67e",
+      "size": 1175,
       "mode": "100644"
     },
     ".github/ISSUE_TEMPLATE/bug_report.md": {
@@ -88,22 +88,22 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "d39ca2ee78082af95fa7563ccfb3f729f3ac5f92",
-      "size": 44451,
+      "sha": "48eff08c3d7d77813cd3a87538cee2a182ae3a71",
+      "size": 40505,
       "mode": "100644"
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "30c7c1b67de48392987e5c042b0d3d01dc25185c",
-      "size": 8122,
+      "sha": "4e9f91907e2b06d2f5c65c029735d68132e4b0c5",
+      "size": 7572,
       "mode": "100644"
     },
     "AGENTS.md": {
       "src": "AGENTS.md",
       "dest": "AGENTS.md",
-      "sha": "cf24259deb7055095df130f2cc80a746e5089fb7",
-      "size": 4068,
+      "sha": "7c2b462c55d5df1a7ef7a00abc4d2fa86c89c491",
+      "size": 3651,
       "mode": "100644"
     },
     ".agents/skills/demo-components/SKILL.md": {
