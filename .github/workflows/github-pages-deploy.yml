@@ -170,7 +170,7 @@ jobs:
             -v "$OUTPUT_DIR:/output" \
             -e CONTENT_DIR=/content/docs \
             -e OUTPUT_DIR=/output \
-            -e "DOCS_SITE=$DOCS_SITE" \
+            -e "DOCS_SITE=${DOCS_SITE:-}" \
             -e "GITHUB_REPOSITORY=$REPOSITORY" \
             "${TITLE_ARGS[@]}" \
             "$BUILDER_IMAGE"
