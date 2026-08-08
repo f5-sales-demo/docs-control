@@ -31,7 +31,7 @@ review → pause for operational review → push feature branch → linked PR �
    failures and wait for remote state.
 2. Create a detailed issue with scope and objective criteria. Create a fresh worktree and feature
    branch from `origin/<default-branch>`. Destructive Git operations require explicit approval.
-3. Implement and run checks. Route semantic review via `scripts/agy-review.sh document`. Before
+3. Implement and run checks. Route semantic review through Antigravity via `scripts/agy-review.sh document`. Before
    pushing, commit and run `bash scripts/agy-pre-push-review.sh`; fix blockers until exact HEAD passes.
 4. **Pause for operational review.** Stop before pushing. Output a summary of work, verification
    evidence, and TODOs. AI assistants must prompt the user; human contributors must seek independent
