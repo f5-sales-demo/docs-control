@@ -177,19 +177,24 @@ invoke_agy() {
     --output-format stream-json --json-schema "$schema" \
     --print-timeout 25m --print "$(<"$prompt_file")" >"$stream_file"; then
     echo "[review] Antigravity execution failed" >&2
-    return 1
+    jq -n --arg phase "$phase" \
+      '{"verdict":"needs-attention","summary":"System Error: Antigravity execution failed during \($phase)","findings":[{"severity":"critical","title":"LLM Execution Failure","body":"Antigravity returned a non-zero exit code.","file":"scripts/agy-review.sh","line_start":0,"line_end":0,"confidence":1,"recommendation":"Retry the operation. If the issue persists, check network or LLM availability."}],"next_steps":["retry"]}' >"$result_file"
+    return 0
   fi
   printf '[review] %s completed; validating structured output\n' "$phase" >&2
-  if ! jq -s -e '
+  local parse_error
+  if ! parse_error=$(jq -s -e '
     [.[] | select(.event == "result")] as $results |
     if ($results | length) != 1 then error("expected one result event")
     elif $results[0].result.status != "SUCCESS" then error("result was not successful")
     elif ($results[0].result.structured_output | type) != "object" then
       error("missing structured output")
     else $results[0].result.structured_output end
-  ' "$stream_file" >"$result_file"; then
+  ' "$stream_file" 2>&1 >"$result_file"); then
     echo "[review] Antigravity returned malformed or incomplete structured output" >&2
-    return 1
+    jq -n --arg err "$parse_error" --arg raw "$(head -n 50 "$stream_file" || true)" --arg phase "$phase" \
+      '{"verdict":"needs-attention","summary":"System Error: Malformed JSON from Antigravity during \($phase)","findings":[{"severity":"critical","title":"JSON Parse Error","body":"jq error:\n```\n\($err)\n```\nRaw output (truncated):\n```\n\($raw)\n```","file":"scripts/agy-review.sh","line_start":0,"line_end":0,"confidence":1,"recommendation":"Retry the operation."}],"next_steps":["retry"]}' >"$result_file"
+    return 0
   fi
 }
 

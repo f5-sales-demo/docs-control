@@ -177,7 +177,7 @@ fi
 setup_repo
 if run_review "$WORK/bin:$PATH" env FAKE_AGY_MALFORMED_CALL=1; then
   fail "malformed provider output blocks" "review returned success"
-elif grep -q 'malformed or incomplete' "$WORK/output"; then
+elif [ "$?" -eq 3 ] && grep -q 'malformed or incomplete' "$WORK/output"; then
   pass "malformed provider output fails closed"
 else
   fail "malformed provider output fails closed" "$(cat "$WORK/output")"
