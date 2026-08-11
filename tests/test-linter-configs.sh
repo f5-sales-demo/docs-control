@@ -120,6 +120,36 @@ else
   echo "  SKIP: ruff CLI not installed in this environment"
 fi
 
+# The managed validator is linted under downstream profiles that may not
+# enable BLE001. Its CLI must catch expected input/I/O errors without an
+# inline BLE suppression that becomes an RUF100 unused-noqa failure.
+if python3 - "$REPO_ROOT/scripts/workflow-security-validator.py" <<'PY'; then
+import ast
+import sys
+
+source = open(sys.argv[1], encoding="utf-8").read()
+module = ast.parse(source)
+main = next(node for node in module.body if isinstance(node, ast.FunctionDef) and node.name == "main")
+handlers = [node for node in ast.walk(main) if isinstance(node, ast.ExceptHandler)]
+expected = {"OSError", "ValueError"}
+actual = {
+    item.id
+    for handler in handlers
+    if isinstance(handler.type, ast.Tuple)
+    for item in handler.type.elts
+    if isinstance(item, ast.Name)
+}
+has_inline_portability_suppression = any(
+    marker in source for marker in ("noqa: BLE001", "noqa: TRY301")
+)
+raise SystemExit(0 if actual == expected and not has_inline_portability_suppression else 1)
+PY
+  pass "4.4 validator CLI catches portable input/I/O failures without BLE suppression"
+else
+  fail "4.4 validator CLI catches portable input/I/O failures without BLE suppression" \
+    "expected only OSError/ValueError and no inline BLE001 suppression"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5: .codespellrc skip patterns cover expected noise sources
 # ════════════════════════════════════════════════════════════════════
