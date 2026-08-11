@@ -25,6 +25,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.policy_path = self.root / "policy.json"
+        self.governance_path = self.root / "governance.json"
         self.workflow = {
             "name": "Acceptance",
             "on": {
@@ -66,6 +67,9 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             },
         }
         self.findings = [self.finding()]
+        self.governance = {
+            "repo_classes": {"repos": {"terraform-provider-xcsh": "developer"}}
+        }
 
     def tearDown(self):
         self.temp.cleanup()
@@ -81,11 +85,14 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         }
         return {"ident": ident, "locations": locations if locations is not None else [location]}
 
-    def write_fixture(self, workflow=None, policy=None):
+    def write_fixture(self, workflow=None, policy=None, governance=None):
         path = self.root / self.workflow_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(yaml.safe_dump(workflow or self.workflow, sort_keys=False), encoding="utf-8")
         self.policy_path.write_text(json.dumps(policy or self.policy), encoding="utf-8")
+        self.governance_path.write_text(
+            json.dumps(governance or self.governance), encoding="utf-8"
+        )
 
     def validate(self, findings=None, repository=None, policy_path=None):
         self.write_fixture()
@@ -94,6 +101,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             self.root,
             repository or self.repository,
             policy_path or self.policy_path,
+            self.governance_path,
         )
 
     def assert_rejected(self, workflow=None, policy=None, findings=None, repository=None):
@@ -104,6 +112,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                 self.root,
                 repository or self.repository,
                 self.policy_path,
+                self.governance_path,
             )
 
     def test_real_zizmor_1_29_nested_route_is_normalized(self):
@@ -149,6 +158,8 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         clean_repository = "f5-sales-demo/api-specs"
         policy = copy.deepcopy(self.policy)
         policy["repositories"][clean_repository] = {}
+        governance = copy.deepcopy(self.governance)
+        governance["repo_classes"]["repos"]["api-specs"] = "developer"
         clean_root = self.root / "clean"
         (clean_root / ".github/workflows").mkdir(parents=True)
         (clean_root / ".github/workflows/ci.yml").write_text(
@@ -156,7 +167,13 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.policy_path.write_text(json.dumps(policy), encoding="utf-8")
-        self.assertEqual(validator.validate([], clean_root, clean_repository, self.policy_path), [])
+        self.governance_path.write_text(json.dumps(governance), encoding="utf-8")
+        self.assertEqual(
+            validator.validate(
+                [], clean_root, clean_repository, self.policy_path, self.governance_path
+            ),
+            [],
+        )
 
     def test_environment_policy_and_schema_fail_closed(self):
         for environment in (None, "wrong"):
@@ -166,7 +183,13 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         self.write_fixture()
         self.policy_path.unlink()
         with self.assertRaises(validator.PolicyError):
-            validator.validate(self.findings, self.root, self.repository, self.policy_path)
+            validator.validate(
+                self.findings,
+                self.root,
+                self.repository,
+                self.policy_path,
+                self.governance_path,
+            )
         for change in (
             {"schema_version": 2},
             {"unknown": True},
@@ -181,7 +204,12 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             workflow = copy.deepcopy(self.workflow)
             workflow["jobs"][self.job_id]["if"] = guard
             mutations.append((workflow, None))
-        for trigger in ("pull_request_target", "workflow_run", "repository_dispatch"):
+        for trigger in (
+            "pull_request_target",
+            "workflow_run",
+            "repository_dispatch",
+            "issue_comment",
+        ):
             workflow = copy.deepcopy(self.workflow)
             policy = copy.deepcopy(self.policy)
             workflow["on"] = {trigger: {}}
@@ -196,6 +224,13 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             workflow = copy.deepcopy(self.workflow)
             workflow["jobs"][self.job_id]["permissions"] = permissions
             mutations.append((workflow, None))
+        workflow = copy.deepcopy(self.workflow)
+        policy = copy.deepcopy(self.policy)
+        workflow["jobs"][self.job_id]["permissions"] = {"issues": "write"}
+        policy["repositories"][self.repository][self.workflow_path][self.job_id][
+            "permissions"
+        ] = {"issues": "write"}
+        mutations.append((workflow, policy))
         for workflow, policy in mutations:
             self.assert_rejected(workflow=workflow, policy=policy)
 
@@ -210,6 +245,36 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         workflow["jobs"][self.job_id]["steps"][1]["run"] = "echo ${{ secrets.XCSH_API_TOKEN }}"
         self.assert_rejected(workflow=workflow)
         self.assert_rejected(findings=[self.finding(ident="template-injection")])
+        fallback = self.finding()
+        fallback.pop("ident")
+        fallback["rule"] = "self-hosted-runner"
+        self.assert_rejected(findings=[fallback])
+        structured = self.finding(ident={"slug": "self-hosted-runner"})
+        self.assert_rejected(findings=[structured])
+
+    def test_policy_inventory_must_exactly_match_governance(self):
+        self.write_fixture()
+        governance = copy.deepcopy(self.governance)
+        governance["repo_classes"]["repos"]["api-specs"] = "developer"
+        self.governance_path.write_text(json.dumps(governance), encoding="utf-8")
+        with self.assertRaises(validator.PolicyError):
+            validator.validate(
+                self.findings,
+                self.root,
+                self.repository,
+                self.policy_path,
+                self.governance_path,
+            )
+
+    def test_pull_request_guard_is_proved_independently_of_policy(self):
+        workflow = copy.deepcopy(self.workflow)
+        policy = copy.deepcopy(self.policy)
+        unsafe = "always() && (github.event_name != 'pull_request' || true)"
+        workflow["jobs"][self.job_id]["if"] = unsafe
+        policy["repositories"][self.repository][self.workflow_path][self.job_id][
+            "if"
+        ] = unsafe
+        self.assert_rejected(workflow=workflow, policy=policy)
 
     def test_zizmor_exit_and_json_contract(self):
         validator.validate_zizmor_result(0, [])

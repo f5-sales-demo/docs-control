@@ -61,12 +61,9 @@ jobs:
             echo "::error::Zizmor execution failed with exit code ${ZIZMOR_EXIT}"
             exit 1
           fi
-          COUNT=$(uv run --with 'PyYAML==6.0.2' --no-project python -c 'import json; d=json.load(open("zizmor-findings.json")); assert isinstance(d,list); print(len(d))')
-          if { [ "$ZIZMOR_EXIT" -eq 0 ] && [ "$COUNT" -ne 0 ]; } || { [ "$ZIZMOR_EXIT" -eq 13 ] && [ "$COUNT" -eq 0 ]; }; then
-            echo "::error::Zizmor exit/findings mismatch (${ZIZMOR_EXIT}/${COUNT})"
-            exit 1
-          fi
           uv run --with 'PyYAML==6.0.2' --no-project python scripts/workflow-security-validator.py \
             --repository "$AUDITED_REPOSITORY" \
             --policy .github/config/self-hosted-runner-policy.json \
+            --governance .claude/governance.json \
+            --zizmor-exit "$ZIZMOR_EXIT" \
             zizmor-findings.json

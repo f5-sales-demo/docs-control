@@ -1,0 +1,58 @@
+[
+  {
+    "ident": "self-hosted-runner",
+    "desc": "runs on a self-hosted runner",
+    "url": "https://docs.zizmor.sh/audits/#self-hosted-runner",
+    "determinations": {"confidence": "High", "severity": "Medium", "persona": "Auditor"},
+    "locations": [
+      {
+        "symbolic": {
+          "key": {"Local": {"verbatim_path": ".github/workflows/audit.yml"}},
+          "annotation": "self-hosted runner used here",
+          "route": {"route": [{"Key": "jobs"}, {"Key": "first"}, {"Key": "runs-on"}]},
+          "feature_kind": "Normal",
+          "kind": "Primary"
+        },
+        "concrete": {
+          "location": {
+            "start_point": {"row": 12, "column": 4},
+            "end_point": {"row": 12, "column": 51},
+            "offset_span": {"start": 137, "end": 184}
+          },
+          "feature": "    runs-on: [self-hosted, Linux, X64, fixture]",
+          "comments": []
+        }
+      }
+    ],
+    "ignored": false,
+    "fixes": []
+  },
+  {
+    "ident": "self-hosted-runner",
+    "desc": "runs on a self-hosted runner",
+    "url": "https://docs.zizmor.sh/audits/#self-hosted-runner",
+    "determinations": {"confidence": "High", "severity": "Medium", "persona": "Auditor"},
+    "locations": [
+      {
+        "symbolic": {
+          "key": {"Local": {"verbatim_path": ".github/workflows/audit.yml"}},
+          "annotation": "self-hosted runner used here",
+          "route": {"route": [{"Key": "jobs"}, {"Key": "second"}, {"Key": "runs-on"}]},
+          "feature_kind": "Normal",
+          "kind": "Primary"
+        },
+        "concrete": {
+          "location": {
+            "start_point": {"row": 25, "column": 4},
+            "end_point": {"row": 25, "column": 51},
+            "offset_span": {"start": 519, "end": 566}
+          },
+          "feature": "    runs-on: [self-hosted, Linux, X64, fixture]",
+          "comments": []
+        }
+      }
+    ],
+    "ignored": false,
+    "fixes": []
+  }
+]

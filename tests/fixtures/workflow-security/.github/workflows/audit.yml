@@ -1,0 +1,39 @@
+name: Fixture audit
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: fixture-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  first:
+    name: First governed job
+    runs-on: [self-hosted, Linux, X64, fixture]
+    environment: first-environment
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - env:
+          TOKEN: ${{ secrets.FIXTURE_TOKEN }}
+        run: test -n "$TOKEN"
+
+  second:
+    name: Second governed job
+    runs-on: [self-hosted, Linux, X64, fixture]
+    environment: second-environment
+    permissions:
+      checks: write # publish the fixture check result
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false

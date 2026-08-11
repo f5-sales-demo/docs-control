@@ -15,6 +15,8 @@ TOP_FIELDS = {"schema_version", "repositories"}
 JOB_FIELDS = {"runs_on", "environment", "permissions", "allowed_secrets", "triggers", "if"}
 SECRET_RE = re.compile(r"\bsecrets\.([A-Za-z_][A-Za-z0-9_]*)\b")
 FORBIDDEN_TRIGGERS = {"pull_request_target", "workflow_run", "repository_dispatch"}
+ALLOWED_TRIGGERS = {"schedule", "workflow_dispatch", "push", "pull_request"}
+ALLOWED_PERMISSIONS = {"contents": {"read", "none"}, "checks": {"write", "read", "none"}}
 
 
 class PolicyError(ValueError):
@@ -42,7 +44,29 @@ def strict_object(value, allowed, context):
     return value
 
 
-def load_policy(path, repository):
+def governed_repositories(path):
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        repos = raw["repo_classes"]["repos"]
+    except Exception as exc:
+        raise PolicyError(f"cannot read governance inventory {path}: {exc}") from exc
+    if not isinstance(repos, dict) or not repos or not all(
+        isinstance(name, str) and isinstance(repo_class, str)
+        for name, repo_class in repos.items()
+    ):
+        raise PolicyError("governance repo_classes.repos must be a non-empty string mapping")
+    return {f"f5-sales-demo/{name}" for name in repos}
+
+
+def permissions_within_ceiling(permissions, context):
+    if not isinstance(permissions, dict):
+        raise PolicyError(f"{context} must be an object")
+    for scope, access in permissions.items():
+        if scope not in ALLOWED_PERMISSIONS or access not in ALLOWED_PERMISSIONS[scope]:
+            raise PolicyError(f"{context} exceeds the permission ceiling: {scope}={access}")
+
+
+def load_policy(path, governance_path, repository):
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except Exception as exc:
@@ -51,7 +75,12 @@ def load_policy(path, repository):
     if raw.get("schema_version") != 1:
         raise PolicyError(f"unsupported schema_version: {raw.get('schema_version')!r}")
     repositories = raw.get("repositories")
-    if not isinstance(repositories, dict) or repository not in repositories:
+    governed = governed_repositories(governance_path)
+    if not isinstance(repositories, dict) or set(repositories) != governed:
+        missing = sorted(governed - set(repositories or {})) if isinstance(repositories, dict) else sorted(governed)
+        extra = sorted(set(repositories or {}) - governed) if isinstance(repositories, dict) else []
+        raise PolicyError(f"policy/governance repository mismatch: missing={missing}, extra={extra}")
+    if repository not in repositories:
         raise PolicyError(f"repository {repository!r} is not present in policy")
     result = {}
     workflows = repositories[repository]
@@ -71,10 +100,14 @@ def load_policy(path, repository):
                 raise PolicyError(f"{workflow}/{job_id}.runs_on must be a string array")
             if not isinstance(spec["permissions"], dict):
                 raise PolicyError(f"{workflow}/{job_id}.permissions must be an object")
+            permissions_within_ceiling(spec["permissions"], f"{workflow}/{job_id}.permissions")
             if not isinstance(spec["allowed_secrets"], list) or len(set(spec["allowed_secrets"])) != len(spec["allowed_secrets"]):
                 raise PolicyError(f"{workflow}/{job_id}.allowed_secrets must be a unique array")
             if not isinstance(spec["triggers"], dict) or not all(isinstance(x, str) for x in spec["triggers"]):
                 raise PolicyError(f"{workflow}/{job_id}.triggers must be an exact trigger mapping")
+            unknown_triggers = set(spec["triggers"]) - ALLOWED_TRIGGERS
+            if unknown_triggers:
+                raise PolicyError(f"{workflow}/{job_id} has untrusted trigger(s): {sorted(unknown_triggers)}")
             result[(workflow, job_id)] = spec
     return result
 
@@ -111,6 +144,11 @@ def normalize_location(location):
     normalized = PurePosixPath(path).as_posix()
     while normalized.startswith("./"):
         normalized = normalized[2:]
+    path_parts = PurePosixPath(normalized).parts
+    if PurePosixPath(normalized).is_absolute() or ".." in path_parts:
+        raise PolicyError(f"finding path is not a safe repository-relative path: {path!r}")
+    if not normalized.startswith(".github/workflows/"):
+        raise PolicyError(f"finding path is outside .github/workflows: {normalized!r}")
     return normalized, parts[index + 1], parts
 
 
@@ -137,7 +175,69 @@ def effective_permissions(workflow, job):
         raise PolicyError("permissions shortcuts are forbidden")
     if not isinstance(value, dict) or not all(isinstance(k, str) and v in {"read", "write", "none"} for k, v in value.items()):
         raise PolicyError("effective permissions must be an explicit scope mapping")
+    permissions_within_ceiling(value, "effective permissions")
     return value
+
+
+def strip_wrapping_parentheses(expression):
+    expression = expression.strip()
+    while expression.startswith("(") and expression.endswith(")"):
+        depth = 0
+        wraps_all = True
+        for index, character in enumerate(expression):
+            if character == "(":
+                depth += 1
+            elif character == ")":
+                depth -= 1
+                if depth < 0:
+                    return expression
+                if depth == 0 and index != len(expression) - 1:
+                    wraps_all = False
+                    break
+        if depth != 0 or not wraps_all:
+            break
+        expression = expression[1:-1].strip()
+    return expression
+
+
+def split_boolean(expression, operator):
+    parts = []
+    depth = 0
+    start = 0
+    index = 0
+    while index < len(expression):
+        character = expression[index]
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth < 0:
+                raise PolicyError("job if expression has unbalanced parentheses")
+        elif depth == 0 and expression.startswith(operator, index):
+            parts.append(expression[start:index].strip())
+            start = index + len(operator)
+            index += len(operator) - 1
+        index += 1
+    if depth != 0:
+        raise PolicyError("job if expression has unbalanced parentheses")
+    parts.append(expression[start:].strip())
+    return parts
+
+
+def condition_excludes_pull_request(expression):
+    """Conservatively prove every branch excludes pull_request execution."""
+    if not isinstance(expression, str) or "${{" in expression:
+        return False
+    expression = strip_wrapping_parentheses(expression)
+    if expression == "github.event_name != 'pull_request'":
+        return True
+    disjunction = split_boolean(expression, "||")
+    if len(disjunction) > 1:
+        return all(condition_excludes_pull_request(branch) for branch in disjunction)
+    conjunction = split_boolean(expression, "&&")
+    if len(conjunction) > 1:
+        return any(condition_excludes_pull_request(branch) for branch in conjunction)
+    return False
 
 
 def walk(value, path=()):
@@ -174,6 +274,9 @@ def validate_job(repository, workflow_path, job_id, workflow, job, spec):
             errors.append("complete trigger structure does not exactly match policy")
         if set(triggers) & FORBIDDEN_TRIGGERS:
             errors.append(f"forbidden trigger(s): {sorted(set(triggers) & FORBIDDEN_TRIGGERS)}")
+        unknown_triggers = set(triggers) - ALLOWED_TRIGGERS
+        if unknown_triggers:
+            errors.append(f"untrusted trigger(s): {sorted(unknown_triggers)}")
         on = workflow_on(workflow)
         if "push" in triggers:
             push = on.get("push") if isinstance(on, dict) else None
@@ -183,6 +286,8 @@ def validate_job(repository, workflow_path, job_id, workflow, job, spec):
         errors.append(str(exc))
     if job.get("if") != spec["if"]:
         errors.append("job if expression does not exactly match policy")
+    if "pull_request" in trigger_names(workflow) and not condition_excludes_pull_request(job.get("if")):
+        errors.append("job if does not provably exclude pull_request execution")
     references = set()
     for path, text in walk(job):
         names = set(SECRET_RE.findall(text))
@@ -230,26 +335,15 @@ def inventory(root, repository, policy):
     return set(actual)
 
 
-def finding_ident(finding):
-    ident = finding.get("ident") if isinstance(finding, dict) else None
-    if isinstance(ident, str):
-        return ident
-    if isinstance(ident, dict):
-        for key in ("slug", "id", "name"):
-            if isinstance(ident.get(key), str):
-                return ident[key]
-    return finding.get("rule") if isinstance(finding, dict) else None
-
-
-def validate(findings, root, repository, policy_path):
+def validate(findings, root, repository, policy_path, governance_path):
     if not isinstance(findings, list):
         raise PolicyError("Zizmor output must be a JSON array")
-    policy = load_policy(policy_path, repository)
+    policy = load_policy(policy_path, governance_path, repository)
     actual = inventory(root, repository, policy)
     found = []
     routes = []
     for finding in findings:
-        ident = finding_ident(finding)
+        ident = finding.get("ident") if isinstance(finding, dict) else None
         if ident != "self-hosted-runner":
             raise PolicyError(f"unapproved finding: {ident!r}")
         locations = finding.get("locations") if isinstance(finding, dict) else None
@@ -274,6 +368,8 @@ def parse_args(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", default=os.environ.get("GITHUB_REPOSITORY"))
     parser.add_argument("--policy", type=Path, required=True)
+    parser.add_argument("--governance", type=Path, required=True)
+    parser.add_argument("--zizmor-exit", type=int, required=True)
     parser.add_argument("findings", type=Path)
     return parser.parse_args(argv)
 
@@ -284,7 +380,8 @@ def main(argv=None):
         if not args.repository or args.repository.count("/") != 1:
             raise PolicyError("an exact --repository owner/name is required")
         findings = json.loads(args.findings.read_text(encoding="utf-8"))
-        routes = validate(findings, Path.cwd(), args.repository, args.policy)
+        validate_zizmor_result(args.zizmor_exit, findings)
+        routes = validate(findings, Path.cwd(), args.repository, args.policy, args.governance)
     except Exception as exc:
         print(f"workflow security validation failed: {exc}", file=sys.stderr)
         return 1
