@@ -1012,7 +1012,7 @@ function initializeTranslationFixture() {
 
 function runTranslationPackage(fixture, reconcileAll = false) {
   const runner = temporaryDirectory('agy-translation-package-');
-  const script = extractStepBlock(translationWorkflow, 'Validate and package allowlisted translation patch').replace(
+  const script = extractStepBlock(translationWorkflow, 'Validate and package allowlisted translation patch').replaceAll(
     '/opt/agy-translation-contract/validate-translations.sh',
     path.join(root, 'scripts/validate-translations.sh'),
   );
@@ -1109,7 +1109,7 @@ function runTranslationPublication(packaged, { missingToken = false, remoteDrift
     path.join(packaged.runner, 'translation-artifact/translations.patch'),
     path.join(artifact, 'translations.patch'),
   );
-  const script = extractStepBlock(translationWorkflow, 'Validate, commit, and publish translations').replace(
+  const script = extractStepBlock(translationWorkflow, 'Validate, commit, and publish translations').replaceAll(
     '/opt/agy-publication-validator/validate-translations.sh',
     path.join(root, 'scripts/validate-translations.sh'),
   );
