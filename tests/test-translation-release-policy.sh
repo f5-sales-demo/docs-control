@@ -72,12 +72,12 @@ AUDIT_BODY=$(awk '
 assert_audit_without_scripts() {
   local expected=$1 label=$2 head_ref=$3
   local scenario="$WORK/audit-$PASS-$FAIL"
-  mkdir -p "$scenario/temp"
-  git -C "$scenario" init -q
+  mkdir -p "$scenario/consumer" "$scenario/temp"
+  git -C "$scenario/consumer" init -q
 
   local output rc
   set +e
-  output=$(cd "$scenario" &&
+  output=$(cd "$scenario/consumer" &&
     RUNNER_TEMP="$scenario/temp" HEAD_REF="$head_ref" bash -c "$AUDIT_BODY" 2>&1)
   rc=$?
   set -e
@@ -118,21 +118,21 @@ assert_audit_without_scripts failure \
 assert_exact_audit_route() {
   local eligible=$1 expected_calls=$2 label=$3
   local scenario="$WORK/exact-$eligible"
-  mkdir -p "$scenario/scripts" "$scenario/temp"
-  git -C "$scenario" init -q
-  cat >"$scenario/scripts/translation-release-policy.sh" <<'EOF'
+  mkdir -p "$scenario/consumer" "$scenario/governance/scripts" "$scenario/temp"
+  git -C "$scenario/consumer" init -q
+  cat >"$scenario/governance/scripts/translation-release-policy.sh" <<'EOF'
 #!/usr/bin/env bash
 printf 'policy\n' >>"$AUDIT_CALLS"
 printf 'eligible=%s\n' "$FAKE_ELIGIBLE"
 EOF
-  cat >"$scenario/scripts/validate-translations.sh" <<'EOF'
+  cat >"$scenario/governance/scripts/validate-translations.sh" <<'EOF'
 #!/usr/bin/env bash
 printf 'validator:%s\n' "$*" >>"$AUDIT_CALLS"
 EOF
 
   local output rc
   set +e
-  output=$(cd "$scenario" &&
+  output=$(cd "$scenario/consumer" &&
     AUDIT_CALLS="$scenario/calls" FAKE_ELIGIBLE="$eligible" \
       RUNNER_TEMP="$scenario/temp" HEAD_REF=release/v20.0.0 \
       bash -c "$AUDIT_BODY" 2>&1)
