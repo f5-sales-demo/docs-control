@@ -24,6 +24,9 @@ CALLER_BLOB=$(printf '%s\n' "$CALLER_TEXT" | git hash-object --stdin)
 LINT_CALLER_TEXT='name: Super-Linter'
 LINT_CALLER_CONTENT=$(printf '%s\n' "$LINT_CALLER_TEXT" | base64 | tr -d '\n')
 LINT_CALLER_BLOB=$(printf '%s\n' "$LINT_CALLER_TEXT" | git hash-object --stdin)
+AUDIT_CALLER_TEXT='name: Translation Audit'
+AUDIT_CALLER_CONTENT=$(printf '%s\n' "$AUDIT_CALLER_TEXT" | base64 | tr -d '\n')
+AUDIT_CALLER_BLOB=$(printf '%s\n' "$AUDIT_CALLER_TEXT" | git hash-object --stdin)
 LINKED_CALLER_TEXT='name: Require Linked Issue'
 LINKED_CALLER_CONTENT=$(printf '%s\n' "$LINKED_CALLER_TEXT" | base64 | tr -d '\n')
 LINKED_CALLER_BLOB=$(printf '%s\n' "$LINKED_CALLER_TEXT" | git hash-object --stdin)
@@ -124,6 +127,13 @@ if ! grep -Fq 'contents/workflows/super-linter.yml?ref=${source_sha}' "$SOURCE" 
 fi
 echo "[OK] bootstrap carries the lint caller that validates its own PR"
 
+if ! grep -Fq 'contents/workflows/translation-audit.yml?ref=${source_sha}' "$SOURCE" ||
+  ! grep -Fq '.github/workflows/translation-audit.yml' "$SOURCE"; then
+  echo "[FAIL] exact-caller bootstrap does not carry the major-only translation audit caller"
+  exit 1
+fi
+echo "[OK] bootstrap carries the audit caller that prevents legacy freshness deadlocks"
+
 if grep -Fqi 'checkov' "$SOURCE" || ! grep -Fq 'first_repo' "$SOURCE"; then
   echo "[FAIL] first-repository bootstrap is not limited to exact managed callers"
   exit 1
@@ -175,6 +185,14 @@ case "$1 $endpoint" in
     else
       printf '{"type":"file","encoding":"base64","sha":"%s","content":"%s"}\n' \
         "$LINT_CALLER_BLOB" "$LINT_CALLER_CONTENT"
+    fi
+    ;;
+  'api repos/f5-sales-demo/docs-control/contents/workflows/translation-audit.yml?ref='*)
+    if [[ "$*" == *'--jq .sha'* ]]; then
+      printf '%s\n' "$AUDIT_CALLER_BLOB"
+    else
+      printf '{"type":"file","encoding":"base64","sha":"%s","content":"%s"}\n' \
+        "$AUDIT_CALLER_BLOB" "$AUDIT_CALLER_CONTENT"
     fi
     ;;
   'api repos/f5-sales-demo/docs-control/contents/workflows/require-linked-issue.yml?ref='*)
@@ -424,6 +442,9 @@ case "$1 $endpoint" in
   'api repos/f5-sales-demo/example-two/contents/.github/workflows/super-linter.yml?ref='*)
     printf '%s\n' "$DOWNSTREAM_LINT_BLOB"
     ;;
+  'api repos/f5-sales-demo/example-two/contents/.github/workflows/translation-audit.yml?ref='*)
+    printf '%s\n' "$DOWNSTREAM_AUDIT_BLOB"
+    ;;
   'api repos/f5-sales-demo/example-two/contents/.github/workflows/require-linked-issue.yml?ref='*)
     printf '%s\n' "$DOWNSTREAM_LINKED_BLOB"
     ;;
@@ -583,6 +604,29 @@ case "$1 $endpoint" in
       printf '%s\n' "$DOWNSTREAM_LINT_BLOB"
     fi
     ;;
+  'api repos/f5-sales-demo/example/contents/.github/workflows/translation-audit.yml?ref='*)
+    if [ "${FAKE_FORBID_AUDIT_READ:-}" = 1 ]; then
+      echo 'unexpected opted-out translation-audit caller read' >&2
+      exit 65
+    fi
+    ref=${endpoint##*ref=}
+    if { [ "${FAKE_FIRST_REPO:-}" = 1 ] ||
+      [ "${FAKE_PROTECTED_EMPTY_CALLERS:-}" = 1 ]; } &&
+      [ ! -f "$FAKE_STATE/merged" ] &&
+      [ "$ref" != "$BRANCH_HEAD" ]; then
+      echo 'gh: Not Found (HTTP 404)' >&2
+      exit 1
+    elif { [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; } &&
+      [ -f "$FAKE_STATE/audit-updated" ]; then
+      printf '%s\n' "$AUDIT_CALLER_BLOB"
+    elif [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; then
+      printf '%s\n' "$DOWNSTREAM_AUDIT_BLOB"
+    elif [ -f "$FAKE_STATE/merged" ]; then
+      printf '%s\n' "$AUDIT_CALLER_BLOB"
+    else
+      printf '%s\n' "$DOWNSTREAM_AUDIT_BLOB"
+    fi
+    ;;
   'api repos/f5-sales-demo/example/contents/.github/workflows/require-linked-issue.yml?ref='*)
     ref=${endpoint##*ref=}
     if [ "${FAKE_BAD_RECOVER_LINKED:-}" = 1 ] && [ "$ref" = "$BRANCH_HEAD" ]; then
@@ -694,7 +738,7 @@ case "$1 $endpoint" in
       elif [ -f "$FAKE_STATE/refreshed" ]; then
         printf '%s\n' "$REFRESH_HEAD"
       elif [ -f "$FAKE_STATE/updated" ] || [ -f "$FAKE_STATE/lint-updated" ] ||
-        [ -f "$FAKE_STATE/linked-updated" ]; then
+        [ -f "$FAKE_STATE/audit-updated" ] || [ -f "$FAKE_STATE/linked-updated" ]; then
         printf '%s\n' "$BRANCH_HEAD"
       else
         printf '%s\n' "$BASE_SHA"
@@ -719,15 +763,21 @@ case "$1 $endpoint" in
     done
     [ -n "$input" ] || exit 64
     skip_lint=false
+    skip_audit=false
     [ "${FAKE_SKIP_LINT_CALLER:-}" != 1 ] || skip_lint=true
+    [ "${FAKE_SKIP_AUDIT_CALLER:-}" != 1 ] || skip_audit=true
     jq -e --arg base "$BASE_TREE" --arg caller "$CALLER_BLOB" \
-      --arg lint "$LINT_CALLER_BLOB" --arg linked "$LINKED_CALLER_BLOB" \
-      --argjson skip_lint "$skip_lint" '
+      --arg lint "$LINT_CALLER_BLOB" --arg audit "$AUDIT_CALLER_BLOB" \
+      --arg linked "$LINKED_CALLER_BLOB" --argjson skip_lint "$skip_lint" \
+      --argjson skip_audit "$skip_audit" '
       .base_tree == $base and
       .tree == (
         [{path:".github/workflows/enforce-repo-settings.yml",mode:"100644",type:"blob",sha:$caller}] +
         (if $skip_lint then [] else
           [{path:".github/workflows/super-linter.yml",mode:"100644",type:"blob",sha:$lint}]
+        end) +
+        (if $skip_audit then [] else
+          [{path:".github/workflows/translation-audit.yml",mode:"100644",type:"blob",sha:$audit}]
         end) +
         [{path:".github/workflows/require-linked-issue.yml",mode:"100644",type:"blob",sha:$linked}]
       )
@@ -777,6 +827,9 @@ case "$1 $endpoint" in
   'api repos/f5-sales-demo/example/contents/.github/workflows/super-linter.yml')
     touch "$FAKE_STATE/lint-updated"
     ;;
+  'api repos/f5-sales-demo/example/contents/.github/workflows/translation-audit.yml')
+    touch "$FAKE_STATE/audit-updated"
+    ;;
   'api repos/f5-sales-demo/example/contents/.github/workflows/require-linked-issue.yml')
     touch "$FAKE_STATE/linked-updated"
     ;;
@@ -792,6 +845,12 @@ case "$1 $endpoint" in
       [ "$DOWNSTREAM_LINT_BLOB" != "$LINT_CALLER_BLOB" ]; then
       files=$(jq -cn --argjson files "$files" --arg sha "$LINT_CALLER_BLOB" \
         '$files + [{filename:".github/workflows/super-linter.yml",sha:$sha,status:"modified"}]')
+      count=$((count + 1))
+    fi
+    if [ "${FAKE_SKIP_AUDIT_CALLER:-}" != 1 ] &&
+      [ "$DOWNSTREAM_AUDIT_BLOB" != "$AUDIT_CALLER_BLOB" ]; then
+      files=$(jq -cn --argjson files "$files" --arg sha "$AUDIT_CALLER_BLOB" \
+        '$files + [{filename:".github/workflows/translation-audit.yml",sha:$sha,status:"modified"}]')
       count=$((count + 1))
     fi
     if [ "$DOWNSTREAM_LINKED_BLOB" != "$LINKED_CALLER_BLOB" ]; then
@@ -873,6 +932,12 @@ case "$1 $endpoint" in
       files=$(jq -cn --argjson files "$files" '$files + [{path:".github/workflows/super-linter.yml"}]')
       count=$((count + 1))
     fi
+    if [ "${FAKE_SKIP_AUDIT_CALLER:-}" != 1 ] &&
+      [ "$DOWNSTREAM_AUDIT_BLOB" != "$AUDIT_CALLER_BLOB" ]; then
+      files=$(jq -cn --argjson files "$files" \
+        '$files + [{path:".github/workflows/translation-audit.yml"}]')
+      count=$((count + 1))
+    fi
     if [ "$DOWNSTREAM_LINKED_BLOB" != "$LINKED_CALLER_BLOB" ]; then
       files=$(jq -cn --argjson files "$files" \
         '$files + [{path:".github/workflows/require-linked-issue.yml"}]')
@@ -906,10 +971,14 @@ chmod +x "$WORK/bin/gh"
 run_bootstrap() {
   local state="$1"
   local expected_lint_receipt="$LINT_CALLER_BLOB"
+  local expected_audit_receipt="$AUDIT_CALLER_BLOB"
   if [ "${FAKE_SKIP_LINT_CALLER:-}" = 1 ]; then
     expected_lint_receipt=skipped
   fi
-  local expected_branch="sync/exact-caller-${CALLER_BLOB}${expected_lint_receipt}${LINKED_CALLER_BLOB}"
+  if [ "${FAKE_SKIP_AUDIT_CALLER:-}" = 1 ]; then
+    expected_audit_receipt=skipped
+  fi
+  local expected_branch="sync/exact-caller-${CALLER_BLOB}${expected_lint_receipt}${expected_audit_receipt}${LINKED_CALLER_BLOB}"
   env \
     PATH="$WORK/bin:$PATH" \
     GITHUB_REPOSITORY=f5-sales-demo/docs-control \
@@ -939,13 +1008,18 @@ run_bootstrap() {
     CALLER_CONTENT="$CALLER_CONTENT" \
     LINT_CALLER_BLOB="$LINT_CALLER_BLOB" \
     LINT_CALLER_CONTENT="$LINT_CALLER_CONTENT" \
+    AUDIT_CALLER_BLOB="$AUDIT_CALLER_BLOB" \
+    AUDIT_CALLER_CONTENT="$AUDIT_CALLER_CONTENT" \
     LINKED_CALLER_BLOB="$LINKED_CALLER_BLOB" \
     LINKED_CALLER_CONTENT="$LINKED_CALLER_CONTENT" \
     DOWNSTREAM_BLOB="$DOWNSTREAM_BLOB" \
     DOWNSTREAM_LINT_BLOB="${DOWNSTREAM_LINT_BLOB:-$LINT_CALLER_BLOB}" \
+    DOWNSTREAM_AUDIT_BLOB="${DOWNSTREAM_AUDIT_BLOB:-$AUDIT_CALLER_BLOB}" \
     DOWNSTREAM_LINKED_BLOB="${DOWNSTREAM_LINKED_BLOB:-$LINKED_CALLER_BLOB}" \
     FAKE_SKIP_LINT_CALLER="${FAKE_SKIP_LINT_CALLER:-}" \
     FAKE_FORBID_LINT_READ="${FAKE_FORBID_LINT_READ:-}" \
+    FAKE_SKIP_AUDIT_CALLER="${FAKE_SKIP_AUDIT_CALLER:-}" \
+    FAKE_FORBID_AUDIT_READ="${FAKE_FORBID_AUDIT_READ:-}" \
     FAKE_READ_ERROR="${FAKE_READ_ERROR:-}" \
     FAKE_MAIN_ADVANCE_AT="${FAKE_MAIN_ADVANCE_AT:-}" \
     FAKE_DIVERGED_BASE="${FAKE_DIVERGED_BASE:-}" \
@@ -983,6 +1057,7 @@ run_bootstrap() {
 
 DOWNSTREAM_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_AUDIT_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
 for lint_mode in absent pending failed malformed spoofed wrong-pr wrong-run; do
   state="$WORK/state-first-repo-${lint_mode}-lint"
@@ -1016,7 +1091,7 @@ for lint_mode in absent pending failed malformed spoofed wrong-pr wrong-run; do
     exit 1
   fi
 done
-unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINKED_BLOB
+unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_AUDIT_BLOB DOWNSTREAM_LINKED_BLOB
 echo "[OK] absent, pending, failed, malformed, spoofed, and untrusted first-repository lint receipts fail closed"
 
 state="$WORK/state-stale"
@@ -1231,6 +1306,28 @@ if [ "$rc" != 83 ] ||
 fi
 echo "[OK] exact enforcement with stale lint updates only lint and remains quiesced"
 
+state="$WORK/state-stale-audit-only"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+DOWNSTREAM_AUDIT_BLOB="$OLD_BLOB"
+set +e
+run_bootstrap "$state" >"$WORK/stale-audit-only.out" 2>"$WORK/stale-audit-only.err"
+rc=$?
+set -e
+unset DOWNSTREAM_AUDIT_BLOB
+if [ "$rc" != 83 ] ||
+  grep -q 'contents/.github/workflows/enforce-repo-settings.yml --method PUT' "$WORK/gh.log" ||
+  grep -q 'contents/.github/workflows/super-linter.yml --method PUT' "$WORK/gh.log" ||
+  ! grep -q 'contents/.github/workflows/translation-audit.yml --method PUT' "$WORK/gh.log" ||
+  grep -q 'actions/workflows/enforce-repo-settings.yml/enable --method PUT' "$WORK/gh.log"; then
+  echo "[FAIL] stale legacy translation audit was not replaced in the exact bootstrap PR"
+  cat "$WORK/stale-audit-only.err"
+  exit 1
+fi
+echo "[OK] stale legacy translation audit is replaced before managed-file fan-out"
+
 cat >"$WORK/governance-skip-lint.json" <<'EOF'
 {"skip_files":{"example":[".github/workflows/super-linter.yml"]}}
 EOF
@@ -1262,6 +1359,38 @@ if [ "$rc" != 83 ] ||
   exit 1
 fi
 echo "[OK] opted-out lint caller is untouched while mandatory callers stay fail-closed"
+
+cat >"$WORK/governance-skip-audit.json" <<'EOF'
+{"skip_files":{"example":[".github/workflows/translation-audit.yml"]}}
+EOF
+state="$WORK/state-skip-stale-audit"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+DOWNSTREAM_AUDIT_BLOB="$OLD_BLOB"
+FAKE_SKIP_AUDIT_CALLER=1
+FAKE_FORBID_AUDIT_READ=1
+set +e
+TEST_GOVERNANCE_CONFIG="$WORK/governance-skip-audit.json" run_bootstrap "$state" \
+  >"$WORK/skip-stale-audit.out" 2>"$WORK/skip-stale-audit.err"
+rc=$?
+set -e
+unset DOWNSTREAM_AUDIT_BLOB FAKE_SKIP_AUDIT_CALLER FAKE_FORBID_AUDIT_READ \
+  TEST_GOVERNANCE_CONFIG
+if [ "$rc" != 83 ] ||
+  ! grep -q 'contents/.github/workflows/enforce-repo-settings.yml --method PUT' \
+    "$WORK/gh.log" ||
+  grep -q 'example/contents/.github/workflows/translation-audit.yml' "$WORK/gh.log" ||
+  grep -q 'contents/.github/workflows/translation-audit.yml --method PUT' "$WORK/gh.log" ||
+  grep -q 'actions/workflows/enforce-repo-settings.yml/enable --method PUT' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] opted-out audit caller was read, changed, or allowed to bypass exact enforcement"
+  cat "$WORK/skip-stale-audit.err"
+  sed 's/^/  log: /' "$WORK/gh.log"
+  exit 1
+fi
+echo "[OK] opted-out audit caller is untouched while mandatory callers stay fail-closed"
 
 state="$WORK/state-diverged-skip-stale-lint"
 mkdir -p "$state"
@@ -1918,6 +2047,7 @@ mkdir -p "$state"
 : >"$WORK/gh.log"
 DOWNSTREAM_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_AUDIT_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
 FAKE_FIRST_REPO=1
 FAKE_FIRST_REPO_LINT_MODE=success
@@ -1926,7 +2056,7 @@ set +e
 run_bootstrap "$state" >"$WORK/first-repo.out" 2>"$WORK/first-repo.err"
 rc=$?
 set -e
-unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINKED_BLOB FAKE_FIRST_REPO \
+unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_AUDIT_BLOB DOWNSTREAM_LINKED_BLOB FAKE_FIRST_REPO \
   FAKE_FIRST_REPO_LINT_MODE FAKE_MERGE_LANDS
 protection_line=$(grep -n 'branches/main/protection --method PUT' "$WORK/gh.log" |
   head -1 | cut -d: -f1 || true)
@@ -1950,7 +2080,7 @@ if [ "$rc" != 0 ] || [ -z "$protection_line" ] || [ -z "$check_line" ] ||
     "$state/transition-protection.json" >/dev/null ||
   ! jq -e '.contexts | index("Check linked issues") != null' \
     "$state/final-required-checks.json" >/dev/null; then
-  echo "[FAIL] first governed repository did not complete the verified three-caller transition"
+  echo "[FAIL] first governed repository did not complete the verified four-caller transition"
   echo "  rc=$rc"
   sed 's/^/  /' "$WORK/first-repo.err"
   sed 's/^/  log: /' "$WORK/gh.log"
@@ -1965,6 +2095,7 @@ cp "$WORK/state-first-repo/transition-protection.json" \
   "$state/transition-protection.json"
 : >"$WORK/gh.log"
 DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_AUDIT_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
 FAKE_FIRST_REPO=1
 FAKE_MERGE_LANDS=1
@@ -1973,7 +2104,8 @@ run_bootstrap "$state" >"$WORK/resume-first-repo-protection.out" \
   2>"$WORK/resume-first-repo-protection.err"
 rc=$?
 set -e
-unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINKED_BLOB FAKE_FIRST_REPO FAKE_MERGE_LANDS
+unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_AUDIT_BLOB DOWNSTREAM_LINKED_BLOB \
+  FAKE_FIRST_REPO FAKE_MERGE_LANDS
 if [ "$rc" != 0 ] ||
   grep -q 'branches/main/protection --method PUT' "$WORK/gh.log" ||
   ! grep -q '^pr merge ' "$WORK/gh.log" ||
@@ -2001,11 +2133,11 @@ if ! grep -q 'pulls?state=closed&sort=updated&direction=desc&per_page=100' "$WOR
   [ "$(grep -c 'required_status_checks --method PATCH' "$WORK/gh.log")" -ne 1 ] ||
   grep -qE 'git/refs --method POST|contents/.github/workflows/.* --method PUT|^pr (create|merge)' \
     "$WORK/gh.log"; then
-  echo "[FAIL] interrupted first-repository transition did not recover from three exact blobs"
+  echo "[FAIL] interrupted first-repository transition did not recover from four exact blobs"
   cat "$WORK/recover-first-repo.err"
   exit 1
 fi
-echo "[OK] interrupted first-repository transition recovers from three exact blobs"
+echo "[OK] interrupted first-repository transition recovers from four exact blobs"
 
 state="$WORK/state-hostile-first-repo-receipt"
 mkdir -p "$state"

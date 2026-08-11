@@ -139,7 +139,7 @@ assert_contains "inventory does not match" "missing-test failure explains the dr
 # Exact-caller bootstrap can precede managed-file delivery. Only a missing test
 # declared by the canonical managed-file inventory may be deferred, and only on
 # the strictly formed generated receipt branch.
-bootstrap_branch="sync/exact-caller-$(printf 'a%.0s' {1..120})"
+bootstrap_branch="sync/exact-caller-$(printf 'a%.0s' {1..160})"
 config=$(write_config bootstrap-managed '{
   "managed_files": {
     "files": [

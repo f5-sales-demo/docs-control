@@ -151,7 +151,7 @@ if [ "$discovered" != "$expected" ]; then
 
   bootstrap_transition=false
   if [ "${GITHUB_EVENT_NAME:-}" = "pull_request" ] &&
-    [[ "${GITHUB_HEAD_REF:-}" =~ ^sync/exact-caller-[0-9a-f]{40}(skipped|[0-9a-f]{40})[0-9a-f]{40}$ ]] &&
+    [[ "${GITHUB_HEAD_REF:-}" =~ ^sync/exact-caller-[0-9a-f]{40}(skipped|[0-9a-f]{40})(skipped|[0-9a-f]{40})[0-9a-f]{40}$ ]] &&
     [ -z "$unexpected" ] && [ -n "$missing" ]; then
     bootstrap_transition=true
     while IFS= read -r path; do
