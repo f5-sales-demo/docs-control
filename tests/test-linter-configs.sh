@@ -142,12 +142,25 @@ actual = {
 has_inline_portability_suppression = any(
     marker in source for marker in ("noqa: BLE001", "noqa: TRY301")
 )
-raise SystemExit(0 if actual == expected and not has_inline_portability_suppression else 1)
+has_downstream_lint_contract = all(
+    marker in source
+    for marker in (
+        "# pylint: disable=invalid-name,too-many-branches,broad-exception-caught,import-error",
+        "# fmt: off",
+    )
+)
+raise SystemExit(
+    0
+    if actual == expected
+    and not has_inline_portability_suppression
+    and has_downstream_lint_contract
+    else 1
+)
 PY
-  pass "4.4 validator CLI catches portable input/I/O failures without BLE suppression"
+  pass "4.4 validator carries portable downstream lint and exception contracts"
 else
-  fail "4.4 validator CLI catches portable input/I/O failures without BLE suppression" \
-    "expected only OSError/ValueError and no inline BLE001 suppression"
+  fail "4.4 validator carries portable downstream lint and exception contracts" \
+    "expected exact exceptions, no inline BLE001 suppression, and downstream lint guards"
 fi
 
 # ════════════════════════════════════════════════════════════════════
