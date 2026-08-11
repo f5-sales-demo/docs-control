@@ -72,12 +72,12 @@ AUDIT_BODY=$(awk '
 assert_audit_without_scripts() {
   local expected=$1 label=$2 head_ref=$3
   local scenario="$WORK/audit-$PASS-$FAIL"
-  mkdir -p "$scenario/temp"
-  git -C "$scenario" init -q
+  mkdir -p "$scenario/consumer" "$scenario/temp"
+  git -C "$scenario/consumer" init -q
 
   local output rc
   set +e
-  output=$(cd "$scenario" &&
+  output=$(cd "$scenario/consumer" &&
     RUNNER_TEMP="$scenario/temp" HEAD_REF="$head_ref" bash -c "$AUDIT_BODY" 2>&1)
   rc=$?
   set -e
@@ -118,21 +118,21 @@ assert_audit_without_scripts failure \
 assert_exact_audit_route() {
   local eligible=$1 expected_calls=$2 label=$3
   local scenario="$WORK/exact-$eligible"
-  mkdir -p "$scenario/scripts" "$scenario/temp"
-  git -C "$scenario" init -q
-  cat >"$scenario/scripts/translation-release-policy.sh" <<'EOF'
+  mkdir -p "$scenario/consumer" "$scenario/governance/scripts" "$scenario/temp"
+  git -C "$scenario/consumer" init -q
+  cat >"$scenario/governance/scripts/translation-release-policy.sh" <<'EOF'
 #!/usr/bin/env bash
 printf 'policy\n' >>"$AUDIT_CALLS"
 printf 'eligible=%s\n' "$FAKE_ELIGIBLE"
 EOF
-  cat >"$scenario/scripts/validate-translations.sh" <<'EOF'
+  cat >"$scenario/governance/scripts/validate-translations.sh" <<'EOF'
 #!/usr/bin/env bash
 printf 'validator:%s\n' "$*" >>"$AUDIT_CALLS"
 EOF
 
   local output rc
   set +e
-  output=$(cd "$scenario" &&
+  output=$(cd "$scenario/consumer" &&
     AUDIT_CALLS="$scenario/calls" FAKE_ELIGIBLE="$eligible" \
       RUNNER_TEMP="$scenario/temp" HEAD_REF=release/v20.0.0 \
       bash -c "$AUDIT_BODY" 2>&1)
@@ -167,12 +167,41 @@ else
     "reconcile_all is not bound end to end"
 fi
 
-if grep -qF 'scripts/translation-release-policy.sh' "$AUDIT" &&
-  grep -qF 'scripts/validate-translations.sh --all' "$AUDIT"; then
-  pass "freshness audit is major-release-only and validates the full corpus"
+if grep -qF 'working-directory: consumer' "$AUDIT" &&
+  grep -qF 'bash ../governance/scripts/translation-release-policy.sh' "$AUDIT" &&
+  grep -qF 'bash ../governance/scripts/validate-translations.sh --all' "$AUDIT"; then
+  pass "freshness audit is major-release-only and validates the full consumer corpus"
 else
-  fail "freshness audit is major-release-only and validates the full corpus" \
-    "audit policy or full validation route is absent"
+  fail "freshness audit is major-release-only and validates the full consumer corpus" \
+    "trusted audit policy or full validation route is absent"
+fi
+
+if grep -qF 'JOB_CONTEXT: ${{ toJSON(job) }}' "$AUDIT" &&
+  grep -qF "repository=\$(jq -r '.workflow_repository // \"\"'" "$AUDIT" &&
+  grep -qF "sha=\$(jq -r '.workflow_sha // \"\"'" "$AUDIT" &&
+  grep -qF 'repository: ${{ steps.governance.outputs.repository }}' "$AUDIT" &&
+  grep -qF 'ref: ${{ steps.governance.outputs.sha }}' "$AUDIT" &&
+  grep -qF 'test "$GOVERNANCE_REPOSITORY" = "f5-sales-demo/docs-control"' "$AUDIT" &&
+  grep -qF 'test "$(git -C governance rev-parse HEAD)" = "$GOVERNANCE_SHA"' "$AUDIT"; then
+  pass "freshness audit binds tooling to its exact reusable-workflow receipt"
+else
+  fail "freshness audit binds tooling to its exact reusable-workflow receipt" \
+    "trusted workflow repository or immutable receipt verification is absent"
+fi
+
+if [ "$(grep -cF 'persist-credentials: false' "$AUDIT")" -eq 2 ] &&
+  grep -qF 'path: consumer' "$AUDIT" && grep -qF 'path: governance' "$AUDIT"; then
+  pass "consumer and governance checkouts are isolated and credential-free"
+else
+  fail "consumer and governance checkouts are isolated and credential-free" \
+    "checkout isolation or credential suppression is incomplete"
+fi
+
+if grep -Eq '(^|[[:space:]])bash scripts/(translation-release-policy|validate-translations)\.sh' "$AUDIT"; then
+  fail "freshness audit never executes pull-request-controlled policy scripts" \
+    "audit invokes a translation policy script from the consumer checkout"
+else
+  pass "freshness audit never executes pull-request-controlled policy scripts"
 fi
 
 printf '\nResults: %d passed, %d failed\n' "$PASS" "$FAIL"

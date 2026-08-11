@@ -21,13 +21,48 @@ jobs:
     name: Translation freshness
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Resolve governed audit tooling receipt
+        id: governance
+        env:
+          JOB_CONTEXT: ${{ toJSON(job) }}
+        run: |
+          set -euo pipefail
+          repository=$(jq -r '.workflow_repository // ""' <<<"$JOB_CONTEXT")
+          sha=$(jq -r '.workflow_sha // ""' <<<"$JOB_CONTEXT")
+          test "$repository" = "f5-sales-demo/docs-control"
+          grep -qE '^[0-9a-f]{40}$' <<<"$sha"
+          printf 'repository=%s\nsha=%s\n' "$repository" "$sha" >>"$GITHUB_OUTPUT"
+
+      - name: Checkout consumer pull request
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          path: consumer
           persist-credentials: false
 
+      # A pull request can replace its own scripts. Load the audit contract from
+      # the exact reusable-workflow receipt instead, in a sibling checkout that
+      # downstream content cannot pre-populate or redirect.
+      - name: Checkout governed audit tooling
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.governance.outputs.repository }}
+          ref: ${{ steps.governance.outputs.sha }}
+          path: governance
+          persist-credentials: false
+
+      - name: Verify governed audit tooling receipt
+        env:
+          GOVERNANCE_REPOSITORY: ${{ steps.governance.outputs.repository }}
+          GOVERNANCE_SHA: ${{ steps.governance.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$GOVERNANCE_REPOSITORY" = "f5-sales-demo/docs-control"
+          grep -qE '^[0-9a-f]{40}$' <<<"$GOVERNANCE_SHA"
+          test "$(git -C governance rev-parse HEAD)" = "$GOVERNANCE_SHA"
+
       - name: Audit translation freshness
+        working-directory: consumer
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
@@ -37,11 +72,11 @@ jobs:
             exit 0
           fi
           git tag --list >"$RUNNER_TEMP/translation-tags.txt"
-          decision=$(bash scripts/translation-release-policy.sh \
+          decision=$(bash ../governance/scripts/translation-release-policy.sh \
             --head-ref "$HEAD_REF" --tags-file "$RUNNER_TEMP/translation-tags.txt")
           printf '%s\n' "$decision"
           if ! grep -qxF 'eligible=true' <<<"$decision"; then
             echo "[i18n] translation freshness is not applicable outside the next major release"
             exit 0
           fi
-          bash scripts/validate-translations.sh --all
+          bash ../governance/scripts/validate-translations.sh --all
