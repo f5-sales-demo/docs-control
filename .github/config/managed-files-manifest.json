@@ -1,17 +1,17 @@
 {
-  "source_commit": "f50b6df2ac52f8cc32c211d34f39f12eb940fa3d",
+  "source_commit": "35292f283466b215f2f4cc75672448b6e1cf03ff",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
       "dest": ".github/workflows/github-pages-deploy.yml",
-      "sha": "83cb15835628fb8eb57b5fcbd677df99c25ba1ac",
+      "sha": "48860d4fa34e3a76bb784b5a38fd4831318aa386",
       "size": 855,
       "mode": "100644"
     },
     ".github/workflows/enforce-repo-settings.yml": {
       "src": "workflows/enforce-repo-settings.yml",
       "dest": ".github/workflows/enforce-repo-settings.yml",
-      "sha": "ac2bc3e423725358977b768bb8f8b0ee67fb3547",
+      "sha": "e8db065e74e6d931e436c1becec88a3f7646e804",
       "size": 11814,
       "mode": "100644"
     },
@@ -25,28 +25,28 @@
     ".github/workflows/super-linter.yml": {
       "src": "workflows/super-linter.yml",
       "dest": ".github/workflows/super-linter.yml",
-      "sha": "adf17193dec1881242615a26a6dd3455b3a83826",
+      "sha": "7fa0270ed2709a6cf44e048ab05abe5db1755b17",
       "size": 913,
       "mode": "100644"
     },
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
       "dest": ".github/workflows/translation-audit.yml",
-      "sha": "9999c0ccf81cf03816d22aeade38f4aebfd28917",
+      "sha": "b11c877badc8111d606c18a455f94063bf1333b5",
       "size": 1241,
       "mode": "100644"
     },
     ".github/workflows/antigravity-review.yml": {
       "src": "workflows/antigravity-review.yml",
       "dest": ".github/workflows/antigravity-review.yml",
-      "sha": "32d394cd2ab2338f4c448db4a4ad5eac03bccc13",
+      "sha": "0429b6a83eba97bb8f778f2da00873ebf977f3a4",
       "size": 1309,
       "mode": "100644"
     },
     ".github/workflows/antigravity-translate.yml": {
       "src": "workflows/antigravity-translate.yml",
       "dest": ".github/workflows/antigravity-translate.yml",
-      "sha": "4e5a1240e842f5dc822af5f42c7f10cd01b800bf",
+      "sha": "1a8b73730c4e937e554419dd0eb607f4ec678e30",
       "size": 1620,
       "mode": "100644"
     },
@@ -186,7 +186,7 @@
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "e3589bf4eed3aae6589bc464659babeecd14a065",
+      "sha": "0104ca7207daaba2f18d10d5726d381204377e60",
       "size": 3093,
       "mode": "100644"
     },
@@ -424,8 +424,8 @@
     "tests/test-translation-release-policy.sh": {
       "src": "tests/test-translation-release-policy.sh",
       "dest": "tests/test-translation-release-policy.sh",
-      "sha": "a2752ed580ce7a2342eadfca6e9f4ce7a25e2628",
-      "size": 6335,
+      "sha": "1fe8ee18a21787d6a91af93d3aa61f8f8c114277",
+      "size": 8062,
       "mode": "100755"
     },
     "tests/test-validate-translations.sh": {
