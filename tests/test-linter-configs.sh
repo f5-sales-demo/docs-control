@@ -53,12 +53,11 @@ for f in .yamllint.yaml zizmor.yaml .checkov.yaml .textlintrc actionlint.yml; do
   fi
 done
 
-if python3 - "$REPO_ROOT/actionlint.yml" <<'PY'
+if python3 - "$REPO_ROOT/actionlint.yml" <<'PY'; then
 import sys, yaml
 config = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
 assert config.get("self-hosted-runner", {}).get("labels") == ["terraform-provider-xcsh"]
 PY
-then
   pass "2.1 actionlint recognizes the governed provider runner label"
 else
   fail "2.1 actionlint recognizes the governed provider runner label" \
@@ -1324,7 +1323,7 @@ else
     "the group needs a reusable-workflow-specific prefix"
 fi
 
-if python3 - "$SUPER_LINTER_WORKFLOW" <<'PY'
+if python3 - "$SUPER_LINTER_WORKFLOW" <<'PY'; then
 import sys, yaml
 
 workflow = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
@@ -1343,7 +1342,6 @@ assert setup["uses"] == "astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8c
 assert setup["with"] == {"version": "0.8.24"}
 assert setup["if"] == "hashFiles('tests/test-workflow-security-validator-integration.sh') != ''"
 PY
-then
   pass "14.3 workflow-security integration installs an immutable uv toolchain first"
 else
   fail "14.3 workflow-security integration installs an immutable uv toolchain first" \
