@@ -62,6 +62,60 @@ CALLER="$REPO_ROOT/workflows/antigravity-translate.yml"
 TRANSLATE="$REPO_ROOT/.github/workflows/antigravity-translate.yml"
 AUDIT="$REPO_ROOT/.github/workflows/translation-audit.yml"
 
+classify_source_layout() {
+  local watcher=$1 caller=$2 present=0
+  [ -f "$watcher" ] && present=$((present + 1))
+  [ -f "$caller" ] && present=$((present + 1))
+
+  case "$present" in
+  0) return 10 ;;
+  2) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+assert_layout() {
+  local expected=$1 label=$2 watcher=$3 caller=$4 rc
+  set +e
+  classify_source_layout "$watcher" "$caller"
+  rc=$?
+  set -e
+  if [ "$rc" -eq "$expected" ]; then
+    pass "$label"
+  else
+    fail "$label" "expected layout status $expected, got $rc"
+  fi
+}
+
+mkdir -p "$WORK/layout-partial"
+: >"$WORK/layout-partial/watcher.yml"
+assert_layout 10 "downstream layout omits both source-only workflows" \
+  "$WORK/layout-absent/watcher.yml" "$WORK/layout-absent/caller.yml"
+assert_layout 1 "partial source layout fails closed" \
+  "$WORK/layout-partial/watcher.yml" "$WORK/layout-partial/caller.yml"
+
+set +e
+classify_source_layout "$WATCHER" "$CALLER"
+layout_rc=$?
+set -e
+case "$layout_rc" in
+0)
+  pass "docs-control source layout is complete"
+  ;;
+10)
+  pass "downstream repository skips docs-control-only structure assertions"
+  printf '\nResults: %d passed, %d failed\n' "$PASS" "$FAIL"
+  [ "$FAIL" -eq 0 ]
+  exit
+  ;;
+*)
+  fail "docs-control source layout is complete" \
+    "exactly one source-only workflow is present"
+  printf '\nResults: %d passed, %d failed\n' "$PASS" "$FAIL"
+  exit 1
+  ;;
+esac
+
 AUDIT_BODY=$(awk '
   /^      - name: Audit translation freshness$/ {step=1}
   step && /^        run: \|$/ {capture=1; next}
