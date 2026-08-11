@@ -1,5 +1,5 @@
 {
-  "source_commit": "e81359d561a18b0e59ae7deb03dbccbd56be5913",
+  "source_commit": "ac0ba518c4958a7e15b5fb1773d9d0a0debe1b0d",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -424,8 +424,8 @@
     "tests/test-translation-release-policy.sh": {
       "src": "tests/test-translation-release-policy.sh",
       "dest": "tests/test-translation-release-policy.sh",
-      "sha": "1fe8ee18a21787d6a91af93d3aa61f8f8c114277",
-      "size": 8062,
+      "sha": "1ebb22934eb86f4ee744ca56c34ebb8ad8ccfd92",
+      "size": 8844,
       "mode": "100755"
     },
     "tests/test-validate-translations.sh": {
