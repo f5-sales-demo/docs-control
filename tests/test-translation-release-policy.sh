@@ -62,6 +62,95 @@ CALLER="$REPO_ROOT/workflows/antigravity-translate.yml"
 TRANSLATE="$REPO_ROOT/.github/workflows/antigravity-translate.yml"
 AUDIT="$REPO_ROOT/.github/workflows/translation-audit.yml"
 
+AUDIT_BODY=$(awk '
+  /^      - name: Audit translation freshness$/ {step=1}
+  step && /^        run: \|$/ {capture=1; next}
+  capture && /^          / {sub(/^          /, ""); print; next}
+  capture {exit}
+' "$AUDIT")
+
+assert_audit_without_scripts() {
+  local expected=$1 label=$2 head_ref=$3
+  local scenario="$WORK/audit-$PASS-$FAIL"
+  mkdir -p "$scenario/temp"
+  git -C "$scenario" init -q
+
+  local output rc
+  set +e
+  output=$(cd "$scenario" &&
+    RUNNER_TEMP="$scenario/temp" HEAD_REF="$head_ref" bash -c "$AUDIT_BODY" 2>&1)
+  rc=$?
+  set -e
+
+  if [ "$expected" = success ] && [ "$rc" -eq 0 ] &&
+    grep -qF 'not applicable outside an exact major-release branch' <<<"$output"; then
+    pass "$label"
+  elif [ "$expected" = failure ] && [ "$rc" -ne 0 ] &&
+    grep -qF 'scripts/translation-release-policy.sh' <<<"$output"; then
+    pass "$label"
+  else
+    fail "$label" "exit=$rc output=$output"
+  fi
+}
+
+assert_audit_without_scripts success \
+  "exact-caller bootstrap is not applicable before policy scripts arrive" \
+  sync/exact-caller-deadbeef
+assert_audit_without_scripts success \
+  "ordinary development is not applicable before policy scripts arrive" \
+  feature/1358-bootstrap-safe-translation-audit
+assert_audit_without_scripts success \
+  "minor releases are not applicable before policy scripts arrive" \
+  release/v20.1.0
+assert_audit_without_scripts success \
+  "patch releases are not applicable before policy scripts arrive" \
+  release/v20.0.1
+assert_audit_without_scripts success \
+  "prefixed major-like branches are not applicable before policy scripts arrive" \
+  preview/release/v20.0.0
+assert_audit_without_scripts success \
+  "leading-zero major branches are not applicable before policy scripts arrive" \
+  release/v020.0.0
+assert_audit_without_scripts failure \
+  "exact major candidates fail closed when policy scripts are absent" \
+  release/v20.0.0
+
+assert_exact_audit_route() {
+  local eligible=$1 expected_calls=$2 label=$3
+  local scenario="$WORK/exact-$eligible"
+  mkdir -p "$scenario/scripts" "$scenario/temp"
+  git -C "$scenario" init -q
+  cat >"$scenario/scripts/translation-release-policy.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'policy\n' >>"$AUDIT_CALLS"
+printf 'eligible=%s\n' "$FAKE_ELIGIBLE"
+EOF
+  cat >"$scenario/scripts/validate-translations.sh" <<'EOF'
+#!/usr/bin/env bash
+printf 'validator:%s\n' "$*" >>"$AUDIT_CALLS"
+EOF
+
+  local output rc
+  set +e
+  output=$(cd "$scenario" &&
+    AUDIT_CALLS="$scenario/calls" FAKE_ELIGIBLE="$eligible" \
+      RUNNER_TEMP="$scenario/temp" HEAD_REF=release/v20.0.0 \
+      bash -c "$AUDIT_BODY" 2>&1)
+  rc=$?
+  set -e
+
+  if [ "$rc" -eq 0 ] && [ "$(cat "$scenario/calls")" = "$expected_calls" ]; then
+    pass "$label"
+  else
+    fail "$label" "exit=$rc calls=$(cat "$scenario/calls" 2>/dev/null || true) output=$output"
+  fi
+}
+
+assert_exact_audit_route true $'policy\nvalidator:--all' \
+  "policy-approved exact major candidates run the full-corpus validator"
+assert_exact_audit_route false 'policy' \
+  "policy-rejected exact major candidates do not run the validator"
+
 if grep -qF 'scripts/translation-release-policy.sh' "$WATCHER" &&
   grep -qF -- '--argjson reconcile_all true' "$WATCHER"; then
   pass "fleet watcher routes only policy-approved full reconciliation"
