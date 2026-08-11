@@ -1,5 +1,5 @@
 # mypy: ignore-errors
-# pylint: disable=too-many-arguments,too-many-instance-attributes,too-many-public-methods,consider-using-with
+# pylint: disable=too-many-arguments,too-many-instance-attributes,too-many-public-methods,consider-using-with,protected-access
 """Hermetic procfs/systemd/recovery tests for managed GitHub runners."""
 
 import contextlib
@@ -469,6 +469,68 @@ class RunnerManagerTests(unittest.TestCase):
         self.assertNotIn("ubuntu-latest", labels)
         self.assertEqual(commands.count(["./svc.sh", "install", self.user]), 1)
         self.assertEqual(commands.count(["./svc.sh", "start"]), 1)
+        backup = self.repo_dir.with_name(self.repo + ".recovery-backup")
+        chown = next(command for command in commands if command[:1] == ["chown"])
+        self.assertEqual(
+            chown,
+            [
+                "chown",
+                "--recursive",
+                "--no-dereference",
+                "--",
+                f"{self.user}:{self.user}",
+                str(backup),
+            ],
+        )
+
+    def test_runner_tree_removal_rejects_arbitrary_path_and_symlink(self):
+        outside = self.root / "must-survive"
+        outside.mkdir()
+        with self.assertRaisesRegex(RuntimeError, "unrecognized"):
+            self.manager._remove_runner_tree(self.repo, outside)
+        self.assertTrue(outside.exists())
+
+        backup = self.repo_dir.with_name(self.repo + ".recovery-backup")
+        backup.symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(RuntimeError, "symlink"):
+            self.manager._remove_runner_tree(self.repo, backup)
+        self.assertTrue(outside.exists())
+        self.assertFalse(any(call[0][:1] == ["chown"] for call in self.calls))
+
+        shutil.rmtree(self.repo_dir)
+        self.repo_dir.symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(ValueError, "must not be a symlink"):
+            self.manager.repo_dir(self.repo)
+
+    def test_setup_rejects_dangling_recovery_backup_symlink(self):
+        backup = self.repo_dir.with_name(self.repo + ".recovery-backup")
+        backup.symlink_to(self.root / "missing", target_is_directory=True)
+        with self.assertRaisesRegex(RuntimeError, "recovery backup already exists"):
+            self.manager.setup(self.org, self.repo)
+
+    def test_cleanup_backup_requires_healthy_runner_then_removes_exact_tree(self):
+        backup = self.repo_dir.with_name(self.repo + ".recovery-backup")
+        backup.mkdir()
+        (backup / "root-owned-fixture").touch()
+        self.runner["status"] = "offline"
+        with self.assertRaisesRegex(RuntimeError, "runner audit fails"):
+            self.manager.cleanup_backup(self.org, self.repo)
+        self.assertTrue(backup.exists())
+        self.runner["status"] = "online"
+        self.manager.cleanup_backup(self.org, self.repo)
+        self.assertFalse(backup.exists())
+        chown_call = next(call for call in self.calls if call[0][:1] == ["chown"])
+        self.assertTrue(chown_call[2])
+        self.assertEqual(chown_call[0][-1], str(backup))
+
+    def test_failed_ownership_repair_preserves_recovery_backup(self):
+        backup = self.repo_dir.with_name(self.repo + ".recovery-backup")
+        backup.mkdir()
+        self.fail.add("chown")
+        with self.assertRaises(runner_module.subprocess.CalledProcessError):
+            self.manager.cleanup_backup(self.org, self.repo)
+        self.assertTrue(backup.exists())
+        self.assertNotIn(backup, self.removed)
 
     def test_post_setup_failure_restores_old_directory_stopped(self):
         marker = self.repo_dir / "preserve-me"
@@ -501,6 +563,7 @@ class RunnerManagerTests(unittest.TestCase):
             "restart",
             "stop",
             "remove",
+            "cleanup-backup",
             "setup-governed",
             "setup-all",
             "clean-ungoverned",
