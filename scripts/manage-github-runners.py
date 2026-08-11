@@ -120,7 +120,10 @@ def validate_repo_dir(base_dir, repo):
     if not repo or not re.fullmatch(r"[A-Za-z0-9_.-]+", repo):
         raise ValueError(f"invalid repository name: {repo!r}")
     base = Path(base_dir).resolve()
-    result = (base / repo).resolve()
+    candidate = base / repo
+    if candidate.is_symlink():
+        raise ValueError("repository directory must not be a symlink")
+    result = candidate.resolve()
     if result.parent != base:
         raise ValueError("repository directory escapes base")
     return result
@@ -205,6 +208,42 @@ class RunnerManager:
 
     def repo_dir(self, repo):
         return validate_repo_dir(self.base_dir, repo)
+
+    def recovery_backup(self, repo):
+        repo_dir = self.repo_dir(repo)
+        return repo_dir.with_name(repo_dir.name + ".recovery-backup")
+
+    def _validated_removal_target(self, repo, path):
+        repo_dir = self.repo_dir(repo)
+        backup = self.recovery_backup(repo)
+        target = Path(path)
+        if target not in {repo_dir, backup}:
+            raise RuntimeError(f"refusing unrecognized runner removal target: {target}")
+        if target.is_symlink():
+            raise RuntimeError(f"refusing symlink runner removal target: {target}")
+        if target.parent.resolve() != self.base_dir.resolve():
+            raise RuntimeError("runner removal target escapes configured base")
+        return target
+
+    def remove_runner_tree(self, repo, path):
+        target = self._validated_removal_target(repo, path)
+        if not target.exists():
+            return
+        self.command(
+            [
+                "chown",
+                "--recursive",
+                "--no-dereference",
+                "--",
+                f"{self.user}:{self.user}",
+                str(target),
+            ],
+            sudo=True,
+            check=True,
+        )
+        self.remove_tree(target)
+        if target.exists() or target.is_symlink():
+            raise RuntimeError(f"runner directory removal incomplete: {target}")
 
     @staticmethod
     def unit_name(org, repo):
@@ -556,7 +595,7 @@ class RunnerManager:
         if self.owned_processes(repo_dir):
             raise RuntimeError("runner-owned process remains after cleanup")
         if remove_directory and repo_dir.exists():
-            self.remove_tree(repo_dir)
+            self.remove_runner_tree(repo, repo_dir)
 
     def _secret_command(self, command, cwd):
         result = self.command(command, cwd=cwd, check=False)
@@ -607,8 +646,8 @@ class RunnerManager:
         if existing and existing[0].get("busy") is not False:
             raise RuntimeError("refusing to reconfigure a busy runner")
         repo_dir = self.repo_dir(repo)
-        backup = repo_dir.with_name(repo_dir.name + ".recovery-backup")
-        if backup.exists():
+        backup = self.recovery_backup(repo)
+        if backup.exists() or backup.is_symlink():
             raise RuntimeError(f"recovery backup already exists: {backup}")
         version = self.latest_version()
         archive = self.downloader(version, self.base_dir / ".cache")
@@ -635,7 +674,19 @@ class RunnerManager:
                 self.rename(backup, repo_dir)
             raise
         if backup.exists():
-            self.remove_tree(backup)
+            self.remove_runner_tree(repo, backup)
+
+    def cleanup_backup(self, org, repo):
+        backup = self.recovery_backup(repo)
+        if not backup.exists() and not backup.is_symlink():
+            return
+        errors = self.audit(org, repo)
+        if errors:
+            raise RuntimeError(
+                "refusing recovery-backup removal while runner audit fails: "
+                + "; ".join(errors)
+            )
+        self.remove_runner_tree(repo, backup)
 
     def remove(self, org, repo):
         repo_dir = self.repo_dir(repo)
@@ -646,7 +697,7 @@ class RunnerManager:
         if config.is_file():
             token = self.removal_token(org, repo)
             self._secret_command(["./config.sh", "remove", "--token", token], repo_dir)
-        self.remove_tree(repo_dir)
+        self.remove_runner_tree(repo, repo_dir)
 
     def stop(self, org, repo):
         repo_dir = self.repo_dir(repo)
@@ -689,7 +740,14 @@ def main(argv=None):  # noqa: PLR0911 - each CLI action has a distinct exit cont
         "--governance-path", type=Path, default=DOCS_CONTROL_GOVERNANCE_PATH
     )
     subparsers = parser.add_subparsers(dest="action", required=True)
-    for action in ("setup", "audit", "restart", "stop", "remove"):
+    for action in (
+        "setup",
+        "audit",
+        "restart",
+        "stop",
+        "remove",
+        "cleanup-backup",
+    ):
         command_parser = subparsers.add_parser(action)
         command_parser.add_argument("repo")
     status_parser = subparsers.add_parser("status")
@@ -707,7 +765,15 @@ def main(argv=None):  # noqa: PLR0911 - each CLI action has a distinct exit cont
     )
     governed = load_governed_repos(args.governance_path)
     try:
-        if args.action in {"setup", "audit", "status", "restart", "stop", "remove"}:
+        if args.action in {
+            "setup",
+            "audit",
+            "status",
+            "restart",
+            "stop",
+            "remove",
+            "cleanup-backup",
+        }:
             if args.repo is None:
                 results = [print_audit(manager, args.org, repo) for repo in governed]
                 return 0 if all(results) else 1
@@ -715,7 +781,8 @@ def main(argv=None):  # noqa: PLR0911 - each CLI action has a distinct exit cont
                 raise RuntimeError(f"repository {args.repo!r} is not governed")  # noqa: TRY301
             if args.action in {"audit", "status"}:
                 return 0 if print_audit(manager, args.org, args.repo) else 1
-            getattr(manager, args.action)(args.org, args.repo)
+            action = args.action.replace("-", "_")
+            getattr(manager, action)(args.org, args.repo)
             return 0
         if args.action in {"setup-governed", "setup-all"}:
             if not args.yes:
