@@ -304,6 +304,13 @@ else
   fail "7c.2 xcsh requires the pii-guard check" "pii-guard is not in xcsh additional_contexts"
 fi
 
+if echo "$XCSH_CONTEXTS" | jq -e 'index("container-test") != null' >/dev/null; then
+  pass "7c.3 xcsh requires the container-test check"
+else
+  fail "7c.3 xcsh requires the container-test check" \
+    "container-test is not in xcsh additional_contexts"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 7d: additional_contexts must name checks that ALWAYS run
 # ════════════════════════════════════════════════════════════════════
