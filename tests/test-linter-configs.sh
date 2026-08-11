@@ -53,12 +53,11 @@ for f in .yamllint.yaml zizmor.yaml .checkov.yaml .textlintrc actionlint.yml; do
   fi
 done
 
-if python3 - "$REPO_ROOT/actionlint.yml" <<'PY'
+if python3 - "$REPO_ROOT/actionlint.yml" <<'PY'; then
 import sys, yaml
 config = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
 assert config.get("self-hosted-runner", {}).get("labels") == ["terraform-provider-xcsh"]
 PY
-then
   pass "2.1 actionlint recognizes the governed provider runner label"
 else
   fail "2.1 actionlint recognizes the governed provider runner label" \
@@ -1324,15 +1323,40 @@ else
     "the group needs a reusable-workflow-specific prefix"
 fi
 
+if python3 - "$SUPER_LINTER_WORKFLOW" <<'PY'; then
+import sys, yaml
+
+workflow = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+steps = workflow["jobs"]["shell-unit-tests"]["steps"]
+setup_index = next(
+    i for i, step in enumerate(steps)
+    if step.get("name") == "Setup uv for workflow-security integration"
+)
+integration_index = next(
+    i for i, step in enumerate(steps)
+    if step.get("name") == "Run workflow-security validator integration test"
+)
+setup = steps[setup_index]
+assert setup_index < integration_index
+assert setup["uses"] == "astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc"
+assert setup["with"] == {"version": "0.8.24"}
+assert setup["if"] == "hashFiles('tests/test-workflow-security-validator-integration.sh') != ''"
+PY
+  pass "14.3 workflow-security integration installs an immutable uv toolchain first"
+else
+  fail "14.3 workflow-security integration installs an immutable uv toolchain first" \
+    "setup-uv must be pinned, versioned, guarded, and ordered before the integration test"
+fi
+
 # One workflow_call default is resolved to an immutable digest after registry
 # authentication; there is no runtime fallback or historical digest pin.
 if [ "$(grep -cF "default: '$EXPECTED_BUILDER'" "$PAGES_WORKFLOW")" = "1" ] &&
   grep -qF '^ghcr\.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$' "$PAGES_WORKFLOW" &&
   grep -qF '${{ steps.builder.outputs.builder_image }}' "$PAGES_WORKFLOW" &&
   ! grep -Eq '905d2398|inputs\.builder-image \|\|' "$PAGES_WORKFLOW"; then
-  pass "14.3 latest documentation builder resolves to an approved immutable identity"
+  pass "14.4 latest documentation builder resolves to an approved immutable identity"
 else
-  fail "14.3 latest documentation builder resolves to an approved immutable identity" \
+  fail "14.4 latest documentation builder resolves to an approved immutable identity" \
     "expected latest selection, approved digest validation, and no historical fallback"
 fi
 
