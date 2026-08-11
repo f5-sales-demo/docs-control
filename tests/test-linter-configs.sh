@@ -145,7 +145,7 @@ has_inline_portability_suppression = any(
 has_downstream_lint_contract = all(
     marker in source
     for marker in (
-        "# ruff: noqa: ANN001, ANN201, D101, D103, EM101, EM102, N999, TRY003",
+        "# ruff: noqa: ANN001, ANN201, D101, D103, EM101, EM102, N999, RUF100, TRY003",
         "# pylint: disable=invalid-name,too-many-branches,broad-exception-caught,import-error",
         "# fmt: off",
     )
