@@ -198,13 +198,33 @@ for dynamic_file in "README.md" ".github/dependabot.yml"; do
 done
 
 # Test 3.4: repo-settings.json includes the 3 new managed file entries
-for new_entry in ".claude/governance.json" ".claude/settings.json" ".claude/hooks/protect-managed-files.sh"; do
+for new_entry in ".claude/governance.json" ".claude/settings.json" ".claude/hooks/protect-managed-files.sh" \
+  ".github/config/self-hosted-runner-policy.json" "scripts/workflow-security-validator.py"; do
   if echo "$MANAGED_DESTS" | grep -qxF "$new_entry"; then
     pass "3.4 repo-settings.json distributes $new_entry"
   else
     fail "3.4 repo-settings.json distributes $new_entry" "not in managed_files"
   fi
 done
+
+for new_entry in ".github/config/self-hosted-runner-policy.json" "scripts/workflow-security-validator.py"; do
+  count=$(jq --arg path "$new_entry" '[.managed_files.files[] | select(.dest == $path and .src == $path)] | length' "$REPO_SETTINGS")
+  protected_count=$(jq --arg path "$new_entry" '[.protected_files[] | select(. == $path)] | length' "$GOVERNANCE_JSON")
+  skipped_count=$(jq --arg path "$new_entry" '[(.managed_files.skip_files["terraform-provider-xcsh"] // [])[] | select(. == $path)] | length' "$REPO_SETTINGS")
+  if [ "$count" -eq 1 ] && [ "$protected_count" -eq 1 ] && [ "$skipped_count" -eq 0 ]; then
+    pass "3.4a $new_entry has one source/destination mapping, one protection, and no provider opt-out"
+  else
+    fail "3.4a exact managed security mapping for $new_entry" \
+      "mapping=$count protection=$protected_count provider_skips=$skipped_count"
+  fi
+done
+
+if grep -Fq 'scripts/workflow-security-validator.py' "$REPO_ROOT/workflows/workflow-security-audit.yml" &&
+  grep -Fq '.github/config/self-hosted-runner-policy.json' "$REPO_ROOT/workflows/workflow-security-audit.yml"; then
+  pass "3.4b audit invokes both atomically managed security assets"
+else
+  fail "3.4b audit invokes both atomically managed security assets" "validator or policy path missing"
+fi
 
 # Test 3.5: skip_files in repo-settings.json matches skip_files in governance.json
 SETTINGS_SKIP=$(jq -c '.managed_files.skip_files // {}' "$REPO_SETTINGS")

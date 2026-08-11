@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "repositories": {
+    "f5-sales-demo/fixture": {
+      ".github/workflows/audit.yml": {
+        "first": {
+          "runs_on": ["self-hosted", "Linux", "X64", "fixture"],
+          "environment": "first-environment",
+          "permissions": {"contents": "read"},
+          "allowed_secrets": ["FIXTURE_TOKEN"],
+          "triggers": {"push": {"branches": ["main"]}, "workflow_dispatch": null},
+          "if": null
+        },
+        "second": {
+          "runs_on": ["self-hosted", "Linux", "X64", "fixture"],
+          "environment": "second-environment",
+          "permissions": {"checks": "write", "contents": "read"},
+          "allowed_secrets": [],
+          "triggers": {"push": {"branches": ["main"]}, "workflow_dispatch": null},
+          "if": null
+        }
+      }
+    }
+  }
+}

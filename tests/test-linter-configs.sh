@@ -45,13 +45,25 @@ done
 echo ""
 echo "=== Section 2: YAML parse validity ==="
 
-for f in .yamllint.yaml zizmor.yaml .checkov.yaml .textlintrc; do
+for f in .yamllint.yaml zizmor.yaml .checkov.yaml .textlintrc actionlint.yml; do
   if python3 -c "import sys, yaml; yaml.safe_load(open('$REPO_ROOT/$f'))" 2>/dev/null; then
     pass "2.x $f is valid YAML"
   else
     fail "2.x $f is valid YAML" "yaml.safe_load failed"
   fi
 done
+
+if python3 - "$REPO_ROOT/actionlint.yml" <<'PY'
+import sys, yaml
+config = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+assert config.get("self-hosted-runner", {}).get("labels") == ["terraform-provider-xcsh"]
+PY
+then
+  pass "2.1 actionlint recognizes the governed provider runner label"
+else
+  fail "2.1 actionlint recognizes the governed provider runner label" \
+    "self-hosted-runner.labels must contain the exact governed label"
+fi
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 3: TOML Parse Validity (Python lint configs)
@@ -687,13 +699,16 @@ ZIZMOR_TMP=$(mktemp -d /tmp/test-linter-configs-zizmor-XXXXXX)
 mkdir -p "$ZIZMOR_TMP/bin" "$ZIZMOR_TMP/without/.github/workflows" \
   "$ZIZMOR_TMP/with/.github/workflows" "$ZIZMOR_TMP/with/workflows"
 printf '%s\n' '#!/bin/sh' \
-  'printf "%s\\n" "$@" > "${ZIZMOR_ARGS:?}"' >"$ZIZMOR_TMP/bin/pipx"
-chmod +x "$ZIZMOR_TMP/bin/pipx"
+  'printf "%s\\n" "$@" > "${ZIZMOR_ARGS:?}"' \
+  'printf "[]\\n"' >"$ZIZMOR_TMP/bin/uvx"
+printf '%s\n' '#!/bin/sh' \
+  'case " $* " in *" -c "*) printf "0\\n";; esac' >"$ZIZMOR_TMP/bin/uv"
+chmod +x "$ZIZMOR_TMP/bin/uvx" "$ZIZMOR_TMP/bin/uv"
 touch "$ZIZMOR_TMP/with/workflows/source.yml"
 
 (
   cd "$ZIZMOR_TMP/without"
-  PATH="$ZIZMOR_TMP/bin:$PATH" ZIZMOR_ARGS="$ZIZMOR_TMP/without.args" \
+  PATH="$ZIZMOR_TMP/bin:$PATH" ZIZMOR_ARGS="$ZIZMOR_TMP/without.args" AUDITED_REPOSITORY=f5-sales-demo/test \
     env -u BASH_ENV bash -euo pipefail -c "$ZIZMOR_RUN"
 )
 if grep -Fxq '.github/workflows/' "$ZIZMOR_TMP/without.args" &&
@@ -706,7 +721,7 @@ fi
 
 (
   cd "$ZIZMOR_TMP/with"
-  PATH="$ZIZMOR_TMP/bin:$PATH" ZIZMOR_ARGS="$ZIZMOR_TMP/with.args" \
+  PATH="$ZIZMOR_TMP/bin:$PATH" ZIZMOR_ARGS="$ZIZMOR_TMP/with.args" AUDITED_REPOSITORY=f5-sales-demo/test \
     env -u BASH_ENV bash -euo pipefail -c "$ZIZMOR_RUN"
 )
 if grep -Fxq '.github/workflows/' "$ZIZMOR_TMP/with.args" &&

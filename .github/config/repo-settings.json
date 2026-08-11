@@ -421,6 +421,14 @@
         "dest": ".github/workflows/workflow-security-audit.yml"
       },
       {
+        "src": "scripts/workflow-security-validator.py",
+        "dest": "scripts/workflow-security-validator.py"
+      },
+      {
+        "src": ".github/config/self-hosted-runner-policy.json",
+        "dest": ".github/config/self-hosted-runner-policy.json"
+      },
+      {
         "src": "workflows/semgrep.yml",
         "dest": ".github/workflows/semgrep.yml",
         "only_repos": [
