@@ -145,6 +145,7 @@ has_inline_portability_suppression = any(
 has_downstream_lint_contract = all(
     marker in source
     for marker in (
+        "# ruff: noqa: ANN001, ANN201, D101, D103, EM101, EM102, N999, TRY003",
         "# pylint: disable=invalid-name,too-many-branches,broad-exception-caught,import-error",
         "# fmt: off",
     )
@@ -160,7 +161,7 @@ PY
   pass "4.4 validator carries portable downstream lint and exception contracts"
 else
   fail "4.4 validator carries portable downstream lint and exception contracts" \
-    "expected exact exceptions, no inline BLE001 suppression, and downstream lint guards"
+    "expected exact exceptions, no inline BLE001 suppression, and Ruff/Pylint/format guards"
 fi
 
 # ════════════════════════════════════════════════════════════════════
