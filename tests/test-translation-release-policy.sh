@@ -78,12 +78,41 @@ else
     "reconcile_all is not bound end to end"
 fi
 
-if grep -qF 'scripts/translation-release-policy.sh' "$AUDIT" &&
-  grep -qF 'scripts/validate-translations.sh --all' "$AUDIT"; then
-  pass "freshness audit is major-release-only and validates the full corpus"
+if grep -qF 'working-directory: consumer' "$AUDIT" &&
+  grep -qF 'bash ../governance/scripts/translation-release-policy.sh' "$AUDIT" &&
+  grep -qF 'bash ../governance/scripts/validate-translations.sh --all' "$AUDIT"; then
+  pass "freshness audit is major-release-only and validates the full consumer corpus"
 else
-  fail "freshness audit is major-release-only and validates the full corpus" \
-    "audit policy or full validation route is absent"
+  fail "freshness audit is major-release-only and validates the full consumer corpus" \
+    "trusted audit policy or full validation route is absent"
+fi
+
+if grep -qF 'JOB_CONTEXT: ${{ toJSON(job) }}' "$AUDIT" &&
+  grep -qF "repository=\$(jq -r '.workflow_repository // \"\"'" "$AUDIT" &&
+  grep -qF "sha=\$(jq -r '.workflow_sha // \"\"'" "$AUDIT" &&
+  grep -qF 'repository: ${{ steps.governance.outputs.repository }}' "$AUDIT" &&
+  grep -qF 'ref: ${{ steps.governance.outputs.sha }}' "$AUDIT" &&
+  grep -qF 'test "$GOVERNANCE_REPOSITORY" = "f5-sales-demo/docs-control"' "$AUDIT" &&
+  grep -qF 'test "$(git -C governance rev-parse HEAD)" = "$GOVERNANCE_SHA"' "$AUDIT"; then
+  pass "freshness audit binds tooling to its exact reusable-workflow receipt"
+else
+  fail "freshness audit binds tooling to its exact reusable-workflow receipt" \
+    "trusted workflow repository or immutable receipt verification is absent"
+fi
+
+if [ "$(grep -cF 'persist-credentials: false' "$AUDIT")" -eq 2 ] &&
+  grep -qF 'path: consumer' "$AUDIT" && grep -qF 'path: governance' "$AUDIT"; then
+  pass "consumer and governance checkouts are isolated and credential-free"
+else
+  fail "consumer and governance checkouts are isolated and credential-free" \
+    "checkout isolation or credential suppression is incomplete"
+fi
+
+if grep -Eq '(^|[[:space:]])bash scripts/(translation-release-policy|validate-translations)\.sh' "$AUDIT"; then
+  fail "freshness audit never executes pull-request-controlled policy scripts" \
+    "audit invokes a translation policy script from the consumer checkout"
+else
+  pass "freshness audit never executes pull-request-controlled policy scripts"
 fi
 
 printf '\nResults: %d passed, %d failed\n' "$PASS" "$FAIL"
