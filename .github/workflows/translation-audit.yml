@@ -67,6 +67,10 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
         run: |
           set -euo pipefail
+          if [[ ! "$HEAD_REF" =~ ^release/v[1-9][0-9]*\.0\.0$ ]]; then
+            echo "[i18n] translation freshness is not applicable outside an exact major-release branch"
+            exit 0
+          fi
           git tag --list >"$RUNNER_TEMP/translation-tags.txt"
           decision=$(bash ../governance/scripts/translation-release-policy.sh \
             --head-ref "$HEAD_REF" --tags-file "$RUNNER_TEMP/translation-tags.txt")
