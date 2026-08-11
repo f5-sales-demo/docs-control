@@ -45,13 +45,25 @@ done
 echo ""
 echo "=== Section 2: YAML parse validity ==="
 
-for f in .yamllint.yaml zizmor.yaml .checkov.yaml .textlintrc; do
+for f in .yamllint.yaml zizmor.yaml .checkov.yaml .textlintrc actionlint.yml; do
   if python3 -c "import sys, yaml; yaml.safe_load(open('$REPO_ROOT/$f'))" 2>/dev/null; then
     pass "2.x $f is valid YAML"
   else
     fail "2.x $f is valid YAML" "yaml.safe_load failed"
   fi
 done
+
+if python3 - "$REPO_ROOT/actionlint.yml" <<'PY'
+import sys, yaml
+config = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+assert config.get("self-hosted-runner", {}).get("labels") == ["terraform-provider-xcsh"]
+PY
+then
+  pass "2.1 actionlint recognizes the governed provider runner label"
+else
+  fail "2.1 actionlint recognizes the governed provider runner label" \
+    "self-hosted-runner.labels must contain the exact governed label"
+fi
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 3: TOML Parse Validity (Python lint configs)

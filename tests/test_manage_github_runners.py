@@ -1,16 +1,16 @@
-#!/usr/bin/env python3
+# mypy: ignore-errors
+# pylint: disable=too-many-arguments,too-many-instance-attributes,too-many-public-methods,consider-using-with
 """Hermetic procfs/systemd/recovery tests for managed GitHub runners."""
 
 import contextlib
 import importlib.util
 import io
-import os
-from pathlib import Path
 import shutil
 import signal
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts/manage-github-runners.py"
 SPEC = importlib.util.spec_from_file_location("manage_github_runners", SCRIPT)
@@ -134,8 +134,8 @@ class RunnerManagerTests(unittest.TestCase):
             executable = Path(cwd) / executable
         executable.parent.mkdir(parents=True, exist_ok=True)
         executable.touch(exist_ok=True)
-        os.symlink(executable, process / "exe")
-        os.symlink(cwd, process / "cwd")
+        (process / "exe").symlink_to(executable)
+        (process / "cwd").symlink_to(cwd)
         fields = ["S", str(parent_pid), *(["0"] * 17), str(start_time), "0"]
         (process / "stat").write_text(
             f"{pid} (runner fixture) " + " ".join(fields), encoding="utf-8"
@@ -192,12 +192,18 @@ class RunnerManagerTests(unittest.TestCase):
                 "SubState": "running" if self.active else "dead",
                 "MainPID": "77" if self.active else "0",
                 "FragmentPath": str(self.systemd / self.unit),
-                "ExecStart": "{ path=" + str(self.repo_dir / "runsvc.sh") + " ; argv[]=x ; }",
+                "ExecStart": "{ path="
+                + str(self.repo_dir / "runsvc.sh")
+                + " ; argv[]=x ; }",
                 "User": self.user,
                 "ControlGroup": self.control_group,
             }
-            values.update({key: str(value) for key, value in self.metadata_overrides.items()})
-            return Result("\n".join(f"{key}={value}" for key, value in values.items()) + "\n")
+            values.update(
+                {key: str(value) for key, value in self.metadata_overrides.items()}
+            )
+            return Result(
+                "\n".join(f"{key}={value}" for key, value in values.items()) + "\n"
+            )
         if command[:2] == ["./svc.sh", "stop"] or command[:2] == ["systemctl", "stop"]:
             if "stop" not in self.fail:
                 self.active = False
@@ -208,6 +214,8 @@ class RunnerManagerTests(unittest.TestCase):
                 self.load_state = "not-found"
                 (self.systemd / self.unit).unlink(missing_ok=True)
             return Result(returncode=returncode)
+        if command[:1] == ["unlink"]:
+            Path(command[1]).unlink()
         if command[:2] == ["tar", "-xzf"]:
             destination = Path(command[command.index("-C") + 1])
             self.create_installation(destination)
@@ -301,7 +309,9 @@ class RunnerManagerTests(unittest.TestCase):
         self.delete_process(77)
         self.assert_audit_contains("MainPID process identity")
         self.start_processes(self.repo_dir)
-        (self.proc / "101/cgroup").write_text("0::/system.slice/other.service\n", encoding="utf-8")
+        (self.proc / "101/cgroup").write_text(
+            "0::/system.slice/other.service\n", encoding="utf-8"
+        )
         self.assert_audit_contains("outside")
 
     def test_service_metadata_is_exact(self):
@@ -375,7 +385,10 @@ class RunnerManagerTests(unittest.TestCase):
     def test_cleanup_stops_uninstalls_before_removal(self):
         self.manager.cleanup_installation(self.org, self.repo)
         commands = [call[0] for call in self.calls]
-        self.assertLess(commands.index(["./svc.sh", "stop"]), commands.index(["./svc.sh", "uninstall"]))
+        self.assertLess(
+            commands.index(["./svc.sh", "stop"]),
+            commands.index(["./svc.sh", "uninstall"]),
+        )
         self.assertFalse(self.repo_dir.exists())
         self.assertIn(self.repo_dir, self.removed)
 
@@ -393,6 +406,32 @@ class RunnerManagerTests(unittest.TestCase):
         self.manager.cleanup_installation(self.org, self.repo, remove_directory=False)
         self.assertFalse((self.systemd / self.unit).exists())
         self.assertIn(["systemctl", "daemon-reload"], [call[0] for call in self.calls])
+        unlink_call = next(call for call in self.calls if call[0][:1] == ["unlink"])
+        self.assertTrue(unlink_call[2])
+
+    def test_stale_unit_symlink_removal_never_deletes_target(self):
+        shutil.rmtree(self.repo_dir)
+        self.clear_processes()
+        self.active = False
+        unit_path = self.systemd / self.unit
+        unit_path.unlink()
+        target = self.root / "must-survive.service"
+        target.write_text("sentinel\n", encoding="utf-8")
+        unit_path.symlink_to(target)
+        self.manager.cleanup_installation(self.org, self.repo, remove_directory=False)
+        self.assertFalse(unit_path.exists())
+        self.assertEqual(target.read_text(encoding="utf-8"), "sentinel\n")
+
+    def test_stale_unit_disable_failure_is_fatal(self):
+        shutil.rmtree(self.repo_dir)
+        self.clear_processes()
+        self.active = False
+        self.fail.add("disable")
+        with self.assertRaisesRegex(RuntimeError, "disable failed"):
+            self.manager.cleanup_installation(
+                self.org, self.repo, remove_directory=False
+            )
+        self.assertTrue((self.systemd / self.unit).exists())
 
     def test_unrelated_process_is_never_signaled(self):
         self.clear_processes()
@@ -417,10 +456,14 @@ class RunnerManagerTests(unittest.TestCase):
         marker.touch()
         self.manager.setup(self.org, self.repo)
         self.assertFalse(marker.exists())
-        self.assertFalse(self.repo_dir.with_name(self.repo + ".recovery-backup").exists())
+        self.assertFalse(
+            self.repo_dir.with_name(self.repo + ".recovery-backup").exists()
+        )
         self.assertEqual(self.manager.audit(self.org, self.repo), [])
         commands = [call[0] for call in self.calls]
-        config = next(command for command in commands if command[:2] == ["./config.sh", "--url"])
+        config = next(
+            command for command in commands if command[:2] == ["./config.sh", "--url"]
+        )
         labels = config[config.index("--labels") + 1]
         self.assertEqual(labels, f"{self.repo},{self.org}")
         self.assertNotIn("ubuntu-latest", labels)
@@ -463,9 +506,12 @@ class RunnerManagerTests(unittest.TestCase):
             "clean-ungoverned",
             "health-check",
         ):
-            with self.subTest(command=command), self.assertRaises(SystemExit) as raised:
-                with contextlib.redirect_stdout(io.StringIO()):
-                    runner_module.main([command, "--help"])
+            with (
+                self.subTest(command=command),
+                self.assertRaises(SystemExit) as raised,
+                contextlib.redirect_stdout(io.StringIO()),
+            ):
+                runner_module.main([command, "--help"])
             self.assertEqual(raised.exception.code, 0)
 
 

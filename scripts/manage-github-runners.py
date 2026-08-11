@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
+# pylint: disable=invalid-name,too-many-arguments,too-many-branches,too-many-instance-attributes,too-many-return-statements,broad-exception-caught,no-else-return
 """Manage repository GitHub runners with fail-closed local identity checks."""
 
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import json
 import os
-from pathlib import Path
 import re
 import shutil
 import signal
@@ -15,6 +14,8 @@ import subprocess
 import sys
 import time
 import urllib.request
+from dataclasses import dataclass
+from pathlib import Path
 
 DEFAULT_ORG = "f5-sales-demo"
 DEFAULT_BASE_DIR = Path("/data/actions-runners/f5-sales-demo")
@@ -22,6 +23,7 @@ DEFAULT_PROC_ROOT = Path("/proc")
 DEFAULT_SYSTEMD_ROOT = Path("/etc/systemd/system")
 DEFAULT_USER = "robin"
 DEFAULT_RUNNER_VERSION = "2.336.0"
+CGROUP_FIELD_COUNT = 3
 DOCS_CONTROL_GOVERNANCE_PATH = (
     Path(__file__).resolve().parent.parent / ".claude/governance.json"
 )
@@ -30,7 +32,7 @@ DOCS_CONTROL_GOVERNANCE_PATH = (
 def run_cmd(command, cwd=None, check=True, capture=True, sudo=False):
     if sudo and os.geteuid() != 0:
         command = ["sudo", *command]
-    return subprocess.run(
+    return subprocess.run(  # noqa: S603 - argv is explicit and shell execution is disabled
         command,
         cwd=cwd,
         check=check,
@@ -46,9 +48,10 @@ def get_latest_runner_version(command=run_cmd):
             ["gh", "api", "repos/actions/runner/releases/latest", "--jq", ".tag_name"]
         )
         version = result.stdout.strip().removeprefix("v")
-        return version or DEFAULT_RUNNER_VERSION
-    except Exception:
+    except (OSError, subprocess.SubprocessError):
         return DEFAULT_RUNNER_VERSION
+    else:
+        return version or DEFAULT_RUNNER_VERSION
 
 
 def download_runner_tarball(version, cache_dir):
@@ -155,12 +158,12 @@ class CommandGitHubClient:
         response = json.loads(result.stdout)
         runners = response.get("runners")
         if not isinstance(runners, list):
-            raise RuntimeError("GitHub runner response is malformed")
+            raise TypeError("GitHub runner response is malformed")
         return runners
 
 
 class RunnerManager:
-    def __init__(
+    def __init__(  # noqa: PLR0917 - injected side effects make recovery tests hermetic
         self,
         base_dir=DEFAULT_BASE_DIR,
         proc_root=DEFAULT_PROC_ROOT,
@@ -189,7 +192,9 @@ class RunnerManager:
         self.remove_tree = remove_tree
         self.rename = rename
         self.downloader = downloader
-        self.latest_version = latest_version or (lambda: get_latest_runner_version(command))
+        self.latest_version = latest_version or (
+            lambda: get_latest_runner_version(command)
+        )
         self.registration_token = registration_token or (
             lambda org, repo: get_registration_token(org, repo, command)
         )
@@ -227,8 +232,8 @@ class RunnerManager:
             start_time = int(fields[19])
             cgroups = []
             for line in (root / "cgroup").read_text(encoding="utf-8").splitlines():
-                parts = line.split(":", 2)
-                if len(parts) == 3 and parts[2].startswith("/"):
+                parts = line.split(":", maxsplit=2)
+                if len(parts) == CGROUP_FIELD_COUNT and parts[2].startswith("/"):
                     cgroups.append(parts[2])
             command_line = tuple(
                 part.decode("utf-8", "surrogateescape")
@@ -438,7 +443,7 @@ class RunnerManager:
                 main_process, repo_dir, metadata.control_group
             ):
                 errors.append("MainPID process identity does not match the service")
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
             metadata = None
             errors.append(f"systemd metadata failure: {exc}")
         listeners = self.listeners(repo_dir)
@@ -455,13 +460,19 @@ class RunnerManager:
             if require_idle and runner.get("busy") is not False:
                 errors.append("GitHub runner is busy")
             labels = {
-                item.get("name")
+                item["name"]
                 for item in runner.get("labels", [])
-                if isinstance(item, dict)
+                if isinstance(item, dict) and isinstance(item.get("name"), str)
             }
             if labels != self.expected_labels(org, repo):
                 errors.append(f"label mismatch: {sorted(labels)}")
-        except Exception as exc:
+        except (
+            OSError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as exc:
             errors.append(f"GitHub runner query failed: {exc}")
         return errors
 
@@ -518,16 +529,22 @@ class RunnerManager:
             load_state, _ = self.unit_state(unit)
             if uninstall_rc != 0 and load_state == "loaded":
                 raise RuntimeError(f"service uninstall failed (exit {uninstall_rc})")
-        unit_path = (self.systemd_root / unit).resolve()
-        expected_unit_path = (self.systemd_root.resolve() / unit).resolve()
-        if unit_path != expected_unit_path:
+        systemd_root = self.systemd_root.resolve()
+        unit_path = systemd_root / unit
+        if unit_path.parent != systemd_root:
             raise RuntimeError("systemd unit path escapes configured root")
         if unit_path.exists():
             self.command(["systemctl", "stop", unit], sudo=True, check=False)
             if not self._prove_unit_inactive(unit):
                 raise RuntimeError("stale unit could not be stopped")
-            self.command(["systemctl", "disable", unit], sudo=True, check=False)
-            unit_path.unlink()
+            disabled = self.command(
+                ["systemctl", "disable", unit], sudo=True, check=False
+            )
+            if disabled.returncode != 0:
+                raise RuntimeError(
+                    f"stale unit disable failed (exit {disabled.returncode})"
+                )
+            self.command(["unlink", str(unit_path)], sudo=True, check=True)
             self.command(["systemctl", "daemon-reload"], sudo=True, check=True)
         for identity in self.owned_processes(repo_dir):
             if not self.terminate_identity(identity):
@@ -603,13 +620,17 @@ class RunnerManager:
             self._install_new_runner(org, repo, repo_dir, archive)
             errors = self.wait_for_audit(org, repo)
             if errors:
-                raise RuntimeError("post-setup audit failed: " + "; ".join(errors))
-        except Exception:
+                raise RuntimeError(  # noqa: TRY301 - rollback handles audit failure
+                    "post-setup audit failed: " + "; ".join(errors)
+                )
+        except Exception:  # rollback must run for every setup failure
             if repo_dir.exists():
                 try:
                     self.cleanup_installation(org, repo, remove_directory=True)
-                except Exception:
-                    pass
+                except Exception as cleanup_error:  # report a safe combined failure
+                    raise RuntimeError(
+                        "setup failed and rollback cleanup also failed"
+                    ) from cleanup_error
             if had_old and backup.exists() and not repo_dir.exists():
                 self.rename(backup, repo_dir)
             raise
@@ -655,7 +676,7 @@ def print_audit(manager, org, repo):
     return True
 
 
-def main(argv=None):
+def main(argv=None):  # noqa: PLR0911 - each CLI action has a distinct exit contract
     parser = argparse.ArgumentParser(
         description="Manage repository-level GitHub Actions runners"
     )
@@ -691,7 +712,7 @@ def main(argv=None):
                 results = [print_audit(manager, args.org, repo) for repo in governed]
                 return 0 if all(results) else 1
             if args.action == "setup" and args.repo not in governed:
-                raise RuntimeError(f"repository {args.repo!r} is not governed")
+                raise RuntimeError(f"repository {args.repo!r} is not governed")  # noqa: TRY301
             if args.action in {"audit", "status"}:
                 return 0 if print_audit(manager, args.org, args.repo) else 1
             getattr(manager, args.action)(args.org, args.repo)
@@ -708,13 +729,17 @@ def main(argv=None):
             if not args.base_dir.exists():
                 return 0
             for entry in args.base_dir.iterdir():
-                if entry.is_dir() and not entry.name.startswith(".") and entry.name not in governed:
+                if (
+                    entry.is_dir()
+                    and not entry.name.startswith(".")
+                    and entry.name not in governed
+                ):
                     manager.remove(args.org, entry.name)
             return 0
         if args.action == "health-check":
             results = [print_audit(manager, args.org, repo) for repo in governed]
             return 0 if all(results) else 1
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - final CLI boundary sanitizes all failures
         print(f"runner management failed: {exc}", file=sys.stderr)
         return 1
     return 2

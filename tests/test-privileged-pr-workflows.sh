@@ -112,6 +112,9 @@ reject_literal "$REPO_ROOT/zizmor.yaml" 'disable:' 'zizmor configuration disable
 reject_literal "$REPO_ROOT/zizmor.yaml" 'ignore:' 'zizmor configuration ignores no findings'
 require_literal "$REPO_ROOT/workflows/workflow-security-audit.yml" '--no-config --no-ignores --persona=auditor' 'managed audit refuses configuration and inline suppressions'
 require_literal "$REPO_ROOT/workflows/workflow-security-audit.yml" 'workflows/*.yml' 'managed audit covers workflow sources as well as active workflows'
+require_literal "$REPO_ROOT/workflows/workflow-security-audit.yml" '.github/config/self-hosted-runner-policy.json' 'managed audit runs when its policy changes'
+require_literal "$REPO_ROOT/workflows/workflow-security-audit.yml" 'scripts/workflow-security-validator.py' 'managed audit runs when its validator changes'
+require_literal "$REPO_ROOT/workflows/workflow-security-audit.yml" '.claude/governance.json' 'managed audit runs when its inventory changes'
 reject_literal "$REPO_ROOT/workflows/workflow-security-audit.yml" '|| true' 'managed audit does not swallow findings'
 reject_literal "$REPO_ROOT/workflows/workflow-security-audit.yml" '--min-severity' 'managed audit gates every finding severity'
 

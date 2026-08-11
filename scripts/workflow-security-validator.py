@@ -1,22 +1,40 @@
 #!/usr/bin/env python3
+# ruff: noqa: ANN001, ANN201, D101, D103, EM101, EM102, TRY003
+# pylint: disable=invalid-name,too-many-branches,broad-exception-caught
 """Fail-closed authorization for Zizmor self-hosted-runner findings."""
 
 import argparse
-from collections import Counter
 import json
 import os
-from pathlib import Path, PurePosixPath
 import re
 import sys
+from collections import Counter
+from pathlib import Path, PurePosixPath
 
 import yaml
 
 TOP_FIELDS = {"schema_version", "repositories"}
-JOB_FIELDS = {"runs_on", "environment", "permissions", "allowed_secrets", "triggers", "if"}
-SECRET_RE = re.compile(r"\bsecrets\.([A-Za-z_][A-Za-z0-9_]*)\b")
+JOB_FIELDS = {
+    "runs_on",
+    "environment",
+    "permissions",
+    "allowed_secrets",
+    "triggers",
+    "if",
+}
+SECRET_RE = re.compile(
+    r"\bsecrets\s*(?:\.\s*([A-Za-z_][A-Za-z0-9_]*)\b|"
+    r"\[\s*(['\"])([A-Za-z_][A-Za-z0-9_]*)\2\s*\])"
+)
+SECRET_CONTEXT_RE = re.compile(r"\bsecrets\b")
+EXPRESSION_RE = re.compile(r"\$\{\{(.*?)\}\}", re.DOTALL)
 FORBIDDEN_TRIGGERS = {"pull_request_target", "workflow_run", "repository_dispatch"}
 ALLOWED_TRIGGERS = {"schedule", "workflow_dispatch", "push", "pull_request"}
-ALLOWED_PERMISSIONS = {"contents": {"read", "none"}, "checks": {"write", "read", "none"}}
+ALLOWED_PERMISSIONS = {
+    "contents": {"read", "none"},
+    "checks": {"write", "read", "none"},
+}
+ZIZMOR_FINDINGS_EXIT = 13
 
 
 class PolicyError(ValueError):
@@ -29,9 +47,9 @@ def validate_zizmor_result(exit_code, findings):
         raise PolicyError("Zizmor output must be a JSON array")
     if exit_code == 0 and findings:
         raise PolicyError("Zizmor exit 0 requires an empty finding array")
-    if exit_code == 13 and not findings:
-        raise PolicyError("Zizmor exit 13 requires a non-empty finding array")
-    if exit_code not in {0, 13}:
+    if exit_code == ZIZMOR_FINDINGS_EXIT and not findings:
+        raise PolicyError("Zizmor findings exit requires a non-empty finding array")
+    if exit_code not in {0, ZIZMOR_FINDINGS_EXIT}:
         raise PolicyError(f"unsupported Zizmor exit code: {exit_code}")
 
 
@@ -50,11 +68,17 @@ def governed_repositories(path):
         repos = raw["repo_classes"]["repos"]
     except Exception as exc:
         raise PolicyError(f"cannot read governance inventory {path}: {exc}") from exc
-    if not isinstance(repos, dict) or not repos or not all(
-        isinstance(name, str) and isinstance(repo_class, str)
-        for name, repo_class in repos.items()
+    if (
+        not isinstance(repos, dict)
+        or not repos
+        or not all(
+            isinstance(name, str) and isinstance(repo_class, str)
+            for name, repo_class in repos.items()
+        )
     ):
-        raise PolicyError("governance repo_classes.repos must be a non-empty string mapping")
+        raise PolicyError(
+            "governance repo_classes.repos must be a non-empty string mapping"
+        )
     return {f"f5-sales-demo/{name}" for name in repos}
 
 
@@ -63,7 +87,9 @@ def permissions_within_ceiling(permissions, context):
         raise PolicyError(f"{context} must be an object")
     for scope, access in permissions.items():
         if scope not in ALLOWED_PERMISSIONS or access not in ALLOWED_PERMISSIONS[scope]:
-            raise PolicyError(f"{context} exceeds the permission ceiling: {scope}={access}")
+            raise PolicyError(
+                f"{context} exceeds the permission ceiling: {scope}={access}"
+            )
 
 
 def load_policy(path, governance_path, repository):
@@ -77,9 +103,19 @@ def load_policy(path, governance_path, repository):
     repositories = raw.get("repositories")
     governed = governed_repositories(governance_path)
     if not isinstance(repositories, dict) or set(repositories) != governed:
-        missing = sorted(governed - set(repositories or {})) if isinstance(repositories, dict) else sorted(governed)
-        extra = sorted(set(repositories or {}) - governed) if isinstance(repositories, dict) else []
-        raise PolicyError(f"policy/governance repository mismatch: missing={missing}, extra={extra}")
+        missing = (
+            sorted(governed - set(repositories or {}))
+            if isinstance(repositories, dict)
+            else sorted(governed)
+        )
+        extra = (
+            sorted(set(repositories or {}) - governed)
+            if isinstance(repositories, dict)
+            else []
+        )
+        raise PolicyError(
+            f"policy/governance repository mismatch: missing={missing}, extra={extra}"
+        )
     if repository not in repositories:
         raise PolicyError(f"repository {repository!r} is not present in policy")
     result = {}
@@ -87,34 +123,56 @@ def load_policy(path, governance_path, repository):
     if not isinstance(workflows, dict):
         raise PolicyError("repository policy must be a workflow object")
     for workflow, jobs in workflows.items():
-        if not isinstance(workflow, str) or not workflow.startswith(".github/workflows/"):
+        if not isinstance(workflow, str) or not workflow.startswith(
+            ".github/workflows/"
+        ):
             raise PolicyError(f"invalid workflow key: {workflow!r}")
         if not isinstance(jobs, dict) or not jobs:
             raise PolicyError(f"{workflow} must contain jobs")
         for job_id, spec in jobs.items():
             strict_object(spec, JOB_FIELDS, f"{workflow}/{job_id}")
             if set(spec) != JOB_FIELDS:
-                raise PolicyError(f"{workflow}/{job_id} must define exactly {sorted(JOB_FIELDS)}")
+                raise PolicyError(
+                    f"{workflow}/{job_id} must define exactly {sorted(JOB_FIELDS)}"
+                )
             labels = spec["runs_on"]
-            if not isinstance(labels, list) or not all(isinstance(x, str) for x in labels):
+            if not isinstance(labels, list) or not all(
+                isinstance(x, str) for x in labels
+            ):
                 raise PolicyError(f"{workflow}/{job_id}.runs_on must be a string array")
             if not isinstance(spec["permissions"], dict):
                 raise PolicyError(f"{workflow}/{job_id}.permissions must be an object")
-            permissions_within_ceiling(spec["permissions"], f"{workflow}/{job_id}.permissions")
-            if not isinstance(spec["allowed_secrets"], list) or len(set(spec["allowed_secrets"])) != len(spec["allowed_secrets"]):
-                raise PolicyError(f"{workflow}/{job_id}.allowed_secrets must be a unique array")
-            if not isinstance(spec["triggers"], dict) or not all(isinstance(x, str) for x in spec["triggers"]):
-                raise PolicyError(f"{workflow}/{job_id}.triggers must be an exact trigger mapping")
+            permissions_within_ceiling(
+                spec["permissions"], f"{workflow}/{job_id}.permissions"
+            )
+            if (
+                not isinstance(spec["allowed_secrets"], list)
+                or not all(
+                    isinstance(secret, str)
+                    and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", secret)
+                    for secret in spec["allowed_secrets"]
+                )
+                or len(set(spec["allowed_secrets"])) != len(spec["allowed_secrets"])
+            ):
+                raise PolicyError(
+                    f"{workflow}/{job_id}.allowed_secrets must be a unique array"
+                )
+            if not isinstance(spec["triggers"], dict) or not all(
+                isinstance(x, str) for x in spec["triggers"]
+            ):
+                raise PolicyError(
+                    f"{workflow}/{job_id}.triggers must be an exact trigger mapping"
+                )
             unknown_triggers = set(spec["triggers"]) - ALLOWED_TRIGGERS
             if unknown_triggers:
-                raise PolicyError(f"{workflow}/{job_id} has untrusted trigger(s): {sorted(unknown_triggers)}")
+                raise PolicyError(
+                    f"{workflow}/{job_id} has untrusted trigger(s): {sorted(unknown_triggers)}"
+                )
             result[(workflow, job_id)] = spec
     return result
 
 
 def route_component(item):
-    if isinstance(item, str):
-        return item
     if isinstance(item, dict) and set(item) == {"Key"} and isinstance(item["Key"], str):
         return item["Key"]
     raise PolicyError(f"malformed route component: {item!r}")
@@ -127,7 +185,11 @@ def normalize_location(location):
     if not isinstance(symbolic, dict):
         raise PolicyError("location.symbolic is missing")
     key = symbolic.get("key")
-    local = key.get("Local") if isinstance(key, dict) else None
+    if not isinstance(key, dict) or set(key) != {"Local"}:
+        raise PolicyError("location.symbolic.key must identify exactly one Local path")
+    local = key.get("Local")
+    if not isinstance(local, dict) or set(local) != {"verbatim_path"}:
+        raise PolicyError("location Local key must contain only verbatim_path")
     path = local.get("verbatim_path") if isinstance(local, dict) else None
     if not isinstance(path, str):
         raise PolicyError("location.symbolic.key.Local.verbatim_path is missing")
@@ -139,14 +201,16 @@ def normalize_location(location):
     if parts.count("jobs") != 1:
         raise PolicyError(f"route must contain exactly one jobs component: {parts}")
     index = parts.index("jobs")
-    if index + 2 >= len(parts) or parts[index + 2:] != ["runs-on"]:
+    if index + 2 >= len(parts) or parts[index + 2 :] != ["runs-on"]:
         raise PolicyError(f"route must identify exactly one job runs-on: {parts}")
     normalized = PurePosixPath(path).as_posix()
     while normalized.startswith("./"):
         normalized = normalized[2:]
     path_parts = PurePosixPath(normalized).parts
     if PurePosixPath(normalized).is_absolute() or ".." in path_parts:
-        raise PolicyError(f"finding path is not a safe repository-relative path: {path!r}")
+        raise PolicyError(
+            f"finding path is not a safe repository-relative path: {path!r}"
+        )
     if not normalized.startswith(".github/workflows/"):
         raise PolicyError(f"finding path is outside .github/workflows: {normalized!r}")
     return normalized, parts[index + 1], parts
@@ -171,9 +235,11 @@ def effective_permissions(workflow, job):
     value = job.get("permissions", workflow.get("permissions"))
     if value is None:
         raise PolicyError("effective permissions are implicit")
-    if value == "read-all" or value == "write-all":
+    if isinstance(value, str) and value in {"read-all", "write-all"}:
         raise PolicyError("permissions shortcuts are forbidden")
-    if not isinstance(value, dict) or not all(isinstance(k, str) and v in {"read", "write", "none"} for k, v in value.items()):
+    if not isinstance(value, dict) or not all(
+        isinstance(k, str) and v in {"read", "write", "none"} for k, v in value.items()
+    ):
         raise PolicyError("effective permissions must be an explicit scope mapping")
     permissions_within_ceiling(value, "effective permissions")
     return value
@@ -243,15 +309,34 @@ def condition_excludes_pull_request(expression):
 def walk(value, path=()):
     if isinstance(value, dict):
         for key, child in value.items():
-            yield from walk(child, path + (str(key),))
+            yield from walk(child, (*path, str(key)))
     elif isinstance(value, list):
         for index, child in enumerate(value):
-            yield from walk(child, path + (str(index),))
+            yield from walk(child, (*path, str(index)))
     elif isinstance(value, str):
         yield path, value
 
 
-def validate_job(repository, workflow_path, job_id, workflow, job, spec):
+def secret_references(text):
+    names = set()
+    for expression in EXPRESSION_RE.finditer(text):
+        body = expression.group(1)
+        covered = []
+        for match in SECRET_RE.finditer(body):
+            names.add(match.group(1) or match.group(3))
+            covered.append(match.span())
+        for context in SECRET_CONTEXT_RE.finditer(body):
+            if not any(
+                start <= context.start() and context.end() <= end
+                for start, end in covered
+            ):
+                raise PolicyError(
+                    "dynamic or malformed secrets expression is forbidden"
+                )
+    return names
+
+
+def validate_job(repository, workflow, job, spec):
     errors = []
     basename = repository.split("/", 1)[1]
     runs_on = job.get("runs-on")
@@ -273,7 +358,9 @@ def validate_job(repository, workflow_path, job_id, workflow, job, spec):
         if workflow_on(workflow) != spec["triggers"]:
             errors.append("complete trigger structure does not exactly match policy")
         if set(triggers) & FORBIDDEN_TRIGGERS:
-            errors.append(f"forbidden trigger(s): {sorted(set(triggers) & FORBIDDEN_TRIGGERS)}")
+            errors.append(
+                f"forbidden trigger(s): {sorted(set(triggers) & FORBIDDEN_TRIGGERS)}"
+            )
         unknown_triggers = set(triggers) - ALLOWED_TRIGGERS
         if unknown_triggers:
             errors.append(f"untrusted trigger(s): {sorted(unknown_triggers)}")
@@ -286,20 +373,32 @@ def validate_job(repository, workflow_path, job_id, workflow, job, spec):
         errors.append(str(exc))
     if job.get("if") != spec["if"]:
         errors.append("job if expression does not exactly match policy")
-    if "pull_request" in trigger_names(workflow) and not condition_excludes_pull_request(job.get("if")):
+    if "pull_request" in trigger_names(
+        workflow
+    ) and not condition_excludes_pull_request(job.get("if")):
         errors.append("job if does not provably exclude pull_request execution")
     references = set()
     for path, text in walk(job):
-        names = set(SECRET_RE.findall(text))
+        try:
+            names = secret_references(text)
+        except PolicyError as exc:
+            errors.append(f"{exc} at {'.'.join(path)}")
+            continue
         references.update(names)
         if names and ("run" in path or not ({"env", "with"} & set(path))):
             errors.append(f"secret reference in unsupported location {'.'.join(path)}")
     if references != set(spec["allowed_secrets"]):
         errors.append(f"secret set mismatch: {sorted(references)!r}")
     for step in job.get("steps", []):
-        if isinstance(step, dict) and isinstance(step.get("uses"), str) and step["uses"].split("@", 1)[0] == "actions/checkout":
-            if step.get("with", {}).get("persist-credentials") is not False:
-                errors.append("checkout must use literal persist-credentials: false")
+        if (
+            isinstance(step, dict)
+            and isinstance(step.get("uses"), str)
+            and step["uses"].split("@", 1)[0] == "actions/checkout"
+            and step.get("with", {}).get("persist-credentials") is not False
+        ):
+            errors.append(  # noqa: PERF401 - conditional validation is clearer inline
+                "checkout must use literal persist-credentials: false"
+            )
     return errors
 
 
@@ -311,7 +410,9 @@ def inventory(root, repository, policy):
             workflow = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         except Exception as exc:
             raise PolicyError(f"cannot parse {relative}: {exc}") from exc
-        if not isinstance(workflow, dict) or not isinstance(workflow.get("jobs", {}), dict):
+        if not isinstance(workflow, dict) or not isinstance(
+            workflow.get("jobs", {}), dict
+        ):
             raise PolicyError(f"malformed workflow {relative}")
         for job_id, job in workflow.get("jobs", {}).items():
             if not isinstance(job, dict):
@@ -320,12 +421,14 @@ def inventory(root, repository, policy):
             self_hosted = isinstance(runs_on, list) and "self-hosted" in runs_on
             suspicious = isinstance(runs_on, str) and "self-hosted" in runs_on
             if suspicious:
-                raise PolicyError(f"expression or scalar self-hosted runs-on at {relative}/{job_id}")
+                raise PolicyError(
+                    f"expression or scalar self-hosted runs-on at {relative}/{job_id}"
+                )
             if self_hosted:
                 key = (relative, job_id)
                 if key not in policy:
                     raise PolicyError(f"unlisted self-hosted job {relative}/{job_id}")
-                errors = validate_job(repository, relative, job_id, workflow, job, policy[key])
+                errors = validate_job(repository, workflow, job, policy[key])
                 if errors:
                     raise PolicyError(f"{relative}/{job_id}: " + "; ".join(errors))
                 actual[key] = workflow
@@ -360,7 +463,9 @@ def validate(findings, root, repository, policy_path, governance_path):
     if duplicates:
         raise PolicyError(f"duplicate findings: {duplicates}")
     if set(found) != actual:
-        raise PolicyError(f"finding/job mismatch: missing={sorted(actual-set(found))}, extra={sorted(set(found)-actual)}")
+        raise PolicyError(
+            f"finding/job mismatch: missing={sorted(actual - set(found))}, extra={sorted(set(found) - actual)}"
+        )
     return routes
 
 
@@ -378,15 +483,19 @@ def main(argv=None):
     args = parse_args(argv)
     try:
         if not args.repository or args.repository.count("/") != 1:
-            raise PolicyError("an exact --repository owner/name is required")
+            raise PolicyError("an exact --repository owner/name is required")  # noqa: TRY301
         findings = json.loads(args.findings.read_text(encoding="utf-8"))
         validate_zizmor_result(args.zizmor_exit, findings)
-        routes = validate(findings, Path.cwd(), args.repository, args.policy, args.governance)
-    except Exception as exc:
+        routes = validate(
+            findings, Path.cwd(), args.repository, args.policy, args.governance
+        )
+    except Exception as exc:  # noqa: BLE001 - final CLI boundary fails closed
         print(f"workflow security validation failed: {exc}", file=sys.stderr)
         return 1
     for workflow, job_id, route in routes:
-        print(f"approved {args.repository}:{workflow}:{job_id} route={json.dumps(route)}")
+        print(
+            f"approved {args.repository}:{workflow}:{job_id} route={json.dumps(route)}"
+        )
     print(f"validated {len(routes)} governed self-hosted-runner finding(s)")
     return 0
 

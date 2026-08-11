@@ -23,6 +23,10 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/**'
+      - '.github/config/self-hosted-runner-policy.json'
+      - '.claude/governance.json'
+      - 'scripts/workflow-security-validator.py'
+      - 'workflows/workflow-security-audit.yml'
       - 'zizmor.yaml'
 
 permissions:
