@@ -65,7 +65,9 @@ def download_runner_tarball(version, cache_dir):
     if temporary.exists():
         temporary.unlink()
     url = f"https://github.com/actions/runner/releases/download/v{version}/{name}"
-    urllib.request.urlretrieve(url, temporary)
+    urllib.request.urlretrieve(  # noqa: S310 - immutable GitHub HTTPS origin
+        url, temporary
+    )
     if not temporary.is_file() or temporary.stat().st_size == 0:
         raise RuntimeError("downloaded runner archive is empty")
     temporary.replace(destination)
@@ -166,7 +168,7 @@ class CommandGitHubClient:
 
 
 class RunnerManager:
-    def __init__(  # noqa: PLR0917 - injected side effects make recovery tests hermetic
+    def __init__(
         self,
         base_dir=DEFAULT_BASE_DIR,
         proc_root=DEFAULT_PROC_ROOT,
@@ -209,13 +211,13 @@ class RunnerManager:
     def repo_dir(self, repo):
         return validate_repo_dir(self.base_dir, repo)
 
-    def recovery_backup(self, repo):
+    def _recovery_backup(self, repo):
         repo_dir = self.repo_dir(repo)
         return repo_dir.with_name(repo_dir.name + ".recovery-backup")
 
     def _validated_removal_target(self, repo, path):
         repo_dir = self.repo_dir(repo)
-        backup = self.recovery_backup(repo)
+        backup = self._recovery_backup(repo)
         target = Path(path)
         if target not in {repo_dir, backup}:
             raise RuntimeError(f"refusing unrecognized runner removal target: {target}")
@@ -225,7 +227,7 @@ class RunnerManager:
             raise RuntimeError("runner removal target escapes configured base")
         return target
 
-    def remove_runner_tree(self, repo, path):
+    def _remove_runner_tree(self, repo, path):
         target = self._validated_removal_target(repo, path)
         if not target.exists():
             return
@@ -595,7 +597,7 @@ class RunnerManager:
         if self.owned_processes(repo_dir):
             raise RuntimeError("runner-owned process remains after cleanup")
         if remove_directory and repo_dir.exists():
-            self.remove_runner_tree(repo, repo_dir)
+            self._remove_runner_tree(repo, repo_dir)
 
     def _secret_command(self, command, cwd):
         result = self.command(command, cwd=cwd, check=False)
@@ -646,7 +648,7 @@ class RunnerManager:
         if existing and existing[0].get("busy") is not False:
             raise RuntimeError("refusing to reconfigure a busy runner")
         repo_dir = self.repo_dir(repo)
-        backup = self.recovery_backup(repo)
+        backup = self._recovery_backup(repo)
         if backup.exists() or backup.is_symlink():
             raise RuntimeError(f"recovery backup already exists: {backup}")
         version = self.latest_version()
@@ -674,10 +676,10 @@ class RunnerManager:
                 self.rename(backup, repo_dir)
             raise
         if backup.exists():
-            self.remove_runner_tree(repo, backup)
+            self._remove_runner_tree(repo, backup)
 
     def cleanup_backup(self, org, repo):
-        backup = self.recovery_backup(repo)
+        backup = self._recovery_backup(repo)
         if not backup.exists() and not backup.is_symlink():
             return
         errors = self.audit(org, repo)
@@ -686,7 +688,7 @@ class RunnerManager:
                 "refusing recovery-backup removal while runner audit fails: "
                 + "; ".join(errors)
             )
-        self.remove_runner_tree(repo, backup)
+        self._remove_runner_tree(repo, backup)
 
     def remove(self, org, repo):
         repo_dir = self.repo_dir(repo)
@@ -697,7 +699,7 @@ class RunnerManager:
         if config.is_file():
             token = self.removal_token(org, repo)
             self._secret_command(["./config.sh", "remove", "--token", token], repo_dir)
-        self.remove_runner_tree(repo, repo_dir)
+        self._remove_runner_tree(repo, repo_dir)
 
     def stop(self, org, repo):
         repo_dir = self.repo_dir(repo)
@@ -806,7 +808,7 @@ def main(argv=None):  # noqa: PLR0911 - each CLI action has a distinct exit cont
         if args.action == "health-check":
             results = [print_audit(manager, args.org, repo) for repo in governed]
             return 0 if all(results) else 1
-    except Exception as exc:  # noqa: BLE001 - final CLI boundary sanitizes all failures
+    except Exception as exc:
         print(f"runner management failed: {exc}", file=sys.stderr)
         return 1
     return 2

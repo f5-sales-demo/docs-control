@@ -1,5 +1,5 @@
 # mypy: ignore-errors
-# pylint: disable=too-many-arguments,too-many-instance-attributes,too-many-public-methods,consider-using-with
+# pylint: disable=too-many-arguments,too-many-instance-attributes,too-many-public-methods,consider-using-with,protected-access
 """Hermetic procfs/systemd/recovery tests for managed GitHub runners."""
 
 import contextlib
@@ -487,13 +487,13 @@ class RunnerManagerTests(unittest.TestCase):
         outside = self.root / "must-survive"
         outside.mkdir()
         with self.assertRaisesRegex(RuntimeError, "unrecognized"):
-            self.manager.remove_runner_tree(self.repo, outside)
+            self.manager._remove_runner_tree(self.repo, outside)
         self.assertTrue(outside.exists())
 
         backup = self.repo_dir.with_name(self.repo + ".recovery-backup")
         backup.symlink_to(outside, target_is_directory=True)
         with self.assertRaisesRegex(RuntimeError, "symlink"):
-            self.manager.remove_runner_tree(self.repo, backup)
+            self.manager._remove_runner_tree(self.repo, backup)
         self.assertTrue(outside.exists())
         self.assertFalse(any(call[0][:1] == ["chown"] for call in self.calls))
 
