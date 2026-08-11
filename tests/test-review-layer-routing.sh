@@ -89,8 +89,10 @@ MANAGED_REVIEW_FILES=(
   scripts/agy-review.sh
   scripts/agy-review-output.schema.json
   scripts/run-with-progress.sh
+  scripts/translation-release-policy.sh
   scripts/validate-translations.sh
   tests/test-agy-pre-push-review.sh
+  tests/test-translation-release-policy.sh
   tests/test-validate-translations.sh
 )
 for asset in "${MANAGED_REVIEW_FILES[@]}"; do

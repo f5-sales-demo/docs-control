@@ -117,19 +117,28 @@ jobs:
                   ;;
                 esac
 
+                major_release=false
+                if [ "$state" = open ] && [ "${TRANSLATIONS_ENABLED:-false}" = true ] &&
+                  [[ "$head_ref" =~ ^release/v[1-9][0-9]*\.0\.0$ ]]; then
+                  tag_file="$output/tags-${repo}-${number}.txt"
+                  github_get "repos/$full_repo/git/matching-refs/tags/v?per_page=100" \
+                    --paginate | jq -r '.[].ref | sub("^refs/tags/"; "")' >"$tag_file"
+                  release_decision=$(bash scripts/translation-release-policy.sh \
+                    --head-ref "$head_ref" --tags-file "$tag_file")
+                  printf '[i18n] %s PR %s: %s\n' "$full_repo" "$number" \
+                    "$(tr '\n' ' ' <<<"$release_decision")"
+                  if grep -qxF 'eligible=true' <<<"$release_decision"; then
+                    major_release=true
+                  fi
+                fi
+
                 needs_translation=false
-                if [ "$state" = open ] && [ "${TRANSLATIONS_ENABLED:-false}" = true ] && \
-                  [ "$automated" = false ]; then
-                  files=$(github_get "repos/$full_repo/pulls/$number/files?per_page=100" \
-                    --paginate | jq -c 'map(.filename)')
-                  if jq -e 'any(.[]; test("^(docs/en|src/content/docs/en)/.*\\.mdx?$"))' \
-                    <<<"$files" >/dev/null; then
-                    commit_message=$(github_get "repos/$full_repo/commits/$head_sha" |
-                      jq -r '.commit.message')
-                    case "$commit_message" in
-                    "chore(i18n): update translations via Antigravity"*) : ;;
-                    *) needs_translation=true ;;
-                    esac
+                if [ "$major_release" = true ]; then
+                  if github_get "repos/$full_repo/contents/docs/en?ref=$head_sha" \
+                    >/dev/null 2>&1 ||
+                    github_get "repos/$full_repo/contents/src/content/docs/en?ref=$head_sha" \
+                      >/dev/null 2>&1; then
+                    needs_translation=true
                   fi
                 fi
 
@@ -152,9 +161,10 @@ jobs:
                   jq --arg repository "$full_repo" --arg workflow antigravity-translate.yml \
                     --arg ref "$base_ref" --arg number "$number" --arg base "$base_sha" \
                     --arg head "$head_sha" --argjson prior_run_id "$prior_run_id" \
+                    --argjson reconcile_all true \
                     '. + [{repository: $repository, workflow: $workflow, ref: $ref,
                       pr_number: $number, base_sha: $base, head_sha: $head,
-                      prior_run_id: $prior_run_id}]' \
+                      prior_run_id: $prior_run_id, reconcile_all: $reconcile_all}]' \
                     "$output/dispatches.json" >"$output/dispatches.next"
                   mv "$output/dispatches.next" "$output/dispatches.json"
                   queued=true
@@ -476,6 +486,9 @@ jobs:
                     pr_number: dispatch.pr_number,
                     expected_base_sha: dispatch.base_sha,
                     expected_head_sha: dispatch.head_sha,
+                    ...(dispatch.workflow === 'antigravity-translate.yml'
+                      ? {reconcile_all: String(dispatch.reconcile_all === true)}
+                      : {}),
                   },
                 });
               }, {

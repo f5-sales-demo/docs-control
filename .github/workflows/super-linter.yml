@@ -606,6 +606,10 @@ jobs:
         if: hashFiles('tests/test-agy-pre-push-review.sh') != ''
         run: bash tests/test-agy-pre-push-review.sh
 
+      - name: Run translation release-policy test
+        if: hashFiles('tests/test-translation-release-policy.sh') != ''
+        run: bash tests/test-translation-release-policy.sh
+
       - name: Run deterministic translation-validator test
         if: hashFiles('tests/test-validate-translations.sh') != ''
         run: bash tests/test-validate-translations.sh

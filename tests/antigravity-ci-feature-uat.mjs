@@ -68,6 +68,7 @@ async function runExactHeadValidation(workflowPath, stepName, pull, expected = {
     GITHUB_WORKSPACE: root,
     HEAD_SHA: expected.headSha ?? pull.head.sha,
     PR_NUMBER: '42',
+    RECONCILE_ALL: String(expected.reconcileAll ?? false),
   };
   const previous = Object.fromEntries([...Object.keys(environment), 'HEAD_REF'].map((key) => [key, process.env[key]]));
   Object.assign(process.env, environment);
@@ -78,7 +79,11 @@ async function runExactHeadValidation(workflowPath, stepName, pull, expected = {
         request: async () => {
           throw new Error('rate-limit lookup was not expected');
         },
-        rest: { pulls: { get: async () => ({ data: pull }) } },
+        paginate: async () => (expected.tags ?? []).map((tag) => ({ ref: `refs/tags/${tag}` })),
+        rest: {
+          git: { listMatchingRefs: async () => ({ data: [] }) },
+          pulls: { get: async () => ({ data: pull }) },
+        },
       },
       { repo: { owner: 'f5-sales-demo', repo: 'example' } },
       {
@@ -277,6 +282,7 @@ function runTranslationReceiptValidation({ receipt, pull }) {
       HEAD_SHA: pull.head.sha,
       HEAD_REF: pull.head.ref,
       PR_NUMBER: '42',
+      RECONCILE_ALL: 'false',
       RUNNER_TEMP: work,
       WORKFLOW_SHA: 'workflow-current',
     },
@@ -304,6 +310,7 @@ function initializeExactHeadFixture() {
   );
   fs.writeFileSync(path.join(repository, '.agents/skills/i18n-translate/SKILL.md'), 'trusted translation contract\n');
   fs.writeFileSync(path.join(repository, 'docs/en/page.mdx'), '---\ntitle: Page\n---\n\nBase.\n');
+  fs.writeFileSync(path.join(repository, 'docs/en/unchanged.mdx'), '---\ntitle: Unchanged\n---\n\nStable.\n');
   git(repository, 'add', '.');
   git(repository, 'commit', '-qm', 'base');
   const base = git(repository, 'rev-parse', 'HEAD');
@@ -396,9 +403,44 @@ async function testReviewerPreparation() {
     ).status,
     0,
   );
+
+  const major = structuredClone(fixture.pull);
+  major.head.ref = 'release/v20.0.0';
+  assert.equal(
+    (
+      await runExactHeadValidation(translationWorkflow, 'Validate exact pull-request head', major, {
+        reconcileAll: true,
+        tags: ['v19.105.7', 'v20.0.0-rc.1', 'package/v99.0.0'],
+      })
+    ).status,
+    0,
+    'full reconciliation must accept only the next stable major branch',
+  );
+  assert.notEqual(
+    (
+      await runExactHeadValidation(translationWorkflow, 'Validate exact pull-request head', major, {
+        reconcileAll: true,
+        tags: ['v20.0.0', 'v19.105.7'],
+      })
+    ).status,
+    0,
+    'full reconciliation must reject an already-released major at execution time',
+  );
+  const minor = structuredClone(fixture.pull);
+  minor.head.ref = 'release/v20.1.0';
+  assert.notEqual(
+    (
+      await runExactHeadValidation(translationWorkflow, 'Validate exact pull-request head', minor, {
+        reconcileAll: true,
+        tags: ['v19.105.7'],
+      })
+    ).status,
+    0,
+    'full reconciliation must reject minor releases at execution time',
+  );
 }
 
-function runTranslationPreparation(fixture) {
+function runTranslationPreparation(fixture, reconcileAll = false) {
   const runner = temporaryDirectory('agy-translation-prepare-');
   const bin = path.join(runner, 'bin');
   const installed = path.join(runner, 'installed');
@@ -431,6 +473,7 @@ cp "$source_path" "$FAKE_INSTALL_DIR/$(basename "$previous")"
       HEAD_SHA: fixture.head,
       PATH: `${bin}:${process.env.PATH}`,
       PR_NUMBER: '42',
+      RECONCILE_ALL: String(reconcileAll),
       RUNNER_TEMP: runner,
     },
   });
@@ -468,6 +511,15 @@ async function testTranslationPreparation() {
     fs.readFileSync(path.join(prepared.installed, 'expected-source-hashes.tsv'), 'utf8'),
     `docs/en/page.mdx\t${expectedHash}\n`,
     'the root-owned contract must carry the exact checked-out English source hash',
+  );
+
+  git(fixture.repository, 'checkout', '-q', '--detach', fixture.base);
+  const reconciled = runTranslationPreparation(fixture, true);
+  assert.equal(reconciled.result.status, 0, `${reconciled.result.stdout}${reconciled.result.stderr}`);
+  assert.equal(
+    fs.readFileSync(path.join(reconciled.installed, 'changed-english.txt'), 'utf8'),
+    'docs/en/page.mdx\ndocs/en/unchanged.mdx\n',
+    'major-release reconciliation must select unchanged English sources too',
   );
 
   const forkFixture = initializeExactHeadFixture();
@@ -748,7 +800,7 @@ async function testReviewCommentPublication() {
   }
 }
 
-function runTranslationModel({ missingSecret = false, modelResult = 'success' } = {}) {
+function runTranslationModel({ missingSecret = false, modelResult = 'success', reconcileAll = false } = {}) {
   const work = temporaryDirectory('agy-translation-model-');
   const bin = path.join(work, 'bin');
   fs.mkdirSync(bin);
@@ -805,6 +857,7 @@ esac
       HOME: path.join(work, 'home'),
       AGY_MODEL_RESULT: modelResult,
       PATH: `${bin}:${process.env.PATH}`,
+      RECONCILE_ALL: String(reconcileAll),
       RUNNER_TEMP: work,
     },
   });
@@ -842,6 +895,13 @@ function testTranslationModel() {
     'the headless translator must use the already-authorized command route instead of interactive file prompts',
   );
   assert.match(argumentsUsed, /Do not inspect Git metadata/);
+  const reconciled = runTranslationModel({ reconcileAll: true });
+  assert.equal(reconciled.result.status, 0, reconciled.result.stderr);
+  assert.match(
+    fs.readFileSync(path.join(reconciled.work, 'translation-arguments'), 'utf8'),
+    /Delete locale Markdown or MDX files that have no corresponding English source/,
+    'full reconciliation must instruct the model to remove orphan translations',
+  );
   const settings = JSON.parse(
     fs.readFileSync(path.join(completed.work, 'home/.gemini/antigravity-cli/settings.json'), 'utf8'),
   );
@@ -950,9 +1010,9 @@ function initializeTranslationFixture() {
   };
 }
 
-function runTranslationPackage(fixture) {
+function runTranslationPackage(fixture, reconcileAll = false) {
   const runner = temporaryDirectory('agy-translation-package-');
-  const script = extractStepBlock(translationWorkflow, 'Validate and package allowlisted translation patch').replace(
+  const script = extractStepBlock(translationWorkflow, 'Validate and package allowlisted translation patch').replaceAll(
     '/opt/agy-translation-contract/validate-translations.sh',
     path.join(root, 'scripts/validate-translations.sh'),
   );
@@ -965,6 +1025,7 @@ function runTranslationPackage(fixture) {
       GITHUB_WORKFLOW_SHA: 'workflow-current',
       HEAD_REF: fixture.pull.head.ref,
       HEAD_SHA: fixture.head,
+      RECONCILE_ALL: String(reconcileAll),
       RUNNER_TEMP: runner,
     },
   });
@@ -990,9 +1051,19 @@ function testTranslationPackaging() {
     head_sha: completed.fixture.head,
     model: 'Gemini 3.6 Flash (High)',
     repository: 'f5-sales-demo/example',
+    reconcile_all: false,
     workflow_sha: 'workflow-current',
   });
   assert.ok(fs.statSync(path.join(completed.runner, 'translation-artifact/translations.patch')).size > 0);
+
+  const reconciled = runTranslationPackage(initializeTranslationFixture(), true);
+  assert.equal(reconciled.result.status, 0, reconciled.result.stderr);
+  assert.equal(
+    JSON.parse(fs.readFileSync(path.join(reconciled.runner, 'translation-artifact/receipt.json'), 'utf8'))
+      .reconcile_all,
+    true,
+    'major-release package receipt must bind full-corpus reconciliation mode',
+  );
 
   const missing = initializeTranslationFixture();
   fs.rmSync(path.join(missing.repository, 'docs/th/page.mdx'));
@@ -1038,7 +1109,7 @@ function runTranslationPublication(packaged, { missingToken = false, remoteDrift
     path.join(packaged.runner, 'translation-artifact/translations.patch'),
     path.join(artifact, 'translations.patch'),
   );
-  const script = extractStepBlock(translationWorkflow, 'Validate, commit, and publish translations').replace(
+  const script = extractStepBlock(translationWorkflow, 'Validate, commit, and publish translations').replaceAll(
     '/opt/agy-publication-validator/validate-translations.sh',
     path.join(root, 'scripts/validate-translations.sh'),
   );
@@ -1052,6 +1123,7 @@ function runTranslationPublication(packaged, { missingToken = false, remoteDrift
       HEAD_SHA: packaged.fixture.head,
       HEAD_REF: packaged.fixture.pull.head.ref,
       PR_NUMBER: '42',
+      RECONCILE_ALL: 'false',
       RUNNER_TEMP: runner,
       WORKFLOW_SHA: 'workflow-current',
     },
@@ -1140,6 +1212,7 @@ const validTranslation = {
   workflow_sha: 'workflow-current',
   agy_version: '1.1.10',
   model: 'Gemini 3.6 Flash (High)',
+  reconcile_all: false,
 };
 assert.equal(runTranslationReceiptValidation({ receipt: validTranslation, pull }).status, 0);
 assert.notEqual(
