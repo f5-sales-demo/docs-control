@@ -1,5 +1,5 @@
 {
-  "source_commit": "ac0ba518c4958a7e15b5fb1773d9d0a0debe1b0d",
+  "source_commit": "cee19147283134dd777ea751757dbd6c69b14fa5",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -473,8 +473,8 @@
     "scripts/workflow-security-validator.py": {
       "src": "scripts/workflow-security-validator.py",
       "dest": "scripts/workflow-security-validator.py",
-      "sha": "56fe703890be77166594e72ab9a52f524c735457",
-      "size": 20706,
+      "sha": "a050fc336c82db80a169a30d541b583b389fe89b",
+      "size": 20730,
       "mode": "100755"
     },
     ".github/config/self-hosted-runner-policy.json": {
