@@ -1,5 +1,5 @@
 {
-  "source_commit": "e2839cc4bc1e6883bd2b731925487ab6c0e8c244",
+  "source_commit": "d21f208f861a8f792b6c1947e9171ef6c49ba87b",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -277,8 +277,8 @@
     ".ruff.toml": {
       "src": ".ruff.toml",
       "dest": ".ruff.toml",
-      "sha": "2d0afe8009130cc27dbfa31f58acd70c044cb963",
-      "size": 1215,
+      "sha": "f1e32eb9d510dd1775c5ac2a785ee0b61d09259c",
+      "size": 1474,
       "mode": "100644"
     },
     ".isort.cfg": {
@@ -424,8 +424,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "56585088487032560b43f46e7fade674eb8bb149",
-      "size": 6009,
+      "sha": "0f58d6eab1a0cb2127b9cdf8386355d51e8ca48e",
+      "size": 6108,
       "mode": "100644"
     },
     ".claude/settings.json": {
@@ -445,15 +445,29 @@
     "actionlint.yml": {
       "src": "actionlint.yml",
       "dest": "actionlint.yml",
-      "sha": "25ee28bc1551da9c481eb1251101e09dfdc2707d",
-      "size": 27,
+      "sha": "16f0573ad226e7ccc9ff48598230a43147ee06b6",
+      "size": 88,
       "mode": "100644"
     },
     ".github/workflows/workflow-security-audit.yml": {
       "src": "workflows/workflow-security-audit.yml",
       "dest": ".github/workflows/workflow-security-audit.yml",
-      "sha": "a610438cc4c07d58440d3d644d149f137786950e",
-      "size": 1760,
+      "sha": "f75aea4361eb1532c1b74d6adc0c53f33e10446f",
+      "size": 2874,
+      "mode": "100644"
+    },
+    "scripts/workflow-security-validator.py": {
+      "src": "scripts/workflow-security-validator.py",
+      "dest": "scripts/workflow-security-validator.py",
+      "sha": "2ef276bf2d7a9a3593a5c3ef9b14c4154f298937",
+      "size": 20659,
+      "mode": "100755"
+    },
+    ".github/config/self-hosted-runner-policy.json": {
+      "src": ".github/config/self-hosted-runner-policy.json",
+      "dest": ".github/config/self-hosted-runner-policy.json",
+      "sha": "25caedd1e142fac8a8052d6ea81bb292a0fdc8e4",
+      "size": 6339,
       "mode": "100644"
     },
     ".github/workflows/semgrep.yml": {
