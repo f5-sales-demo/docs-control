@@ -62,6 +62,27 @@ CALLER="$REPO_ROOT/workflows/antigravity-translate.yml"
 TRANSLATE="$REPO_ROOT/.github/workflows/antigravity-translate.yml"
 AUDIT="$REPO_ROOT/.github/workflows/translation-audit.yml"
 
+# The policy script and the decisions above are fleet-managed. The remaining
+# assertions cover docs-control's canonical implementation, whose fleet watcher
+# and reusable workflow are deliberately absent from downstream repositories.
+if [ ! -f "$WATCHER" ] && [ ! -f "$CALLER" ]; then
+  printf '  SKIP: docs-control-only translation workflow assertions are not applicable\n'
+  printf '\nResults: %d passed, %d failed\n' "$PASS" "$FAIL"
+  [ "$FAIL" -eq 0 ]
+  exit
+fi
+
+for subject in "$WATCHER" "$CALLER" "$TRANSLATE" "$AUDIT"; do
+  if [ ! -f "$subject" ]; then
+    fail "docs-control translation workflow subjects are complete" \
+      "missing ${subject#"$REPO_ROOT"/}"
+  fi
+done
+if [ "$FAIL" -ne 0 ]; then
+  printf '\nResults: %d passed, %d failed\n' "$PASS" "$FAIL"
+  exit 1
+fi
+
 AUDIT_BODY=$(awk '
   /^      - name: Audit translation freshness$/ {step=1}
   step && /^        run: \|$/ {capture=1; next}
