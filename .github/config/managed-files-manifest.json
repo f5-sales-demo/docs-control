@@ -1,5 +1,5 @@
 {
-  "source_commit": "c0c32ed46943032de3fb5fe188c4fb3a53ae3f32",
+  "source_commit": "9f04b8784ba84e684c4b703af57ad98ee1051c63",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -32,8 +32,8 @@
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
       "dest": ".github/workflows/translation-audit.yml",
-      "sha": "78b08eb212886d77e600bb46e1d2405a02256d64",
-      "size": 1697,
+      "sha": "f7c6fbe42ac9e06df3370af37e746775dc30e572",
+      "size": 1241,
       "mode": "100644"
     },
     ".github/workflows/antigravity-review.yml": {
@@ -46,8 +46,8 @@
     ".github/workflows/antigravity-translate.yml": {
       "src": "workflows/antigravity-translate.yml",
       "dest": ".github/workflows/antigravity-translate.yml",
-      "sha": "40d58f9ae5d6bca1d7105882a71b79c19286e670",
-      "size": 1395,
+      "sha": "0fe129146ed97c18e6088bf114cbac6434d334bd",
+      "size": 1620,
       "mode": "100644"
     },
     ".github/PULL_REQUEST_TEMPLATE.md": {
@@ -88,22 +88,22 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "48eff08c3d7d77813cd3a87538cee2a182ae3a71",
-      "size": 40505,
+      "sha": "e87fd8aea9cc7167acb30ac396ab610f8a442b0a",
+      "size": 36710,
       "mode": "100644"
     },
     "CLAUDE.md": {
       "src": "CLAUDE.md",
       "dest": "CLAUDE.md",
-      "sha": "4e9f91907e2b06d2f5c65c029735d68132e4b0c5",
-      "size": 7572,
+      "sha": "74f38194b6f74f175de8ad2a49d1bbbc7ec7e04e",
+      "size": 7941,
       "mode": "100644"
     },
     "AGENTS.md": {
       "src": "AGENTS.md",
       "dest": "AGENTS.md",
-      "sha": "7c2b462c55d5df1a7ef7a00abc4d2fa86c89c491",
-      "size": 3651,
+      "sha": "c78d6b8577f287145854eb6e39f0de7a8198a7fc",
+      "size": 3993,
       "mode": "100644"
     },
     ".agents/skills/demo-components/SKILL.md": {
@@ -123,8 +123,8 @@
     ".agents/skills/i18n-translate/SKILL.md": {
       "src": ".agents/skills/i18n-translate/SKILL.md",
       "dest": ".agents/skills/i18n-translate/SKILL.md",
-      "sha": "fd618b2ebb51fc90e61eeb49f58aa22d0bff7b49",
-      "size": 4432,
+      "sha": "07ce2b76bcf84499637159092e269757675f1d40",
+      "size": 5203,
       "mode": "100644"
     },
     "STYLE_GUIDE.md": {
@@ -344,11 +344,18 @@
       "size": 15962,
       "mode": "100644"
     },
+    "scripts/translation-release-policy.sh": {
+      "src": "scripts/translation-release-policy.sh",
+      "dest": "scripts/translation-release-policy.sh",
+      "sha": "97aee6cc47e7def8a41e3f6319aecd605e82e464",
+      "size": 2004,
+      "mode": "100755"
+    },
     "scripts/validate-translations.sh": {
       "src": "scripts/validate-translations.sh",
       "dest": "scripts/validate-translations.sh",
-      "sha": "946300c16f0dc1f212f1e4d5dd7f9b33ee81b182",
-      "size": 11225,
+      "sha": "a34a00f7b00b32b85c4f459f0e597044db93dbdc",
+      "size": 13079,
       "mode": "100755"
     },
     "scripts/check-repo-hygiene.sh": {
@@ -410,22 +417,29 @@
     "tests/test-github-api-resilience.sh": {
       "src": "tests/test-github-api-resilience.sh",
       "dest": "tests/test-github-api-resilience.sh",
-      "sha": "5d5b888dff2c8c332fc25623ecf0d6715d03a54a",
-      "size": 22485,
+      "sha": "ef54df94c02b808bbb1f0a2ac670ca4238ef07a9",
+      "size": 22679,
       "mode": "100644"
+    },
+    "tests/test-translation-release-policy.sh": {
+      "src": "tests/test-translation-release-policy.sh",
+      "dest": "tests/test-translation-release-policy.sh",
+      "sha": "c0d548a597fb6b248696abb1ff3742e25f16b07c",
+      "size": 3275,
+      "mode": "100755"
     },
     "tests/test-validate-translations.sh": {
       "src": "tests/test-validate-translations.sh",
       "dest": "tests/test-validate-translations.sh",
-      "sha": "162cf82188ff0d364b13604d4343936120ea3b41",
-      "size": 7691,
+      "sha": "eda0d377779d5c66038b464058dd2b006ccb7f9b",
+      "size": 9486,
       "mode": "100755"
     },
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "0f58d6eab1a0cb2127b9cdf8386355d51e8ca48e",
-      "size": 6108,
+      "sha": "e5409b7444f53fe33161ce1c7afc064d37c4c192",
+      "size": 6201,
       "mode": "100644"
     },
     ".claude/settings.json": {
