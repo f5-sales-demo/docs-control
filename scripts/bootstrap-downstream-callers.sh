@@ -270,6 +270,23 @@ active_run_ids() {
   done
 }
 
+run_jobs_are_terminal() {
+  local slug="$1" run_id="$2" jobs rc
+  set +e
+  jobs=$(GH_TOKEN="$REPO_SETTINGS_TOKEN" gh api \
+    "repos/${slug}/actions/runs/${run_id}/jobs?filter=all&per_page=100")
+  rc=$?
+  set -e
+  [ "$rc" -eq 0 ] || return "$rc"
+  printf '%s' "$jobs" | jq -e '
+    type == "object" and
+    (.total_count | type == "number" and . > 0) and
+    (.jobs | type == "array") and
+    (.total_count == (.jobs | length)) and
+    all(.jobs[]; .status == "completed")
+  ' >/dev/null
+}
+
 assert_source_current() {
   local current_main
   current_main=$(gh api "repos/${repository}/commits/main" --jq '.sha')
@@ -1177,6 +1194,7 @@ reconcile_bootstrap_prs() {
 
 quiesce_one() {
   local name="$1" slug state runs run_id status attempt rc workflow_present=true empty_sweeps=0
+  local actionable_runs effectively_terminal
   local required_empty_sweeps=1
   slug="${owner}/${name}"
   set +e
@@ -1213,6 +1231,7 @@ quiesce_one() {
     rc=$?
     set -e
     [ "$rc" -eq 0 ] || return "$rc"
+    actionable_runs=0
     while IFS= read -r run_id; do
       [ -n "$run_id" ] || continue
       if [[ ! "$run_id" =~ ^[1-9][0-9]*$ ]]; then
@@ -1224,6 +1243,7 @@ quiesce_one() {
         "repos/${slug}/actions/runs/${run_id}/cancel" --method POST >/dev/null
       rc=$?
       set -e
+      effectively_terminal=false
       if [ "$rc" -ne 0 ]; then
         [ "$rc" -ne 84 ] || return 84
         set +e
@@ -1232,10 +1252,25 @@ quiesce_one() {
         rc=$?
         set -e
         [ "$rc" -eq 0 ] || return "$rc"
-        [ "$status" = "completed" ] || return 1
+        if [ "$status" = "completed" ]; then
+          effectively_terminal=true
+        else
+          set +e
+          run_jobs_are_terminal "$slug" "$run_id"
+          rc=$?
+          set -e
+          [ "$rc" -ne 84 ] || return 84
+          if [ "$rc" -eq 0 ]; then
+            effectively_terminal=true
+            echo "[WARN] Ignoring ghost parent run ${run_id} for ${slug}; all jobs are terminal"
+          else
+            return 1
+          fi
+        fi
       fi
+      [ "$effectively_terminal" = true ] || actionable_runs=$((actionable_runs + 1))
     done <<<"$runs"
-    if [ -z "$runs" ]; then
+    if [ "$actionable_runs" -eq 0 ]; then
       empty_sweeps=$((empty_sweeps + 1))
       [ "$empty_sweeps" -ge "$required_empty_sweeps" ] && break
     else

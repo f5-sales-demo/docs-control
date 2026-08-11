@@ -464,6 +464,9 @@ case "$1 $endpoint" in
         printf '\n'
       fi
     elif [[ "$endpoint" == *'status=in_progress'* ]] &&
+      [ "${FAKE_GHOST_RUN:-}" = 1 ]; then
+      printf '905\n'
+    elif [[ "$endpoint" == *'status=in_progress'* ]] &&
       [ "${FAKE_LEGACY_RUN:-}" = 1 ] && [ ! -f "$FAKE_STATE/legacy-canceled" ]; then
       printf '902\n'
     elif [[ "$endpoint" == *'status=in_progress'* ]] &&
@@ -509,6 +512,27 @@ case "$1 $endpoint" in
     ;;
   'api repos/f5-sales-demo/example/actions/runs/904/cancel')
     touch "$FAKE_STATE/forward-transition-canceled"
+    ;;
+  'api repos/f5-sales-demo/example/actions/runs/905/cancel')
+    echo 'gh: Failed to cancel workflow run (HTTP 500)' >&2
+    exit 1
+    ;;
+  'api repos/f5-sales-demo/example/actions/runs/905')
+    printf 'in_progress\n'
+    ;;
+  'api repos/f5-sales-demo/example/actions/runs/905/jobs?filter=all&per_page=100')
+    case "${FAKE_GHOST_JOBS:-}" in
+      terminal)
+        printf '%s\n' '{"total_count":2,"jobs":[{"status":"completed"},{"status":"completed"}]}'
+        ;;
+      active)
+        printf '%s\n' '{"total_count":2,"jobs":[{"status":"completed"},{"status":"in_progress"}]}'
+        ;;
+      empty) printf '%s\n' '{"total_count":0,"jobs":[]}' ;;
+      incomplete) printf '%s\n' '{"total_count":2,"jobs":[{"status":"completed"}]}' ;;
+      malformed) printf '%s\n' '{"total_count":"two","jobs":{}}' ;;
+      *) exit 1 ;;
+    esac
     ;;
   'api repos/f5-sales-demo/example/contents/.github/workflows/enforce-repo-settings.yml?ref='*)
     if [ "${FAKE_READ_ERROR:-}" = 403 ]; then
@@ -937,6 +961,8 @@ run_bootstrap() {
     FAKE_LEGACY_RUN="${FAKE_LEGACY_RUN:-}" \
     FAKE_UNRELATED_RUN="${FAKE_UNRELATED_RUN:-}" \
     FAKE_MALFORMED_RUN_ID="${FAKE_MALFORMED_RUN_ID:-}" \
+    FAKE_GHOST_RUN="${FAKE_GHOST_RUN:-}" \
+    FAKE_GHOST_JOBS="${FAKE_GHOST_JOBS:-}" \
     FAKE_STALE_REQUIRED_CHECKS="${FAKE_STALE_REQUIRED_CHECKS:-}" \
     FAKE_REQUIRED_CHECKS_ERROR="${FAKE_REQUIRED_CHECKS_ERROR:-}" \
     FAKE_REQUIRED_CHECKS_VERIFY_DRIFT="${FAKE_REQUIRED_CHECKS_VERIFY_DRIFT:-}" \
@@ -1496,6 +1522,51 @@ if [ "$rc" != 83 ] ||
   exit 1
 fi
 echo "[OK] repeated empty inventories catch and cancel status transitions"
+
+state="$WORK/state-ghost-terminal-run"
+mkdir -p "$state"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+FAKE_GHOST_RUN=1
+FAKE_GHOST_JOBS=terminal
+set +e
+run_bootstrap "$state" >"$WORK/ghost-terminal.out" 2>"$WORK/ghost-terminal.err"
+rc=$?
+set -e
+unset FAKE_GHOST_RUN FAKE_GHOST_JOBS
+if [ "$rc" != 83 ] ||
+  ! grep -q 'all jobs are terminal' "$WORK/ghost-terminal.out" ||
+  ! grep -q 'actions/runs/905/cancel --method POST' "$WORK/gh.log" ||
+  ! grep -q 'actions/runs/905/jobs?filter=all&per_page=100' "$WORK/gh.log" ||
+  ! grep -qE 'git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr create ' "$WORK/gh.log"; then
+  echo "[FAIL] all-terminal ghost parent did not count as settled quiescence"
+  echo "  rc=$rc"
+  sed 's/^/  out: /' "$WORK/ghost-terminal.out"
+  sed 's/^/  err: /' "$WORK/ghost-terminal.err"
+  sed 's/^/  log: /' "$WORK/gh.log"
+  exit 1
+fi
+echo "[OK] all-terminal ghost parent counts as settled quiescence"
+
+for ghost_jobs in active empty incomplete malformed; do
+  state="$WORK/state-ghost-${ghost_jobs}-run"
+  mkdir -p "$state"
+  : >"$WORK/gh.log"
+  DOWNSTREAM_BLOB="$OLD_BLOB"
+  FAKE_GHOST_RUN=1
+  FAKE_GHOST_JOBS="$ghost_jobs"
+  set +e
+  run_bootstrap "$state" >/dev/null 2>&1
+  rc=$?
+  set -e
+  unset FAKE_GHOST_RUN FAKE_GHOST_JOBS
+  if [ "$rc" = 0 ] ||
+    grep -qE 'git/refs --method POST|contents/.github/workflows/enforce-repo-settings.yml --method PUT|^pr (create|merge)' "$WORK/gh.log"; then
+    echo "[FAIL] ${ghost_jobs} ghost-job inventory did not fail closed"
+    exit 1
+  fi
+done
+echo "[OK] active, empty, incomplete, and malformed ghost-job inventories fail closed"
 
 state="$WORK/state-page-two-owner"
 mkdir -p "$state"
