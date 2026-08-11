@@ -687,13 +687,16 @@ ZIZMOR_TMP=$(mktemp -d /tmp/test-linter-configs-zizmor-XXXXXX)
 mkdir -p "$ZIZMOR_TMP/bin" "$ZIZMOR_TMP/without/.github/workflows" \
   "$ZIZMOR_TMP/with/.github/workflows" "$ZIZMOR_TMP/with/workflows"
 printf '%s\n' '#!/bin/sh' \
-  'printf "%s\\n" "$@" > "${ZIZMOR_ARGS:?}"' >"$ZIZMOR_TMP/bin/pipx"
-chmod +x "$ZIZMOR_TMP/bin/pipx"
+  'printf "%s\\n" "$@" > "${ZIZMOR_ARGS:?}"' \
+  'printf "[]\\n"' >"$ZIZMOR_TMP/bin/uvx"
+printf '%s\n' '#!/bin/sh' \
+  'case " $* " in *" -c "*) printf "0\\n";; esac' >"$ZIZMOR_TMP/bin/uv"
+chmod +x "$ZIZMOR_TMP/bin/uvx" "$ZIZMOR_TMP/bin/uv"
 touch "$ZIZMOR_TMP/with/workflows/source.yml"
 
 (
   cd "$ZIZMOR_TMP/without"
-  PATH="$ZIZMOR_TMP/bin:$PATH" ZIZMOR_ARGS="$ZIZMOR_TMP/without.args" \
+  PATH="$ZIZMOR_TMP/bin:$PATH" ZIZMOR_ARGS="$ZIZMOR_TMP/without.args" AUDITED_REPOSITORY=f5-sales-demo/test \
     env -u BASH_ENV bash -euo pipefail -c "$ZIZMOR_RUN"
 )
 if grep -Fxq '.github/workflows/' "$ZIZMOR_TMP/without.args" &&
@@ -706,7 +709,7 @@ fi
 
 (
   cd "$ZIZMOR_TMP/with"
-  PATH="$ZIZMOR_TMP/bin:$PATH" ZIZMOR_ARGS="$ZIZMOR_TMP/with.args" \
+  PATH="$ZIZMOR_TMP/bin:$PATH" ZIZMOR_ARGS="$ZIZMOR_TMP/with.args" AUDITED_REPOSITORY=f5-sales-demo/test \
     env -u BASH_ENV bash -euo pipefail -c "$ZIZMOR_RUN"
 )
 if grep -Fxq '.github/workflows/' "$ZIZMOR_TMP/with.args" &&

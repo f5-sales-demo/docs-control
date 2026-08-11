@@ -42,9 +42,31 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Set up pinned Python and uv
+        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v6.4.3
+        with:
+          version: '0.8.13'
+          python-version: '3.13.7'
+
       - name: Reject every workflow security finding
+        env:
+          AUDITED_REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           shopt -s nullglob
           targets=(.github/workflows/ workflows/*.yml)
-          pipx run zizmor --no-config --no-ignores --persona=auditor "${targets[@]}"
+          ZIZMOR_EXIT=0
+          uvx --from 'zizmor==1.29.0' zizmor --no-config --no-ignores --persona=auditor --format=json "${targets[@]}" > zizmor-findings.json 2>zizmor-diagnostics.log || ZIZMOR_EXIT=$?
+          if [ "$ZIZMOR_EXIT" -ne 0 ] && [ "$ZIZMOR_EXIT" -ne 13 ]; then
+            echo "::error::Zizmor execution failed with exit code ${ZIZMOR_EXIT}"
+            exit 1
+          fi
+          COUNT=$(uv run --with 'PyYAML==6.0.2' --no-project python -c 'import json; d=json.load(open("zizmor-findings.json")); assert isinstance(d,list); print(len(d))')
+          if { [ "$ZIZMOR_EXIT" -eq 0 ] && [ "$COUNT" -ne 0 ]; } || { [ "$ZIZMOR_EXIT" -eq 13 ] && [ "$COUNT" -eq 0 ]; }; then
+            echo "::error::Zizmor exit/findings mismatch (${ZIZMOR_EXIT}/${COUNT})"
+            exit 1
+          fi
+          uv run --with 'PyYAML==6.0.2' --no-project python scripts/workflow-security-validator.py \
+            --repository "$AUDITED_REPOSITORY" \
+            --policy .github/config/self-hosted-runner-policy.json \
+            zizmor-findings.json
