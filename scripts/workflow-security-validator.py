@@ -481,15 +481,20 @@ def parse_args(argv=None):
 
 def main(argv=None):
     args = parse_args(argv)
+    if not args.repository or args.repository.count("/") != 1:
+        print(
+            "workflow security validation failed: "
+            "an exact --repository owner/name is required",
+            file=sys.stderr,
+        )
+        return 1
     try:
-        if not args.repository or args.repository.count("/") != 1:
-            raise PolicyError("an exact --repository owner/name is required")  # noqa: TRY301
         findings = json.loads(args.findings.read_text(encoding="utf-8"))
         validate_zizmor_result(args.zizmor_exit, findings)
         routes = validate(
             findings, Path.cwd(), args.repository, args.policy, args.governance
         )
-    except Exception as exc:  # noqa: BLE001 - final CLI boundary fails closed
+    except (OSError, ValueError) as exc:
         print(f"workflow security validation failed: {exc}", file=sys.stderr)
         return 1
     for workflow, job_id, route in routes:
