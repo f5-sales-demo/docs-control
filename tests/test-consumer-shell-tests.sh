@@ -267,6 +267,7 @@ if jq -e '
     "tests/test-inlined-helpers-match.sh",
     "tests/test-lint-mdx-prose.sh",
     "tests/test-review-plugin-removal.sh",
+    "tests/test-translation-release-policy.sh",
     "tests/test-validate-translations.sh"
   ] and
   ($p.unit[] | select(.path == "tests/test-hook-neutralization.sh") | .args) == ["--unit-only"] and

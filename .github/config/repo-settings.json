@@ -102,6 +102,7 @@
           { "path": "tests/test-inlined-helpers-match.sh", "args": [] },
           { "path": "tests/test-lint-mdx-prose.sh", "args": [] },
           { "path": "tests/test-review-plugin-removal.sh", "args": [] },
+          { "path": "tests/test-translation-release-policy.sh", "args": [] },
           { "path": "tests/test-validate-translations.sh", "args": [] }
         ],
         "environment": [
@@ -357,6 +358,10 @@
         "dest": "scripts/github-api-resilience.cjs"
       },
       {
+        "src": "scripts/translation-release-policy.sh",
+        "dest": "scripts/translation-release-policy.sh"
+      },
+      {
         "src": "scripts/validate-translations.sh",
         "dest": "scripts/validate-translations.sh"
       },
@@ -395,6 +400,10 @@
       {
         "src": "tests/test-github-api-resilience.sh",
         "dest": "tests/test-github-api-resilience.sh"
+      },
+      {
+        "src": "tests/test-translation-release-policy.sh",
+        "dest": "tests/test-translation-release-policy.sh"
       },
       {
         "src": "tests/test-validate-translations.sh",

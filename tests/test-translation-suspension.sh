@@ -79,14 +79,13 @@ else
     "workflow or managed catalog omits the validator"
 fi
 
-if grep -q 'skip_files' "$CONTRIBUTING" &&
-  grep -q 'terraform-provider-xcsh' "$CONTRIBUTING" &&
-  ! grep -qE 'terraform-provider-xcsh.{0,80}code-review|code-review.{0,80}terraform-provider-xcsh' \
-    <(tr '\n' ' ' <"$CONTRIBUTING"); then
-  pass "restore procedure derives exclusions without the retired repository"
+if grep -qF 'release/vN.0.0' "$CONTRIBUTING" &&
+  grep -qF 'Keep `audit / Translation freshness` advisory' "$CONTRIBUTING" &&
+  grep -qF 'do not regenerate' "$CONTRIBUTING"; then
+  pass "contributor policy keeps development English-only and major-release reconciliation advisory"
 else
-  fail "restore procedure derives exclusions without the retired repository" \
-    "restore instructions are stale"
+  fail "contributor policy keeps development English-only and major-release reconciliation advisory" \
+    "major-release cost boundary or advisory audit guidance is absent"
 fi
 
 printf '\nResults: %d passed, %d failed\n' "$PASS" "$FAIL"

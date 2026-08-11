@@ -117,8 +117,10 @@ MANAGED_PATHS="AGENTS.md
 scripts/agy-pre-push-review.sh
 scripts/agy-review.sh
 scripts/agy-review-output.schema.json
+scripts/translation-release-policy.sh
 scripts/validate-translations.sh
 tests/test-agy-pre-push-review.sh
+tests/test-translation-release-policy.sh
 tests/test-validate-translations.sh"
 
 while IFS= read -r path; do
