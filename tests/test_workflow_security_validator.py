@@ -82,7 +82,9 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def finding(self, ident="self-hosted-runner", route=None, locations=None):
+    def finding(
+        self, ident="self-hosted-runner", route=None, locations=None, severity="Medium"
+    ):
         if route is None:
             route = [{"Key": "jobs"}, {"Key": self.job_id}, {"Key": "runs-on"}]
         location = {
@@ -94,6 +96,8 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         return {
             "ident": ident,
             "locations": locations if locations is not None else [location],
+            "determinations": {"severity": severity},
+            "ignored": False,
         }
 
     def write_fixture(self, workflow=None, policy=None, governance=None):
@@ -348,14 +352,36 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         self.assert_rejected(workflow=workflow, policy=policy)
 
     def test_zizmor_exit_and_json_contract(self):
+        severities = {
+            "Informational": 11,
+            "Low": 12,
+            "Medium": 13,
+            "High": 14,
+        }
         validator.validate_zizmor_result(0, [])
-        validator.validate_zizmor_result(13, self.findings)
-        for code, findings in ((0, self.findings), (13, []), (1, [])):
+        for severity, code in severities.items():
+            validator.validate_zizmor_result(code, [self.finding(severity=severity)])
+
+        rejected = [
+            (0, self.findings),
+            (11, []),
+            (12, [self.finding(severity="Informational")]),
+            (13, [self.finding(severity="High")]),
+            (14, [self.finding(severity="Low")]),
+            (1, []),
+            (15, [self.finding(severity="High")]),
+        ]
+        for code, findings in rejected:
             with (
                 self.subTest(code=code, findings=findings),
                 self.assertRaises(validator.PolicyError),
             ):
                 validator.validate_zizmor_result(code, findings)
+
+        malformed = self.finding()
+        del malformed["determinations"]
+        with self.assertRaises(validator.PolicyError):
+            validator.validate_zizmor_result(13, [malformed])
         with self.assertRaises(validator.PolicyError):
             validator.validate_zizmor_result(13, {"findings": self.findings})
         with self.assertRaises(json.JSONDecodeError):
