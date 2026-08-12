@@ -14,7 +14,7 @@ concurrency:
 jobs:
   publish:
     name: Publish ${{ matrix.profile }}
-    runs-on: [self-hosted, Linux, X64, docs-control]
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
     strategy:
       fail-fast: false
       max-parallel: 1

@@ -7,9 +7,7 @@
   "profiles": {
     "ubuntu-24.04": {
       "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:2ea24045b60fc684f13cccfcc84743ce06e46de9bfd3737eb3a093f497b4dd73",
-      "labels": [
-        "ubuntu-24.04"
-      ],
+      "labels": ["ubuntu-24.04"],
       "memory": "8g",
       "cpus": "4",
       "pids_limit": 4096,
@@ -17,9 +15,7 @@
     },
     "ubuntu-22.04": {
       "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:c5ea10ad745032a161b025b202dfef71c80e02e17971011f695a7208b9d1e5cc",
-      "labels": [
-        "ubuntu-22.04"
-      ],
+      "labels": ["ubuntu-22.04"],
       "memory": "8g",
       "cpus": "4",
       "pids_limit": 4096,
@@ -27,9 +23,7 @@
     },
     "container-build": {
       "image": "ghcr.io/f5-sales-demo/actions-runner-container@sha256:242fe51aeaf119a6965635b79d85c1525f46fbe0bb8ec54ad3a8df13e7dfd4a5",
-      "labels": [
-        "container-build"
-      ],
+      "labels": ["container-build"],
       "memory": "16g",
       "cpus": "6",
       "pids_limit": 8192,
@@ -123,28 +117,19 @@
     "f5-sales-demo/demo-resources": {},
     "f5-sales-demo/devcontainer": {
       "runner": {
-        "profiles": [
-          "ubuntu-24.04",
-          "container-build"
-        ]
+        "profiles": ["ubuntu-24.04", "container-build"]
       }
     },
     "f5-sales-demo/dns": {},
     "f5-sales-demo/docs": {},
     "f5-sales-demo/docs-builder": {
       "runner": {
-        "profiles": [
-          "ubuntu-24.04",
-          "container-build"
-        ]
+        "profiles": ["ubuntu-24.04", "container-build"]
       }
     },
     "f5-sales-demo/docs-control": {
       "runner": {
-        "profiles": [
-          "ubuntu-24.04",
-          "container-build"
-        ]
+        "profiles": ["ubuntu-24.04", "container-build"]
       }
     },
     "f5-sales-demo/docs-icons": {},
@@ -165,11 +150,7 @@
     "f5-sales-demo/webapp-api-protection": {},
     "f5-sales-demo/xcsh": {
       "runner": {
-        "profiles": [
-          "ubuntu-24.04",
-          "ubuntu-22.04",
-          "container-build"
-        ]
+        "profiles": ["ubuntu-24.04", "ubuntu-22.04", "container-build"]
       }
     },
     "f5-sales-demo/xcsh-action": {},
@@ -177,26 +158,16 @@
     "f5-sales-demo/terraform-provider-xcsh": {
       ".github/workflows/acc-tests.yml": {
         "real-api-tests": {
-          "runs_on": [
-            "self-hosted",
-            "Linux",
-            "X64",
-            "terraform-provider-xcsh"
-          ],
+          "runs_on": ["self-hosted", "Linux", "X64", "terraform-provider-xcsh"],
           "environment": "acceptance-tests",
           "permissions": {
             "checks": "write",
             "contents": "read"
           },
-          "allowed_secrets": [
-            "XCSH_API_TOKEN",
-            "XCSH_API_URL"
-          ],
+          "allowed_secrets": ["XCSH_API_TOKEN", "XCSH_API_URL"],
           "triggers": {
             "pull_request": {
-              "branches": [
-                "main"
-              ],
+              "branches": ["main"],
               "paths": [
                 "internal/provider/**",
                 "internal/client/**",
@@ -215,12 +186,7 @@
                 "mode": {
                   "default": "full",
                   "description": "Test mode",
-                  "options": [
-                    "mock-only",
-                    "real-only",
-                    "full",
-                    "pr-subset"
-                  ],
+                  "options": ["mock-only", "real-only", "full", "pr-subset"],
                   "required": true,
                   "type": "choice"
                 },
@@ -242,25 +208,15 @@
           "if": "always() &&\ngithub.event_name != 'pull_request' &&\n((github.event_name == 'schedule' &&\n  needs.mock-tests.result == 'success') ||\n (github.event_name == 'workflow_dispatch' &&\n  github.event.inputs.mode == 'full' &&\n  needs.mock-tests.result == 'success') ||\n (github.event_name == 'workflow_dispatch' &&\n  github.event.inputs.mode == 'real-only' &&\n  needs.mock-tests.result == 'skipped'))\n"
         },
         "cleanup": {
-          "runs_on": [
-            "self-hosted",
-            "Linux",
-            "X64",
-            "terraform-provider-xcsh"
-          ],
+          "runs_on": ["self-hosted", "Linux", "X64", "terraform-provider-xcsh"],
           "environment": "acceptance-tests",
           "permissions": {
             "contents": "read"
           },
-          "allowed_secrets": [
-            "XCSH_API_TOKEN",
-            "XCSH_API_URL"
-          ],
+          "allowed_secrets": ["XCSH_API_TOKEN", "XCSH_API_URL"],
           "triggers": {
             "pull_request": {
-              "branches": [
-                "main"
-              ],
+              "branches": ["main"],
               "paths": [
                 "internal/provider/**",
                 "internal/client/**",
@@ -279,12 +235,7 @@
                 "mode": {
                   "default": "full",
                   "description": "Test mode",
-                  "options": [
-                    "mock-only",
-                    "real-only",
-                    "full",
-                    "pr-subset"
-                  ],
+                  "options": ["mock-only", "real-only", "full", "pr-subset"],
                   "required": true,
                   "type": "choice"
                 },
@@ -308,19 +259,10 @@
       },
       ".github/workflows/discover-defaults.yml": {
         "discover": {
-          "runs_on": [
-            "self-hosted",
-            "Linux",
-            "X64",
-            "terraform-provider-xcsh"
-          ],
+          "runs_on": ["self-hosted", "Linux", "X64", "terraform-provider-xcsh"],
           "environment": "default-discovery",
           "permissions": {},
-          "allowed_secrets": [
-            "REPO_SYNC_TOKEN",
-            "XCSH_API_TOKEN",
-            "XCSH_API_URL"
-          ],
+          "allowed_secrets": ["REPO_SYNC_TOKEN", "XCSH_API_TOKEN", "XCSH_API_URL"],
           "triggers": {
             "schedule": [
               {
@@ -338,11 +280,7 @@
                 "mode": {
                   "default": "discover",
                   "description": "Discovery mode",
-                  "options": [
-                    "discover",
-                    "validate",
-                    "single"
-                  ],
+                  "options": ["discover", "validate", "single"],
                   "required": true,
                   "type": "choice"
                 },
