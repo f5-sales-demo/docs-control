@@ -107,6 +107,17 @@ class EphemeralRunnerTests(unittest.TestCase):
         with self.assertRaises(MODULE.FleetError):
             self.policy()
 
+    def test_policy_rejects_unsafe_resource_limits(self):
+        profile = self.policy_data["profiles"]["ubuntu-24.04"]
+        for field, value in (("memory", "4g\nDelegate=yes"), ("cpus", "nan")):
+            with self.subTest(field=field):
+                original = profile[field]
+                profile[field] = value
+                self.write_policy()
+                with self.assertRaises(MODULE.FleetError):
+                    self.policy()
+                profile[field] = original
+
     def test_policy_rejects_unknown_fields_and_ungoverned_repository(self):
         self.policy_data["unexpected"] = True
         self.write_policy()
@@ -136,6 +147,10 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertIn("slirp4netns:allow_host_loopback=false", command)
         self.assertNotIn("/var/run/docker.sock", " ".join(command))
         self.assertIn("--userns=keep-id:uid=1001,gid=1001", command)
+        self.assertIn("--cgroups=disabled", command)
+        self.assertNotIn("--memory", command)
+        self.assertNotIn("--cpus", command)
+        self.assertNotIn("--pids-limit", command)
         install_calls = [call for call in recorder.calls if call[0][0] == "install"]
         self.assertGreaterEqual(len(install_calls), 2)
 

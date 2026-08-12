@@ -40,7 +40,7 @@ concurrency:
 jobs:
   dispatch:
     name: Dispatch downstream enforcement
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
     timeout-minutes: 30
     environment: repository-settings
     # No conclusion guard needed: dispatch now fires only when the manifest has

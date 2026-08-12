@@ -43,6 +43,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                         "Linux",
                         "X64",
                         "terraform-provider-xcsh",
+                        "ubuntu-24.04",
                     ],
                     "environment": "acceptance-tests",
                     "if": "github.event_name != 'pull_request'",
@@ -61,7 +62,13 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             },
         }
         self.spec = {
-            "runs_on": ["self-hosted", "Linux", "X64", "terraform-provider-xcsh"],
+            "runs_on": [
+                "self-hosted",
+                "Linux",
+                "X64",
+                "terraform-provider-xcsh",
+                "ubuntu-24.04",
+            ],
             "environment": "acceptance-tests",
             "permissions": {"contents": "read"},
             "allowed_secrets": ["XCSH_API_TOKEN"],
@@ -70,8 +77,8 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         }
         self.policy = {
             "schema_version": 2,
-            "defaults": {},
-            "profiles": {},
+            "defaults": {"profile": "ubuntu-24.04"},
+            "profiles": {"ubuntu-24.04": {}},
             "hosted_exceptions": {},
             "repositories": {
                 self.repository: {self.workflow_path: {self.job_id: self.spec}}
@@ -86,13 +93,18 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         self.temp.cleanup()
 
     def finding(
-        self, ident="self-hosted-runner", route=None, locations=None, severity="Medium"
+        self,
+        ident="self-hosted-runner",
+        route=None,
+        locations=None,
+        severity="Medium",
+        path=None,
     ):
         if route is None:
             route = [{"Key": "jobs"}, {"Key": self.job_id}, {"Key": "runs-on"}]
         location = {
             "symbolic": {
-                "key": {"Local": {"verbatim_path": self.workflow_path}},
+                "key": {"Local": {"verbatim_path": path or self.workflow_path}},
                 "route": {"route": route},
             }
         }
@@ -144,6 +156,30 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             [(self.workflow_path, self.job_id, ["jobs", self.job_id, "runs-on"])],
         )
 
+    def test_managed_template_self_hosted_route_is_accounted_for(self):
+        template_path = "workflows/acc-tests.yml"
+        self.write_fixture()
+        path = self.root / template_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            yaml.safe_dump(self.workflow, sort_keys=False), encoding="utf-8"
+        )
+        findings = [self.finding(), self.finding(path=template_path)]
+        routes = validator.validate(
+            findings,
+            self.root,
+            self.repository,
+            self.policy_path,
+            self.governance_path,
+        )
+        self.assertEqual(
+            routes,
+            [
+                (self.workflow_path, self.job_id, ["jobs", self.job_id, "runs-on"]),
+                (template_path, self.job_id, ["jobs", self.job_id, "runs-on"]),
+            ],
+        )
+
     def test_malformed_missing_duplicate_and_ambiguous_routes_fail(self):
         bad_routes = [
             [],
@@ -187,6 +223,25 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             workflow["jobs"][self.job_id]["runs-on"] = labels
             with self.subTest(labels=labels):
                 self.assert_rejected(workflow=workflow)
+
+    def test_declared_nondefault_runner_profile_is_canonical(self):
+        workflow = copy.deepcopy(self.workflow)
+        workflow["jobs"][self.job_id]["runs-on"][-1] = "container-build"
+        policy = copy.deepcopy(self.policy)
+        policy["profiles"]["container-build"] = {}
+        policy["repositories"][self.repository] = {
+            "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+        }
+        self.write_fixture(workflow=workflow, policy=policy)
+        validator.validate(
+            self.findings,
+            self.root,
+            self.repository,
+            self.policy_path,
+            self.governance_path,
+        )
+        policy["repositories"][self.repository]["runner"]["profiles"] = ["ubuntu-24.04"]
+        self.assert_rejected(workflow=workflow, policy=policy)
 
     def test_known_repository_with_no_exceptions_accepts_empty_inventory(self):
         clean_repository = "f5-sales-demo/api-specs"

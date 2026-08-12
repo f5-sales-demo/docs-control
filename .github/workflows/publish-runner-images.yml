@@ -3,9 +3,7 @@ name: Publish runner images
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-  packages: write
+permissions: {}
 
 concurrency:
   group: publish-runner-images
@@ -14,7 +12,10 @@ concurrency:
 jobs:
   publish:
     name: Publish ${{ matrix.profile }}
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", container-build]
+    permissions:
+      contents: read # check out the runner image source
+      packages: write # publish runner images to GHCR
     strategy:
       fail-fast: false
       max-parallel: 1

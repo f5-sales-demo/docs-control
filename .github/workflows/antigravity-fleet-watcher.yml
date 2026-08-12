@@ -18,7 +18,7 @@ concurrency:
 jobs:
   collect:
     name: Collect exact-head workflow state
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
     timeout-minutes: 25
     environment: antigravity-automation
     permissions:
@@ -264,7 +264,7 @@ jobs:
     name: Triage failed workflows with Antigravity
     if: needs.collect.outputs.has_failures == 'true'
     needs: collect
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
     timeout-minutes: 35
     environment: antigravity-automation
     permissions:
@@ -355,7 +355,7 @@ jobs:
     name: Publish receipts and dispatch exact heads
     if: always() && needs.collect.result == 'success'
     needs: [collect, triage]
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
     timeout-minutes: 45
     environment: antigravity-automation
     permissions:

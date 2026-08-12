@@ -19,7 +19,7 @@
             "end_point": { "row": 12, "column": 51 },
             "offset_span": { "start": 137, "end": 184 }
           },
-          "feature": "    runs-on: [self-hosted, Linux, X64, fixture]",
+          "feature": "    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]",
           "comments": []
         }
       }
@@ -47,7 +47,7 @@
             "end_point": { "row": 25, "column": 51 },
             "offset_span": { "start": 519, "end": 566 }
           },
-          "feature": "    runs-on: [self-hosted, Linux, X64, fixture]",
+          "feature": "    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]",
           "comments": []
         }
       }

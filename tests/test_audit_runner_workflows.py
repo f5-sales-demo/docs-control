@@ -62,7 +62,7 @@ class WorkflowAuditTests(unittest.TestCase):
 on: [push]
 jobs:
   test:
-    runs-on: [self-hosted, Linux, X64, \"${{ github.event.repository.name }}\"]
+    runs-on: [self-hosted, Linux, X64, \"${{ github.event.repository.name }}\", ubuntu-24.04]
     steps:
       - uses: actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       - uses: ./local-action
@@ -127,13 +127,27 @@ jobs:
 on: [push]
 jobs:
   test:
-    runs-on: [self-hosted, Linux, X64, fixture]
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
     steps:
       - run: true
 """
         )
         errors = self.audit()
         self.assertTrue(any("unused hosted exception" in item for item in errors))
+
+    def test_missing_profile_label_fails(self):
+        self.write_workflow(
+            """name: CI
+on: [push]
+jobs:
+  test:
+    runs-on: [self-hosted, Linux, X64, fixture]
+    steps:
+      - run: true
+"""
+        )
+        errors = self.audit()
+        self.assertTrue(any("canonical repository route" in item for item in errors))
 
     def test_profile_label_is_validated(self):
         self.write_workflow(

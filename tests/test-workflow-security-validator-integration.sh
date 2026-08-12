@@ -56,7 +56,7 @@ mkdir -p "$TMP/mutated/.github"
 cp -R "$FIXTURE/.github/workflows" "$TMP/mutated/.github/workflows"
 cat >>"$TMP/mutated/.github/workflows/audit.yml" <<'YAML'
   unapproved-self-hosted:
-    runs-on: [self-hosted, Linux, X64, fixture]
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
     permissions: {}
     steps:
       - run: echo mutation
