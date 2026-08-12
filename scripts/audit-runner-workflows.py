@@ -72,7 +72,7 @@ def exception_for(exceptions, relative, job_id):
     return workflow.get(job_id)
 
 
-def audit_job(repository, relative, job_id, job, profiles, exceptions):
+def audit_job(repository, relative, job_id, job, profiles, exceptions, default_profile):
     errors = []
     if not isinstance(job, dict):
         return [f"{relative}/{job_id}: job must be an object"]
@@ -103,7 +103,7 @@ def audit_job(repository, relative, job_id, job, profiles, exceptions):
         if not isinstance(reason, str) or len(reason.strip()) < 12:
             errors.append(f"{relative}/{job_id}: hosted exception reason is incomplete")
     else:
-        profile = None
+        profile = default_profile
         if isinstance(runs_on, list) and len(runs_on) == 5:
             candidates = [
                 name
@@ -158,7 +158,15 @@ def audit_repository(root, repository, policy_path):
             if exception_for(exceptions, relative, job_id) is not None:
                 actual_exceptions.add((relative, job_id))
             errors.extend(
-                audit_job(repository, relative, job_id, job, profiles, exceptions)
+                audit_job(
+                    repository,
+                    relative,
+                    job_id,
+                    job,
+                    profiles,
+                    exceptions,
+                    policy["defaults"]["profile"],
+                )
             )
     declared_exceptions = {
         (workflow, job_id) for workflow, jobs in exceptions.items() for job_id in jobs

@@ -29,7 +29,7 @@ concurrency:
 jobs:
   sync:
     name: Sync managed files
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
     permissions:
       contents: read # check out the exact downstream protected-main receipt
     steps:

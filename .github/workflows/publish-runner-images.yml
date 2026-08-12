@@ -12,7 +12,7 @@ concurrency:
 jobs:
   publish:
     name: Publish ${{ matrix.profile }}
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", container-build]
     permissions:
       contents: read # check out the runner image source
       packages: write # publish runner images to GHCR

@@ -7,10 +7,10 @@ organization repositories are inventory-only and are not changed by this system.
 
 ## Security model
 
-Every Linux job routes to labels that identify one repository:
+Every Linux job routes to labels that identify one repository and one isolation profile:
 
 ```yaml
-runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
+runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
 ```
 
 A controller registers a new runner with `--ephemeral --disableupdate`, launches it in a
@@ -24,10 +24,11 @@ The default profile has:
 
 - A read-only container root, all capabilities dropped, and `no-new-privileges`.
 - A private network namespace with workstation loopback access disabled.
-- CPU, memory, and process limits.
+- CPU, memory, and process limits enforced by the per-instance systemd cgroup.
 - A dedicated Unix account and rootless Podman storage for each repository.
 - No host container socket.
 
+The explicit profile label prevents a default job from matching a more privileged builder.
 The `container-build` profile uses a second account with a repository-specific rootless Podman
 API socket. It cannot reach another repository's images or containers. A build job can control
 its own builder account, so only workflows that require container builds receive this profile.

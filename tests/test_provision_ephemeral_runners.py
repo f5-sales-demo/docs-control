@@ -43,6 +43,18 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertIn("ProtectSystem=strict", unit)
         self.assertNotIn("github.token serve", unit)
 
+    def test_systemd_dropin_enforces_profile_resource_limits(self):
+        item = next(
+            item
+            for item in MODULE.all_instances()
+            if item.repository == "f5-sales-demo/docs-control"
+            and item.profile == "ubuntu-24.04"
+        )
+        dropin = MODULE.resource_dropin_text(item)
+        self.assertIn("MemoryMax=8g", dropin)
+        self.assertIn("CPUQuota=400%", dropin)
+        self.assertIn("TasksMax=4096", dropin)
+
     def test_container_socket_unit_uses_builder_account(self):
         item = next(
             item

@@ -61,7 +61,7 @@ jobs:
     if: >-
       vars.TRANSLATIONS_ENABLED == 'true' &&
       inputs.expected_head_sha != ''
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
     timeout-minutes: 35
     permissions:
       contents: read
@@ -362,7 +362,7 @@ jobs:
   publish:
     name: Publish exact-head translations
     needs: translate
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
     timeout-minutes: 10
     permissions:
       contents: read

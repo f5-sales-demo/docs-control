@@ -1,13 +1,13 @@
 {
   "schema_version": 2,
-  "defaults": {},
-  "profiles": {},
+  "defaults": {"profile": "ubuntu-24.04"},
+  "profiles": {"ubuntu-24.04": {}},
   "hosted_exceptions": {},
   "repositories": {
     "f5-sales-demo/fixture": {
       ".github/workflows/audit.yml": {
         "first": {
-          "runs_on": ["self-hosted", "Linux", "X64", "fixture"],
+          "runs_on": ["self-hosted", "Linux", "X64", "fixture", "ubuntu-24.04"],
           "environment": "first-environment",
           "permissions": {
             "contents": "read"
@@ -22,7 +22,7 @@
           "if": null
         },
         "second": {
-          "runs_on": ["self-hosted", "Linux", "X64", "fixture"],
+          "runs_on": ["self-hosted", "Linux", "X64", "fixture", "ubuntu-24.04"],
           "environment": "second-environment",
           "permissions": {
             "checks": "write",

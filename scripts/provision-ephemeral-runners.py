@@ -24,6 +24,7 @@ SYSTEMD_ROOT = Path("/etc/systemd/system")
 DATA_ROOT = Path("/data/actions-runners")
 USER_ROOT = DATA_ROOT / "users"
 STATE_ROOT = DATA_ROOT / "f5-sales-demo-ephemeral"
+PODMAN_RUNTIME_ROOT = Path("/run/f5-actions-podman")
 TOKEN_PATH = CONFIG_ROOT / "github.token"
 RUNNER_UNIT = "f5-actions-runner@.service"
 ACCOUNT_RE = re.compile(r"gh[ab]-[A-Za-z0-9_.-]+")
@@ -63,6 +64,9 @@ class Instance:
     slot: int
     account: str
     container_socket: bool
+    memory: str
+    cpus: str
+    pids_limit: int
 
     @property
     def identifier(self):
@@ -87,6 +91,9 @@ def instances(policy):
                         slot,
                         spec.account_for(profile),
                         profile.container_socket,
+                        profile.memory,
+                        profile.cpus,
+                        profile.pids_limit,
                     )
                 )
     return tuple(result)
@@ -206,6 +213,15 @@ WantedBy=multi-user.target
 """
 
 
+def resource_dropin_text(item):
+    cpu_quota = int(float(item.cpus) * 100)
+    return f"""[Service]
+MemoryMax={item.memory}
+CPUQuota={cpu_quota}%
+TasksMax={item.pids_limit}
+"""
+
+
 def podman_unit_text(item):
     home = USER_ROOT / item.account
     socket_dir = f"/run/f5-actions-podman/{item.repository_name}"
@@ -245,6 +261,7 @@ def install_definition():
         CONFIG_ROOT,
         INSTANCE_ROOT,
         INSTALL_ROOT,
+        PODMAN_RUNTIME_ROOT,
     ):
         path.mkdir(parents=True, exist_ok=True)
     for account in sorted(all_accounts()):
@@ -282,6 +299,10 @@ def install_definition():
             INSTANCE_ROOT / f"{item.identifier}.env",
             f"RUNNER_REPOSITORY={item.repository}\nRUNNER_PROFILE={item.profile}\nRUNNER_SLOT={item.slot}\n",
             0o600,
+        )
+        safe_write(
+            SYSTEMD_ROOT / f"{item.unit}.d" / "resources.conf",
+            resource_dropin_text(item),
         )
         if item.container_socket and item.repository_name not in socket_repositories:
             safe_write(

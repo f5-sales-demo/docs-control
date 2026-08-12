@@ -27,6 +27,8 @@ DEFAULT_POLICY = (
 REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+")
 PROFILE_RE = re.compile(r"[a-z0-9][a-z0-9.-]*")
 IMAGE_RE = re.compile(r"ghcr\.io/f5-sales-demo/[a-z0-9._-]+@sha256:[0-9a-f]{64}")
+MEMORY_RE = re.compile(r"[1-9][0-9]*[KMGTPEkmgtpe]")
+CPU_RE = re.compile(r"[1-9][0-9]*(?:\.[0-9]+)?")
 
 
 class FleetError(RuntimeError):
@@ -161,10 +163,12 @@ class FleetPolicy:
                 raise FleetError(
                     f"profile {name!r} image must be an approved GHCR digest"
                 )
-            if not isinstance(spec["memory"], str) or not spec["memory"]:
-                raise FleetError(f"profile {name!r} memory is required")
-            if not isinstance(spec["cpus"], str) or not spec["cpus"]:
-                raise FleetError(f"profile {name!r} cpus is required")
+            if not isinstance(spec["memory"], str) or not MEMORY_RE.fullmatch(
+                spec["memory"]
+            ):
+                raise FleetError(f"profile {name!r} memory limit is invalid")
+            if not isinstance(spec["cpus"], str) or not CPU_RE.fullmatch(spec["cpus"]):
+                raise FleetError(f"profile {name!r} CPU limit is invalid")
             if not isinstance(spec["pids_limit"], int) or spec["pids_limit"] < 64:
                 raise FleetError(f"profile {name!r} pids_limit must be at least 64")
             if not isinstance(spec["container_socket"], bool):
@@ -370,12 +374,7 @@ class EphemeralController:
             "--read-only",
             "--cap-drop=all",
             "--security-opt=no-new-privileges",
-            "--pids-limit",
-            str(profile.pids_limit),
-            "--memory",
-            profile.memory,
-            "--cpus",
-            profile.cpus,
+            "--cgroups=disabled",
             "--network",
             "slirp4netns:allow_host_loopback=false",
             "--tmpfs",

@@ -14,7 +14,7 @@ concurrency:
 jobs:
   first:
     name: First governed job
-    runs-on: [self-hosted, Linux, X64, fixture]
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
     environment: first-environment
     permissions:
       contents: read
@@ -28,7 +28,7 @@ jobs:
 
   second:
     name: Second governed job
-    runs-on: [self-hosted, Linux, X64, fixture]
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
     environment: second-environment
     permissions:
       checks: write # publish the fixture check result
