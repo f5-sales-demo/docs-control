@@ -196,7 +196,7 @@ Environment=RUNNER_FLEET_GITHUB_TOKEN_FILE={TOKEN_PATH}
 EnvironmentFile={INSTANCE_ROOT}/%i.env
 ExecStartPre=/usr/bin/test -r {TOKEN_PATH}
 ExecStart=/usr/bin/python3 {INSTALL_ROOT}/ephemeral-runner-controller.py --policy {INSTALL_ROOT}/self-hosted-runner-policy.json --base-dir {STATE_ROOT} serve ${{RUNNER_REPOSITORY}} --profile ${{RUNNER_PROFILE}} --slot ${{RUNNER_SLOT}}
-Restart=always
+Restart=on-failure
 RestartSec=5
 TimeoutStopSec=6min
 KillMode=mixed
