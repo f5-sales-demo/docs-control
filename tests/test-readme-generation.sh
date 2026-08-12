@@ -262,14 +262,24 @@ else
     "readme_english_only must be the JSON boolean true"
 fi
 
+if printf '%s' "$API_SITE" | jq -e '
+  (.rebuild_dispatch | type) == "boolean" and .rebuild_dispatch == false and
+  .readme_english_only == true and (.readme_content | length > 0) and
+  (.badges | length) == 2' >/dev/null; then
+  pass "4.2 api-specs-enriched disables generic rebuild dispatch without losing README metadata"
+else
+  fail "4.2 api-specs-enriched disables generic rebuild dispatch without losing README metadata" \
+    "rebuild_dispatch must be false while the language, content, and badge metadata remain intact"
+fi
+
 API_CONTENT=$(printf '%s' "$API_SITE" | jq -r '.readme_content // empty')
 API_CONTENT_FLAT=$(printf '%s' "$API_CONTENT" | tr '\n' ' ')
 if printf '%s' "$API_CONTENT_FLAT" | grep -q 'immutable.*api-specs.*release' &&
   printf '%s' "$API_CONTENT_FLAT" | grep -q 'specification leads provider implementation' &&
   printf '%s' "$API_CONTENT_FLAT" | grep -q 'English-only'; then
-  pass "4.2 api-specs-enriched README records the supply-chain and publication boundary"
+  pass "4.3 api-specs-enriched README records the supply-chain and publication boundary"
 else
-  fail "4.2 api-specs-enriched README records the supply-chain and publication boundary" \
+  fail "4.3 api-specs-enriched README records the supply-chain and publication boundary" \
     "docs-sites.json lacks one or more required boundary statements"
 fi
 
@@ -279,16 +289,16 @@ if printf '%s' "$API_README_FLAT" | grep -qF 'canonical enriched specification b
   grep -qF 'Documentation publication is English-only' "$API_README" &&
   ! grep -qE 'api-specs-enriched/(ar|de|es|fr|hi|it|ja|ko|pt-br|th|zh-cn|zh-tw)/' "$API_README" &&
   awk 'length > 400 { found = 1 } END { exit found }' "$API_README"; then
-  pass "4.3 rendered api-specs-enriched README contains the boundary and no locale links"
+  pass "4.4 rendered api-specs-enriched README contains the boundary and no locale links"
 else
-  fail "4.3 rendered api-specs-enriched README contains the boundary and no locale links" \
+  fail "4.4 rendered api-specs-enriched README contains the boundary and no locale links" \
     "the data-driven render lost content or advertised an unpublished locale"
 fi
 
 if grep -qF 'prerelease' "$API_README" && ! grep -qF 'pre-release' "$API_README"; then
-  pass "4.4 rendered api-specs-enriched README uses governed prerelease terminology"
+  pass "4.5 rendered api-specs-enriched README uses governed prerelease terminology"
 else
-  fail "4.4 rendered api-specs-enriched README uses governed prerelease terminology" \
+  fail "4.5 rendered api-specs-enriched README uses governed prerelease terminology" \
     "generated prose must use 'prerelease', never 'pre-release'"
 fi
 
@@ -310,17 +320,17 @@ if (
       .readme_english_only = "true" else . end)' "$DOCS_SITES" |
     validate_docs_sites
 ) && grep -q '__LANGUAGE_NAV__' "$SYNC_WORKFLOW"; then
-  pass "4.5 sync-managed-files renders a strictly typed per-repository language policy"
+  pass "4.6 sync-managed-files renders a strictly typed per-repository language policy"
 else
-  fail "4.5 sync-managed-files renders a strictly typed per-repository language policy" \
+  fail "4.6 sync-managed-files renders a strictly typed per-repository language policy" \
     "the generator must consume the policy and reject non-boolean values"
 fi
 
 if grep -q "README.md.tpl" "$DISPATCH_WORKFLOW" &&
   grep -q ".github/config/docs-sites.json" "$DISPATCH_WORKFLOW"; then
-  pass "4.6 README template and metadata changes trigger downstream regeneration"
+  pass "4.7 README template and metadata changes trigger downstream regeneration"
 else
-  fail "4.6 README template and metadata changes trigger downstream regeneration" \
+  fail "4.7 README template and metadata changes trigger downstream regeneration" \
     "dispatch-downstream.yml omits a dynamic README input"
 fi
 
@@ -341,9 +351,9 @@ if [ -s "$WORK/readme-english-only.sh" ] && (
     [ "$(printf '%s' '{"readme_english_only":true}' | readme_english_only)" = true ] &&
     ! printf '%s' '{"readme_english_only":"false"}' | readme_english_only >/dev/null 2>&1
 ); then
-  pass "4.7 README language policy accepts both booleans and defaults to multilingual"
+  pass "4.8 README language policy accepts both booleans and defaults to multilingual"
 else
-  fail "4.7 README language policy accepts both booleans and defaults to multilingual" \
+  fail "4.8 README language policy accepts both booleans and defaults to multilingual" \
     "the production extractor must return false successfully and reject non-booleans"
 fi
 
