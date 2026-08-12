@@ -44,6 +44,8 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertNotIn("ProtectKernelTunables=true", unit)
         self.assertIn("ProtectKernelModules=true", unit)
         self.assertIn("ProtectControlGroups=true", unit)
+        self.assertIn("Restart=on-failure", unit)
+        self.assertNotIn("Restart=always", unit)
         self.assertNotIn("github.token serve", unit)
         self.assertNotIn("RuntimeDirectory=", unit)
         self.assertIn("/run/f5-actions-runner", unit)
