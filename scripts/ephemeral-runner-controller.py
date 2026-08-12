@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=invalid-name
 """Run repository-scoped GitHub Actions runners in one-job Podman sandboxes."""
 
 from __future__ import annotations

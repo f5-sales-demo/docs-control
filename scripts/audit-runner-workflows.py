@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=invalid-name,too-many-branches
 """Fail closed when workflow routing or remote action pins escape fleet policy."""
 
 from __future__ import annotations

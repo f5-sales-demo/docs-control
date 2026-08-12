@@ -14,6 +14,8 @@ from pathlib import Path, PurePosixPath
 
 import yaml
 
+POLICY_SCHEMA_VERSION = 2
+
 TOP_FIELDS = {
     "schema_version",
     "defaults",
@@ -127,7 +129,7 @@ def load_policy(path, governance_path, repository):
     except Exception as exc:
         raise PolicyError(f"cannot read policy {path}: {exc}") from exc
     strict_object(raw, TOP_FIELDS, "policy")
-    if raw.get("schema_version") != 2:
+    if raw.get("schema_version") != POLICY_SCHEMA_VERSION:
         raise PolicyError(f"unsupported schema_version: {raw.get('schema_version')!r}")
     repositories = raw.get("repositories")
     governed = governed_repositories(governance_path)

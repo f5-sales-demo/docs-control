@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=consider-using-with
 """Hermetic tests for ephemeral runner host provisioning."""
 
 import importlib.util
@@ -14,6 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 SPEC = importlib.util.spec_from_file_location(
     "provision_ephemeral_runners", ROOT / "scripts/provision-ephemeral-runners.py"
 )
+assert SPEC is not None
+assert SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)

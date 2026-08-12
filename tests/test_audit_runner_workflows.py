@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=consider-using-with
 """Tests for workflow runner routing and immutable action pins."""
 
 import importlib.util
@@ -12,6 +13,8 @@ ROOT = Path(__file__).resolve().parent.parent
 SPEC = importlib.util.spec_from_file_location(
     "audit_runner_workflows", ROOT / "scripts/audit-runner-workflows.py"
 )
+assert SPEC is not None
+assert SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)

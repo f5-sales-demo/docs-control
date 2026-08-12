@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=global-statement,invalid-name
 """Provision and audit repository-scoped ephemeral runner systemd services."""
 
 from __future__ import annotations
@@ -114,7 +115,7 @@ def safe_write(path, content, mode=0o644):
 
 
 def subid_accounts(path):
-    result = set()
+    result: set[str] = set()
     try:
         lines = Path(path).read_text(encoding="utf-8").splitlines()
     except FileNotFoundError:

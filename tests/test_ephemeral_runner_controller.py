@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=consider-using-with
 """Hermetic tests for the ephemeral runner lifecycle."""
 
 import importlib.util
@@ -13,6 +14,8 @@ ROOT = Path(__file__).resolve().parent.parent
 SPEC = importlib.util.spec_from_file_location(
     "ephemeral_runner_controller", ROOT / "scripts/ephemeral-runner-controller.py"
 )
+assert SPEC is not None
+assert SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
@@ -45,7 +48,7 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.policy_path = self.root / "policy.json"
-        self.policy_data = {
+        self.policy_data: dict = {
             "schema_version": 2,
             "defaults": {"replicas": 1, "profile": "ubuntu-24.04"},
             "profiles": {
