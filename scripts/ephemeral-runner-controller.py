@@ -290,18 +290,52 @@ class EphemeralController:
     def expected_labels(spec, profile):
         return {"self-hosted", "Linux", "X64", spec.name, *profile.labels}
 
-    def podman_prefix(self, account):
+    @staticmethod
+    def runtime_dir(spec, profile):
+        if profile.container_socket:
+            return Path("/run/f5-actions-podman") / spec.name
+        return Path("/run/f5-actions-runner") / spec.account_for(profile)
+
+    def prepare_account(self, spec, profile):
+        account = spec.account_for(profile)
+        runtime = self.runtime_dir(spec, profile)
+        self.command(
+            [
+                "install",
+                "-d",
+                "-m",
+                "0700",
+                "-o",
+                account,
+                "-g",
+                account,
+                str(runtime),
+            ]
+        )
+        return account, runtime
+
+    def podman_prefix(self, account, runtime):
         validate_name(account, REPOSITORY_RE, "service account")
-        return ["runuser", "--user", account, "--", "podman"]
+        return [
+            "runuser",
+            "--user",
+            account,
+            "--",
+            "env",
+            f"HOME=/data/actions-runners/users/{account}",
+            f"XDG_RUNTIME_DIR={runtime}",
+            "podman",
+        ]
 
     def cleanup(self, spec, profile, slot):
         name = self.container_name(spec, profile, slot)
-        prefix = self.podman_prefix(spec.account_for(profile))
+        account, runtime = self.prepare_account(spec, profile)
+        prefix = self.podman_prefix(account, runtime)
         self.command([*prefix, "rm", "--force", "--ignore", name], check=False)
 
     def podman_command(self, spec, profile, slot):
         state = self.state_dir(spec, profile, slot)
-        account = spec.account_for(profile)
+        account, runtime = self.prepare_account(spec, profile)
         self.command(
             [
                 "install",
@@ -322,7 +356,7 @@ class EphemeralController:
             )
         )
         command = [
-            *self.podman_prefix(account),
+            *self.podman_prefix(account, runtime),
             "run",
             "--interactive",
             "--pull=missing",

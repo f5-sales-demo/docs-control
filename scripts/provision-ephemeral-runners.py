@@ -192,7 +192,6 @@ RestartSec=5
 TimeoutStopSec=6min
 KillMode=mixed
 UMask=0077
-NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
@@ -225,7 +224,6 @@ RuntimeDirectoryMode=0700
 ExecStart=/usr/bin/podman system service --time=0 unix://{socket_dir}/podman.sock
 Restart=on-failure
 RestartSec=5
-NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true

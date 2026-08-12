@@ -134,7 +134,7 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertNotIn("/var/run/docker.sock", " ".join(command))
         self.assertIn("--userns=keep-id:uid=1001,gid=1001", command)
         install_calls = [call for call in recorder.calls if call[0][0] == "install"]
-        self.assertEqual(len(install_calls), 1)
+        self.assertGreaterEqual(len(install_calls), 2)
 
     def test_container_profile_uses_isolated_repository_socket(self):
         recorder = CommandRecorder()

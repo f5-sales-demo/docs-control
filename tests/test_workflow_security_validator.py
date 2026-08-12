@@ -69,7 +69,10 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             "if": "github.event_name != 'pull_request'",
         }
         self.policy = {
-            "schema_version": 1,
+            "schema_version": 2,
+            "defaults": {},
+            "profiles": {},
+            "hosted_exceptions": {},
             "repositories": {
                 self.repository: {self.workflow_path: {self.job_id: self.spec}}
             },
@@ -230,7 +233,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                 self.governance_path,
             )
         for change in (
-            {"schema_version": 2},
+            {"schema_version": 3},
             {"unknown": True},
         ):
             policy = copy.deepcopy(self.policy)

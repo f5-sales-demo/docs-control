@@ -2,9 +2,6 @@ name: Publish runner images
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - codex/1406-self-hosted-runner-audit-20260812131634
 
 permissions:
   contents: read
@@ -51,7 +48,10 @@ jobs:
           tag="pr-1406-${PROFILE}"
           digest_file="$(mktemp)"
           auth_file="$(mktemp)"
-          trap 'rm -f "$digest_file" "$auth_file"' EXIT
+          cleanup() {
+            rm -f "$digest_file" "$auth_file"
+          }
+          trap cleanup EXIT
           printf '{}' > "$auth_file"
           printf '%s' "$GHCR_TOKEN" | podman login --authfile "$auth_file" \
             ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
@@ -67,4 +67,5 @@ jobs:
             sha256:[0-9a-f][0-9a-f]*) ;;
             *) echo "invalid published digest" >&2; exit 1 ;;
           esac
+          # shellcheck disable=SC2016
           printf '### %s\n\n`%s@%s`\n' "$PROFILE" "$IMAGE" "$digest" >> "$GITHUB_STEP_SUMMARY"

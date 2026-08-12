@@ -38,7 +38,7 @@ concurrency:
 jobs:
   build:
     name: Build Documentation
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
     permissions:
       contents: read # checkout the documentation source
       packages: read # authenticate and resolve the latest builder image from GHCR
@@ -248,7 +248,7 @@ jobs:
   deploy:
     name: Deploy Documentation
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
     if: success()
     permissions:
       pages: write # publish the verified Pages artifact
