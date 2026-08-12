@@ -1,5 +1,5 @@
 {
-  "source_commit": "6f9e3a1978a12572f78a3bbe4095a5632b96fd59",
+  "source_commit": "1deb825cdd94ab23bef2766b47d61b01b5eff46e",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -11,15 +11,15 @@
     ".github/workflows/enforce-repo-settings.yml": {
       "src": "workflows/enforce-repo-settings.yml",
       "dest": ".github/workflows/enforce-repo-settings.yml",
-      "sha": "6012c75011b9166b2a70f0b78c71b763c243808c",
-      "size": 11814,
+      "sha": "c05797a7dd10f96e6972359cebdb579eff58b825",
+      "size": 11865,
       "mode": "100644"
     },
     ".github/workflows/require-linked-issue.yml": {
       "src": "workflows/require-linked-issue.yml",
       "dest": ".github/workflows/require-linked-issue.yml",
-      "sha": "ae750ef9f75764096255c6d2faffe320a21e5a54",
-      "size": 5966,
+      "sha": "a8b0d990c9a365b524426637d5f89f75c391e7c3",
+      "size": 6017,
       "mode": "100644"
     },
     ".github/workflows/super-linter.yml": {
@@ -179,15 +179,15 @@
     ".github/workflows/dependabot-auto-merge.yml": {
       "src": "workflows/dependabot-auto-merge.yml",
       "dest": ".github/workflows/dependabot-auto-merge.yml",
-      "sha": "32651e04574b46d3d2087ac218d2aeae983a8e08",
-      "size": 2240,
+      "sha": "e98811e8ed78bca044e57b9f78df9000f5c200c5",
+      "size": 2291,
       "mode": "100644"
     },
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "16df9d12a4d1b9617fc8fe5f2d1d9b2cc1006bca",
-      "size": 3093,
+      "sha": "cd55bc8154efe5c3211fe8491b7ac8ccd1db1ef7",
+      "size": 3144,
       "mode": "100644"
     },
     "biome.json": {
@@ -277,8 +277,8 @@
     ".ruff.toml": {
       "src": ".ruff.toml",
       "dest": ".ruff.toml",
-      "sha": "f1e32eb9d510dd1775c5ac2a785ee0b61d09259c",
-      "size": 1474,
+      "sha": "0ac6d029b357a0d9dfaabf2133386dd9de9f23d7",
+      "size": 2202,
       "mode": "100644"
     },
     ".isort.cfg": {
@@ -438,8 +438,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "e5409b7444f53fe33161ce1c7afc064d37c4c192",
-      "size": 6201,
+      "sha": "033107e68e7834727072a813c53c941fed0c2c16",
+      "size": 6420,
       "mode": "100644"
     },
     ".claude/settings.json": {
@@ -466,29 +466,36 @@
     ".github/workflows/workflow-security-audit.yml": {
       "src": "workflows/workflow-security-audit.yml",
       "dest": ".github/workflows/workflow-security-audit.yml",
-      "sha": "3a8f8fafb439da34d7f53b210217ffadbc77bc38",
-      "size": 2947,
+      "sha": "c7c96769ef950b94c2302dcd6af15479a627c338",
+      "size": 3255,
       "mode": "100644"
     },
     "scripts/workflow-security-validator.py": {
       "src": "scripts/workflow-security-validator.py",
       "dest": "scripts/workflow-security-validator.py",
-      "sha": "bcad4dbf9fe0e060c2e2d45e74a5f461f6e92ff9",
-      "size": 21482,
+      "sha": "70fefa54e909d02030bce478d6f367bdadaa8f06",
+      "size": 22243,
+      "mode": "100755"
+    },
+    "scripts/audit-runner-workflows.py": {
+      "src": "scripts/audit-runner-workflows.py",
+      "dest": "scripts/audit-runner-workflows.py",
+      "sha": "a1926c6f50b93074c9723d32bacf7a8cb07a36ad",
+      "size": 7641,
       "mode": "100755"
     },
     ".github/config/self-hosted-runner-policy.json": {
       "src": ".github/config/self-hosted-runner-policy.json",
       "dest": ".github/config/self-hosted-runner-policy.json",
-      "sha": "25caedd1e142fac8a8052d6ea81bb292a0fdc8e4",
-      "size": 6339,
+      "sha": "1aebad30dc3d997b8be87bbb82ef810a7270b50b",
+      "size": 10025,
       "mode": "100644"
     },
     ".github/workflows/semgrep.yml": {
       "src": "workflows/semgrep.yml",
       "dest": ".github/workflows/semgrep.yml",
-      "sha": "ef49e204e17f503c7807c3e514f396e1f5512b5d",
-      "size": 2520,
+      "sha": "5abe198bb815109a7bc209a5412d3ac50bab2d39",
+      "size": 2571,
       "mode": "100644"
     }
   }
