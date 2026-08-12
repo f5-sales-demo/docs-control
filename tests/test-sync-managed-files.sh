@@ -12,6 +12,8 @@
 # The rebase and the commit therefore have to be a single ref update.
 #
 # Run from repo root: bash tests/test-sync-managed-files.sh
+# Test stubs below are invoked indirectly by production functions sourced at runtime.
+# shellcheck disable=SC2329
 set -euo pipefail
 
 PASS=0
@@ -390,6 +392,126 @@ if grep -q 'read_manifest_prs()' "$MANIFEST_BUILDER" &&
 else
   fail "6.11 manifest PR ownership and exact head fail closed" \
     "manifest auto-merge can act on an unowned, duplicate, or stale-head PR"
+fi
+
+if grep -q 'read_sync_mergeable_state()' "$SYNC" &&
+  grep -q 'mergeable_state' "$SYNC" &&
+  grep -qE 'blocked\|unknown\|unstable\|has_hooks' "$SYNC" &&
+  grep -q 'clean)' "$SYNC"; then
+  pass "6.12 missing required contexts remain pending until the PR is clean"
+else
+  fail "6.12 missing required contexts remain pending until the PR is clean" \
+    "the merge path can still treat only the currently reported checks as complete"
+fi
+
+if grep -q 'confirm_exact_sync_pr_merged()' "$SYNC" &&
+  grep -q '.merged == true' "$SYNC" &&
+  grep -q '.head.sha == $sha' "$SYNC" &&
+  grep -q '.base.ref == "main"' "$SYNC"; then
+  pass "6.13 a concurrent merge is accepted only for the proved exact PR"
+else
+  fail "6.13 a concurrent merge is accepted only for the proved exact PR" \
+    "a failed merge request cannot distinguish trusted auto-merge from an unsafe transition"
+fi
+
+awk '
+  /^          read_sync_mergeable_state\(\) \{/ { found=1 }
+  found && /^          # --- Helper: file-backed Git tree payloads/ { exit }
+  found { sub(/^          /, ""); print }
+' "$SYNC" >"$WORK/auto-merge-helpers.sh"
+
+run_blocked_to_clean_merge() (
+  # shellcheck source=/dev/null
+  source "$WORK/auto-merge-helpers.sh"
+  local expected_sha=0123456789abcdef0123456789abcdef01234567
+  local state_count_file="$WORK/blocked-state-count"
+  local merge_count_file="$WORK/blocked-merge-count"
+  SYNC_BRANCH=governance/sync-managed-files-test
+
+  require_sha() { :; }
+  require_current_source_main() { :; }
+  require_current_downstream_main() { :; }
+  assert_sync_pr_head() { :; }
+  sleep() { :; }
+  gh() { printf 'pass\n'; }
+  retry() {
+    shift
+    "$@"
+  }
+  read_sync_mergeable_state() {
+    local count=0
+    [ -f "$state_count_file" ] && count=$(<"$state_count_file")
+    count=$((count + 1))
+    printf '%s\n' "$count" >"$state_count_file"
+    if [ "$count" -eq 1 ]; then
+      printf 'blocked\n'
+    else
+      printf 'clean\n'
+    fi
+  }
+  retry_current_json() {
+    local count=0
+    [ -f "$merge_count_file" ] && count=$(<"$merge_count_file")
+    printf '%s\n' "$((count + 1))" >"$merge_count_file"
+    printf '{"merged":true}\n'
+  }
+
+  auto_merge 17 example/consumer "$expected_sha" >/dev/null &&
+    [ "$(<"$state_count_file")" -eq 2 ] &&
+    [ "$(<"$merge_count_file")" -eq 1 ]
+)
+
+if [ -s "$WORK/auto-merge-helpers.sh" ] && run_blocked_to_clean_merge; then
+  pass "6.14 blocked required contexts settle to clean before one merge request"
+else
+  fail "6.14 blocked required contexts settle to clean before one merge request" \
+    "the production merge loop did not preserve the pending-to-clean transition"
+fi
+
+run_concurrent_auto_merge() (
+  # shellcheck source=/dev/null
+  source "$WORK/auto-merge-helpers.sh"
+  local expected_sha=0123456789abcdef0123456789abcdef01234567
+  local merge_count_file="$WORK/concurrent-merge-count"
+  SYNC_BRANCH=governance/sync-managed-files-test
+
+  require_sha() { :; }
+  require_current_source_main() { :; }
+  require_current_downstream_main() { :; }
+  assert_sync_pr_head() { :; }
+  sleep() { :; }
+  read_sync_mergeable_state() { printf 'clean\n'; }
+  retry() {
+    shift
+    "$@"
+  }
+  gh() {
+    if [ "$1" = pr ]; then
+      printf 'pass\n'
+    else
+      jq -n --arg sha "$expected_sha" --arg branch "$SYNC_BRANCH" '
+        {merged:true,merged_at:"2026-08-12T00:00:00Z",
+         head:{sha:$sha,ref:$branch,repo:{full_name:"example/consumer"}},
+         base:{ref:"main"}}
+      '
+    fi
+  }
+  retry_current_json() {
+    local count=0
+    [ -f "$merge_count_file" ] && count=$(<"$merge_count_file")
+    printf '%s\n' "$((count + 1))" >"$merge_count_file"
+    return 1
+  }
+
+  auto_merge 18 example/consumer "$expected_sha" >/dev/null &&
+    [ "$(<"$merge_count_file")" -eq 1 ]
+)
+
+if [ -s "$WORK/auto-merge-helpers.sh" ] && run_concurrent_auto_merge; then
+  pass "6.15 a concurrently auto-merged exact head settles successfully"
+else
+  fail "6.15 a concurrently auto-merged exact head settles successfully" \
+    "the production merge loop did not prove the trusted concurrent transition"
 fi
 
 echo ""
