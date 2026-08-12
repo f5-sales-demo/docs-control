@@ -678,11 +678,40 @@ jobs:
             jq -er '.number | select(type == "number" and floor == . and . >= 1)' <<<"$response"
           }
 
+          read_sync_mergeable_state() {
+            local pr_num="$1" repo_slug="$2" response
+            if ! response=$(retry 3 gh api "repos/${repo_slug}/pulls/${pr_num}"); then
+              echo "[ERROR] Could not read sync PR #${pr_num} merge state" >&2
+              return 1
+            fi
+            jq -er '.mergeable_state | select(type == "string" and
+              (. == "clean" or . == "blocked" or . == "unknown" or
+               . == "unstable" or . == "has_hooks" or . == "behind" or
+               . == "dirty"))' <<<"$response"
+          }
+
+          confirm_exact_sync_pr_merged() {
+            local pr_num="$1" repo_slug="$2" expected_sha="$3" expected_branch="$4" response
+            if ! response=$(retry 3 gh api "repos/${repo_slug}/pulls/${pr_num}"); then
+              echo "[ERROR] Could not confirm sync PR #${pr_num} after the merge race" >&2
+              return 1
+            fi
+            if ! jq -e --arg sha "$expected_sha" --arg branch "$expected_branch" \
+              --arg repo "$repo_slug" '
+                .merged == true and .merged_at != null and
+                .head.sha == $sha and .head.ref == $branch and
+                .head.repo.full_name == $repo and .base.ref == "main"
+              ' <<<"$response" >/dev/null; then
+              return 1
+            fi
+          }
+
           # --- Helper: merge only while both receipts remain current --------
           auto_merge() {
             local pr_num="$1"
             local repo_slug="$2"
             local expected_sha="$3"
+            local mergeable_state
             require_sha "expected auto-merge head" "$expected_sha" || return 1
 
             echo "[INFO] Waiting to merge PR #${pr_num} while exact receipts remain current..."
@@ -711,16 +740,37 @@ jobs:
                 retry 3 assert_sync_pr_head "$pr_num" "$SYNC_BRANCH" "$expected_sha"
                 require_current_source_main
                 require_current_downstream_main
-                MERGE_JSON=$(jq -n --arg sha "$expected_sha" \
-                  '{sha:$sha,merge_method:"squash"}')
-                if MERGE_RESPONSE=$(retry_current_json 3 "$MERGE_JSON" \
-                  "repos/${repo_slug}/pulls/${pr_num}/merge" --method PUT) &&
-                  jq -e '.merged == true' <<<"$MERGE_RESPONSE" >/dev/null; then
-                  echo "[OK] Merged sync PR #${pr_num}"
-                  return 0
-                fi
-                echo "[ERROR] Failed to merge exact sync PR #${pr_num}" >&2
-                return 1
+                mergeable_state=$(read_sync_mergeable_state "$pr_num" "$repo_slug")
+                case "$mergeable_state" in
+                  clean)
+                    MERGE_JSON=$(jq -n --arg sha "$expected_sha" \
+                      '{sha:$sha,merge_method:"squash"}')
+                    if MERGE_RESPONSE=$(retry_current_json 3 "$MERGE_JSON" \
+                      "repos/${repo_slug}/pulls/${pr_num}/merge" --method PUT) &&
+                      jq -e '.merged == true' <<<"$MERGE_RESPONSE" >/dev/null; then
+                      echo "[OK] Merged sync PR #${pr_num}"
+                      return 0
+                    fi
+                    if confirm_exact_sync_pr_merged "$pr_num" "$repo_slug" \
+                      "$expected_sha" "$SYNC_BRANCH"; then
+                      echo "[OK] Trusted auto-merge completed sync PR #${pr_num}"
+                      return 0
+                    fi
+                    echo "[ERROR] Failed to merge exact sync PR #${pr_num}" >&2
+                    return 1
+                    ;;
+                  blocked|unknown|unstable|has_hooks)
+                    echo "[INFO] Sync PR #${pr_num} is ${mergeable_state}; required contexts remain pending"
+                    ;;
+                  behind|dirty)
+                    echo "[ERROR] Sync PR #${pr_num} entered unsafe merge state ${mergeable_state}" >&2
+                    return 1
+                    ;;
+                  *)
+                    echo "[ERROR] Sync PR #${pr_num} returned invalid merge state" >&2
+                    return 1
+                    ;;
+                esac
               elif [ "$BUCKET" = "fail" ]; then
                 echo "[WARN] CI checks failed on PR #${pr_num} -- skipping merge"
                 return 1
