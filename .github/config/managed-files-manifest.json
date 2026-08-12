@@ -1,5 +1,5 @@
 {
-  "source_commit": "8cb40b44eb71d8f8784a251d8f2ae88ef63ba458",
+  "source_commit": "c6e293d2c70cedd7d45e2d3645f5bc4a0e776c1a",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -361,8 +361,8 @@
     "scripts/check-repo-hygiene.sh": {
       "src": "scripts/check-repo-hygiene.sh",
       "dest": "scripts/check-repo-hygiene.sh",
-      "sha": "5f3df07f0053ff38c7d1ac5d0fd2e1cdbeb2d7d4",
-      "size": 6930,
+      "sha": "742e7ed55ced12341b91fee9cfdddd9ea6bcf707",
+      "size": 7160,
       "mode": "100755"
     },
     "scripts/check_pii.py": {
@@ -389,8 +389,8 @@
     "tests/test-check-repo-hygiene.sh": {
       "src": "tests/test-check-repo-hygiene.sh",
       "dest": "tests/test-check-repo-hygiene.sh",
-      "sha": "a5fed5d2479aac1a6f910aa6a6306ac0de0701f5",
-      "size": 8608,
+      "sha": "d60db5dc35ce7bd70b503ee730f71b0e147d5583",
+      "size": 9220,
       "mode": "100755"
     },
     "tests/test-check-pii.sh": {
