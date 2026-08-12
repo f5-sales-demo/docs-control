@@ -86,13 +86,13 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         self.temp.cleanup()
 
     def finding(
-        self, ident="self-hosted-runner", route=None, locations=None, severity="Medium"
+        self, ident="self-hosted-runner", route=None, locations=None, severity="Medium", path=None
     ):
         if route is None:
             route = [{"Key": "jobs"}, {"Key": self.job_id}, {"Key": "runs-on"}]
         location = {
             "symbolic": {
-                "key": {"Local": {"verbatim_path": self.workflow_path}},
+                "key": {"Local": {"verbatim_path": path or self.workflow_path}},
                 "route": {"route": route},
             }
         }
@@ -142,6 +142,28 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         self.assertEqual(
             routes,
             [(self.workflow_path, self.job_id, ["jobs", self.job_id, "runs-on"])],
+        )
+
+    def test_managed_template_self_hosted_route_is_accounted_for(self):
+        template_path = "workflows/acc-tests.yml"
+        self.write_fixture()
+        path = self.root / template_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(self.workflow, sort_keys=False), encoding="utf-8")
+        findings = [self.finding(), self.finding(path=template_path)]
+        routes = validator.validate(
+            findings,
+            self.root,
+            self.repository,
+            self.policy_path,
+            self.governance_path,
+        )
+        self.assertEqual(
+            routes,
+            [
+                (self.workflow_path, self.job_id, ["jobs", self.job_id, "runs-on"]),
+                (template_path, self.job_id, ["jobs", self.job_id, "runs-on"]),
+            ],
         )
 
     def test_malformed_missing_duplicate_and_ambiguous_routes_fail(self):

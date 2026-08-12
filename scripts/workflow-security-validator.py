@@ -244,8 +244,9 @@ def normalize_location(location):
         raise PolicyError(
             f"finding path is not a safe repository-relative path: {path!r}"
         )
-    if not normalized.startswith(".github/workflows/"):
-        raise PolicyError(f"finding path is outside .github/workflows: {normalized!r}")
+    workflow_roots = (".github/workflows/", "workflows/")
+    if not normalized.startswith(workflow_roots):
+        raise PolicyError(f"finding path is outside governed workflow roots: {normalized!r}")
     return normalized, parts[index + 1], parts
 
 
@@ -437,7 +438,11 @@ def validate_job(repository, workflow, job, spec):
 
 def inventory(root, repository, policy):
     actual = {}
-    for path in sorted((root / ".github/workflows").glob("*.y*ml")):
+    paths = (
+        *(root / ".github/workflows").glob("*.y*ml"),
+        *(root / "workflows").glob("*.y*ml"),
+    )
+    for path in sorted(paths):
         relative = path.relative_to(root).as_posix()
         try:
             workflow = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
