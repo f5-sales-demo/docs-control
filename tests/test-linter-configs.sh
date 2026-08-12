@@ -56,12 +56,15 @@ done
 if python3 - "$REPO_ROOT/actionlint.yml" <<'PY'; then
 import sys, yaml
 config = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
-assert config.get("self-hosted-runner", {}).get("labels") == ["terraform-provider-xcsh"]
+assert config.get("self-hosted-runner", {}).get("labels") == [
+    "terraform-provider-xcsh",
+    "ubuntu-24.04-arm",
+]
 PY
-  pass "2.1 actionlint recognizes the governed provider runner label"
+  pass "2.1 actionlint recognizes the governed and hosted ARM runner labels"
 else
-  fail "2.1 actionlint recognizes the governed provider runner label" \
-    "self-hosted-runner.labels must contain the exact governed label"
+  fail "2.1 actionlint recognizes the governed and hosted ARM runner labels" \
+    "self-hosted-runner.labels must contain the exact governed labels"
 fi
 
 # ════════════════════════════════════════════════════════════════════
