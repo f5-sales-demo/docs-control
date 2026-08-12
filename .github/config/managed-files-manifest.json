@@ -1,5 +1,5 @@
 {
-  "source_commit": "1deb825cdd94ab23bef2766b47d61b01b5eff46e",
+  "source_commit": "c1732882a2072055e633f5819abda86244d52fae",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -11,15 +11,15 @@
     ".github/workflows/enforce-repo-settings.yml": {
       "src": "workflows/enforce-repo-settings.yml",
       "dest": ".github/workflows/enforce-repo-settings.yml",
-      "sha": "c05797a7dd10f96e6972359cebdb579eff58b825",
-      "size": 11865,
+      "sha": "c0b8c2284a4f74a35bd8fe7efacda80b3ec6392d",
+      "size": 11879,
       "mode": "100644"
     },
     ".github/workflows/require-linked-issue.yml": {
       "src": "workflows/require-linked-issue.yml",
       "dest": ".github/workflows/require-linked-issue.yml",
-      "sha": "a8b0d990c9a365b524426637d5f89f75c391e7c3",
-      "size": 6017,
+      "sha": "268ca1928690e69f0ebe5575714d502d28a7c12f",
+      "size": 6031,
       "mode": "100644"
     },
     ".github/workflows/super-linter.yml": {
@@ -179,15 +179,15 @@
     ".github/workflows/dependabot-auto-merge.yml": {
       "src": "workflows/dependabot-auto-merge.yml",
       "dest": ".github/workflows/dependabot-auto-merge.yml",
-      "sha": "e98811e8ed78bca044e57b9f78df9000f5c200c5",
-      "size": 2291,
+      "sha": "cee72cefd5f9abcd4717aa93a0b4e94354c387ab",
+      "size": 2305,
       "mode": "100644"
     },
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "cd55bc8154efe5c3211fe8491b7ac8ccd1db1ef7",
-      "size": 3144,
+      "sha": "e37dab631f8b009958d5ba45b86f9cf270a86441",
+      "size": 3158,
       "mode": "100644"
     },
     "biome.json": {
@@ -459,43 +459,43 @@
     "actionlint.yml": {
       "src": "actionlint.yml",
       "dest": "actionlint.yml",
-      "sha": "b2cb319f22ba3a255696bf51089f96851857afdf",
-      "size": 111,
+      "sha": "ebb907db28a2fe388b04e428efc70813e60a6e01",
+      "size": 834,
       "mode": "100644"
     },
     ".github/workflows/workflow-security-audit.yml": {
       "src": "workflows/workflow-security-audit.yml",
       "dest": ".github/workflows/workflow-security-audit.yml",
-      "sha": "c7c96769ef950b94c2302dcd6af15479a627c338",
-      "size": 3255,
+      "sha": "5256f1d488c8ca901a44c8820a1147888169cab3",
+      "size": 3269,
       "mode": "100644"
     },
     "scripts/workflow-security-validator.py": {
       "src": "scripts/workflow-security-validator.py",
       "dest": "scripts/workflow-security-validator.py",
-      "sha": "70fefa54e909d02030bce478d6f367bdadaa8f06",
-      "size": 22243,
+      "sha": "a232301e4667afb03d260d783ee9d7a4afa65573",
+      "size": 23808,
       "mode": "100755"
     },
     "scripts/audit-runner-workflows.py": {
       "src": "scripts/audit-runner-workflows.py",
       "dest": "scripts/audit-runner-workflows.py",
-      "sha": "a1926c6f50b93074c9723d32bacf7a8cb07a36ad",
-      "size": 7641,
+      "sha": "9100b1c473e2957ba91ed82599097f640162a5a6",
+      "size": 7859,
       "mode": "100755"
     },
     ".github/config/self-hosted-runner-policy.json": {
       "src": ".github/config/self-hosted-runner-policy.json",
       "dest": ".github/config/self-hosted-runner-policy.json",
-      "sha": "1aebad30dc3d997b8be87bbb82ef810a7270b50b",
-      "size": 10025,
+      "sha": "f6b1d37ca8eaea7b9c6c63bb49fe4a42c22c59fc",
+      "size": 10073,
       "mode": "100644"
     },
     ".github/workflows/semgrep.yml": {
       "src": "workflows/semgrep.yml",
       "dest": ".github/workflows/semgrep.yml",
-      "sha": "5abe198bb815109a7bc209a5412d3ac50bab2d39",
-      "size": 2571,
+      "sha": "939b11fb292b2d5ae21842762c59221983d48051",
+      "size": 2585,
       "mode": "100644"
     }
   }
