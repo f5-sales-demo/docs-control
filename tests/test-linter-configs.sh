@@ -53,17 +53,20 @@ for f in .yamllint.yaml zizmor.yaml .checkov.yaml .textlintrc actionlint.yml; do
   fi
 done
 
-if python3 - "$REPO_ROOT/actionlint.yml" <<'PY'; then
-import sys, yaml
+if python3 - "$REPO_ROOT/actionlint.yml" "$REPO_ROOT/.claude/governance.json" <<'PY'; then
+import json, sys, yaml
 config = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
-assert config.get("self-hosted-runner", {}).get("labels") == [
-    "terraform-provider-xcsh",
+governance = json.load(open(sys.argv[2], encoding="utf-8"))
+expected = sorted([
+    *governance["repo_classes"]["repos"],
+    "container-build",
     "ubuntu-24.04-arm",
-]
+])
+assert config.get("self-hosted-runner", {}).get("labels") == expected
 PY
-  pass "2.1 actionlint recognizes the governed and hosted ARM runner labels"
+  pass "2.1 actionlint recognizes governed repository, builder, and ARM labels"
 else
-  fail "2.1 actionlint recognizes the governed and hosted ARM runner labels" \
+  fail "2.1 actionlint recognizes governed repository, builder, and ARM labels" \
     "self-hosted-runner.labels must contain the exact governed labels"
 fi
 
