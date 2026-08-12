@@ -52,6 +52,7 @@ jobs:
           digest_file="$(mktemp)"
           auth_file="$(mktemp)"
           trap 'rm -f "$digest_file" "$auth_file"' EXIT
+          printf '{}' > "$auth_file"
           printf '%s' "$GHCR_TOKEN" | podman login --authfile "$auth_file" \
             ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
           podman --cgroup-manager=cgroupfs build --authfile "$auth_file" \

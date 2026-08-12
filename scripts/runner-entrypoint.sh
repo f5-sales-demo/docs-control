@@ -11,7 +11,12 @@ if [[ -z "$registration_token" ]]; then
   exit 1
 fi
 
-cd /runner
+if [[ ! -d /runner-runtime || -n "$(find /runner-runtime -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+  echo "runner runtime tmpfs is missing or not empty" >&2
+  exit 1
+fi
+cp --archive /opt/actions-runner/. /runner-runtime/
+cd /runner-runtime
 ./config.sh \
   --url "https://github.com/${RUNNER_REPOSITORY}" \
   --token "$registration_token" \

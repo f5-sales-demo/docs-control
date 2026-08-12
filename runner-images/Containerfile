@@ -20,21 +20,21 @@ RUN apt-get update \
     fi \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 1001 --shell /bin/bash runner \
-    && install -d -o runner -g runner /runner /runner/_work \
+    && install -d -o runner -g runner /opt/actions-runner \
     && curl --fail --location --proto '=https' --tlsv1.2 \
       --output /tmp/actions-runner.tar.gz \
       "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz" \
     && echo "${RUNNER_SHA256}  /tmp/actions-runner.tar.gz" | sha256sum --check --strict \
-    && tar --extract --gzip --file /tmp/actions-runner.tar.gz --directory /runner \
+    && tar --extract --gzip --file /tmp/actions-runner.tar.gz --directory /opt/actions-runner \
     && rm /tmp/actions-runner.tar.gz \
-    && chown -R runner:runner /runner
+    && chown -R runner:runner /opt/actions-runner
 
-COPY --chown=runner:runner scripts/runner-entrypoint.sh /runner/entrypoint.sh
-RUN chmod 0555 /runner/entrypoint.sh
+COPY --chown=root:root scripts/runner-entrypoint.sh /usr/local/bin/runner-entrypoint
+RUN chmod 0555 /usr/local/bin/runner-entrypoint
 
 USER runner
-WORKDIR /runner
-ENTRYPOINT ["/runner/entrypoint.sh"]
+WORKDIR /runner-runtime
+ENTRYPOINT ["/usr/local/bin/runner-entrypoint"]
 
 LABEL org.opencontainers.image.source="https://github.com/f5-sales-demo/docs-control" \
       org.opencontainers.image.description="Ephemeral repository-scoped GitHub Actions runner"
