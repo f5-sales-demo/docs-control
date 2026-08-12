@@ -9,6 +9,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
 SPEC = importlib.util.spec_from_file_location(
@@ -25,6 +26,7 @@ class FakeGitHub:
     def __init__(self):
         self.requested = []
         self.records = []
+        self.deleted = []
 
     def registration_token(self, repository):
         self.requested.append(repository)
@@ -32,6 +34,9 @@ class FakeGitHub:
 
     def runners(self, _repository):
         return self.records
+
+    def delete_runner(self, repository, runner_id):
+        self.deleted.append((repository, runner_id))
 
 
 class CommandRecorder:
@@ -147,12 +152,53 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertIn("slirp4netns:allow_host_loopback=false", command)
         self.assertNotIn("/var/run/docker.sock", " ".join(command))
         self.assertIn("--userns=keep-id:uid=1001,gid=1001", command)
-        self.assertIn("--cgroups=disabled", command)
+        self.assertIn("HOME=/runner-runtime/home", command)
+        self.assertIn("RUNNER_EPHEMERAL=1", command)
+        self.assertNotIn("/home/runner:rw,nosuid,nodev,size=4g", command)
+        self.assertNotIn("--cgroups=disabled", command)
+        self.assertIn("--cgroup-manager=cgroupfs", command)
+        self.assertIn("/run/f5-actions-runner/gha-fixture", " ".join(command))
+        self.assertIn(
+            "/opt/f5-actions-runner/runner-entrypoint.sh:/usr/local/bin/runner-entrypoint:ro",
+            command,
+        )
         self.assertNotIn("--memory", command)
         self.assertNotIn("--cpus", command)
         self.assertNotIn("--pids-limit", command)
         install_calls = [call for call in recorder.calls if call[0][0] == "install"]
         self.assertGreaterEqual(len(install_calls), 2)
+        migrate_calls = [
+            call for call in recorder.calls if call[0][-2:] == ["system", "migrate"]
+        ]
+        self.assertEqual(len(migrate_calls), 1)
+        self.assertFalse(migrate_calls[0][1]["check"])
+
+    def test_shutdown_cleanup_removes_exact_slot_registration(self):
+        github = FakeGitHub()
+        github.records = [
+            {"id": 42, "name": "gha-fixture-ubuntu-24.04-0-deadbeef"},
+            {"id": 43, "name": "persistent-fixture"},
+        ]
+        controller = MODULE.EphemeralController(
+            self.policy(), github, self.root / "state", CommandRecorder()
+        )
+        controller.run_once("f5-sales-demo/fixture", "ubuntu-24.04")
+        self.assertEqual(github.deleted, [("f5-sales-demo/fixture", 42)])
+
+    def test_serve_stops_when_blocking_cycle_is_interrupted(self):
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+
+        def interrupted(*_args):
+            raise MODULE.StopRequestedError
+
+        controller.run_once = interrupted
+        with mock.patch.object(MODULE.signal, "signal"):
+            self.assertEqual(
+                controller.serve("f5-sales-demo/fixture", "ubuntu-24.04", backoff=0),
+                0,
+            )
 
     def test_container_profile_uses_isolated_repository_socket(self):
         recorder = CommandRecorder()

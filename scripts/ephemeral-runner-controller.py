@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_ORG = "f5-sales-demo"
+HOST_ENTRYPOINT = Path("/opt/f5-actions-runner/runner-entrypoint.sh")
 DEFAULT_BASE_DIR = Path("/data/actions-runners/f5-sales-demo-ephemeral")
 DEFAULT_POLICY = (
     Path(__file__).resolve().parent.parent
@@ -33,6 +34,10 @@ CPU_RE = re.compile(r"[1-9][0-9]*(?:\.[0-9]+)?")
 
 class FleetError(RuntimeError):
     """A fail-closed runner fleet error."""
+
+
+class StopRequestedError(Exception):
+    """Interrupt a blocking runner cycle for prompt systemd shutdown."""
 
 
 def run_command(command, *, input_text=None, check=True, capture=True):
@@ -248,7 +253,8 @@ class GitHubClient:
         )
         try:
             with self.opener(request, timeout=30) as response:
-                return json.load(response)
+                response_body = response.read()
+                return json.loads(response_body) if response_body else {}
         except urllib.error.HTTPError as exc:
             raise FleetError(f"GitHub API {method} {path} returned {exc.code}") from exc
 
@@ -269,6 +275,9 @@ class GitHubClient:
         if not isinstance(runners, list):
             raise FleetError("GitHub returned a malformed runner inventory")
         return runners
+
+    def delete_runner(self, full_name, runner_id):
+        self.request("DELETE", f"/repos/{full_name}/actions/runners/{runner_id}")
 
 
 class EphemeralController:
@@ -330,6 +339,7 @@ class EphemeralController:
             f"HOME=/data/actions-runners/users/{account}",
             f"XDG_RUNTIME_DIR={runtime}",
             "podman",
+            "--cgroup-manager=cgroupfs",
         ]
 
     def cleanup(self, spec, profile, slot):
@@ -337,6 +347,23 @@ class EphemeralController:
         account, runtime = self.prepare_account(spec, profile)
         prefix = self.podman_prefix(account, runtime)
         self.command([*prefix, "rm", "--force", "--ignore", name], check=False)
+
+    def remove_registration(self, spec, profile, slot):
+        """Remove registrations left behind when an idle runner is stopped."""
+        prefix = self.container_name(spec, profile, slot) + "-"
+        for runner in self.github.runners(spec.full_name):
+            name = runner.get("name")
+            runner_id = runner.get("id")
+            if isinstance(name, str) and name.startswith(prefix):
+                if not isinstance(runner_id, int) or runner_id <= 0:
+                    raise FleetError(f"managed runner has an invalid id: {name}")
+                self.github.delete_runner(spec.full_name, runner_id)
+
+    def release_namespace(self, spec, profile, slot):
+        """Stop Podman pause processes before systemd removes the runtime directory."""
+        account, runtime = self.prepare_account(spec, profile)
+        prefix = self.podman_prefix(account, runtime)
+        self.command([*prefix, "system", "migrate"], check=False)
 
     def podman_command(self, spec, profile, slot):
         state = self.state_dir(spec, profile, slot)
@@ -374,17 +401,20 @@ class EphemeralController:
             "--read-only",
             "--cap-drop=all",
             "--security-opt=no-new-privileges",
-            "--cgroups=disabled",
             "--network",
             "slirp4netns:allow_host_loopback=false",
             "--tmpfs",
             "/tmp:rw,nosuid,nodev,size=2g",
             "--tmpfs",
-            "/home/runner:rw,nosuid,nodev,size=4g",
-            "--tmpfs",
             "/runner-runtime:rw,nosuid,nodev,size=20g",
             "--volume",
             f"{state}:/runner-runtime/_diag:rw",
+            "--volume",
+            f"{HOST_ENTRYPOINT}:/usr/local/bin/runner-entrypoint:ro",
+            "--env",
+            "HOME=/runner-runtime/home",
+            "--env",
+            "RUNNER_EPHEMERAL=1",
             "--env",
             f"RUNNER_REPOSITORY={spec.full_name}",
             "--env",
@@ -434,24 +464,30 @@ class EphemeralController:
             return result.returncode
         finally:
             token = ""  # Shorten the credential lifetime.
-            self.cleanup(spec, profile, slot)
+            try:
+                self.cleanup(spec, profile, slot)
+                self.remove_registration(spec, profile, slot)
+            finally:
+                self.release_namespace(spec, profile, slot)
 
     def serve(self, full_name, profile_name, slot=0, backoff=5):
         def stop(_signum, _frame):
             self.stopping = True
+            raise StopRequestedError
 
         signal.signal(signal.SIGTERM, stop)
         signal.signal(signal.SIGINT, stop)
         while not self.stopping:
             try:
-                code = self.run_once(full_name, profile_name, slot)
-            except (FleetError, OSError, subprocess.SubprocessError) as exc:
-                print(f"runner cycle failed: {exc}", file=sys.stderr, flush=True)
-                code = 1
-            if self.stopping:
+                try:
+                    code = self.run_once(full_name, profile_name, slot)
+                except (FleetError, OSError, subprocess.SubprocessError) as exc:
+                    print(f"runner cycle failed: {exc}", file=sys.stderr, flush=True)
+                    code = 1
+                if code != 0:
+                    time.sleep(backoff)
+            except StopRequestedError:
                 break
-            if code != 0:
-                time.sleep(backoff)
         return 0
 
     def audit(self, full_name):

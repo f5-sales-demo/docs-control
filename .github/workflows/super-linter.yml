@@ -49,6 +49,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "${RUNNER_EPHEMERAL:-0}" == 1 ]]; then
+            echo "Ephemeral runner workspace needs no host ownership repair."
+            exit 0
+          fi
           workspace="${GITHUB_WORKSPACE:?}"
           repository="${GITHUB_REPOSITORY:?}"
           repository_name="${repository##*/}"
@@ -455,6 +459,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "${RUNNER_EPHEMERAL:-0}" == 1 ]]; then
+            echo "Ephemeral runner workspace needs no host ownership repair."
+            exit 0
+          fi
           workspace="${GITHUB_WORKSPACE:?}"
           repository="${GITHUB_REPOSITORY:?}"
           repository_name="${repository##*/}"
@@ -482,6 +490,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "${RUNNER_EPHEMERAL:-0}" == 1 ]]; then
+            echo "Ephemeral runner workspace needs no host ownership repair."
+            exit 0
+          fi
           workspace="${GITHUB_WORKSPACE:?}"
           repository="${GITHUB_REPOSITORY:?}"
           repository_name="${repository##*/}"

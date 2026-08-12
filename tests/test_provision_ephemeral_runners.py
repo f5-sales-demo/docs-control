@@ -41,7 +41,13 @@ class ProvisionRunnerTests(unittest.TestCase):
         unit = MODULE.runner_unit_text()
         self.assertIn("RUNNER_FLEET_GITHUB_TOKEN_FILE=", unit)
         self.assertIn("ProtectSystem=strict", unit)
+        self.assertNotIn("ProtectKernelTunables=true", unit)
+        self.assertIn("ProtectKernelModules=true", unit)
+        self.assertIn("ProtectControlGroups=true", unit)
         self.assertNotIn("github.token serve", unit)
+        self.assertNotIn("RuntimeDirectory=", unit)
+        self.assertIn("/run/f5-actions-runner", unit)
+        self.assertTrue(MODULE.ENTRYPOINT_SOURCE.is_file())
 
     def test_systemd_dropin_enforces_profile_resource_limits(self):
         item = next(
@@ -51,7 +57,8 @@ class ProvisionRunnerTests(unittest.TestCase):
             and item.profile == "ubuntu-24.04"
         )
         dropin = MODULE.resource_dropin_text(item)
-        self.assertIn("MemoryMax=8g", dropin)
+        self.assertIn("RuntimeDirectory=f5-actions-runner/gha-docs-control", dropin)
+        self.assertIn("MemoryMax=8G", dropin)
         self.assertIn("CPUQuota=400%", dropin)
         self.assertIn("TasksMax=4096", dropin)
 
