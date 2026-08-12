@@ -50,15 +50,17 @@ jobs:
           set -euo pipefail
           tag="pr-1406-${PROFILE}"
           digest_file="$(mktemp)"
-          trap 'rm -f "$digest_file"; podman logout ghcr.io >/dev/null 2>&1 || true' EXIT
-          printf '%s' "$GHCR_TOKEN" | podman login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
-          podman --cgroup-manager=cgroupfs build \
+          auth_file="$(mktemp)"
+          trap 'rm -f "$digest_file" "$auth_file"' EXIT
+          printf '%s' "$GHCR_TOKEN" | podman login --authfile "$auth_file" \
+            ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+          podman --cgroup-manager=cgroupfs build --authfile "$auth_file" \
             --build-arg "UBUNTU_IMAGE=${UBUNTU_IMAGE}" \
             --build-arg "CONTAINER_TOOLS=${CONTAINER_TOOLS}" \
             --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
             --tag "${IMAGE}:${tag}" \
             --file runner-images/Containerfile .
-          podman push --digestfile "$digest_file" "${IMAGE}:${tag}"
+          podman push --authfile "$auth_file" --digestfile "$digest_file" "${IMAGE}:${tag}"
           digest="$(cat "$digest_file")"
           case "$digest" in
             sha256:[0-9a-f][0-9a-f]*) ;;
