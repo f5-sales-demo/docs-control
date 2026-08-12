@@ -2,6 +2,9 @@ name: Publish runner images
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - codex/1406-self-hosted-runner-audit-20260812131634
 
 permissions:
   contents: read
