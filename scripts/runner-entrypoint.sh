@@ -11,11 +11,14 @@ if [[ -z "$registration_token" ]]; then
   exit 1
 fi
 
-if [[ ! -d /runner-runtime || -n "$(find /runner-runtime -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
-  echo "runner runtime tmpfs is missing or not empty" >&2
+unexpected_path="$(find /runner-runtime -mindepth 1 -maxdepth 1 ! -name _diag -print -quit)"
+if [[ ! -d /runner-runtime/_diag || -n "$unexpected_path" ]]; then
+  echo "runner runtime tmpfs or diagnostics mount is invalid" >&2
   exit 1
 fi
-cp --archive /opt/actions-runner/. /runner-runtime/
+find /opt/actions-runner -mindepth 1 -maxdepth 1 \
+  -exec cp --archive --no-preserve=ownership --target-directory=/runner-runtime {} +
+install -d -m 0700 /runner-runtime/home
 cd /runner-runtime
 ./config.sh \
   --url "https://github.com/${RUNNER_REPOSITORY}" \

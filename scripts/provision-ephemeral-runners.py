@@ -16,6 +16,7 @@ from pathlib import Path
 
 SOURCE_ROOT = Path(__file__).resolve().parent.parent
 CONTROLLER_SOURCE = SOURCE_ROOT / "scripts/ephemeral-runner-controller.py"
+ENTRYPOINT_SOURCE = SOURCE_ROOT / "scripts/runner-entrypoint.sh"
 POLICY_SOURCE = SOURCE_ROOT / ".github/config/self-hosted-runner-policy.json"
 INSTALL_ROOT = Path("/opt/f5-actions-runner")
 CONFIG_ROOT = Path("/etc/f5-actions-runner")
@@ -203,20 +204,27 @@ UMask=0077
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ProtectKernelTunables=true
+# ProtectKernelTunables blocks rootless runc from mounting the container procfs.
 ProtectKernelModules=true
 ProtectControlGroups=true
-ReadWritePaths={DATA_ROOT} /run/f5-actions-podman
+ReadWritePaths={DATA_ROOT} /run/f5-actions-podman /run/f5-actions-runner
 
 [Install]
 WantedBy=multi-user.target
 """
 
 
+def systemd_memory_limit(memory):
+    """Translate the validated policy suffix to systemd byte unit syntax."""
+    return memory[:-1] + memory[-1].upper()
+
+
 def resource_dropin_text(item):
     cpu_quota = int(float(item.cpus) * 100)
     return f"""[Service]
-MemoryMax={item.memory}
+RuntimeDirectory=f5-actions-runner/{item.account}
+RuntimeDirectoryMode=0700
+MemoryMax={systemd_memory_limit(item.memory)}
 CPUQuota={cpu_quota}%
 TasksMax={item.pids_limit}
 """
@@ -266,19 +274,20 @@ def install_definition():
         path.mkdir(parents=True, exist_ok=True)
     for account in sorted(all_accounts()):
         ensure_account(account)
-    command(
-        [
-            "install",
-            "-o",
-            "root",
-            "-g",
-            "root",
-            "-m",
-            "0755",
-            str(CONTROLLER_SOURCE),
-            str(INSTALL_ROOT / CONTROLLER_SOURCE.name),
-        ]
-    )
+    for source in (CONTROLLER_SOURCE, ENTRYPOINT_SOURCE):
+        command(
+            [
+                "install",
+                "-o",
+                "root",
+                "-g",
+                "root",
+                "-m",
+                "0755",
+                str(source),
+                str(INSTALL_ROOT / source.name),
+            ]
+        )
     command(
         [
             "install",
