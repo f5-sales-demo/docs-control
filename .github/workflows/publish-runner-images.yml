@@ -1,0 +1,64 @@
+name: Publish runner images
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-runner-images
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish ${{ matrix.profile }}
+    runs-on: [self-hosted, Linux, X64, docs-control]
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        include:
+          - profile: ubuntu-24.04
+            image: actions-runner
+            base: docker.io/library/ubuntu@sha256:561618e2c15bf2397621dd04f96926663a3b5616c189cf7e38db7e82f5c538ea
+            container-tools: '0'
+          - profile: ubuntu-22.04
+            image: actions-runner
+            base: docker.io/library/ubuntu@sha256:3b06811b2afd352be909dd088a004166d665dc76d38b13eada33522a9d915c6f
+            container-tools: '0'
+          - profile: container-build
+            image: actions-runner-container
+            base: docker.io/library/ubuntu@sha256:561618e2c15bf2397621dd04f96926663a3b5616c189cf7e38db7e82f5c538ea
+            container-tools: '1'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Build and publish immutable image
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ghcr.io/f5-sales-demo/${{ matrix.image }}
+          PROFILE: ${{ matrix.profile }}
+          UBUNTU_IMAGE: ${{ matrix.base }}
+          CONTAINER_TOOLS: ${{ matrix.container-tools }}
+        run: |
+          set -euo pipefail
+          tag="pr-1406-${PROFILE}"
+          digest_file="$(mktemp)"
+          trap 'rm -f "$digest_file"; podman logout ghcr.io >/dev/null 2>&1 || true' EXIT
+          printf '%s' "$GHCR_TOKEN" | podman login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+          podman --cgroup-manager=cgroupfs build \
+            --build-arg "UBUNTU_IMAGE=${UBUNTU_IMAGE}" \
+            --build-arg "CONTAINER_TOOLS=${CONTAINER_TOOLS}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "${IMAGE}:${tag}" \
+            --file runner-images/Containerfile .
+          podman push --digestfile "$digest_file" "${IMAGE}:${tag}"
+          digest="$(cat "$digest_file")"
+          case "$digest" in
+            sha256:[0-9a-f][0-9a-f]*) ;;
+            *) echo "invalid published digest" >&2; exit 1 ;;
+          esac
+          printf '### %s\n\n`%s@%s`\n' "$PROFILE" "$IMAGE" "$digest" >> "$GITHUB_STEP_SUMMARY"

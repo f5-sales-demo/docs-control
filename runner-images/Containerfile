@@ -1,0 +1,40 @@
+ARG UBUNTU_IMAGE=docker.io/library/ubuntu@sha256:561618e2c15bf2397621dd04f96926663a3b5616c189cf7e38db7e82f5c538ea
+FROM ${UBUNTU_IMAGE}
+
+ARG RUNNER_VERSION=2.336.0
+ARG RUNNER_SHA256=04cf0be1aff4c3ec3554466c39124ca250e3effd8873bb7e8d68535aa9505d5d
+ARG CONTAINER_TOOLS=0
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+      bash ca-certificates curl git git-lfs jq libssl3 python3 python3-venv \
+      unzip xz-utils zip \
+    && if apt-cache show libicu74 >/dev/null 2>&1; then \
+      apt-get install --yes --no-install-recommends libicu74; \
+    else \
+      apt-get install --yes --no-install-recommends libicu70; \
+    fi \
+    && if [ "${CONTAINER_TOOLS}" = 1 ]; then \
+      apt-get install --yes --no-install-recommends docker.io podman; \
+    fi \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 1001 --shell /bin/bash runner \
+    && install -d -o runner -g runner /runner /runner/_work \
+    && curl --fail --location --proto '=https' --tlsv1.2 \
+      --output /tmp/actions-runner.tar.gz \
+      "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz" \
+    && echo "${RUNNER_SHA256}  /tmp/actions-runner.tar.gz" | sha256sum --check --strict \
+    && tar --extract --gzip --file /tmp/actions-runner.tar.gz --directory /runner \
+    && rm /tmp/actions-runner.tar.gz \
+    && chown -R runner:runner /runner
+
+COPY --chown=runner:runner scripts/runner-entrypoint.sh /runner/entrypoint.sh
+RUN chmod 0555 /runner/entrypoint.sh
+
+USER runner
+WORKDIR /runner
+ENTRYPOINT ["/runner/entrypoint.sh"]
+
+LABEL org.opencontainers.image.source="https://github.com/f5-sales-demo/docs-control" \
+      org.opencontainers.image.description="Ephemeral repository-scoped GitHub Actions runner"
