@@ -60,6 +60,7 @@ governance = json.load(open(sys.argv[2], encoding="utf-8"))
 expected = sorted([
     *governance["repo_classes"]["repos"],
     "container-build",
+    "fixture",
     "ubuntu-24.04-arm",
 ])
 assert config.get("self-hosted-runner", {}).get("labels") == expected

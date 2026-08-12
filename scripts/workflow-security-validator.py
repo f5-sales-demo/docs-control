@@ -113,6 +113,35 @@ def governed_repositories(path):
     return {f"f5-sales-demo/{name}" for name in repos}
 
 
+def repository_runner_profiles(workflows, profiles, default_profile):
+    runner = workflows.get("runner", {})
+    if not isinstance(runner, dict) or set(runner) - {"profiles"}:
+        raise PolicyError("repository runner policy must contain only profiles")
+    allowed = runner.get("profiles", [default_profile])
+    if (
+        not isinstance(allowed, list)
+        or not allowed
+        or not all(
+            isinstance(profile, str) and profile in profiles for profile in allowed
+        )
+        or len(set(allowed)) != len(allowed)
+        or default_profile not in allowed
+    ):
+        raise PolicyError(
+            "repository runner profiles must be a unique array of existing profiles "
+            "that includes the default"
+        )
+    return allowed
+
+
+def canonical_routes(basename, allowed_profiles):
+    return tuple(
+        ["self-hosted", "Linux", "X64", repository_label, profile]
+        for profile in allowed_profiles
+        for repository_label in (basename, "${{ github.event.repository.name }}")
+    )
+
+
 def permissions_within_ceiling(permissions, context):
     if not isinstance(permissions, dict):
         raise PolicyError(f"{context} must be an object")
@@ -161,24 +190,9 @@ def load_policy(path, governance_path, repository):
     workflows = repositories[repository]
     if not isinstance(workflows, dict):
         raise PolicyError("repository policy must be a workflow object")
-    runner = workflows.get("runner", {})
-    if not isinstance(runner, dict) or set(runner) - {"profiles"}:
-        raise PolicyError("repository runner policy must contain only profiles")
-    allowed_profiles = runner.get("profiles", [default_profile])
-    if (
-        not isinstance(allowed_profiles, list)
-        or not allowed_profiles
-        or not all(
-            isinstance(profile, str) and profile in profiles
-            for profile in allowed_profiles
-        )
-        or len(set(allowed_profiles)) != len(allowed_profiles)
-        or default_profile not in allowed_profiles
-    ):
-        raise PolicyError(
-            "repository runner profiles must be a unique array of existing profiles "
-            "that includes the default"
-        )
+    allowed_profiles = repository_runner_profiles(
+        workflows, profiles, default_profile
+    )
     for workflow, jobs in workflows.items():
         if workflow == "runner":
             continue
@@ -505,19 +519,10 @@ def inventory(root, repository, policy, default_profile, allowed_profiles):
                         raise PolicyError(
                             f"{relative}/{job_id}: " + "; ".join(errors)
                         )
-                else:
-                    allowed = tuple(
-                        ["self-hosted", "Linux", "X64", repository_label, profile]
-                        for profile in allowed_profiles
-                        for repository_label in (
-                            basename,
-                            "${{ github.event.repository.name }}",
-                        )
+                elif runs_on not in canonical_routes(basename, allowed_profiles):
+                    raise PolicyError(
+                        f"{relative}/{job_id}: runs-on must use the canonical repository route"
                     )
-                    if runs_on not in allowed:
-                        raise PolicyError(
-                            f"{relative}/{job_id}: runs-on must use the canonical repository route"
-                        )
                 actual[key] = workflow
     unused = sorted(set(policy) - set(actual))
     if unused:
