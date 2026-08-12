@@ -434,6 +434,10 @@
         "dest": "scripts/workflow-security-validator.py"
       },
       {
+        "src": "scripts/audit-runner-workflows.py",
+        "dest": "scripts/audit-runner-workflows.py"
+      },
+      {
         "src": ".github/config/self-hosted-runner-policy.json",
         "dest": ".github/config/self-hosted-runner-policy.json"
       },

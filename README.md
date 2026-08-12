@@ -12,6 +12,11 @@
 See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow rules,
 branch naming, and CI requirements.
 
+## Operations
+
+See [Self-hosted runner operations](docs/self-hosted-runners.md) for the runner security model,
+image release process, workstation provisioning, pilot procedure, and incident response.
+
 ## License
 
 See [LICENSE](LICENSE).

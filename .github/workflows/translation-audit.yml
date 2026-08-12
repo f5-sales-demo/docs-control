@@ -19,7 +19,7 @@ permissions:
 jobs:
   audit:
     name: Translation freshness
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
     steps:
       - name: Resolve governed audit tooling receipt
         id: governance

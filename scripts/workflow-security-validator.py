@@ -14,7 +14,15 @@ from pathlib import Path, PurePosixPath
 
 import yaml
 
-TOP_FIELDS = {"schema_version", "repositories"}
+POLICY_SCHEMA_VERSION = 2
+
+TOP_FIELDS = {
+    "schema_version",
+    "defaults",
+    "profiles",
+    "hosted_exceptions",
+    "repositories",
+}
 JOB_FIELDS = {
     "runs_on",
     "environment",
@@ -121,7 +129,7 @@ def load_policy(path, governance_path, repository):
     except Exception as exc:
         raise PolicyError(f"cannot read policy {path}: {exc}") from exc
     strict_object(raw, TOP_FIELDS, "policy")
-    if raw.get("schema_version") != 1:
+    if raw.get("schema_version") != POLICY_SCHEMA_VERSION:
         raise PolicyError(f"unsupported schema_version: {raw.get('schema_version')!r}")
     repositories = raw.get("repositories")
     governed = governed_repositories(governance_path)
@@ -146,6 +154,8 @@ def load_policy(path, governance_path, repository):
     if not isinstance(workflows, dict):
         raise PolicyError("repository policy must be a workflow object")
     for workflow, jobs in workflows.items():
+        if workflow == "runner":
+            continue
         if not isinstance(workflow, str) or not workflow.startswith(
             ".github/workflows/"
         ):
@@ -437,6 +447,7 @@ def inventory(root, repository, policy):
             workflow.get("jobs", {}), dict
         ):
             raise PolicyError(f"malformed workflow {relative}")
+        basename = repository.split("/", 1)[1]
         for job_id, job in workflow.get("jobs", {}).items():
             if not isinstance(job, dict):
                 raise PolicyError(f"malformed job {relative}/{job_id}")
@@ -449,14 +460,29 @@ def inventory(root, repository, policy):
                 )
             if self_hosted:
                 key = (relative, job_id)
-                if key not in policy:
-                    raise PolicyError(f"unlisted self-hosted job {relative}/{job_id}")
-                errors = validate_job(repository, workflow, job, policy[key])
-                if errors:
-                    raise PolicyError(f"{relative}/{job_id}: " + "; ".join(errors))
+                if key in policy:
+                    errors = validate_job(repository, workflow, job, policy[key])
+                    if errors:
+                        raise PolicyError(
+                            f"{relative}/{job_id}: " + "; ".join(errors)
+                        )
+                else:
+                    allowed = (
+                        ["self-hosted", "Linux", "X64", basename],
+                        [
+                            "self-hosted",
+                            "Linux",
+                            "X64",
+                            "${{ github.event.repository.name }}",
+                        ],
+                    )
+                    if runs_on not in allowed:
+                        raise PolicyError(
+                            f"{relative}/{job_id}: runs-on must use the canonical repository route"
+                        )
                 actual[key] = workflow
-    if set(actual) != set(policy):
-        unused = sorted(set(policy) - set(actual))
+    unused = sorted(set(policy) - set(actual))
+    if unused:
         raise PolicyError(f"unused policy entries: {unused}")
     return set(actual)
 

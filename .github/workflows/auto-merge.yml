@@ -28,7 +28,7 @@ concurrency:
 jobs:
   auto-merge:
     name: Enable trusted-author auto-merge
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
     permissions:
       contents: write # merge trusted same-repository pull requests
       pull-requests: write # enable squash auto-merge

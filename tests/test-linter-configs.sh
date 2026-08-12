@@ -1392,7 +1392,7 @@ integration_index = next(
 )
 setup = steps[setup_index]
 assert setup_index < integration_index
-assert setup["uses"] == "astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc"
+assert setup["uses"] == "astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d"
 assert setup["with"] == {"version": "0.8.24"}
 assert setup["if"] == "hashFiles('tests/test-workflow-security-validator-integration.sh') != ''"
 PY

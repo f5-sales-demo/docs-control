@@ -31,7 +31,7 @@ concurrency:
 jobs:
   update:
     name: Update governed workflow pins
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}"]
     environment: repository-settings
     permissions:
       contents: read # check out the protected governance source
