@@ -642,7 +642,7 @@ class EphemeralRunnerTests(unittest.TestCase):
                 container_filter = command[command.index("--filter") + 1]
                 if container_filter == f"id={disappearing_id}":
                     exact_inventories += 1
-                    output = f"{disappearing_id}\n" if exact_inventories == 1 else ""
+                    output = f"{disappearing_id}\n" if exact_inventories <= 7 else ""
                     return SimpleNamespace(returncode=0, stdout=output, stderr="")
                 return SimpleNamespace(returncode=0, stdout="", stderr="")
             if command == ["docker", "container", "inspect", disappearing_id]:
@@ -676,14 +676,57 @@ class EphemeralRunnerTests(unittest.TestCase):
         with mock.patch.object(MODULE.time, "sleep") as sleep:
             controller.cleanup(spec, spec.profiles[0], 0)
 
-        self.assertEqual(exact_inventories, 2)
-        sleep.assert_called_once()
+        self.assertEqual(exact_inventories, 8)
+        self.assertEqual(sleep.call_count, 7)
         self.assertEqual(
-            calls.count(["docker", "container", "inspect", disappearing_id]), 2
+            calls.count(["docker", "container", "inspect", disappearing_id]), 8
         )
         self.assertIn(
             ["docker", "container", "rm", "--force", nested_id],
             calls,
+        )
+
+    def test_nested_cleanup_bounds_persistent_removal_in_progress(self):
+        workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
+        workspace.mkdir(parents=True)
+        container_id = "7" * 64
+        calls = []
+
+        def docker_fixture(command, **_kwargs):
+            calls.append(command)
+            if command[:4] == ["docker", "container", "ls", "--all"]:
+                if "--filter" in command:
+                    container_filter = command[command.index("--filter") + 1]
+                    if container_filter.startswith("name="):
+                        return SimpleNamespace(returncode=0, stdout="", stderr="")
+                return SimpleNamespace(
+                    returncode=0, stdout=f"{container_id}\n", stderr=""
+                )
+            if command == ["docker", "container", "inspect", container_id]:
+                return SimpleNamespace(
+                    returncode=1, stdout="", stderr="removal in progress"
+                )
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", docker_fixture
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+
+        with (
+            mock.patch.object(MODULE.time, "sleep") as sleep,
+            self.assertRaises(MODULE.FleetError),
+        ):
+            controller.cleanup(spec, spec.profiles[0], 0)
+
+        self.assertEqual(
+            calls.count(["docker", "container", "inspect", container_id]),
+            MODULE.TRANSIENT_INSPECT_ATTEMPTS,
+        )
+        self.assertEqual(sleep.call_count, MODULE.TRANSIENT_INSPECT_ATTEMPTS - 1)
+        self.assertLessEqual(
+            sum(call.args[0] for call in sleep.call_args_list),
+            MODULE.TRANSIENT_INSPECT_MAX_TOTAL_SECONDS,
         )
 
     def test_nested_cleanup_fails_closed_when_disappearance_is_not_proven(self):
@@ -724,7 +767,10 @@ class EphemeralRunnerTests(unittest.TestCase):
                 )
                 spec = self.policy().repository("f5-sales-demo/fixture")
 
-                with self.assertRaises(MODULE.FleetError):
+                with (
+                    mock.patch.object(MODULE.time, "sleep"),
+                    self.assertRaises(MODULE.FleetError),
+                ):
                     controller.cleanup(spec, spec.profiles[0], 0)
 
     def test_nested_cleanup_rejects_malformed_or_mixed_bind_mounts(self):
