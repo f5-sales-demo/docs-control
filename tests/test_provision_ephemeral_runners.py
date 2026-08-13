@@ -26,6 +26,8 @@ class ProvisionRunnerTests(unittest.TestCase):
     def test_runner_images_include_pyyaml_and_separate_docker_target(self):
         content = (ROOT / "runner-images/Containerfile").read_text(encoding="utf-8")
         self.assertIn("python3-yaml", content)
+        self.assertIn(" gh ", content)
+        self.assertIn(" nodejs ", content)
         self.assertLess(content.index("python3-yaml"), content.index("AS socketless"))
         socketless = content.split("FROM runner-base AS socketless", 1)[1].split(
             "FROM runner-base AS docker-capable", 1
@@ -60,6 +62,8 @@ class ProvisionRunnerTests(unittest.TestCase):
             "docker cp",
             'runner_root="${RUNNER_RUNTIME_DIR:?}"',
             'python3 -c "import yaml"',
+            "gh --version",
+            "node --version",
             "docker buildx version",
             "docker compose version",
         ):
