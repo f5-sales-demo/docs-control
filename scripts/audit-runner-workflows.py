@@ -14,6 +14,15 @@ import yaml
 
 SHA_RE = re.compile(r"[0-9a-f]{40}")
 CANONICAL_REPOSITORY_LABEL = "${{ github.event.repository.name }}"
+PULL_REQUEST_GUARD = (
+    "github.event_name == 'pull_request' && "
+    "github.event.pull_request.head.repo.full_name == github.repository"
+)
+CALLABLE_DOCKER_GUARD = (
+    "github.event_name == 'workflow_dispatch' || "
+    "(github.event_name == 'pull_request' && "
+    "github.event.pull_request.head.repo.full_name == github.repository)"
+)
 
 
 class AuditError(ValueError):
@@ -29,8 +38,8 @@ def load_policy(path, repository):
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise AuditError(f"cannot read runner policy: {exc}") from exc
-    if raw.get("schema_version") != 2:
-        raise AuditError("runner policy schema_version must be 2")
+    if raw.get("schema_version") != 3:
+        raise AuditError("runner policy schema_version must be 3")
     repositories = raw.get("repositories")
     if not isinstance(repositories, dict) or repository not in repositories:
         raise AuditError(f"repository is not governed: {repository}")
@@ -72,7 +81,73 @@ def exception_for(exceptions, relative, job_id):
     return workflow.get(job_id)
 
 
-def audit_job(repository, relative, job_id, job, profiles, exceptions, default_profile):
+def trigger_names(workflow):
+    value = workflow_on(workflow)
+    if isinstance(value, str):
+        return {value}
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return set(value)
+    if isinstance(value, dict) and all(isinstance(item, str) for item in value):
+        return set(value)
+    raise AuditError("workflow trigger is malformed")
+
+
+def audit_docker_route(workflow, job_id, job, profiles, profile):
+    errors = []
+    if profile not in profiles or not profiles[profile].get("docker_socket"):
+        return errors
+    try:
+        triggers = trigger_names(workflow)
+    except AuditError as exc:
+        return [f"Docker-capable job has a malformed trigger: {exc}"]
+    allowed = {"pull_request", "workflow_call", "workflow_dispatch"}
+    if not triggers or not triggers <= allowed:
+        errors.append(
+            "Docker-capable jobs allow same-repository PRs or trusted manual workflows only"
+        )
+        return errors
+    if triggers == {"workflow_dispatch"}:
+        return errors
+    expected_guard = (
+        PULL_REQUEST_GUARD if triggers == {"pull_request"} else CALLABLE_DOCKER_GUARD
+    )
+    if job.get("if") != expected_guard:
+        errors.append(
+            "Docker-capable PR job requires the complete same-repository guard"
+        )
+    needs = job.get("needs")
+    if needs != "trust-gate" and not (
+        isinstance(needs, list) and needs == ["trust-gate"]
+    ):
+        errors.append("Docker-capable PR job requires the socketless trust-gate")
+    trust_gate = workflow.get("jobs", {}).get("trust-gate")
+    trust_runs_on = trust_gate.get("runs-on") if isinstance(trust_gate, dict) else None
+    trust_profile = None
+    if isinstance(trust_runs_on, list) and len(trust_runs_on) == 5:
+        candidates = [
+            name
+            for name, spec in profiles.items()
+            if trust_runs_on[-1] in spec.get("labels", [])
+        ]
+        trust_profile = candidates[0] if len(candidates) == 1 else None
+    if (
+        trust_profile not in profiles
+        or profiles[trust_profile].get("docker_socket") is not False
+    ):
+        errors.append("Docker-capable PR job requires a socketless trust-gate job")
+    return errors
+
+
+def audit_job(
+    repository,
+    relative,
+    job_id,
+    job,
+    profiles,
+    exceptions,
+    workflow_context,
+):
+    default_profile, workflow = workflow_context
     errors = []
     if not isinstance(job, dict):
         return [f"{relative}/{job_id}: job must be an object"]
@@ -132,11 +207,15 @@ def audit_job(repository, relative, job_id, job, profiles, exceptions, default_p
             for step in job.get("steps", [])
         )
         if uses_super_linter and (
-            profile not in profiles or not profiles[profile].get("container_socket")
+            profile not in profiles or not profiles[profile].get("docker_socket")
         ):
             errors.append(
-                f"{relative}/{job_id}: Super-Linter requires a container socket profile"
+                f"{relative}/{job_id}: Super-Linter requires a Docker socket profile"
             )
+        errors.extend(
+            f"{relative}/{job_id}: {error}"
+            for error in audit_docker_route(workflow, job_id, job, profiles, profile)
+        )
     for index, step in enumerate(job.get("steps", [])):
         if not isinstance(step, dict) or "uses" not in step:
             continue
@@ -177,7 +256,7 @@ def audit_repository(root, repository, policy_path):
                     job,
                     profiles,
                     exceptions,
-                    policy["defaults"]["profile"],
+                    (policy["defaults"]["profile"], document),
                 )
             )
     declared_exceptions = {

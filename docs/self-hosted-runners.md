@@ -14,8 +14,9 @@ runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu
 ```
 
 A controller registers a new runner with `--ephemeral --disableupdate`, launches it in a
-rootless Podman container, and destroys the container after one job. The immutable runner
-distribution is copied into a private tmpfs for registration, work, and credentials. Runner
+Docker container on the shared host Engine, and destroys the container after one job. The
+immutable runner distribution is copied into an exact host-visible private workspace for
+registration, work, and credentials. Runner
 diagnostics persist outside the container under
 `/data/actions-runners/f5-sales-demo-ephemeral/diagnostics`; systemd captures controller and
 container standard output in the journal.
@@ -24,14 +25,16 @@ The default profile has:
 
 - A read-only container root, all capabilities dropped, and `no-new-privileges`.
 - A private network namespace with workstation loopback access disabled.
-- CPU, memory, and process limits enforced by the per-instance systemd cgroup.
-- A dedicated Unix account and rootless Podman storage for each repository.
+- CPU, memory, process, stop-timeout, and network limits applied directly to the outer Docker
+  container.
 - No host container socket.
 
 The explicit profile label prevents a default job from matching a more privileged builder.
-The `container-build` profile uses a second account with a repository-specific rootless Podman
-API socket. It cannot reach another repository's images or containers. A build job can control
-its own builder account, so only workflows that require container builds receive this profile.
+The `container-build` profile mounts the exact shared `/run/docker.sock`. Docker daemon control is
+host-root-equivalent, so the profile is limited to same-repository pull requests and trusted manual
+dispatches behind a socketless trust gate. Fork pull requests fail that gate explicitly. The
+controller stops the exact labeled outer runner before workspace deletion and removes nested
+containers only when every validated bind mount is beneath that runner's exact workspace.
 
 Native macOS, Windows, and ARM64 jobs remain on GitHub-hosted runners only when their exact
 workflow and job identifiers appear in the hosted-exception inventory. The audit rejects every
@@ -55,11 +58,20 @@ The design follows GitHub's current primary guidance:
 - A full commit SHA is the only immutable release reference for an action. Dependabot checks
   GitHub Actions daily and the fleet audit rejects mutable references:
   [Secure use: Pin actions to a full-length commit SHA](https://docs.github.com/en/actions/reference/security/secure-use#using-third-party-actions).
+- Docker documents daemon access as privileged host control, which is why socket profiles are
+  trust-gated: [Docker Engine security](https://docs.docker.com/engine/security/).
+- Engine release and Noble package selection follow Docker's primary documentation:
+  [Docker Engine 29 release notes](https://docs.docker.com/engine/release-notes/29/) and
+  [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
 
 ## Image publication
 
 `publish-runner-images.yml` builds Ubuntu 24.04, Ubuntu 22.04, and container-build images from
-digest-pinned Ubuntu bases. It verifies the GitHub runner archive checksum and publishes to GHCR.
+digest-pinned Ubuntu bases. Every image includes PyYAML. Socketless targets omit Docker completely;
+the builder target copies the Docker 29.7.2 CLI, Buildx, and Compose from the digest-pinned official
+Docker CLI image. Publication uses `docker buildx build --push --metadata-file`, validates the
+registry manifest digest, and smoke-tests each published target before reporting its digest.
+It verifies the GitHub runner archive checksum and publishes to GHCR.
 Record the manifest digest reported in the job summary and place that exact digest in the policy.
 Tags are discovery aids only and are never accepted by the controller.
 
@@ -77,7 +89,9 @@ Before merging a runner release:
 Run these commands on the Ubuntu workstation from a clean `docs-control` checkout:
 
 ```bash
+sudo systemctl stop f5-actions-runner@docs-control--container-build--0.service
 sudo python3 scripts/provision-ephemeral-runners.py install
+sudo python3 scripts/provision-ephemeral-runners.py retire-legacy-podman-units
 printf '%s\n' '<RUNNER_FLEET_GITHUB_TOKEN>' |
   sudo python3 scripts/provision-ephemeral-runners.py install-credential
 sudo python3 scripts/provision-ephemeral-runners.py enable \
@@ -90,11 +104,27 @@ argument. Use the narrowest token that can create repository runner registration
 the private runner packages. Prefer a GitHub App installation token when that credential path is
 available.
 
-Do not stop a persistent legacy runner during the pilot. First verify that the new runner is
-online with only the canonical repository and profile labels, dispatch a harmless job, and
-validate one-job de-registration. Cut over one repository at a time. Stop and remove a legacy
-runner only after its replacement has completed the repository's required workflows and no job is
-running.
+Keep Podman installed for unrelated project testing. The retirement command affects only exact
+`f5-actions-podman-*` runner units and refuses to remove one while its builder runner unit is
+active. First verify that the Docker-backed runner is online with only the canonical repository and
+profile labels, dispatch a harmless job, and validate one-job de-registration. Cut over one
+repository at a time.
+
+## Docker Engine maintenance
+
+Schema v3 accepts Docker Engine 29.2.1 as the migration canary and records 29.7.2 as the target.
+Before the Engine change, capture exact container/image/mount/network/port/restart-policy,
+package-version, daemon-configuration, storage-driver, and runner-unit inventories. Cache the exact
+29.2.1 packages, quiesce runner units, and stop only the previously recorded running container set.
+Install exact Noble packages for Docker CE, CLI, containerd, Buildx, and Compose from Docker's
+official stable repository. Preserve `/data/docker`, `overlay2`, logging/GC settings, and NVIDIA
+runtime configuration, and enable `live-restore`.
+
+Afterward, verify Engine 29.7.2, socket ownership and mode, storage integrity, networks, Buildx,
+Compose, and the exact prior workload set before rerunning default-runner, nested-Docker,
+Super-Linter, image-build, cleanup, and registration canaries. If validation fails, stop the daemon,
+restore the captured configuration and cached 29.2.1 packages, restart the exact prior workload set,
+and audit final state.
 
 ## Audits and incident response
 

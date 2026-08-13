@@ -47,6 +47,8 @@ class CommandRecorder:
 
     def __call__(self, command, **kwargs):
         self.calls.append((command, kwargs))
+        if command[:3] == ["docker", "version", "--format"]:
+            return SimpleNamespace(returncode=0, stdout="29.2.1\n", stderr="")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
 
@@ -55,15 +57,16 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         (self.root / "state").mkdir()
-        self.account_lookup = mock.patch.object(
-            MODULE.pwd,
-            "getpwnam",
-            return_value=SimpleNamespace(pw_uid=os.getuid(), pw_gid=os.getgid()),
-        )
-        self.account_lookup.start()
+        self.owner_change = mock.patch.object(MODULE.os, "fchown")
+        self.owner_change.start()
         self.policy_path = self.root / "policy.json"
         self.policy_data: dict = {
-            "schema_version": 2,
+            "schema_version": 3,
+            "docker": {
+                "socket": "/run/docker.sock",
+                "minimum_version": "29.2.1",
+                "target_version": "29.7.2",
+            },
             "defaults": {"replicas": 1, "profile": "ubuntu-24.04"},
             "profiles": {
                 "ubuntu-24.04": {
@@ -72,7 +75,9 @@ class EphemeralRunnerTests(unittest.TestCase):
                     "memory": "4g",
                     "cpus": "2",
                     "pids_limit": 512,
-                    "container_socket": False,
+                    "stop_timeout": 300,
+                    "network": "bridge",
+                    "docker_socket": False,
                 },
                 "container-build": {
                     "image": "ghcr.io/f5-sales-demo/runner@sha256:" + "b" * 64,
@@ -80,7 +85,9 @@ class EphemeralRunnerTests(unittest.TestCase):
                     "memory": "8g",
                     "cpus": "4",
                     "pids_limit": 1024,
-                    "container_socket": True,
+                    "stop_timeout": 300,
+                    "network": "bridge",
+                    "docker_socket": True,
                 },
             },
             "hosted_exceptions": {},
@@ -96,7 +103,7 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.write_policy()
 
     def tearDown(self):
-        self.account_lookup.stop()
+        self.owner_change.stop()
         self.temp.cleanup()
 
     def write_policy(self):
@@ -107,12 +114,54 @@ class EphemeralRunnerTests(unittest.TestCase):
 
     def test_policy_builds_exact_repository_profiles(self):
         spec = self.policy().repository("f5-sales-demo/fixture")
-        self.assertEqual(spec.account, "gha-fixture")
-        self.assertEqual(spec.account_for(spec.profiles[1]), "ghb-fixture")
         self.assertEqual(
             [item.name for item in spec.profiles], ["ubuntu-24.04", "container-build"]
         )
         self.assertEqual(spec.replicas, 1)
+
+    def test_policy_requires_exact_schema_v3_docker_contract(self):
+        for mutation in (
+            {"schema_version": 2},
+            {"docker": {"socket": "/var/run/docker.sock"}},
+            {"docker": {"minimum_version": "29.2.0"}},
+            {"docker": {"target_version": "29.7.1"}},
+        ):
+            with self.subTest(mutation=mutation):
+                original = json.loads(json.dumps(self.policy_data))
+                if "schema_version" in mutation:
+                    self.policy_data["schema_version"] = mutation["schema_version"]
+                else:
+                    self.policy_data["docker"].update(mutation["docker"])
+                self.write_policy()
+                with self.assertRaises(MODULE.FleetError):
+                    self.policy()
+                self.policy_data = original
+
+    def test_policy_rejects_podman_era_profile_fields(self):
+        profile = self.policy_data["profiles"]["ubuntu-24.04"]
+        profile["container_socket"] = profile.pop("docker_socket")
+        self.write_policy()
+        with self.assertRaises(MODULE.FleetError):
+            self.policy()
+
+    def test_policy_requires_one_exact_builder_profile_for_every_repository(self):
+        for mutation in ("builder-socketless", "default-privileged", "missing-builder"):
+            with self.subTest(mutation=mutation):
+                original = json.loads(json.dumps(self.policy_data))
+                if mutation == "builder-socketless":
+                    self.policy_data["profiles"]["container-build"]["docker_socket"] = (
+                        False
+                    )
+                elif mutation == "default-privileged":
+                    self.policy_data["profiles"]["ubuntu-24.04"]["docker_socket"] = True
+                else:
+                    self.policy_data["repositories"]["f5-sales-demo/fixture"]["runner"][
+                        "profiles"
+                    ] = ["ubuntu-24.04"]
+                self.write_policy()
+                with self.assertRaises(MODULE.FleetError):
+                    self.policy()
+                self.policy_data = original
 
     def test_policy_rejects_mutable_image_and_reserved_label(self):
         profile = self.policy_data["profiles"]["ubuntu-24.04"]
@@ -151,42 +200,41 @@ class EphemeralRunnerTests(unittest.TestCase):
         )
         result = controller.run_once("f5-sales-demo/fixture", "ubuntu-24.04")
         self.assertEqual(result, 0)
-        podman_calls = [call for call in recorder.calls if "run" in call[0]]
-        self.assertEqual(len(podman_calls), 1)
-        command, kwargs = podman_calls[0]
+        docker_calls = [
+            call for call in recorder.calls if call[0][:2] == ["docker", "run"]
+        ]
+        self.assertEqual(len(docker_calls), 1)
+        command, kwargs = docker_calls[0]
         self.assertNotIn("registration-secret", " ".join(command))
         self.assertEqual(kwargs["input_text"], "registration-secret\n")
         self.assertIn("--read-only", command)
         self.assertIn("--cap-drop=all", command)
-        self.assertIn("--security-opt=no-new-privileges", command)
-        self.assertIn("slirp4netns:allow_host_loopback=false", command)
-        self.assertNotIn("/var/run/docker.sock", " ".join(command))
-        self.assertIn("--userns=keep-id:uid=1001,gid=1001", command)
+        self.assertIn("--security-opt=no-new-privileges=true", command)
+        self.assertIn("bridge", command)
+        self.assertNotIn("/run/docker.sock", " ".join(command))
         self.assertIn("RUNNER_EPHEMERAL=1", command)
         self.assertNotIn("/home/runner:rw,nosuid,nodev,size=4g", command)
-        self.assertNotIn("--cgroups=disabled", command)
-        self.assertIn("--cgroup-manager=cgroupfs", command)
+        self.assertEqual(command[command.index("--memory") + 1], "4g")
+        self.assertEqual(command[command.index("--cpus") + 1], "2")
+        self.assertEqual(command[command.index("--pids-limit") + 1], "512")
+        self.assertEqual(command[command.index("--stop-timeout") + 1], "300")
         runtime_root = (
             self.root / "state" / "workspaces" / "fixture" / "ubuntu-24.04" / "0"
         )
         self.assertIn(f"{runtime_root}:{runtime_root}:rw", command)
+        diagnostics = self.root / "state/diagnostics/fixture/ubuntu-24.04/0"
+        self.assertIn(f"{diagnostics}:{runtime_root}/_diag:rw", command)
         self.assertNotIn("/runner-runtime:rw,nosuid,nodev,size=20g", command)
         self.assertIn(f"RUNNER_RUNTIME_DIR={runtime_root}", command)
-        self.assertIn("/run/f5-actions-runner/gha-fixture", " ".join(command))
         self.assertIn(
             "/opt/f5-actions-runner/runner-entrypoint.sh:/usr/local/bin/runner-entrypoint:ro",
             command,
         )
-        self.assertNotIn("--memory", command)
-        self.assertNotIn("--cpus", command)
-        self.assertNotIn("--pids-limit", command)
         install_calls = [call for call in recorder.calls if call[0][0] == "install"]
-        self.assertGreaterEqual(len(install_calls), 2)
-        migrate_calls = [
-            call for call in recorder.calls if call[0][-2:] == ["system", "migrate"]
-        ]
-        self.assertEqual(len(migrate_calls), 1)
-        self.assertFalse(migrate_calls[0][1]["check"])
+        self.assertEqual(len(install_calls), 1)
+        self.assertNotIn(
+            "podman", " ".join(" ".join(call[0]) for call in recorder.calls)
+        )
 
     def test_workspace_reset_removes_stale_runner_state_after_container_cleanup(self):
         controller = MODULE.EphemeralController(
@@ -342,22 +390,182 @@ class EphemeralRunnerTests(unittest.TestCase):
                 0,
             )
 
-    def test_container_profile_uses_isolated_repository_socket(self):
+    def test_container_profile_uses_exact_host_docker_socket(self):
         recorder = CommandRecorder()
         controller = MODULE.EphemeralController(
             self.policy(), FakeGitHub(), self.root / "state", recorder
         )
-        controller.run_once("f5-sales-demo/fixture", "container-build")
-        command = next(call[0] for call in recorder.calls if "run" in call[0])
+        with mock.patch.object(
+            MODULE.EphemeralController, "docker_socket_group", return_value=997
+        ):
+            controller.run_once("f5-sales-demo/fixture", "container-build")
+        command = next(
+            call[0] for call in recorder.calls if call[0][:2] == ["docker", "run"]
+        )
         rendered = " ".join(command)
-        self.assertIn("/run/f5-actions-podman/fixture/podman.sock", rendered)
-        self.assertIn("DOCKER_HOST=unix:///run/podman/podman.sock", command)
+        self.assertIn("/run/docker.sock:/run/docker.sock:rw", rendered)
+        self.assertIn("DOCKER_HOST=unix:///run/docker.sock", command)
+        self.assertIn("997", command)
         runtime_root = (
             self.root / "state" / "workspaces" / "fixture" / "container-build" / "0"
         )
         self.assertIn(f"{runtime_root}:{runtime_root}:rw", command)
         self.assertNotIn("--privileged", command)
         self.assertNotIn("/dev/fuse", command)
+
+    def test_engine_below_minimum_fails_before_runner_launch(self):
+        recorder = CommandRecorder()
+
+        def old_engine(command, **kwargs):
+            recorder.calls.append((command, kwargs))
+            if command[:3] == ["docker", "version", "--format"]:
+                return SimpleNamespace(returncode=0, stdout="29.2.0\n", stderr="")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", old_engine
+        )
+        with self.assertRaises(MODULE.FleetError):
+            controller.run_once("f5-sales-demo/fixture", "ubuntu-24.04")
+        self.assertFalse(
+            any(call[0][:2] == ["docker", "run"] for call in recorder.calls)
+        )
+
+    def test_cleanup_stops_exact_outer_then_removes_nested_workspace_container(self):
+        workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
+        workspace.mkdir(parents=True)
+        outer_id = "a" * 64
+        nested_id = "b" * 64
+        calls = []
+
+        def docker_fixture(command, **_kwargs):
+            calls.append(command)
+            if command[:3] == ["docker", "version", "--format"]:
+                return SimpleNamespace(returncode=0, stdout="29.2.1\n", stderr="")
+            if command[:4] == ["docker", "container", "ls", "--all"]:
+                if "--filter" in command:
+                    return SimpleNamespace(
+                        returncode=0, stdout=outer_id + "\n", stderr=""
+                    )
+                return SimpleNamespace(returncode=0, stdout=nested_id + "\n", stderr="")
+            if command[:3] == ["docker", "container", "inspect"]:
+                container_id = command[-1]
+                if container_id == outer_id:
+                    payload = {
+                        "Id": outer_id,
+                        "Name": "/gha-fixture-ubuntu-24.04-0",
+                        "Config": {
+                            "Labels": {
+                                "f5.runner.managed": "true",
+                                "f5.runner.repository": "f5-sales-demo/fixture",
+                                "f5.runner.profile": "ubuntu-24.04",
+                                "f5.runner.slot": "0",
+                            }
+                        },
+                        "Mounts": [],
+                    }
+                else:
+                    payload = {
+                        "Id": nested_id,
+                        "Name": "/nested-action",
+                        "Config": {"Labels": {}},
+                        "Mounts": [
+                            {
+                                "Type": "bind",
+                                "Source": str(workspace / "_work"),
+                                "Destination": "/github/workspace",
+                            }
+                        ],
+                    }
+                return SimpleNamespace(
+                    returncode=0, stdout=json.dumps(payload), stderr=""
+                )
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        (workspace / "_work").mkdir()
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", docker_fixture
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+        controller.cleanup(spec, spec.profiles[0], 0)
+        outer_stop = ["docker", "container", "stop", "--time", "300", outer_id]
+        outer_remove = ["docker", "container", "rm", "--force", outer_id]
+        nested_remove = ["docker", "container", "rm", "--force", nested_id]
+        self.assertLess(calls.index(outer_stop), calls.index(outer_remove))
+        self.assertLess(calls.index(outer_remove), calls.index(nested_remove))
+
+    def test_nested_cleanup_rejects_malformed_or_mixed_bind_mounts(self):
+        workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
+        (workspace / "_work").mkdir(parents=True)
+        nested_id = "c" * 64
+        for output in (
+            "not-json",
+            json.dumps(
+                {
+                    "Id": nested_id,
+                    "Name": "/nested",
+                    "Config": {"Labels": {}},
+                    "Mounts": [
+                        {"Type": "bind", "Source": str(workspace / "_work")},
+                        {"Type": "bind", "Source": "/etc"},
+                    ],
+                }
+            ),
+        ):
+            with self.subTest(output=output):
+
+                def docker_fixture(command, output=output, **_kwargs):
+                    if command[:4] == ["docker", "container", "ls", "--all"]:
+                        if "--filter" in command:
+                            return SimpleNamespace(returncode=0, stdout="", stderr="")
+                        return SimpleNamespace(
+                            returncode=0, stdout=nested_id + "\n", stderr=""
+                        )
+                    if command[:3] == ["docker", "container", "inspect"]:
+                        return SimpleNamespace(returncode=0, stdout=output, stderr="")
+                    return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+                controller = MODULE.EphemeralController(
+                    self.policy(), FakeGitHub(), self.root / "state", docker_fixture
+                )
+                spec = self.policy().repository("f5-sales-demo/fixture")
+                with self.assertRaises(MODULE.FleetError):
+                    controller.cleanup(spec, spec.profiles[0], 0)
+
+    def test_nested_removal_failure_blocks_workspace_erasure(self):
+        workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
+        (workspace / "_work").mkdir(parents=True)
+        marker = workspace / "keep"
+        marker.write_text("preserve", encoding="utf-8")
+        nested_id = "d" * 64
+
+        def docker_fixture(command, **_kwargs):
+            if command[:3] == ["docker", "version", "--format"]:
+                return SimpleNamespace(returncode=0, stdout="29.2.1\n", stderr="")
+            if command[:4] == ["docker", "container", "ls", "--all"]:
+                if "--filter" in command:
+                    return SimpleNamespace(returncode=0, stdout="", stderr="")
+                return SimpleNamespace(returncode=0, stdout=nested_id + "\n", stderr="")
+            if command[:3] == ["docker", "container", "inspect"]:
+                payload = {
+                    "Id": nested_id,
+                    "Name": "/nested",
+                    "Config": {"Labels": {}},
+                    "Mounts": [{"Type": "bind", "Source": str(workspace / "_work")}],
+                }
+                return SimpleNamespace(
+                    returncode=0, stdout=json.dumps(payload), stderr=""
+                )
+            if command == ["docker", "container", "rm", "--force", nested_id]:
+                return SimpleNamespace(returncode=1, stdout="", stderr="failed")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", docker_fixture
+        )
+        with self.assertRaises(MODULE.FleetError):
+            controller.run_once("f5-sales-demo/fixture", "ubuntu-24.04")
+        self.assertTrue(marker.is_file())
 
     def test_slot_and_profile_fail_closed(self):
         controller = MODULE.EphemeralController(
@@ -382,6 +590,73 @@ class EphemeralRunnerTests(unittest.TestCase):
         errors = controller.audit("f5-sales-demo/fixture")
         self.assertTrue(any("unexpected managed runner" in item for item in errors))
         self.assertTrue(any("reserved label" in item for item in errors))
+
+    def test_audit_fails_closed_on_malformed_runner_labels(self):
+        github = FakeGitHub()
+        github.records = [
+            {
+                "name": "gha-fixture-ubuntu-24.04-0-deadbeef",
+                "labels": [None],
+            }
+        ]
+        controller = MODULE.EphemeralController(
+            self.policy(), github, self.root / "state", CommandRecorder()
+        )
+
+        errors = controller.audit("f5-sales-demo/fixture")
+
+        self.assertTrue(any("labels are malformed" in item for item in errors))
+
+    def test_container_audit_verifies_exact_labels_limits_and_socket_isolation(self):
+        container_id = "e" * 64
+        payload = {
+            "Id": container_id,
+            "Name": "/gha-fixture-container-build-0",
+            "Config": {
+                "Labels": {
+                    "f5.runner.managed": "true",
+                    "f5.runner.repository": "f5-sales-demo/fixture",
+                    "f5.runner.profile": "container-build",
+                    "f5.runner.slot": "0",
+                },
+                "StopTimeout": 300,
+            },
+            "HostConfig": {
+                "Memory": 8 * 1024**3,
+                "NanoCpus": 4_000_000_000,
+                "PidsLimit": 1024,
+                "NetworkMode": "bridge",
+                "ReadonlyRootfs": True,
+                "CapDrop": ["ALL"],
+                "SecurityOpt": ["no-new-privileges=true"],
+            },
+            "Mounts": [
+                {
+                    "Type": "bind",
+                    "Source": "/run/docker.sock",
+                    "Destination": "/run/docker.sock",
+                }
+            ],
+        }
+
+        def docker_fixture(command, **_kwargs):
+            if command[:4] == ["docker", "container", "ls", "--all"]:
+                return SimpleNamespace(
+                    returncode=0, stdout=container_id + "\n", stderr=""
+                )
+            if command[:3] == ["docker", "container", "inspect"]:
+                return SimpleNamespace(
+                    returncode=0, stdout=json.dumps(payload), stderr=""
+                )
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", docker_fixture
+        )
+        self.assertEqual(controller.audit_containers("f5-sales-demo/fixture"), [])
+        payload["HostConfig"]["Memory"] = 1
+        errors = controller.audit_containers("f5-sales-demo/fixture")
+        self.assertTrue(any("resource mismatch" in item for item in errors))
 
 
 if __name__ == "__main__":

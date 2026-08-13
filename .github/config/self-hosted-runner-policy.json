@@ -1,5 +1,10 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
+  "docker": {
+    "socket": "/run/docker.sock",
+    "minimum_version": "29.2.1",
+    "target_version": "29.7.2"
+  },
   "defaults": {
     "replicas": 1,
     "profile": "ubuntu-24.04"
@@ -11,7 +16,9 @@
       "memory": "8g",
       "cpus": "4",
       "pids_limit": 4096,
-      "container_socket": false
+      "stop_timeout": 300,
+      "network": "bridge",
+      "docker_socket": false
     },
     "ubuntu-22.04": {
       "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:c5ea10ad745032a161b025b202dfef71c80e02e17971011f695a7208b9d1e5cc",
@@ -19,7 +26,9 @@
       "memory": "8g",
       "cpus": "4",
       "pids_limit": 4096,
-      "container_socket": false
+      "stop_timeout": 300,
+      "network": "bridge",
+      "docker_socket": false
     },
     "container-build": {
       "image": "ghcr.io/f5-sales-demo/actions-runner-container@sha256:242fe51aeaf119a6965635b79d85c1525f46fbe0bb8ec54ad3a8df13e7dfd4a5",
@@ -27,7 +36,9 @@
       "memory": "16g",
       "cpus": "6",
       "pids_limit": 8192,
-      "container_socket": true
+      "stop_timeout": 300,
+      "network": "bridge",
+      "docker_socket": true
     }
   },
   "hosted_exceptions": {
@@ -101,27 +112,59 @@
     }
   },
   "repositories": {
-    "f5-sales-demo/administration": {},
-    "f5-sales-demo/api-protection": {},
-    "f5-sales-demo/api-specs": {},
-    "f5-sales-demo/api-specs-enriched": {},
-    "f5-sales-demo/apt-repo": {},
-    "f5-sales-demo/bot-advanced": {},
-    "f5-sales-demo/bot-standard": {},
-    "f5-sales-demo/cdn": {},
-    "f5-sales-demo/cdn-simulator": {},
-    "f5-sales-demo/console": {},
-    "f5-sales-demo/csd": {},
-    "f5-sales-demo/ddos": {},
-    "f5-sales-demo/demo-resource-template": {},
-    "f5-sales-demo/demo-resources": {},
+    "f5-sales-demo/administration": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/api-protection": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/api-specs": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/api-specs-enriched": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/apt-repo": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/bot-advanced": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/bot-standard": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/cdn": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/cdn-simulator": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/console": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/csd": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/ddos": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/demo-resource-template": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/demo-resources": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
     "f5-sales-demo/devcontainer": {
       "runner": {
         "profiles": ["ubuntu-24.04", "container-build"]
       }
     },
-    "f5-sales-demo/dns": {},
-    "f5-sales-demo/docs": {},
+    "f5-sales-demo/dns": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/docs": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
     "f5-sales-demo/docs-builder": {
       "runner": {
         "profiles": ["ubuntu-24.04", "container-build"]
@@ -132,30 +175,69 @@
         "profiles": ["ubuntu-24.04", "container-build"]
       }
     },
-    "f5-sales-demo/docs-icons": {},
-    "f5-sales-demo/docs-theme": {},
-    "f5-sales-demo/i18n-core": {},
-    "f5-sales-demo/marketplace": {},
-    "f5-sales-demo/marketplace-claude-code": {},
-    "f5-sales-demo/mcn": {},
-    "f5-sales-demo/nginx": {},
-    "f5-sales-demo/observability": {},
-    "f5-sales-demo/origin-server": {},
-    "f5-sales-demo/starlight-llms-txt": {},
-    "f5-sales-demo/starlight-mega-menu": {},
-    "f5-sales-demo/traffic-generator": {},
-    "f5-sales-demo/vscode-xcsh": {},
-    "f5-sales-demo/waf": {},
-    "f5-sales-demo/was": {},
-    "f5-sales-demo/webapp-api-protection": {},
+    "f5-sales-demo/docs-icons": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/docs-theme": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/i18n-core": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/marketplace": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/marketplace-claude-code": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/mcn": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/nginx": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/observability": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/origin-server": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/starlight-llms-txt": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/starlight-mega-menu": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/traffic-generator": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/vscode-xcsh": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/waf": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/was": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/webapp-api-protection": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
     "f5-sales-demo/xcsh": {
       "runner": {
         "profiles": ["ubuntu-24.04", "ubuntu-22.04", "container-build"]
       }
     },
-    "f5-sales-demo/xcsh-action": {},
-    "f5-sales-demo/xcsh-chrome-extension": {},
+    "f5-sales-demo/xcsh-action": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
+    "f5-sales-demo/xcsh-chrome-extension": {
+      "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+    },
     "f5-sales-demo/terraform-provider-xcsh": {
+      "runner": {
+        "profiles": ["ubuntu-24.04", "container-build"]
+      },
       ".github/workflows/acc-tests.yml": {
         "real-api-tests": {
           "runs_on": ["self-hosted", "Linux", "X64", "terraform-provider-xcsh", "ubuntu-24.04"],

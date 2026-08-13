@@ -14,10 +14,16 @@ from pathlib import Path, PurePosixPath
 
 import yaml
 
-POLICY_SCHEMA_VERSION = 2
+POLICY_SCHEMA_VERSION = 3
+DOCKER_POLICY = {
+    "socket": "/run/docker.sock",
+    "minimum_version": "29.2.1",
+    "target_version": "29.7.2",
+}
 
 TOP_FIELDS = {
     "schema_version",
+    "docker",
     "defaults",
     "profiles",
     "hosted_exceptions",
@@ -126,10 +132,11 @@ def repository_runner_profiles(workflows, profiles, default_profile):
         )
         or len(set(allowed)) != len(allowed)
         or default_profile not in allowed
+        or "container-build" not in allowed
     ):
         raise PolicyError(
             "repository runner profiles must be a unique array of existing profiles "
-            "that includes the default"
+            "that includes the default and container-build"
         )
     return allowed
 
@@ -160,6 +167,8 @@ def load_policy(path, governance_path, repository):
     strict_object(raw, TOP_FIELDS, "policy")
     if raw.get("schema_version") != POLICY_SCHEMA_VERSION:
         raise PolicyError(f"unsupported schema_version: {raw.get('schema_version')!r}")
+    if raw.get("docker") != DOCKER_POLICY:
+        raise PolicyError(f"policy docker contract must equal {DOCKER_POLICY!r}")
     repositories = raw.get("repositories")
     governed = governed_repositories(governance_path)
     if not isinstance(repositories, dict) or set(repositories) != governed:

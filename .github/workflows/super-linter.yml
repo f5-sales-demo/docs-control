@@ -28,8 +28,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  trust-gate:
+    name: Trust Docker-capable job
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    permissions: {}
+    steps:
+      - name: Reject untrusted or unsupported events
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            pull_request)
+              if [[ -z "$HEAD_REPOSITORY" || "$HEAD_REPOSITORY" != "$REPOSITORY" ]]; then
+                echo "::error::Docker-capable lint is forbidden for fork pull requests."
+                exit 1
+              fi
+              ;;
+            workflow_dispatch) ;;
+            *)
+              echo "::error::Docker-capable lint requires a same-repository PR or manual dispatch."
+              exit 1
+              ;;
+          esac
+
   lint:
     name: Lint Code Base
+    needs: trust-gate
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", container-build]
     # Scoped to what the linter needs: read code/packages, write commit statuses
     # and PR annotations. The shell-unit-tests job below gets contents:read only.
@@ -585,6 +616,16 @@ jobs:
       - name: Run workflow-security validator integration test
         if: hashFiles('tests/test-workflow-security-validator-integration.sh') != ''
         run: bash tests/test-workflow-security-validator-integration.sh
+
+      - name: Run runner fleet Python unit tests
+        if: hashFiles('tests/test_ephemeral_runner_controller.py') != ''
+        run: |
+          python3 -m unittest \
+            tests/test_manage_github_runners.py \
+            tests/test_audit_runner_workflows.py \
+            tests/test_ephemeral_runner_controller.py \
+            tests/test_provision_ephemeral_runners.py \
+            tests/test_workflow_security_validator.py
 
       - name: Run consumer shell-test selector test
         if: hashFiles('tests/test-consumer-shell-tests.sh') != ''
