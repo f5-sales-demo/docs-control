@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import fcntl
 import json
 import os
 import re
@@ -622,8 +623,30 @@ class EphemeralController:
                 )
 
     def cleanup(self, spec, profile, slot):
-        self._stop_outer(spec, profile, slot)
-        self._remove_nested_containers(spec, profile, slot)
+        lock_path = self.base_dir / ".cleanup.lock"
+        try:
+            descriptor = os.open(
+                lock_path,
+                os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW,
+                0o600,
+            )
+        except OSError as exc:
+            raise FleetError(f"cannot open runner cleanup lock: {exc}") from exc
+        try:
+            metadata = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != os.geteuid()
+                or stat.S_IMODE(metadata.st_mode) != 0o600
+            ):
+                raise FleetError("runner cleanup lock is unsafe")
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            self._stop_outer(spec, profile, slot)
+            self._remove_nested_containers(spec, profile, slot)
+        except OSError as exc:
+            raise FleetError(f"cannot use runner cleanup lock: {exc}") from exc
+        finally:
+            os.close(descriptor)
 
     def prepare_workspace(self, spec, profile, slot):
         """Create the exact host-visible workspace owned by runner UID/GID 1001."""

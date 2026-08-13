@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=consider-using-with
+# pylint: disable=consider-using-with,too-many-lines
 """Hermetic tests for the ephemeral runner lifecycle."""
 
 import importlib.util
@@ -552,6 +552,42 @@ class EphemeralRunnerTests(unittest.TestCase):
             ["docker", "container", "rm", "--force", nested_id],
             calls,
         )
+
+    def test_cleanup_serializes_host_global_container_inventory(self):
+        workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
+        workspace.mkdir(parents=True)
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+
+        with mock.patch.object(MODULE.fcntl, "flock") as flock:
+            controller.cleanup(spec, spec.profiles[0], 0)
+
+        flock.assert_called_once()
+        descriptor, operation = flock.call_args.args
+        self.assertIsInstance(descriptor, int)
+        self.assertEqual(operation, MODULE.fcntl.LOCK_EX)
+        lock_path = self.root / "state/.cleanup.lock"
+        metadata = lock_path.stat(follow_symlinks=False)
+        self.assertTrue(stat.S_ISREG(metadata.st_mode))
+        self.assertEqual(stat.S_IMODE(metadata.st_mode), 0o600)
+
+    def test_cleanup_rejects_symlink_lock_without_following_it(self):
+        workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
+        workspace.mkdir(parents=True)
+        outside = self.root / "outside-lock"
+        outside.write_text("preserve", encoding="utf-8")
+        (self.root / "state/.cleanup.lock").symlink_to(outside)
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+
+        with self.assertRaises(MODULE.FleetError):
+            controller.cleanup(spec, spec.profiles[0], 0)
+
+        self.assertEqual(outside.read_text(encoding="utf-8"), "preserve")
 
     def test_nested_cleanup_tolerates_confirmed_concurrent_container_removal(self):
         workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
