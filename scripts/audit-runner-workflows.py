@@ -93,7 +93,7 @@ def trigger_names(workflow):
 
 
 def audit_docker_route(workflow, job_id, job, profiles, profile):
-    errors = []
+    errors: list[str] = []
     if profile not in profiles or not profiles[profile].get("docker_socket"):
         return errors
     try:
@@ -138,7 +138,7 @@ def audit_docker_route(workflow, job_id, job, profiles, profile):
     return errors
 
 
-def audit_job(
+def audit_job(  # pylint: disable=too-many-locals
     repository,
     relative,
     job_id,

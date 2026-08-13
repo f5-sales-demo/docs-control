@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -52,6 +53,7 @@ class CommandRecorder:
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
 
+# pylint: disable-next=too-many-public-methods
 class EphemeralRunnerTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -329,7 +331,7 @@ class EphemeralRunnerTests(unittest.TestCase):
         MODULE.EphemeralController.remove_read_only(
             os.unlink,
             str(link),
-            (PermissionError, PermissionError("denied"), None),
+            PermissionError("denied"),
         )
         self.assertFalse(link.exists())
         self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o500)
@@ -341,7 +343,7 @@ class EphemeralRunnerTests(unittest.TestCase):
         MODULE.EphemeralController.remove_read_only(
             MODULE.os.open,
             str(directory),
-            (PermissionError, PermissionError("denied"), None),
+            PermissionError("denied"),
         )
         self.assertFalse(directory.exists())
 
@@ -358,7 +360,7 @@ class EphemeralRunnerTests(unittest.TestCase):
             MODULE.EphemeralController.remove_read_only(
                 MODULE.os.scandir,
                 str(directory),
-                (PermissionError, PermissionError("denied"), None),
+                PermissionError("denied"),
             )
         self.assertEqual(open_call.call_args.args[0], directory)
         scandir_call.assert_called_once_with(str(directory))
@@ -467,7 +469,7 @@ class EphemeralRunnerTests(unittest.TestCase):
             if command[:3] == ["docker", "container", "inspect"]:
                 container_id = command[-1]
                 if container_id == outer_id:
-                    payload = {
+                    payload: dict[str, Any] = {
                         "Id": outer_id,
                         "Name": "/gha-fixture-ubuntu-24.04-0",
                         "Config": {
@@ -700,7 +702,7 @@ class EphemeralRunnerTests(unittest.TestCase):
 
     def test_container_audit_verifies_exact_labels_limits_and_socket_isolation(self):
         container_id = "e" * 64
-        payload = {
+        payload: dict[str, Any] = {
             "Id": container_id,
             "Name": "/gha-fixture-container-build-0",
             "Config": {

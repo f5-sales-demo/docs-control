@@ -76,7 +76,7 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertNotIn("podman", content)
 
     def test_every_governed_repository_has_container_build_profile(self):
-        by_repository = {}
+        by_repository: dict[str, set[str]] = {}
         for item in MODULE.all_instances():
             by_repository.setdefault(item.repository, set()).add(item.profile)
         self.assertEqual(len(by_repository), 39)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name,too-many-lines
 """Run repository-scoped GitHub Actions runners in one-job Docker sandboxes."""
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 DEFAULT_ORG = "f5-sales-demo"
 HOST_ENTRYPOINT = Path("/opt/f5-actions-runner/runner-entrypoint.sh")
@@ -436,19 +437,23 @@ class EphemeralController:
             payload = payload[0]
         if not isinstance(payload, dict) or payload.get("Id") != container_id:
             raise FleetError(f"malformed Docker inspection for {container_id}")
-        if (
-            not isinstance(payload.get("Name"), str)
-            or not payload["Name"].startswith("/")
-            or not isinstance(payload.get("Config"), dict)
-            or (
-                payload["Config"].get("Labels") is not None
-                and not isinstance(payload["Config"].get("Labels"), dict)
+        name = payload.get("Name")
+        config = payload.get("Config")
+        if not isinstance(config, dict):
+            raise FleetError(f"malformed Docker inspection for {container_id}")
+        labels = config.get("Labels")
+        valid_name = isinstance(name, str) and name.startswith("/")
+        valid_labels = labels is None or isinstance(labels, dict)
+        if not all(
+            (
+                valid_name,
+                valid_labels,
+                isinstance(payload.get("Mounts"), list),
             )
-            or not isinstance(payload.get("Mounts"), list)
         ):
             raise FleetError(f"malformed Docker inspection for {container_id}")
-        if payload["Config"].get("Labels") is None:
-            payload["Config"]["Labels"] = {}
+        if labels is None:
+            config["Labels"] = {}
         return payload
 
     def _stop_outer(self, spec, profile, slot):
@@ -625,16 +630,15 @@ class EphemeralController:
                 continue
             try:
                 if child.is_dir():
-                    shutil.rmtree(child, onerror=self.remove_read_only)
+                    cast("Any", shutil.rmtree)(child, onexc=self.remove_read_only)
                 else:
                     child.unlink()
             except OSError as exc:
                 raise FleetError(f"cannot reset runner workspace: {exc}") from exc
 
     @staticmethod
-    def remove_read_only(function, path, exception_info):
+    def remove_read_only(function, path, error):
         """Retry a removal without following untrusted links in the workspace."""
-        error = exception_info[1]
         if not isinstance(error, PermissionError):
             raise error
         target = Path(path)
@@ -655,7 +659,9 @@ class EphemeralController:
         finally:
             os.close(descriptor)
         if function is os.open:
-            shutil.rmtree(target, onerror=EphemeralController.remove_read_only)
+            cast("Any", shutil.rmtree)(
+                target, onexc=EphemeralController.remove_read_only
+            )
             return
         function(path)
 
@@ -822,7 +828,7 @@ class EphemeralController:
                 break
         return 0
 
-    def audit_containers(self, full_name):
+    def audit_containers(self, full_name):  # pylint: disable=too-many-locals
         spec = self.policy.repository(full_name)
         errors = []
         expected = {
