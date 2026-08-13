@@ -55,11 +55,17 @@ class ProvisionRunnerTests(unittest.TestCase):
             "containerimage.digest",
             "imagetools inspect --raw",
             "sha256sum",
+            "DOCKER_CLI_PLUGIN_EXTRA_DIRS",
+            "docker cp",
             'python3 -c "import yaml"',
             "docker buildx version",
             "docker compose version",
         ):
             self.assertIn(required, content)
+        self.assertIn(
+            "e650b7a58d7f56be91d4f7be799196380a3bbc1bcbc41f1f4dff1b36ac309e1e",
+            content,
+        )
         self.assertNotIn("podman", content)
 
     def test_every_governed_repository_has_container_build_profile(self):

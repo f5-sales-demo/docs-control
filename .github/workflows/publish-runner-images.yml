@@ -46,17 +46,50 @@ jobs:
           PROFILE: ${{ matrix.profile }}
           UBUNTU_IMAGE: ${{ matrix.base }}
           TARGET: ${{ matrix.target }}
+          DOCKER_CLI_IMAGE: docker.io/library/docker:29.7.2-cli@sha256:e650b7a58d7f56be91d4f7be799196380a3bbc1bcbc41f1f4dff1b36ac309e1e
         run: |
           set -euo pipefail
           tag="issue-1426-${PROFILE}"
-          metadata_file="$(mktemp)"
-          auth_dir="$(mktemp -d)"
+          runner_workspace="${RUNNER_WORKSPACE:?}"
+          runner_temp="${RUNNER_TEMP:?}"
+          case "$runner_temp" in
+            "$runner_workspace"/*) ;;
+            *) echo "runner temp escapes runner workspace" >&2; exit 1 ;;
+          esac
+          metadata_file="$(mktemp --tmpdir="$runner_temp")"
+          auth_dir="$(mktemp -d --tmpdir="$runner_temp")"
+          tools_dir="$(mktemp -d --tmpdir="$runner_temp")"
+          plugins_dir="$tools_dir/cli-plugins"
+          tools_container="f5-runner-tools-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${PROFILE}"
           cleanup() {
+            docker container rm --force "$tools_container" >/dev/null 2>&1 || true
             rm -f "$metadata_file"
             rm -f "$auth_dir/config.json"
+            rm -f "$tools_dir/docker"
+            rm -f "$plugins_dir/docker-buildx" "$plugins_dir/docker-compose"
+            rmdir "$plugins_dir"
+            rmdir "$tools_dir"
             rmdir "$auth_dir"
           }
           trap cleanup EXIT
+          mkdir "$plugins_dir"
+          docker container rm --force "$tools_container" >/dev/null 2>&1 || true
+          docker create \
+            --name "$tools_container" \
+            --volume "$runner_workspace:$runner_workspace:rw" \
+            --entrypoint /bin/true \
+            "$DOCKER_CLI_IMAGE" >/dev/null
+          docker cp "$tools_container:/usr/local/bin/docker" "$tools_dir/docker"
+          docker cp \
+            "$tools_container:/usr/local/libexec/docker/cli-plugins/docker-buildx" \
+            "$plugins_dir/docker-buildx"
+          docker cp \
+            "$tools_container:/usr/local/libexec/docker/cli-plugins/docker-compose" \
+            "$plugins_dir/docker-compose"
+          docker container rm "$tools_container" >/dev/null
+          export PATH="$tools_dir:$PATH"
+          export DOCKER_CLI_PLUGIN_EXTRA_DIRS="$plugins_dir"
+          test "$(docker version --format '{{.Client.Version}}')" = 29.7.2
           printf '%s' "$GHCR_TOKEN" | docker --config "$auth_dir" login \
             ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
           docker --config "$auth_dir" buildx build \
