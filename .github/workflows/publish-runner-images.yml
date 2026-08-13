@@ -110,7 +110,7 @@ jobs:
             exit 1
           fi
           published="${IMAGE}@${digest}"
-          registry_digest="sha256:$(docker buildx imagetools inspect --raw "$published" | sha256sum | cut -d' ' -f1)"
+          registry_digest="sha256:$(docker --config "$auth_dir" buildx imagetools inspect --raw "$published" | sha256sum | cut -d' ' -f1)"
           if [[ "$registry_digest" != "$digest" ]]; then
             echo "published digest verification failed" >&2
             exit 1

@@ -53,7 +53,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             '--metadata-file "$metadata_file"',
             "--push",
             "containerimage.digest",
-            "imagetools inspect --raw",
+            'docker --config "$auth_dir" buildx imagetools inspect --raw',
             "sha256sum",
             "cliPluginsExtraDirs",
             "docker cp",
