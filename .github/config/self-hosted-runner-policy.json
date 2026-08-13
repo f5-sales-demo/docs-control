@@ -11,7 +11,7 @@
   },
   "profiles": {
     "ubuntu-24.04": {
-      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:f0935d51ab674600b4674c909a2e35c8f822f6b65b6faa42e89d172819081eb5",
+      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:8fa760afed6b45cf4508b350f3899e7604c53e5e8288491025927f159781387a",
       "labels": ["ubuntu-24.04"],
       "memory": "8g",
       "cpus": "4",
@@ -21,7 +21,7 @@
       "docker_socket": false
     },
     "ubuntu-22.04": {
-      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:17e539e26eecd2eb1e8be6a2f5f0451d9dcc76268e51f08929b72ecfae05bb82",
+      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:2f46bf299e5c5d6656756660235be1c4d9d45ab763c9eb8c22bfdafc00f21cc2",
       "labels": ["ubuntu-22.04"],
       "memory": "8g",
       "cpus": "4",
@@ -31,7 +31,7 @@
       "docker_socket": false
     },
     "container-build": {
-      "image": "ghcr.io/f5-sales-demo/actions-runner-container@sha256:f6264aae93eface6c773dcf34aa786d86a7f21d8aceba2c9d319b245b3f72c41",
+      "image": "ghcr.io/f5-sales-demo/actions-runner-container@sha256:716fb43e39ae8ab9d3391ac08c61148abe2eb9bcd78dc1014db83ddedfbe873d",
       "labels": ["container-build"],
       "memory": "16g",
       "cpus": "6",
