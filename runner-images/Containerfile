@@ -10,7 +10,7 @@ ARG RUNNER_SHA256=04cf0be1aff4c3ec3554466c39124ca250e3effd8873bb7e8d68535aa9505d
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
-      bash ca-certificates curl git git-lfs jq libssl3 python3 python3-venv python3-yaml \
+      bash ca-certificates curl git git-lfs gh jq libssl3 python3 python3-venv python3-yaml \
       unzip xz-utils zip \
     && if apt-cache show libicu74 >/dev/null 2>&1; then \
       apt-get install --yes --no-install-recommends libicu74; \
