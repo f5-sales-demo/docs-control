@@ -489,9 +489,10 @@ run_concurrent_auto_merge() (
     if [ "$1" = pr ]; then
       printf 'pass\n'
     else
-      jq -n --arg sha "$expected_sha" --arg branch "$SYNC_BRANCH" '
+      jq -n --arg sha "$expected_sha" --arg branch "$SYNC_BRANCH" \
+        --arg repository example/consumer '
         {merged:true,merged_at:"2026-08-12T00:00:00Z",
-         head:{sha:$sha,ref:$branch,repo:{full_name:"example/consumer"}},
+         head:{sha:$sha,ref:$branch,repo:{full_name:$repository}},
          base:{ref:"main"}}
       '
     fi

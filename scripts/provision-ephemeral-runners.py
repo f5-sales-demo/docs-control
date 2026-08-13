@@ -5,10 +5,11 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import importlib.util
 import os
-import pwd
 import re
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -23,12 +24,10 @@ CONFIG_ROOT = Path("/etc/f5-actions-runner")
 INSTANCE_ROOT = CONFIG_ROOT / "instances"
 SYSTEMD_ROOT = Path("/etc/systemd/system")
 DATA_ROOT = Path("/data/actions-runners")
-USER_ROOT = DATA_ROOT / "users"
 STATE_ROOT = DATA_ROOT / "f5-sales-demo-ephemeral"
-PODMAN_RUNTIME_ROOT = Path("/run/f5-actions-podman")
 TOKEN_PATH = CONFIG_ROOT / "github.token"
 RUNNER_UNIT = "f5-actions-runner@.service"
-ACCOUNT_RE = re.compile(r"gh[ab]-[A-Za-z0-9_.-]+")
+LEGACY_UNIT_RE = re.compile(r"f5-actions-podman-([A-Za-z0-9_.-]+)\.service")
 
 
 class ProvisionError(RuntimeError):
@@ -63,11 +62,12 @@ class Instance:
     repository_name: str
     profile: str
     slot: int
-    account: str
-    container_socket: bool
+    docker_socket: bool
     memory: str
     cpus: str
     pids_limit: int
+    stop_timeout: int
+    network: str
 
     @property
     def identifier(self):
@@ -90,11 +90,12 @@ def instances(policy):
                         spec.name,
                         profile.name,
                         slot,
-                        spec.account_for(profile),
-                        profile.container_socket,
+                        profile.docker_socket,
                         profile.memory,
                         profile.cpus,
                         profile.pids_limit,
+                        profile.stop_timeout,
+                        profile.network,
                     )
                 )
     return tuple(result)
@@ -122,56 +123,8 @@ def safe_write(path, content, mode=0o644):
     os.replace(temporary, path)
 
 
-def subid_accounts(path):
-    result: set[str] = set()
-    try:
-        lines = Path(path).read_text(encoding="utf-8").splitlines()
-    except FileNotFoundError:
-        return result
-    for line in lines:
-        fields = line.split(":")
-        if len(fields) == 3:
-            result.add(fields[0])
-    return result
-
-
 def all_instances():
     return instances(active_policy())
-
-
-def all_accounts():
-    return {item.account for item in all_instances()}
-
-
-def ensure_account(account):
-    if not ACCOUNT_RE.fullmatch(account) or len(account) > 31:
-        raise ProvisionError(f"unsafe runner account: {account!r}")
-    home = USER_ROOT / account
-    try:
-        record = pwd.getpwnam(account)
-    except KeyError:
-        command(
-            [
-                "useradd",
-                "--create-home",
-                "--home-dir",
-                str(home),
-                "--shell",
-                "/usr/sbin/nologin",
-                "--user-group",
-                account,
-            ]
-        )
-        record = pwd.getpwnam(account)
-    if Path(record.pw_dir) != home or record.pw_shell != "/usr/sbin/nologin":
-        raise ProvisionError(f"existing account has unexpected identity: {account}")
-    present = subid_accounts("/etc/subuid") & subid_accounts("/etc/subgid")
-    if account not in present:
-        offset = 1_000_000 + sorted(all_accounts()).index(account) * 65_536
-        end = offset + 65_535
-        command(["usermod", "--add-subuids", f"{offset}-{end}", account])
-        command(["usermod", "--add-subgids", f"{offset}-{end}", account])
-    command(["install", "-d", "-m", "0700", "-o", account, "-g", account, str(home)])
 
 
 _POLICY = None
@@ -184,11 +137,30 @@ def active_policy():
     return _POLICY
 
 
+def remove_legacy_resource_dropin(item):
+    """Remove the exact rootless-Podman-era drop-in for a managed runner unit."""
+    directory = SYSTEMD_ROOT / f"{item.unit}.d"
+    path = directory / "resources.conf"
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise ProvisionError(f"refusing unsafe legacy runner drop-in: {path}")
+    if path.exists():
+        path.unlink()
+    try:
+        directory.rmdir()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        if exc.errno != errno.ENOTEMPTY:
+            raise
+
+
 def runner_unit_text():
     return f"""[Unit]
 Description=Ephemeral GitHub Actions runner (%i)
 After=network-online.target
+After=docker.service
 Wants=network-online.target
+Requires=docker.service
 
 [Service]
 Type=simple
@@ -204,55 +176,10 @@ UMask=0077
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-# ProtectKernelTunables blocks rootless runc from mounting the container procfs.
+ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
-ReadWritePaths={DATA_ROOT} /run/f5-actions-podman /run/f5-actions-runner
-
-[Install]
-WantedBy=multi-user.target
-"""
-
-
-def systemd_memory_limit(memory):
-    """Translate the validated policy suffix to systemd byte unit syntax."""
-    return memory[:-1] + memory[-1].upper()
-
-
-def resource_dropin_text(item):
-    cpu_quota = int(float(item.cpus) * 100)
-    return f"""[Service]
-RuntimeDirectory=f5-actions-runner/{item.account}
-RuntimeDirectoryMode=0700
-MemoryMax={systemd_memory_limit(item.memory)}
-CPUQuota={cpu_quota}%
-TasksMax={item.pids_limit}
-"""
-
-
-def podman_unit_text(item):
-    home = USER_ROOT / item.account
-    socket_dir = f"/run/f5-actions-podman/{item.repository_name}"
-    return f"""[Unit]
-Description=Rootless Podman API for {item.repository}
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User={item.account}
-Group={item.account}
-Environment=HOME={home}
-Environment=XDG_RUNTIME_DIR={socket_dir}
-RuntimeDirectory=f5-actions-podman/{item.repository_name}
-RuntimeDirectoryMode=0700
-ExecStart=/usr/bin/podman system service --time=0 unix://{socket_dir}/podman.sock
-Restart=on-failure
-RestartSec=5
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths={home} {socket_dir}
+ReadWritePaths={DATA_ROOT} /run/docker.sock
 
 [Install]
 WantedBy=multi-user.target
@@ -264,16 +191,12 @@ def install_definition():
     policy = active_policy()
     for path in (
         DATA_ROOT,
-        USER_ROOT,
         STATE_ROOT,
         CONFIG_ROOT,
         INSTANCE_ROOT,
         INSTALL_ROOT,
-        PODMAN_RUNTIME_ROOT,
     ):
         path.mkdir(parents=True, exist_ok=True)
-    for account in sorted(all_accounts()):
-        ensure_account(account)
     for source in (CONTROLLER_SOURCE, ENTRYPOINT_SOURCE):
         command(
             [
@@ -302,23 +225,13 @@ def install_definition():
         ]
     )
     safe_write(SYSTEMD_ROOT / RUNNER_UNIT, runner_unit_text())
-    socket_repositories = set()
     for item in instances(policy):
+        remove_legacy_resource_dropin(item)
         safe_write(
             INSTANCE_ROOT / f"{item.identifier}.env",
             f"RUNNER_REPOSITORY={item.repository}\nRUNNER_PROFILE={item.profile}\nRUNNER_SLOT={item.slot}\n",
             0o600,
         )
-        safe_write(
-            SYSTEMD_ROOT / f"{item.unit}.d" / "resources.conf",
-            resource_dropin_text(item),
-        )
-        if item.container_socket and item.repository_name not in socket_repositories:
-            safe_write(
-                SYSTEMD_ROOT / f"f5-actions-podman-{item.repository_name}.service",
-                podman_unit_text(item),
-            )
-            socket_repositories.add(item.repository_name)
     command(["systemctl", "daemon-reload"])
 
 
@@ -347,34 +260,97 @@ def enable(repository, profile=None):
     require_root()
     if not TOKEN_PATH.is_file():
         raise ProvisionError(f"credential is not installed at {TOKEN_PATH}")
+    command(["systemctl", "start", "docker.service"])
     for item in select(repository, profile):
-        if item.container_socket:
-            command(
-                [
-                    "systemctl",
-                    "enable",
-                    "--now",
-                    f"f5-actions-podman-{item.repository_name}.service",
-                ]
-            )
         command(["systemctl", "enable", "--now", item.unit])
+
+
+def retire_legacy_podman_units():
+    """Remove only inactive runner-owned Podman API unit definitions."""
+    require_root()
+    governed = {item.repository_name for item in all_instances()}
+    for path in sorted(SYSTEMD_ROOT.glob("f5-actions-podman-*.service")):
+        match = LEGACY_UNIT_RE.fullmatch(path.name)
+        if match is None or match.group(1) not in governed or path.is_symlink():
+            raise ProvisionError(f"refusing unknown legacy runner unit: {path.name}")
+        repository_name = match.group(1)
+        related = [
+            item
+            for item in all_instances()
+            if item.repository_name == repository_name and item.docker_socket
+        ]
+        for item in related:
+            state = command(
+                ["systemctl", "is-active", item.unit], check=False, capture=True
+            )
+            if state.returncode == 0 or state.stdout.strip() == "active":
+                raise ProvisionError(
+                    f"runner must be inactive before retiring {path.name}: {item.unit}"
+                )
+        command(["systemctl", "disable", "--now", path.name])
+        path.unlink()
+    command(["systemctl", "daemon-reload"])
+
+
+def docker_host_errors(policy):
+    errors = []
+    service = command(
+        ["systemctl", "is-active", "docker.service"], check=False, capture=True
+    )
+    if service.returncode != 0 or service.stdout.strip() != "active":
+        errors.append("docker.service is not active")
+    try:
+        metadata = Path(policy.docker.socket).stat(follow_symlinks=False)
+        if not stat.S_ISSOCK(metadata.st_mode):
+            errors.append(f"Docker socket is not a socket: {policy.docker.socket}")
+        if metadata.st_uid != 0 or stat.S_IMODE(metadata.st_mode) != 0o660:
+            errors.append("Docker socket must be root-owned with mode 0660")
+    except OSError as exc:
+        errors.append(f"cannot inspect Docker socket: {exc}")
+    version = command(
+        ["docker", "version", "--format", "{{.Server.Version}}"],
+        check=False,
+        capture=True,
+    )
+    if version.returncode != 0:
+        errors.append("cannot query Docker Engine version")
+    else:
+        try:
+            actual = load_controller().version_tuple(version.stdout.strip())
+            minimum = load_controller().version_tuple(policy.docker.minimum_version)
+            if actual < minimum:
+                errors.append(
+                    f"Docker Engine {version.stdout.strip()} is below {policy.docker.minimum_version}"
+                )
+        except (RuntimeError, ValueError) as exc:
+            errors.append(str(exc))
+    stale = sorted(
+        path.name for path in SYSTEMD_ROOT.glob("f5-actions-podman-*.service")
+    )
+    if stale:
+        errors.append(f"stale runner Podman units: {stale}")
+    return errors
 
 
 def audit(repository=None):
     selected = select(repository) if repository else list(all_instances())
-    failed = False
+    host_errors = docker_host_errors(active_policy())
+    for error in host_errors:
+        print(f"[ERROR] {error}")
+    failed = bool(host_errors)
+    controller_module = load_controller()
+    controller = controller_module.EphemeralController(active_policy(), None)
+    for full_name in sorted({item.repository for item in selected}):
+        for error in controller.audit_containers(full_name):
+            print(f"[ERROR] {full_name}: {error}")
+            failed = True
     for item in selected:
         env_file = INSTANCE_ROOT / f"{item.identifier}.env"
-        try:
-            record = pwd.getpwnam(item.account)
-            account_ok = Path(record.pw_dir) == USER_ROOT / item.account
-        except KeyError:
-            account_ok = False
         unit_result = command(
             ["systemctl", "is-active", item.unit], check=False, capture=True
         )
         state = unit_result.stdout.strip() or "inactive"
-        definition_ok = env_file.is_file() and account_ok
+        definition_ok = env_file.is_file()
         marker = "OK" if definition_ok else "ERROR"
         print(
             f"[{marker}] {item.unit} definition={'ready' if definition_ok else 'missing'} state={state}"
@@ -385,8 +361,8 @@ def audit(repository=None):
 
 def plan():
     for item in all_instances():
-        socket = " socket" if item.container_socket else ""
-        print(f"{item.unit}\t{item.account}{socket}")
+        socket = " docker-socket" if item.docker_socket else " socketless"
+        print(f"{item.unit}\t{socket}")
 
 
 def main(argv=None):
@@ -395,6 +371,7 @@ def main(argv=None):
     subparsers.add_parser("plan")
     subparsers.add_parser("install")
     subparsers.add_parser("install-credential")
+    subparsers.add_parser("retire-legacy-podman-units")
     enable_parser = subparsers.add_parser("enable")
     enable_parser.add_argument("repository")
     enable_parser.add_argument("--profile")
@@ -408,6 +385,8 @@ def main(argv=None):
             install_definition()
         elif args.action == "install-credential":
             install_credential()
+        elif args.action == "retire-legacy-podman-units":
+            retire_legacy_podman_units()
         elif args.action == "enable":
             enable(args.repository, args.profile)
         else:

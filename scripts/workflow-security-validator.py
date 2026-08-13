@@ -14,10 +14,16 @@ from pathlib import Path, PurePosixPath
 
 import yaml
 
-POLICY_SCHEMA_VERSION = 2
+POLICY_SCHEMA_VERSION = 3
+DOCKER_POLICY = {
+    "socket": "/run/docker.sock",
+    "minimum_version": "29.2.1",
+    "target_version": "29.7.2",
+}
 
 TOP_FIELDS = {
     "schema_version",
+    "docker",
     "defaults",
     "profiles",
     "hosted_exceptions",
@@ -99,14 +105,12 @@ def governed_repositories(path):
         repos = raw["repo_classes"]["repos"]
     except Exception as exc:
         raise PolicyError(f"cannot read governance inventory {path}: {exc}") from exc
-    if (
-        not isinstance(repos, dict)
-        or not repos
-        or not all(
-            isinstance(name, str) and isinstance(repo_class, str)
-            for name, repo_class in repos.items()
-        )
-    ):
+    valid_mapping = isinstance(repos, dict) and bool(repos)
+    valid_entries = valid_mapping and all(
+        isinstance(name, str) and isinstance(repo_class, str)
+        for name, repo_class in repos.items()
+    )
+    if not valid_entries:
         raise PolicyError(
             "governance repo_classes.repos must be a non-empty string mapping"
         )
@@ -118,18 +122,19 @@ def repository_runner_profiles(workflows, profiles, default_profile):
     if not isinstance(runner, dict) or set(runner) - {"profiles"}:
         raise PolicyError("repository runner policy must contain only profiles")
     allowed = runner.get("profiles", [default_profile])
-    if (
-        not isinstance(allowed, list)
-        or not allowed
-        or not all(
-            isinstance(profile, str) and profile in profiles for profile in allowed
-        )
-        or len(set(allowed)) != len(allowed)
-        or default_profile not in allowed
-    ):
+    valid_profiles = isinstance(allowed, list) and bool(allowed)
+    known_profiles = valid_profiles and all(
+        isinstance(profile, str) and profile in profiles for profile in allowed
+    )
+    unique_profiles = known_profiles and len(set(allowed)) == len(allowed)
+    required_profiles = unique_profiles and {
+        default_profile,
+        "container-build",
+    }.issubset(allowed)
+    if not required_profiles:
         raise PolicyError(
             "repository runner profiles must be a unique array of existing profiles "
-            "that includes the default"
+            "that includes the default and container-build"
         )
     return allowed
 
@@ -160,6 +165,8 @@ def load_policy(path, governance_path, repository):
     strict_object(raw, TOP_FIELDS, "policy")
     if raw.get("schema_version") != POLICY_SCHEMA_VERSION:
         raise PolicyError(f"unsupported schema_version: {raw.get('schema_version')!r}")
+    if raw.get("docker") != DOCKER_POLICY:
+        raise PolicyError(f"policy docker contract must equal {DOCKER_POLICY!r}")
     repositories = raw.get("repositories")
     governed = governed_repositories(governance_path)
     if not isinstance(repositories, dict) or set(repositories) != governed:

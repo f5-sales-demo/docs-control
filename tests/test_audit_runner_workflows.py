@@ -27,7 +27,12 @@ class WorkflowAuditTests(unittest.TestCase):
         (self.root / ".github/workflows").mkdir(parents=True)
         self.policy = self.root / "policy.json"
         self.data = {
-            "schema_version": 2,
+            "schema_version": 3,
+            "docker": {
+                "socket": "/run/docker.sock",
+                "minimum_version": "29.2.1",
+                "target_version": "29.7.2",
+            },
             "defaults": {"replicas": 1, "profile": "ubuntu-24.04"},
             "profiles": {
                 "ubuntu-24.04": {
@@ -36,8 +41,20 @@ class WorkflowAuditTests(unittest.TestCase):
                     "memory": "4g",
                     "cpus": "2",
                     "pids_limit": 512,
-                    "container_socket": False,
-                }
+                    "stop_timeout": 300,
+                    "network": "bridge",
+                    "docker_socket": False,
+                },
+                "container-build": {
+                    "image": "example@sha256:" + "b" * 64,
+                    "labels": ["container-build"],
+                    "memory": "8g",
+                    "cpus": "4",
+                    "pids_limit": 1024,
+                    "stop_timeout": 300,
+                    "network": "bridge",
+                    "docker_socket": True,
+                },
             },
             "hosted_exceptions": {},
             "repositories": {"f5-sales-demo/fixture": {}},
@@ -161,6 +178,115 @@ jobs:
 """
         )
         self.assertEqual(self.audit(), [])
+
+    def test_super_linter_requires_container_build_profile(self):
+        self.write_workflow(
+            """name: Lint
+on: [push]
+jobs:
+  lint:
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
+    steps:
+      - uses: super-linter/super-linter@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+"""
+        )
+        errors = self.audit()
+        self.assertTrue(
+            any("requires a Docker socket profile" in item for item in errors)
+        )
+
+        self.write_workflow(
+            """name: Lint
+on:
+  pull_request:
+jobs:
+  trust-gate:
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
+    steps:
+      - run: true
+  lint:
+    needs: trust-gate
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, fixture, container-build]
+    steps:
+      - uses: super-linter/super-linter@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+"""
+        )
+        self.assertEqual(self.audit(), [])
+
+    def test_docker_profile_pull_request_requires_complete_same_repository_guard(self):
+        guards = (
+            None,
+            "github.event_name == 'pull_request'",
+            "github.event.pull_request.head.repo.full_name == github.repository",
+            "github.event_name == 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository",
+        )
+        for guard in guards:
+            rendered_guard = "" if guard is None else f"    if: {guard}\n"
+            self.write_workflow(
+                """name: Docker
+on:
+  pull_request:
+jobs:
+  trust-gate:
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
+    steps:
+      - run: true
+  build:
+    needs: trust-gate
+"""
+                + rendered_guard
+                + """    runs-on: [self-hosted, Linux, X64, fixture, container-build]
+    steps:
+      - run: docker version
+"""
+            )
+            with self.subTest(guard=guard):
+                errors = self.audit()
+                self.assertTrue(any("same-repository guard" in item for item in errors))
+
+    def test_docker_profile_rejects_pull_request_without_socketless_trust_gate(self):
+        self.write_workflow(
+            """name: Docker
+on:
+  pull_request:
+jobs:
+  build:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, fixture, container-build]
+    steps:
+      - run: docker version
+"""
+        )
+        errors = self.audit()
+        self.assertTrue(any("socketless trust-gate" in item for item in errors))
+
+    def test_docker_profile_allows_trusted_manual_workflow_only(self):
+        self.write_workflow(
+            """name: Docker
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: [self-hosted, Linux, X64, fixture, container-build]
+    steps:
+      - run: docker version
+"""
+        )
+        self.assertEqual(self.audit(), [])
+
+        self.write_workflow(
+            """name: Docker
+on: [push]
+jobs:
+  build:
+    runs-on: [self-hosted, Linux, X64, fixture, container-build]
+    steps:
+      - run: docker version
+"""
+        )
+        errors = self.audit()
+        self.assertTrue(any("trusted manual" in item for item in errors))
 
 
 if __name__ == "__main__":

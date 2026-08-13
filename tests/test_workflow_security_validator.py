@@ -76,12 +76,20 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             "if": "github.event_name != 'pull_request'",
         }
         self.policy = {
-            "schema_version": 2,
+            "schema_version": 3,
+            "docker": {
+                "socket": "/run/docker.sock",
+                "minimum_version": "29.2.1",
+                "target_version": "29.7.2",
+            },
             "defaults": {"profile": "ubuntu-24.04"},
-            "profiles": {"ubuntu-24.04": {}},
+            "profiles": {"ubuntu-24.04": {}, "container-build": {}},
             "hosted_exceptions": {},
             "repositories": {
-                self.repository: {self.workflow_path: {self.job_id: self.spec}}
+                self.repository: {
+                    "runner": {"profiles": ["ubuntu-24.04", "container-build"]},
+                    self.workflow_path: {self.job_id: self.spec},
+                }
             },
         }
         self.findings = [self.finding()]
@@ -228,7 +236,6 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         workflow = copy.deepcopy(self.workflow)
         workflow["jobs"][self.job_id]["runs-on"][-1] = "container-build"
         policy = copy.deepcopy(self.policy)
-        policy["profiles"]["container-build"] = {}
         policy["repositories"][self.repository] = {
             "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
         }
@@ -246,7 +253,9 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
     def test_known_repository_with_no_exceptions_accepts_empty_inventory(self):
         clean_repository = "f5-sales-demo/api-specs"
         policy = copy.deepcopy(self.policy)
-        policy["repositories"][clean_repository] = {}
+        policy["repositories"][clean_repository] = {
+            "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+        }
         governance = copy.deepcopy(self.governance)
         governance["repo_classes"]["repos"]["api-specs"] = "developer"
         clean_root = self.root / "clean"
@@ -288,7 +297,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                 self.governance_path,
             )
         for change in (
-            {"schema_version": 3},
+            {"schema_version": 2},
             {"unknown": True},
         ):
             policy = copy.deepcopy(self.policy)

@@ -23,6 +23,7 @@ DEFAULT_PROC_ROOT = Path("/proc")
 DEFAULT_SYSTEMD_ROOT = Path("/etc/systemd/system")
 DEFAULT_USER = "robin"
 DEFAULT_RUNNER_VERSION = "2.336.0"
+DEFAULT_RUNNER_PROFILE = "ubuntu-24.04"
 CGROUP_FIELD_COUNT = 3
 DOCS_CONTROL_GOVERNANCE_PATH = (
     Path(__file__).resolve().parent.parent / ".claude/governance.json"
@@ -257,7 +258,7 @@ class RunnerManager:
 
     @staticmethod
     def expected_labels(org, repo):
-        return {"self-hosted", "Linux", "X64", repo, org}
+        return {"self-hosted", "Linux", "X64", repo, org, DEFAULT_RUNNER_PROFILE}
 
     def read_process(self, pid):
         root = self.proc_root / str(int(pid))
@@ -618,7 +619,7 @@ class RunnerManager:
                 "--name",
                 self.runner_name(repo),
                 "--labels",
-                f"{repo},{org}",
+                f"{repo},{org},{DEFAULT_RUNNER_PROFILE}",
                 "--unattended",
                 "--replace",
             ],

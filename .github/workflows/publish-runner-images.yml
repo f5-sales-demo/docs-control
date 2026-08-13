@@ -24,15 +24,15 @@ jobs:
           - profile: ubuntu-24.04
             image: actions-runner
             base: docker.io/library/ubuntu@sha256:561618e2c15bf2397621dd04f96926663a3b5616c189cf7e38db7e82f5c538ea
-            container-tools: '0'
+            target: socketless
           - profile: ubuntu-22.04
             image: actions-runner
             base: docker.io/library/ubuntu@sha256:3b06811b2afd352be909dd088a004166d665dc76d38b13eada33522a9d915c6f
-            container-tools: '0'
+            target: socketless
           - profile: container-build
             image: actions-runner-container
             base: docker.io/library/ubuntu@sha256:561618e2c15bf2397621dd04f96926663a3b5616c189cf7e38db7e82f5c538ea
-            container-tools: '1'
+            target: docker-capable
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,30 +45,84 @@ jobs:
           IMAGE: ghcr.io/f5-sales-demo/${{ matrix.image }}
           PROFILE: ${{ matrix.profile }}
           UBUNTU_IMAGE: ${{ matrix.base }}
-          CONTAINER_TOOLS: ${{ matrix.container-tools }}
+          TARGET: ${{ matrix.target }}
+          DOCKER_CLI_IMAGE: docker.io/library/docker:29.7.2-cli@sha256:e650b7a58d7f56be91d4f7be799196380a3bbc1bcbc41f1f4dff1b36ac309e1e
         run: |
           set -euo pipefail
-          tag="pr-1406-${PROFILE}"
-          digest_file="$(mktemp)"
-          auth_file="$(mktemp)"
+          tag="issue-1426-${PROFILE}"
+          runner_root="${RUNNER_RUNTIME_DIR:?}"
+          runner_temp="${RUNNER_TEMP:?}"
+          case "$runner_temp" in
+            "$runner_root"/*) ;;
+            *) echo "runner temp escapes runner workspace" >&2; exit 1 ;;
+          esac
+          metadata_file="$(mktemp --tmpdir="$runner_temp")"
+          auth_dir="$(mktemp -d --tmpdir="$runner_temp")"
+          tools_dir="$(mktemp -d --tmpdir="$runner_temp")"
+          plugins_dir="$tools_dir/cli-plugins"
+          tools_container="f5-runner-tools-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${PROFILE}"
           cleanup() {
-            rm -f "$digest_file" "$auth_file"
+            cleanup_status=0
+            docker container rm --force "$tools_container" >/dev/null 2>&1 || true
+            if ! find "$auth_dir" -depth -delete; then cleanup_status=1; fi
+            if ! find "$tools_dir" -depth -delete; then cleanup_status=1; fi
+            if ! rm -f "$metadata_file"; then cleanup_status=1; fi
+            return "$cleanup_status"
           }
           trap cleanup EXIT
-          printf '{}' > "$auth_file"
-          printf '%s' "$GHCR_TOKEN" | podman login --authfile "$auth_file" \
+          mkdir "$plugins_dir"
+          docker container rm --force "$tools_container" >/dev/null 2>&1 || true
+          docker create \
+            --name "$tools_container" \
+            --volume "$runner_root:$runner_root:rw" \
+            --entrypoint /bin/true \
+            "$DOCKER_CLI_IMAGE" >/dev/null
+          docker cp "$tools_container:/usr/local/bin/docker" "$tools_dir/docker"
+          docker cp \
+            "$tools_container:/usr/local/libexec/docker/cli-plugins/docker-buildx" \
+            "$plugins_dir/docker-buildx"
+          docker cp \
+            "$tools_container:/usr/local/libexec/docker/cli-plugins/docker-compose" \
+            "$plugins_dir/docker-compose"
+          docker container rm "$tools_container" >/dev/null
+          export PATH="$tools_dir:$PATH"
+          test "$(docker version --format '{{.Client.Version}}')" = 29.7.2
+          jq -n --arg plugins "$plugins_dir" \
+            '{cliPluginsExtraDirs:[$plugins]}' > "$auth_dir/config.json"
+          docker --config "$auth_dir" buildx version
+          printf '%s' "$GHCR_TOKEN" | docker --config "$auth_dir" login \
             ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
-          podman --cgroup-manager=cgroupfs build --authfile "$auth_file" \
+          docker --config "$auth_dir" buildx build \
             --build-arg "UBUNTU_IMAGE=${UBUNTU_IMAGE}" \
-            --build-arg "CONTAINER_TOOLS=${CONTAINER_TOOLS}" \
             --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --metadata-file "$metadata_file" \
+            --platform linux/amd64 \
+            --push \
             --tag "${IMAGE}:${tag}" \
-            --file runner-images/Containerfile .
-          podman push --authfile "$auth_file" --digestfile "$digest_file" "${IMAGE}:${tag}"
-          digest="$(cat "$digest_file")"
-          case "$digest" in
-            sha256:[0-9a-f][0-9a-f]*) ;;
-            *) echo "invalid published digest" >&2; exit 1 ;;
-          esac
+            --target "$TARGET" \
+            --file runner-images/Containerfile \
+            .
+          digest="$(jq -er '."containerimage.digest"' "$metadata_file")"
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "invalid published digest" >&2
+            exit 1
+          fi
+          published="${IMAGE}@${digest}"
+          registry_digest="sha256:$(docker --config "$auth_dir" buildx imagetools inspect --raw "$published" | sha256sum | cut -d' ' -f1)"
+          if [[ "$registry_digest" != "$digest" ]]; then
+            echo "published digest verification failed" >&2
+            exit 1
+          fi
+          if [[ "$TARGET" == socketless ]]; then
+            docker run --rm --entrypoint bash "$published" -c \
+              'python3 -c "import yaml" && ! command -v docker'
+          else
+            socket_gid="$(stat -c '%g' /run/docker.sock)"
+            docker run --rm --entrypoint bash \
+              --group-add "$socket_gid" \
+              --volume /run/docker.sock:/run/docker.sock:rw \
+              "$published" -c \
+              'python3 -c "import yaml" && docker version && docker buildx version && docker compose version'
+          fi
           # shellcheck disable=SC2016
           printf '### %s\n\n`%s@%s`\n' "$PROFILE" "$IMAGE" "$digest" >> "$GITHUB_STEP_SUMMARY"

@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-# pylint: disable=invalid-name
-"""Run repository-scoped GitHub Actions runners in one-job Podman sandboxes."""
+# pylint: disable=invalid-name,too-many-lines
+"""Run repository-scoped GitHub Actions runners in one-job Docker sandboxes."""
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import re
 import secrets
+import shutil
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -17,6 +20,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 DEFAULT_ORG = "f5-sales-demo"
 HOST_ENTRYPOINT = Path("/opt/f5-actions-runner/runner-entrypoint.sh")
@@ -30,6 +34,11 @@ PROFILE_RE = re.compile(r"[a-z0-9][a-z0-9.-]*")
 IMAGE_RE = re.compile(r"ghcr\.io/f5-sales-demo/[a-z0-9._-]+@sha256:[0-9a-f]{64}")
 MEMORY_RE = re.compile(r"[1-9][0-9]*[KMGTPEkmgtpe]")
 CPU_RE = re.compile(r"[1-9][0-9]*(?:\.[0-9]+)?")
+VERSION_RE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
+CONTAINER_ID_RE = re.compile(r"[0-9a-f]{64}")
+DOCKER_SOCKET = "/run/docker.sock"
+MINIMUM_DOCKER_VERSION = "29.2.1"
+TARGET_DOCKER_VERSION = "29.7.2"
 
 
 class FleetError(RuntimeError):
@@ -65,6 +74,29 @@ def repository_name(full_name, org=DEFAULT_ORG):
     return validate_name(full_name[len(prefix) :], REPOSITORY_RE, "repository")
 
 
+def version_tuple(value):
+    if not isinstance(value, str):
+        raise FleetError(f"invalid Docker version: {value!r}")
+    match = VERSION_RE.fullmatch(value.strip())
+    if not match:
+        raise FleetError(f"invalid Docker version: {value!r}")
+    return tuple(int(component) for component in match.groups())
+
+
+def memory_bytes(value):
+    multipliers = {
+        "k": 1024,
+        "m": 1024**2,
+        "g": 1024**3,
+        "t": 1024**4,
+        "p": 1024**5,
+        "e": 1024**6,
+    }
+    if not isinstance(value, str) or not MEMORY_RE.fullmatch(value):
+        raise FleetError(f"invalid memory limit: {value!r}")
+    return int(value[:-1]) * multipliers[value[-1].lower()]
+
+
 @dataclass(frozen=True)
 class Profile:
     name: str
@@ -73,40 +105,48 @@ class Profile:
     memory: str
     cpus: str
     pids_limit: int
-    container_socket: bool
+    stop_timeout: int
+    network: str
+    docker_socket: bool
+
+
+@dataclass(frozen=True)
+class DockerPolicy:
+    socket: str
+    minimum_version: str
+    target_version: str
 
 
 @dataclass(frozen=True)
 class RepositorySpec:
     full_name: str
     name: str
-    account: str
     replicas: int
     profiles: tuple[Profile, ...]
 
-    def account_for(self, profile):
-        prefix = "ghb" if profile.container_socket else "gha"
-        return f"{prefix}-{self.name}"
-
 
 class FleetPolicy:
-    """Strict schema-v2 fleet policy consumed by runtime and workflow audits."""
+    """Strict schema-v3 fleet policy consumed by runtime and workflow audits."""
 
     TOP_LEVEL = {
         "schema_version",
+        "docker",
         "defaults",
         "profiles",
         "hosted_exceptions",
         "repositories",
     }
     DEFAULT_FIELDS = {"replicas", "profile"}
+    DOCKER_FIELDS = {"socket", "minimum_version", "target_version"}
     PROFILE_FIELDS = {
         "image",
         "labels",
         "memory",
         "cpus",
         "pids_limit",
-        "container_socket",
+        "stop_timeout",
+        "network",
+        "docker_socket",
     }
     REPOSITORY_RUNTIME_FIELDS = {"replicas", "profiles"}
 
@@ -120,15 +160,50 @@ class FleetPolicy:
             raise FleetError(
                 f"policy top-level fields must equal {sorted(self.TOP_LEVEL)}"
             )
-        if raw["schema_version"] != 2:
-            raise FleetError("runner fleet requires policy schema_version 2")
+        if raw["schema_version"] != 3:
+            raise FleetError("runner fleet requires policy schema_version 3")
         self.raw = raw
+        self.docker = self._docker(raw["docker"])
         self.defaults = self._defaults(raw["defaults"])
         self.profiles = self._profiles(raw["profiles"])
+        default_profile = self.profiles.get(self.defaults["profile"])
+        builder_profile = self.profiles.get("container-build")
+        if default_profile is None or default_profile.docker_socket:
+            raise FleetError("the default runner profile must exist and be socketless")
+        if (
+            builder_profile is None
+            or not builder_profile.docker_socket
+            or builder_profile.labels != ("container-build",)
+        ):
+            raise FleetError("container-build must be the exact Docker socket profile")
+        if any(
+            profile.docker_socket and profile.name != "container-build"
+            for profile in self.profiles.values()
+        ):
+            raise FleetError("only container-build may receive the Docker socket")
         if not isinstance(raw["hosted_exceptions"], dict):
             raise FleetError("hosted_exceptions must be an object")
         if not isinstance(raw["repositories"], dict) or not raw["repositories"]:
             raise FleetError("repositories must be a non-empty object")
+        for repository in raw["repositories"]:
+            enabled = {profile.name for profile in self.repository(repository).profiles}
+            if "container-build" not in enabled:
+                raise FleetError(
+                    f"container-build is required for governed repository {repository}"
+                )
+
+    @classmethod
+    def _docker(cls, value):
+        if not isinstance(value, dict) or set(value) != cls.DOCKER_FIELDS:
+            raise FleetError(f"docker fields must equal {sorted(cls.DOCKER_FIELDS)}")
+        expected = {
+            "socket": DOCKER_SOCKET,
+            "minimum_version": MINIMUM_DOCKER_VERSION,
+            "target_version": TARGET_DOCKER_VERSION,
+        }
+        if value != expected:
+            raise FleetError(f"docker policy must equal {expected!r}")
+        return DockerPolicy(**value)
 
     @classmethod
     def _defaults(cls, value):
@@ -176,8 +251,17 @@ class FleetPolicy:
                 raise FleetError(f"profile {name!r} CPU limit is invalid")
             if not isinstance(spec["pids_limit"], int) or spec["pids_limit"] < 64:
                 raise FleetError(f"profile {name!r} pids_limit must be at least 64")
-            if not isinstance(spec["container_socket"], bool):
-                raise FleetError(f"profile {name!r} container_socket must be boolean")
+            if (
+                not isinstance(spec["stop_timeout"], int)
+                or not 1 <= spec["stop_timeout"] <= 600
+            ):
+                raise FleetError(
+                    f"profile {name!r} stop_timeout must be between 1 and 600"
+                )
+            if spec["network"] != "bridge":
+                raise FleetError(f"profile {name!r} network must be bridge")
+            if not isinstance(spec["docker_socket"], bool):
+                raise FleetError(f"profile {name!r} docker_socket must be boolean")
             profiles[name] = Profile(
                 name=name,
                 image=spec["image"],
@@ -185,7 +269,9 @@ class FleetPolicy:
                 memory=spec["memory"],
                 cpus=spec["cpus"],
                 pids_limit=spec["pids_limit"],
-                container_socket=spec["container_socket"],
+                stop_timeout=spec["stop_timeout"],
+                network=spec["network"],
+                docker_socket=spec["docker_socket"],
             )
         return profiles
 
@@ -218,13 +304,7 @@ class FleetPolicy:
             profiles = tuple(self.profiles[item] for item in profile_names)
         except KeyError as exc:
             raise FleetError(f"unknown profile for {full_name}: {exc.args[0]}") from exc
-        account = f"gha-{name}"
-        builder_account = f"ghb-{name}"
-        if max(len(account), len(builder_account)) > 31:
-            raise FleetError(
-                f"repository name is too long for a service account: {name}"
-            )
-        return RepositorySpec(full_name, name, account, replicas, profiles)
+        return RepositorySpec(full_name, name, replicas, profiles)
 
     def governed(self):
         return tuple(sorted(self.raw["repositories"]))
@@ -296,6 +376,10 @@ class EphemeralController:
             raise FleetError("runner state path escapes base directory")
         return path
 
+    def runtime_workspace(self, spec, profile, slot):
+        """Return the host-visible action workspace for one ephemeral runner."""
+        return self.base_dir / "workspaces" / spec.name / profile.name / str(slot)
+
     @staticmethod
     def container_name(spec, profile, slot):
         return f"gha-{spec.name}-{profile.name}-{slot}"
@@ -304,49 +388,282 @@ class EphemeralController:
     def expected_labels(spec, profile):
         return {"self-hosted", "Linux", "X64", spec.name, *profile.labels}
 
-    @staticmethod
-    def runtime_dir(spec, profile):
-        if profile.container_socket:
-            return Path("/run/f5-actions-podman") / spec.name
-        return Path("/run/f5-actions-runner") / spec.account_for(profile)
-
-    def prepare_account(self, spec, profile):
-        account = spec.account_for(profile)
-        runtime = self.runtime_dir(spec, profile)
-        self.command(
-            [
-                "install",
-                "-d",
-                "-m",
-                "0700",
-                "-o",
-                account,
-                "-g",
-                account,
-                str(runtime),
-            ]
+    def verify_engine(self):
+        result = self.command(
+            ["docker", "version", "--format", "{{.Server.Version}}"], check=False
         )
-        return account, runtime
+        if result.returncode != 0:
+            raise FleetError("cannot query the shared Docker Engine")
+        actual = version_tuple(result.stdout.strip())
+        if actual < version_tuple(self.policy.docker.minimum_version):
+            raise FleetError(
+                f"Docker Engine {result.stdout.strip()} is below required "
+                f"{self.policy.docker.minimum_version}"
+            )
+        return result.stdout.strip()
 
-    def podman_prefix(self, account, runtime):
-        validate_name(account, REPOSITORY_RE, "service account")
-        return [
-            "runuser",
-            "--user",
-            account,
-            "--",
-            "env",
-            f"HOME=/data/actions-runners/users/{account}",
-            f"XDG_RUNTIME_DIR={runtime}",
-            "podman",
-            "--cgroup-manager=cgroupfs",
-        ]
+    def docker_socket_group(self):
+        path = self.policy.docker.socket
+        try:
+            metadata = Path(path).stat(follow_symlinks=False)
+        except OSError as exc:
+            raise FleetError(f"cannot inspect Docker socket {path}: {exc}") from exc
+        if not stat.S_ISSOCK(metadata.st_mode):
+            raise FleetError(f"Docker socket is not a Unix socket: {path}")
+        if metadata.st_uid != 0 or stat.S_IMODE(metadata.st_mode) != 0o660:
+            raise FleetError("Docker socket must be root-owned with mode 0660")
+        return metadata.st_gid
+
+    @staticmethod
+    def _container_ids(output, context):
+        ids = output.splitlines()
+        if any(not CONTAINER_ID_RE.fullmatch(item) for item in ids):
+            raise FleetError(f"malformed Docker {context} inventory")
+        if len(ids) != len(set(ids)):
+            raise FleetError(f"duplicate Docker {context} inventory")
+        return ids
+
+    def _inspect_container(self, container_id):
+        result = self.command(
+            ["docker", "container", "inspect", container_id], check=False
+        )
+        if result.returncode != 0:
+            raise FleetError(f"cannot inspect Docker container {container_id}")
+        try:
+            payload = json.loads(result.stdout)
+        except (TypeError, ValueError) as exc:
+            raise FleetError(f"malformed Docker inspection for {container_id}") from exc
+        if isinstance(payload, list) and len(payload) == 1:
+            payload = payload[0]
+        if not isinstance(payload, dict) or payload.get("Id") != container_id:
+            raise FleetError(f"malformed Docker inspection for {container_id}")
+        name = payload.get("Name")
+        config = payload.get("Config")
+        if not isinstance(config, dict):
+            raise FleetError(f"malformed Docker inspection for {container_id}")
+        labels = config.get("Labels")
+        valid_name = isinstance(name, str) and name.startswith("/")
+        valid_labels = labels is None or isinstance(labels, dict)
+        if not all(
+            (
+                valid_name,
+                valid_labels,
+                isinstance(payload.get("Mounts"), list),
+            )
+        ):
+            raise FleetError(f"malformed Docker inspection for {container_id}")
+        if labels is None:
+            config["Labels"] = {}
+        return payload
+
+    def _stop_outer(self, spec, profile, slot):
+        name = self.container_name(spec, profile, slot)
+        result = self.command(
+            [
+                "docker",
+                "container",
+                "ls",
+                "--all",
+                "--quiet",
+                "--no-trunc",
+                "--filter",
+                f"name=^/{name}$",
+            ],
+            check=False,
+        )
+        if result.returncode != 0:
+            raise FleetError(f"cannot inventory exact runner container {name}")
+        ids = self._container_ids(result.stdout, "outer runner")
+        if len(ids) > 1:
+            raise FleetError(f"multiple exact runner containers matched {name}")
+        if not ids:
+            return
+        container_id = ids[0]
+        inspected = self._inspect_container(container_id)
+        expected_labels = {
+            "f5.runner.managed": "true",
+            "f5.runner.repository": spec.full_name,
+            "f5.runner.profile": profile.name,
+            "f5.runner.slot": str(slot),
+        }
+        labels = inspected["Config"]["Labels"]
+        if inspected["Name"] != f"/{name}" or any(
+            labels.get(key) != value for key, value in expected_labels.items()
+        ):
+            raise FleetError(f"exact runner container identity mismatch: {name}")
+        stopped = self.command(
+            [
+                "docker",
+                "container",
+                "stop",
+                "--time",
+                str(profile.stop_timeout),
+                container_id,
+            ],
+            check=False,
+        )
+        if stopped.returncode != 0:
+            raise FleetError(f"cannot stop exact runner container {name}")
+        removed = self.command(
+            ["docker", "container", "rm", "--force", container_id], check=False
+        )
+        if removed.returncode != 0:
+            raise FleetError(f"cannot remove exact runner container {name}")
+
+    def _remove_nested_containers(self, spec, profile, slot):
+        workspace = self.runtime_workspace(spec, profile, slot)
+        try:
+            workspace_root = workspace.resolve(strict=True)
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            raise FleetError(f"cannot resolve exact runner workspace: {exc}") from exc
+        result = self.command(
+            ["docker", "container", "ls", "--all", "--quiet", "--no-trunc"],
+            check=False,
+        )
+        if result.returncode != 0:
+            raise FleetError("cannot inventory nested Docker containers")
+        for container_id in self._container_ids(result.stdout, "nested container"):
+            inspected = self._inspect_container(container_id)
+            beneath = []
+            for mount in inspected["Mounts"]:
+                if not isinstance(mount, dict) or not isinstance(
+                    mount.get("Type"), str
+                ):
+                    raise FleetError(
+                        f"malformed Docker mount inspection for {container_id}"
+                    )
+                if mount["Type"] != "bind":
+                    continue
+                source = mount.get("Source")
+                if not isinstance(source, str) or not source.startswith("/"):
+                    raise FleetError(
+                        f"malformed Docker bind mount inspection for {container_id}"
+                    )
+                source_path = Path(source)
+                lexical_match = (
+                    source_path == workspace or workspace in source_path.parents
+                )
+                if not lexical_match:
+                    beneath.append(False)
+                    continue
+                try:
+                    # Docker retains bind-source paths after a job removes the
+                    # final component.  Resolve existing ancestors and append
+                    # missing descendants so cleanup remains recoverable while
+                    # still rejecting surviving symlink escapes.
+                    resolved = source_path.resolve(strict=False)
+                except OSError as exc:
+                    raise FleetError(
+                        f"cannot validate Docker bind mount for {container_id}"
+                    ) from exc
+                if (
+                    resolved != workspace_root
+                    and workspace_root not in resolved.parents
+                ):
+                    raise FleetError(
+                        f"Docker bind mount escapes exact workspace: {container_id}"
+                    )
+                beneath.append(True)
+            if not any(beneath):
+                continue
+            if not all(beneath):
+                raise FleetError(
+                    f"nested Docker container has a bind outside its workspace: {container_id}"
+                )
+            removed = self.command(
+                ["docker", "container", "rm", "--force", container_id], check=False
+            )
+            if removed.returncode != 0:
+                raise FleetError(
+                    f"cannot remove nested Docker container {container_id}"
+                )
 
     def cleanup(self, spec, profile, slot):
-        name = self.container_name(spec, profile, slot)
-        account, runtime = self.prepare_account(spec, profile)
-        prefix = self.podman_prefix(account, runtime)
-        self.command([*prefix, "rm", "--force", "--ignore", name], check=False)
+        self._stop_outer(spec, profile, slot)
+        self._remove_nested_containers(spec, profile, slot)
+
+    def prepare_workspace(self, spec, profile, slot):
+        """Create the exact host-visible workspace owned by runner UID/GID 1001."""
+        workspace = self.runtime_workspace(spec, profile, slot)
+        try:
+            relative = workspace.relative_to(self.base_dir)
+            descriptor = os.open(
+                self.base_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+            )
+        except OSError as exc:
+            raise FleetError(f"cannot open runner workspace base: {exc}") from exc
+        try:
+            for component in relative.parts:
+                with contextlib.suppress(FileExistsError):
+                    os.mkdir(component, 0o700, dir_fd=descriptor)
+                next_descriptor = os.open(
+                    component,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=descriptor,
+                )
+                os.close(descriptor)
+                descriptor = next_descriptor
+                if component != relative.parts[-1]:
+                    os.fchmod(descriptor, 0o711)
+            os.fchmod(descriptor, 0o700)
+            os.fchown(descriptor, 1001, 1001)
+        except OSError as exc:
+            raise FleetError(f"cannot prepare runner workspace: {exc}") from exc
+        finally:
+            os.close(descriptor)
+        return workspace
+
+    def reset_workspace(self, spec, profile, slot):
+        """Remove stale state only after the exact runner container is stopped."""
+        workspace = self.runtime_workspace(spec, profile, slot)
+        if workspace.is_symlink():
+            raise FleetError("runner workspace is unsafe")
+        if not workspace.exists():
+            return
+        if not workspace.is_dir():
+            raise FleetError("runner workspace is unsafe")
+        for child in workspace.iterdir():
+            if child.is_symlink():
+                child.unlink()
+                continue
+            try:
+                if child.is_dir():
+                    cast("Any", shutil.rmtree)(child, onexc=self.remove_read_only)
+                else:
+                    child.unlink()
+            except OSError as exc:
+                raise FleetError(f"cannot reset runner workspace: {exc}") from exc
+
+    @staticmethod
+    def remove_read_only(function, path, error):
+        """Retry a removal without following untrusted links in the workspace."""
+        if not isinstance(error, PermissionError):
+            raise error
+        target = Path(path)
+        if target.is_symlink():
+            target.unlink()
+            return
+        directory = (
+            target if function in (os.open, os.scandir, os.listdir) else target.parent
+        )
+        try:
+            descriptor = os.open(directory, os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW)
+        except OSError as exc:
+            raise FleetError(
+                f"cannot safely reset read-only workspace path: {exc}"
+            ) from exc
+        try:
+            Path(f"/proc/self/fd/{descriptor}").chmod(stat.S_IRWXU)
+        finally:
+            os.close(descriptor)
+        if function is os.open:
+            cast("Any", shutil.rmtree)(
+                target, onexc=EphemeralController.remove_read_only
+            )
+            return
+        function(path)
 
     def remove_registration(self, spec, profile, slot):
         """Remove registrations left behind when an idle runner is stopped."""
@@ -359,15 +676,9 @@ class EphemeralController:
                     raise FleetError(f"managed runner has an invalid id: {name}")
                 self.github.delete_runner(spec.full_name, runner_id)
 
-    def release_namespace(self, spec, profile, slot):
-        """Stop Podman pause processes before systemd removes the runtime directory."""
-        account, runtime = self.prepare_account(spec, profile)
-        prefix = self.podman_prefix(account, runtime)
-        self.command([*prefix, "system", "migrate"], check=False)
-
-    def podman_command(self, spec, profile, slot):
+    def docker_command(self, spec, profile, slot):
         state = self.state_dir(spec, profile, slot)
-        account, runtime = self.prepare_account(spec, profile)
+        workspace = self.runtime_workspace(spec, profile, slot)
         self.command(
             [
                 "install",
@@ -375,9 +686,22 @@ class EphemeralController:
                 "-m",
                 "0700",
                 "-o",
-                account,
+                "1001",
                 "-g",
-                account,
+                "1001",
+                str(state),
+            ]
+        )
+        # Preserve diagnostic history across ephemeral runner cycles while
+        # migrating files created by the retired per-repository host accounts.
+        # GNU chown with --no-dereference changes symlink ownership only and
+        # never follows a diagnostic symlink outside this validated state path.
+        self.command(
+            [
+                "chown",
+                "--recursive",
+                "--no-dereference",
+                "1001:1001",
                 str(state),
             ]
         )
@@ -388,31 +712,40 @@ class EphemeralController:
             )
         )
         command = [
-            *self.podman_prefix(account, runtime),
+            "docker",
             "run",
             "--interactive",
-            "--pull=missing",
-            "--userns=keep-id:uid=1001,gid=1001",
+            "--pull",
+            "missing",
+            "--user",
+            "1001:1001",
             "--stop-timeout",
-            "300",
-            "--rm",
+            str(profile.stop_timeout),
             "--name",
             name,
             "--read-only",
             "--cap-drop=all",
-            "--security-opt=no-new-privileges",
+            "--security-opt=no-new-privileges=true",
             "--network",
-            "slirp4netns:allow_host_loopback=false",
+            profile.network,
+            "--memory",
+            profile.memory,
+            "--cpus",
+            profile.cpus,
+            "--pids-limit",
+            str(profile.pids_limit),
             "--tmpfs",
-            "/tmp:rw,nosuid,nodev,size=2g",
-            "--tmpfs",
-            "/runner-runtime:rw,nosuid,nodev,size=20g",
+            "/tmp:rw,nosuid,nodev,exec,size=2g",
             "--volume",
-            f"{state}:/runner-runtime/_diag:rw",
+            f"{workspace}:{workspace}:rw",
+            "--volume",
+            f"{state}:{workspace}/_diag:rw",
             "--volume",
             f"{HOST_ENTRYPOINT}:/usr/local/bin/runner-entrypoint:ro",
             "--env",
-            "HOME=/runner-runtime/home",
+            f"HOME={workspace}/home",
+            "--env",
+            f"RUNNER_RUNTIME_DIR={workspace}",
             "--env",
             "RUNNER_EPHEMERAL=1",
             "--env",
@@ -422,20 +755,24 @@ class EphemeralController:
             "--env",
             f"RUNNER_LABELS={labels}",
             "--label",
+            "f5.runner.managed=true",
+            "--label",
             f"f5.runner.repository={spec.full_name}",
             "--label",
             f"f5.runner.profile={profile.name}",
+            "--label",
+            f"f5.runner.slot={slot}",
         ]
-        if profile.container_socket:
-            socket = f"/run/f5-actions-podman/{spec.name}/podman.sock"
+        if profile.docker_socket:
+            socket = self.policy.docker.socket
             command.extend(
                 [
                     "--volume",
-                    f"{socket}:/run/podman/podman.sock:rw",
+                    f"{socket}:{socket}:rw",
+                    "--group-add",
+                    str(self.docker_socket_group()),
                     "--env",
-                    "DOCKER_HOST=unix:///run/podman/podman.sock",
-                    "--env",
-                    "CONTAINER_HOST=unix:///run/podman/podman.sock",
+                    f"DOCKER_HOST=unix://{socket}",
                     "--env",
                     "RUNNER_CONTAINER_TOOLS=1",
                 ]
@@ -452,11 +789,14 @@ class EphemeralController:
             raise FleetError(f"profile {profile_name!r} is not enabled for {full_name}")
         if not 0 <= slot < spec.replicas:
             raise FleetError(f"slot must be between 0 and {spec.replicas - 1}")
+        self.verify_engine()
         self.cleanup(spec, profile, slot)
+        self.prepare_workspace(spec, profile, slot)
+        self.reset_workspace(spec, profile, slot)
         token = self.github.registration_token(full_name)
         try:
             result = self.command(
-                self.podman_command(spec, profile, slot),
+                self.docker_command(spec, profile, slot),
                 input_text=token + "\n",
                 check=False,
                 capture=False,
@@ -464,11 +804,9 @@ class EphemeralController:
             return result.returncode
         finally:
             token = ""  # Shorten the credential lifetime.
-            try:
-                self.cleanup(spec, profile, slot)
-                self.remove_registration(spec, profile, slot)
-            finally:
-                self.release_namespace(spec, profile, slot)
+            self.cleanup(spec, profile, slot)
+            self.reset_workspace(spec, profile, slot)
+            self.remove_registration(spec, profile, slot)
 
     def serve(self, full_name, profile_name, slot=0, backoff=5):
         def stop(_signum, _frame):
@@ -490,6 +828,96 @@ class EphemeralController:
                 break
         return 0
 
+    def audit_containers(self, full_name):  # pylint: disable=too-many-locals
+        spec = self.policy.repository(full_name)
+        errors = []
+        expected = {
+            self.container_name(spec, profile, slot): (profile, slot)
+            for profile in spec.profiles
+            for slot in range(spec.replicas)
+        }
+        result = self.command(
+            [
+                "docker",
+                "container",
+                "ls",
+                "--all",
+                "--quiet",
+                "--no-trunc",
+                "--filter",
+                "label=f5.runner.managed=true",
+            ],
+            check=False,
+        )
+        if result.returncode != 0:
+            return ["cannot inventory managed Docker containers"]
+        try:
+            container_ids = self._container_ids(result.stdout, "managed runner")
+        except FleetError as exc:
+            return [str(exc)]
+        for container_id in container_ids:
+            try:
+                inspected = self._inspect_container(container_id)
+            except FleetError as exc:
+                errors.append(str(exc))
+                continue
+            labels = inspected["Config"]["Labels"]
+            if labels.get("f5.runner.repository") != full_name:
+                continue
+            name = inspected["Name"].removeprefix("/")
+            if name not in expected:
+                errors.append(f"unexpected managed Docker container: {name}")
+                continue
+            profile, slot = expected[name]
+            required_labels = {
+                "f5.runner.managed": "true",
+                "f5.runner.repository": full_name,
+                "f5.runner.profile": profile.name,
+                "f5.runner.slot": str(slot),
+            }
+            if any(labels.get(key) != value for key, value in required_labels.items()):
+                errors.append(f"managed Docker labels mismatch: {name}")
+            host = inspected.get("HostConfig")
+            config = inspected["Config"]
+            if not isinstance(host, dict):
+                errors.append(f"managed Docker HostConfig is malformed: {name}")
+                continue
+            expected_host = {
+                "Memory": memory_bytes(profile.memory),
+                "NanoCpus": int(float(profile.cpus) * 1_000_000_000),
+                "PidsLimit": profile.pids_limit,
+                "NetworkMode": profile.network,
+                "ReadonlyRootfs": True,
+            }
+            for field, value in expected_host.items():
+                if host.get(field) != value:
+                    errors.append(
+                        f"managed Docker resource mismatch: {name} {field}={host.get(field)!r}"
+                    )
+            cap_drop = host.get("CapDrop")
+            if not isinstance(cap_drop, list) or {
+                item.lower() for item in cap_drop
+            } != {"all"}:
+                errors.append(f"managed Docker capabilities mismatch: {name}")
+            security = host.get("SecurityOpt")
+            if not isinstance(security, list) or not any(
+                item in {"no-new-privileges", "no-new-privileges=true"}
+                for item in security
+            ):
+                errors.append(f"managed Docker security options mismatch: {name}")
+            if config.get("StopTimeout") != profile.stop_timeout:
+                errors.append(f"managed Docker stop timeout mismatch: {name}")
+            socket_mounts = [
+                mount
+                for mount in inspected["Mounts"]
+                if isinstance(mount, dict)
+                and mount.get("Source") == self.policy.docker.socket
+                and mount.get("Destination") == self.policy.docker.socket
+            ]
+            if bool(socket_mounts) != profile.docker_socket:
+                errors.append(f"managed Docker socket isolation mismatch: {name}")
+        return errors
+
     def audit(self, full_name):
         spec = self.policy.repository(full_name)
         errors = []
@@ -506,9 +934,33 @@ class EphemeralController:
             base = name.rsplit("-", 1)[0]
             if base not in expected_names:
                 errors.append(f"unexpected managed runner: {name}")
-            labels = {item.get("name") for item in runner.get("labels", [])}
+            raw_labels = runner.get("labels")
+            if not isinstance(raw_labels, list) or any(
+                not isinstance(item, dict)
+                or not isinstance(item.get("name"), str)
+                or not item["name"]
+                for item in raw_labels
+            ):
+                errors.append(f"managed runner labels are malformed on {name}")
+                continue
+            labels = {item["name"] for item in raw_labels}
             if "ubuntu-latest" in labels:
                 errors.append(f"reserved label on {name}: ubuntu-latest")
+            if base in expected_names:
+                profile = next(
+                    item
+                    for item in spec.profiles
+                    if any(
+                        base == self.container_name(spec, item, slot)
+                        for slot in range(spec.replicas)
+                    )
+                )
+                expected_labels = self.expected_labels(spec, profile)
+                if labels != expected_labels:
+                    errors.append(
+                        f"managed runner labels mismatch on {name}: {sorted(labels)}"
+                    )
+        errors.extend(self.audit_containers(full_name))
         return errors
 
 
