@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import fcntl
 import json
 import os
 import re
@@ -365,11 +366,25 @@ class GitHubClient:
 
 
 class EphemeralController:
-    def __init__(self, policy, github, base_dir=DEFAULT_BASE_DIR, command=run_command):
+    def __init__(
+        self,
+        policy,
+        github,
+        base_dir=DEFAULT_BASE_DIR,
+        command=run_command,
+        popen=None,
+    ):
         self.policy = policy
         self.github = github
         self.base_dir = Path(base_dir)
         self.command = command
+        self.popen = (
+            popen
+            if popen is not None
+            else subprocess.Popen
+            if command is run_command
+            else None
+        )
         self.stopping = False
 
     def state_dir(self, spec, profile, slot):
@@ -495,7 +510,7 @@ class EphemeralController:
             config["Labels"] = {}
         return payload
 
-    def _stop_outer(self, spec, profile, slot):
+    def _exact_outer_id(self, spec, profile, slot):
         name = self.container_name(spec, profile, slot)
         result = self.command(
             [
@@ -516,7 +531,7 @@ class EphemeralController:
         if len(ids) > 1:
             raise FleetError(f"multiple exact runner containers matched {name}")
         if not ids:
-            return
+            return None
         container_id = ids[0]
         inspected = self._inspect_container(container_id)
         expected_labels = {
@@ -530,6 +545,13 @@ class EphemeralController:
             labels.get(key) != value for key, value in expected_labels.items()
         ):
             raise FleetError(f"exact runner container identity mismatch: {name}")
+        return container_id
+
+    def _request_outer_stop(self, spec, profile, slot):
+        name = self.container_name(spec, profile, slot)
+        container_id = self._exact_outer_id(spec, profile, slot)
+        if container_id is None:
+            return None
         stopped = self.command(
             [
                 "docker",
@@ -543,6 +565,13 @@ class EphemeralController:
         )
         if stopped.returncode != 0:
             raise FleetError(f"cannot stop exact runner container {name}")
+        return container_id
+
+    def _stop_outer(self, spec, profile, slot):
+        name = self.container_name(spec, profile, slot)
+        container_id = self._request_outer_stop(spec, profile, slot)
+        if container_id is None:
+            return
         removed = self.command(
             ["docker", "container", "rm", "--force", container_id], check=False
         )
@@ -622,8 +651,30 @@ class EphemeralController:
                 )
 
     def cleanup(self, spec, profile, slot):
-        self._stop_outer(spec, profile, slot)
-        self._remove_nested_containers(spec, profile, slot)
+        lock_path = self.base_dir / ".cleanup.lock"
+        try:
+            descriptor = os.open(
+                lock_path,
+                os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW,
+                0o600,
+            )
+        except OSError as exc:
+            raise FleetError(f"cannot open runner cleanup lock: {exc}") from exc
+        try:
+            metadata = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != os.geteuid()
+                or stat.S_IMODE(metadata.st_mode) != 0o600
+            ):
+                raise FleetError("runner cleanup lock is unsafe")
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            self._stop_outer(spec, profile, slot)
+            self._remove_nested_containers(spec, profile, slot)
+        except OSError as exc:
+            raise FleetError(f"cannot use runner cleanup lock: {exc}") from exc
+        finally:
+            os.close(descriptor)
 
     def prepare_workspace(self, spec, profile, slot):
         """Create the exact host-visible workspace owned by runner UID/GID 1001."""
@@ -821,6 +872,33 @@ class EphemeralController:
         command.append(profile.image)
         return command
 
+    def _run_outer(self, spec, profile, slot, command, token):
+        if self.popen is None:
+            return self.command(
+                command,
+                input_text=token + "\n",
+                check=False,
+                capture=False,
+            )
+        process = self.popen(
+            command,
+            stdin=subprocess.PIPE,
+            text=True,
+        )
+        try:
+            process.communicate(token + "\n")
+        except StopRequestedError:
+            container_id = self._request_outer_stop(spec, profile, slot)
+            if container_id is None and process.poll() is None:
+                process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+            raise
+        return subprocess.CompletedProcess(command, process.returncode)
+
     def run_once(self, full_name, profile_name, slot=0):
         spec = self.policy.repository(full_name)
         profile = next(
@@ -836,11 +914,12 @@ class EphemeralController:
         self.reset_workspace(spec, profile, slot)
         token = self.github.registration_token(full_name)
         try:
-            result = self.command(
+            result = self._run_outer(
+                spec,
+                profile,
+                slot,
                 self.docker_command(spec, profile, slot),
-                input_text=token + "\n",
-                check=False,
-                capture=False,
+                token,
             )
             return result.returncode
         finally:
