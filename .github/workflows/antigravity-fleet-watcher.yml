@@ -288,16 +288,17 @@ jobs:
       - name: Install pinned Antigravity runtime
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y dbus-x11 libsecret-1-0 gnome-keyring python3-keyring
           archive="$RUNNER_TEMP/agy-${AGY_VERSION}.tar.gz"
           curl --fail --silent --show-error --location "$AGY_URL" --output "$archive"
           printf '%s  %s\n' "$AGY_SHA512" "$archive" | sha512sum --check --strict
           rm -rf "$RUNNER_TEMP/agy-extract"
           mkdir -p "$RUNNER_TEMP/agy-extract"
           tar -xzf "$archive" -C "$RUNNER_TEMP/agy-extract" antigravity
-          sudo install -o root -g root -m 0555 "$RUNNER_TEMP/agy-extract/antigravity" /usr/local/bin/agy
-          test "$(agy --version)" = "$AGY_VERSION"
+          tool_dir="$RUNNER_TEMP/agy-fleet-watcher-bin"
+          mkdir -p "$tool_dir"
+          install -m 0555 "$RUNNER_TEMP/agy-extract/antigravity" "$tool_dir/agy"
+          test "$("$tool_dir/agy" --version)" = "$AGY_VERSION"
+          printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
 
       - name: Triage redacted failure logs
         env:

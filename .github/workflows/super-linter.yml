@@ -70,30 +70,6 @@ jobs:
       statuses: write # publish the lint status context
       pull-requests: write # annotate pull requests with lint findings
     steps:
-      # Super-Linter's container writes github_conf/ and super-linter-output/ as
-      # root on this self-hosted runner. The next checkout cannot clean those
-      # paths and destroys its partial .git directory before failing. Repair
-      # ownership only inside the exact disposable Actions workspace; checkout
-      # then performs its normal bounded clean.
-      - name: Repair self-hosted runner workspace
-        if: runner.environment == 'self-hosted'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${RUNNER_EPHEMERAL:-0}" == 1 ]]; then
-            echo "Ephemeral runner workspace needs no host ownership repair."
-            exit 0
-          fi
-          workspace="${GITHUB_WORKSPACE:?}"
-          repository="${GITHUB_REPOSITORY:?}"
-          repository_name="${repository##*/}"
-          expected_workspace="${RUNNER_WORKSPACE:?}/${repository_name}"
-          if ! [ "$workspace" = "$expected_workspace" ]; then
-            echo "::error::Refusing to repair unexpected workspace: ${workspace}"
-            exit 1
-          fi
-          sudo -n chown -R -- "$(id -u):$(id -g)" "$workspace"
-
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -480,30 +456,6 @@ jobs:
           VALIDATE_GO_MODULES: false
           VALIDATE_GO_REVIVE: false
 
-      # The container recreates github_conf/ and super-linter-output/ as root.
-      # Repairing only before checkout leaves a race: another workflow can start
-      # after this container exits but before the next lint preflight, and its
-      # checkout then cannot clean the shared self-hosted workspace. Always
-      # restore ownership here, including when lint itself fails.
-      - name: Restore self-hosted runner workspace ownership
-        if: always() && runner.environment == 'self-hosted'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${RUNNER_EPHEMERAL:-0}" == 1 ]]; then
-            echo "Ephemeral runner workspace needs no host ownership repair."
-            exit 0
-          fi
-          workspace="${GITHUB_WORKSPACE:?}"
-          repository="${GITHUB_REPOSITORY:?}"
-          repository_name="${repository##*/}"
-          expected_workspace="${RUNNER_WORKSPACE:?}/${repository_name}"
-          if ! [ "$workspace" = "$expected_workspace" ]; then
-            echo "::error::Refusing to repair unexpected workspace: ${workspace}"
-            exit 1
-          fi
-          sudo -n chown -R -- "$(id -u):$(id -g)" "$workspace"
-
       - name: Spectral OpenAPI lint
         if: hashFiles('.spectral.yaml', '.spectral.yml') != ''
         uses: stoplightio/spectral-action@6416fd018ae38e60136775066eb3e98172143141 # v0.8.13
@@ -516,25 +468,6 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Repair self-hosted runner workspace
-        if: runner.environment == 'self-hosted'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${RUNNER_EPHEMERAL:-0}" == 1 ]]; then
-            echo "Ephemeral runner workspace needs no host ownership repair."
-            exit 0
-          fi
-          workspace="${GITHUB_WORKSPACE:?}"
-          repository="${GITHUB_REPOSITORY:?}"
-          repository_name="${repository##*/}"
-          expected_workspace="${RUNNER_WORKSPACE:?}/${repository_name}"
-          if ! [ "$workspace" = "$expected_workspace" ]; then
-            echo "::error::Refusing to repair unexpected workspace: ${workspace}"
-            exit 1
-          fi
-          sudo -n chown -R -- "$(id -u):$(id -g)" "$workspace"
-
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

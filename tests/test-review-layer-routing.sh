@@ -132,11 +132,13 @@ contains "$REVIEW_WORKFLOW" '2>&1 | tee "$RUNNER_TEMP/review.log"' \
 
 TRANSLATION_WORKFLOW="$REPO_ROOT/.github/workflows/antigravity-translate.yml"
 contains "$TRANSLATION_WORKFLOW" \
-  'scripts/run-with-progress.sh /opt/agy-translation-contract/run-with-progress.sh' \
+  'install -m 0555 scripts/run-with-progress.sh "$contract/run-with-progress.sh"' \
   "Antigravity translation installs the trusted progress runner before head checkout"
 contains "$TRANSLATION_WORKFLOW" \
-  '/opt/agy-translation-contract/run-with-progress.sh --phase translation-generation' \
+  '"$RUNNER_TEMP/agy-translation-contract/run-with-progress.sh" --phase translation-generation' \
   "Antigravity translation emits structured generation heartbeats"
+rejects "$TRANSLATION_WORKFLOW" '/opt/agy-translation-contract' \
+  "Antigravity translation uses only runner-owned temporary contracts"
 
 contains "$REPO_ROOT/.gitignore" '.agy-review.*' \
   "Antigravity temporary review directories are ignored"

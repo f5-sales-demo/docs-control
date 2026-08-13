@@ -26,7 +26,8 @@ class ProvisionRunnerTests(unittest.TestCase):
     def test_runner_images_include_pyyaml_and_separate_docker_target(self):
         content = (ROOT / "runner-images/Containerfile").read_text(encoding="utf-8")
         self.assertIn("python3-yaml", content)
-        self.assertIn(" nodejs ", content)
+        for package in (" nodejs ", " npm ", " make ", " dbus-x11 ", " libsecret-1-0 ", " gnome-keyring ", " python3-keyring "):
+            self.assertIn(package, content)
         self.assertIn("ARG GH_VERSION=2.97.0", content)
         self.assertIn(
             "ARG GH_SHA256="
@@ -69,10 +70,14 @@ class ProvisionRunnerTests(unittest.TestCase):
             'find "$auth_dir" -depth -delete',
             "docker cp",
             'runner_root="${RUNNER_RUNTIME_DIR:?}"',
-            'python3 -c "import yaml"',
+            'python3 -c "import keyring, yaml"',
             "gh version 2.97.0",
             'gh api --help | grep -q -- "--slurp"',
             "node --version",
+            "npm --version",
+            "make --version",
+            "dbus-run-session --version",
+            "gnome-keyring-daemon --version",
             "docker buildx version",
             "docker compose version",
         ):
