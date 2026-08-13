@@ -220,6 +220,10 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertEqual(command[command.index("--cpus") + 1], "2")
         self.assertEqual(command[command.index("--pids-limit") + 1], "512")
         self.assertEqual(command[command.index("--stop-timeout") + 1], "300")
+        self.assertEqual(
+            command[command.index("--tmpfs") + 1],
+            "/tmp:rw,nosuid,nodev,exec,size=2g",  # noqa: S108
+        )
         runtime_root = (
             self.root / "state" / "workspaces" / "fixture" / "ubuntu-24.04" / "0"
         )
@@ -232,7 +236,6 @@ class EphemeralRunnerTests(unittest.TestCase):
         )
         self.assertNotIn("/runner-runtime:rw,nosuid,nodev,size=20g", command)
         self.assertIn(f"RUNNER_RUNTIME_DIR={runtime_root}", command)
-        self.assertIn(f"TMPDIR={runtime_root / 'tmp'}", command)
         self.assertIn(
             "/opt/f5-actions-runner/runner-entrypoint.sh:/usr/local/bin/runner-entrypoint:ro",
             command,
