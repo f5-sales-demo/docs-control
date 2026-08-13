@@ -39,8 +39,10 @@ CONTAINER_ID_RE = re.compile(r"[0-9a-f]{64}")
 DOCKER_SOCKET = "/run/docker.sock"
 MINIMUM_DOCKER_VERSION = "29.2.1"
 TARGET_DOCKER_VERSION = "29.7.2"
-TRANSIENT_INSPECT_ATTEMPTS = 5
-TRANSIENT_INSPECT_DELAY_SECONDS = 0.1
+TRANSIENT_INSPECT_ATTEMPTS = 8
+TRANSIENT_INSPECT_INITIAL_DELAY_SECONDS = 0.1
+TRANSIENT_INSPECT_MAX_DELAY_SECONDS = 2.0
+TRANSIENT_INSPECT_MAX_TOTAL_SECONDS = 8.0
 
 
 class FleetError(RuntimeError):
@@ -461,7 +463,11 @@ class EphemeralController:
                 )
             if attempt + 1 == attempts:
                 raise FleetError(f"cannot inspect Docker container {container_id}")
-            time.sleep(TRANSIENT_INSPECT_DELAY_SECONDS)
+            delay = min(
+                TRANSIENT_INSPECT_INITIAL_DELAY_SECONDS * (2**attempt),
+                TRANSIENT_INSPECT_MAX_DELAY_SECONDS,
+            )
+            time.sleep(delay)
         try:
             payload = json.loads(result.stdout)
         except (TypeError, ValueError) as exc:
