@@ -236,6 +236,18 @@ class EphemeralRunnerTests(unittest.TestCase):
         )
         install_calls = [call for call in recorder.calls if call[0][0] == "install"]
         self.assertEqual(len(install_calls), 1)
+        chown_calls = [call for call in recorder.calls if call[0][0] == "chown"]
+        self.assertEqual(len(chown_calls), 1)
+        self.assertEqual(
+            chown_calls[0][0],
+            [
+                "chown",
+                "--recursive",
+                "--no-dereference",
+                "1001:1001",
+                str(diagnostics),
+            ],
+        )
         self.assertNotIn(
             "podman", " ".join(" ".join(call[0]) for call in recorder.calls)
         )

@@ -686,6 +686,19 @@ class EphemeralController:
                 str(state),
             ]
         )
+        # Preserve diagnostic history across ephemeral runner cycles while
+        # migrating files created by the retired per-repository host accounts.
+        # GNU chown with --no-dereference changes symlink ownership only and
+        # never follows a diagnostic symlink outside this validated state path.
+        self.command(
+            [
+                "chown",
+                "--recursive",
+                "--no-dereference",
+                "1001:1001",
+                str(state),
+            ]
+        )
         name = self.container_name(spec, profile, slot)
         labels = ",".join(
             sorted(
