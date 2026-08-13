@@ -75,8 +75,8 @@ jobs:
             exit 1
           fi
           published="${IMAGE}@${digest}"
-          inspected="$(docker buildx imagetools inspect "$published" --format '{{json .Manifest}}')"
-          if [[ "$(jq -r '.digest' <<<"$inspected")" != "$digest" ]]; then
+          registry_digest="sha256:$(docker buildx imagetools inspect --raw "$published" | sha256sum | cut -d' ' -f1)"
+          if [[ "$registry_digest" != "$digest" ]]; then
             echo "published digest verification failed" >&2
             exit 1
           fi

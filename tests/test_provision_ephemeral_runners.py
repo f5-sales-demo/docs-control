@@ -53,6 +53,8 @@ class ProvisionRunnerTests(unittest.TestCase):
             '--metadata-file "$metadata_file"',
             "--push",
             "containerimage.digest",
+            "imagetools inspect --raw",
+            "sha256sum",
             'python3 -c "import yaml"',
             "docker buildx version",
             "docker compose version",

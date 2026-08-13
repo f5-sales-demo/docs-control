@@ -224,6 +224,10 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertIn(f"{runtime_root}:{runtime_root}:rw", command)
         diagnostics = self.root / "state/diagnostics/fixture/ubuntu-24.04/0"
         self.assertIn(f"{diagnostics}:{runtime_root}/_diag:rw", command)
+        self.assertLess(
+            command.index(f"{runtime_root}:{runtime_root}:rw"),
+            command.index(f"{diagnostics}:{runtime_root}/_diag:rw"),
+        )
         self.assertNotIn("/runner-runtime:rw,nosuid,nodev,size=20g", command)
         self.assertIn(f"RUNNER_RUNTIME_DIR={runtime_root}", command)
         self.assertIn(
@@ -494,6 +498,43 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertLess(calls.index(outer_stop), calls.index(outer_remove))
         self.assertLess(calls.index(outer_remove), calls.index(nested_remove))
 
+    def test_nested_cleanup_removes_container_after_bind_source_was_deleted(self):
+        workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
+        workspace.mkdir(parents=True)
+        deleted_source = workspace / "deleted" / "source"
+        nested_id = "f" * 64
+        calls = []
+
+        def docker_fixture(command, **_kwargs):
+            calls.append(command)
+            if command[:4] == ["docker", "container", "ls", "--all"]:
+                if "--filter" in command:
+                    return SimpleNamespace(returncode=0, stdout="", stderr="")
+                return SimpleNamespace(returncode=0, stdout=nested_id + "\n", stderr="")
+            if command[:3] == ["docker", "container", "inspect"]:
+                payload = {
+                    "Id": nested_id,
+                    "Name": "/nested",
+                    "Config": {"Labels": {}},
+                    "Mounts": [{"Type": "bind", "Source": str(deleted_source)}],
+                }
+                return SimpleNamespace(
+                    returncode=0, stdout=json.dumps(payload), stderr=""
+                )
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", docker_fixture
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+
+        controller.cleanup(spec, spec.profiles[0], 0)
+
+        self.assertIn(
+            ["docker", "container", "rm", "--force", nested_id],
+            calls,
+        )
+
     def test_nested_cleanup_rejects_malformed_or_mixed_bind_mounts(self):
         workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
         (workspace / "_work").mkdir(parents=True)
@@ -531,6 +572,44 @@ class EphemeralRunnerTests(unittest.TestCase):
                 spec = self.policy().repository("f5-sales-demo/fixture")
                 with self.assertRaises(MODULE.FleetError):
                     controller.cleanup(spec, spec.profiles[0], 0)
+
+    def test_nested_cleanup_rejects_bind_source_symlink_escape(self):
+        workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
+        workspace.mkdir(parents=True)
+        outside = self.root / "outside"
+        (outside / "child").mkdir(parents=True)
+        (workspace / "escape").symlink_to(outside, target_is_directory=True)
+        nested_id = "9" * 64
+
+        def docker_fixture(command, **_kwargs):
+            if command[:4] == ["docker", "container", "ls", "--all"]:
+                if "--filter" in command:
+                    return SimpleNamespace(returncode=0, stdout="", stderr="")
+                return SimpleNamespace(returncode=0, stdout=nested_id + "\n", stderr="")
+            if command[:3] == ["docker", "container", "inspect"]:
+                payload = {
+                    "Id": nested_id,
+                    "Name": "/nested",
+                    "Config": {"Labels": {}},
+                    "Mounts": [
+                        {
+                            "Type": "bind",
+                            "Source": str(workspace / "escape" / "child"),
+                        }
+                    ],
+                }
+                return SimpleNamespace(
+                    returncode=0, stdout=json.dumps(payload), stderr=""
+                )
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", docker_fixture
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+
+        with self.assertRaises(MODULE.FleetError):
+            controller.cleanup(spec, spec.profiles[0], 0)
 
     def test_nested_removal_failure_blocks_workspace_erasure(self):
         workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"

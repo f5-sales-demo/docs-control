@@ -544,7 +544,11 @@ class EphemeralController:
                     beneath.append(False)
                     continue
                 try:
-                    resolved = source_path.resolve(strict=True)
+                    # Docker retains bind-source paths after a job removes the
+                    # final component.  Resolve existing ancestors and append
+                    # missing descendants so cleanup remains recoverable while
+                    # still rejecting surviving symlink escapes.
+                    resolved = source_path.resolve(strict=False)
                 except OSError as exc:
                     raise FleetError(
                         f"cannot validate Docker bind mount for {container_id}"
@@ -714,9 +718,9 @@ class EphemeralController:
             "--tmpfs",
             "/tmp:rw,nosuid,nodev,size=2g",
             "--volume",
-            f"{state}:{workspace}/_diag:rw",
-            "--volume",
             f"{workspace}:{workspace}:rw",
+            "--volume",
+            f"{state}:{workspace}/_diag:rw",
             "--volume",
             f"{HOST_ENTRYPOINT}:/usr/local/bin/runner-entrypoint:ro",
             "--env",
