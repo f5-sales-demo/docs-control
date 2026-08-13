@@ -412,6 +412,120 @@ class EphemeralRunnerTests(unittest.TestCase):
                 0,
             )
 
+    def test_stop_request_reaches_exact_blocking_outer_container_then_cleans(self):
+        outer_id = "a" * 64
+        events = []
+        exact_inventories = 0
+        github = FakeGitHub()
+        github.records = [{"id": 42, "name": "gha-fixture-ubuntu-24.04-0-deadbeef"}]
+
+        class InterruptedRunnerProcess:
+            returncode = -MODULE.signal.SIGTERM
+
+            @staticmethod
+            def communicate(input_text):
+                events.append(("communicate", input_text))
+                raise MODULE.StopRequestedError
+
+            @staticmethod
+            def terminate():
+                events.append(("terminate",))
+
+            @staticmethod
+            def wait(timeout=None):
+                events.append(("wait", timeout))
+                return -MODULE.signal.SIGTERM
+
+        def popen(command, **kwargs):
+            events.append(("popen", command, kwargs))
+            return InterruptedRunnerProcess()
+
+        def docker_fixture(command, **_kwargs):
+            nonlocal exact_inventories
+            events.append(("command", command))
+            if command[:3] == ["docker", "version", "--format"]:
+                return SimpleNamespace(returncode=0, stdout="29.2.1\n", stderr="")
+            if command[:4] == ["docker", "container", "ls", "--all"]:
+                if "--filter" not in command:
+                    return SimpleNamespace(returncode=0, stdout="", stderr="")
+                exact_inventories += 1
+                output = outer_id + "\n" if exact_inventories == 2 else ""
+                return SimpleNamespace(returncode=0, stdout=output, stderr="")
+            if command == ["docker", "container", "inspect", outer_id]:
+                payload = {
+                    "Id": outer_id,
+                    "Name": "/gha-fixture-ubuntu-24.04-0",
+                    "Config": {
+                        "Labels": {
+                            "f5.runner.managed": "true",
+                            "f5.runner.repository": "f5-sales-demo/fixture",
+                            "f5.runner.profile": "ubuntu-24.04",
+                            "f5.runner.slot": "0",
+                        }
+                    },
+                    "Mounts": [],
+                }
+                return SimpleNamespace(
+                    returncode=0, stdout=json.dumps(payload), stderr=""
+                )
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        controller = MODULE.EphemeralController(
+            self.policy(),
+            github,
+            self.root / "state",
+            docker_fixture,
+            popen=popen,
+        )
+
+        with self.assertRaises(MODULE.StopRequestedError):
+            controller.run_once("f5-sales-demo/fixture", "ubuntu-24.04")
+
+        runner_command = next(event[1] for event in events if event[0] == "popen")
+        self.assertEqual(runner_command[:2], ["docker", "run"])
+        self.assertIn(("communicate", "registration-secret\n"), events)
+        stop_event = (
+            "command",
+            ["docker", "container", "stop", "--time", "300", outer_id],
+        )
+        self.assertIn(stop_event, events)
+        self.assertLess(events.index(stop_event), events.index(("wait", 5)))
+        self.assertNotIn(("terminate",), events)
+        self.assertEqual(github.deleted, [("f5-sales-demo/fixture", 42)])
+
+    def test_completed_outer_process_does_not_request_an_extra_stop(self):
+        events = []
+
+        class CompletedRunnerProcess:
+            returncode = 0
+
+            @staticmethod
+            def communicate(input_text):
+                events.append(("communicate", input_text))
+                return None, None
+
+            @staticmethod
+            def terminate():
+                events.append(("terminate",))
+
+            @staticmethod
+            def wait():
+                events.append(("wait",))
+                return 0
+
+        controller = MODULE.EphemeralController(
+            self.policy(),
+            FakeGitHub(),
+            self.root / "state",
+            CommandRecorder(),
+            popen=lambda *_args, **_kwargs: CompletedRunnerProcess(),
+        )
+
+        self.assertEqual(
+            controller.run_once("f5-sales-demo/fixture", "ubuntu-24.04"), 0
+        )
+        self.assertEqual(events, [("communicate", "registration-secret\n")])
+
     def test_container_profile_uses_exact_host_docker_socket(self):
         recorder = CommandRecorder()
         controller = MODULE.EphemeralController(
