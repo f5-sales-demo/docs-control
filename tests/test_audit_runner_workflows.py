@@ -37,7 +37,15 @@ class WorkflowAuditTests(unittest.TestCase):
                     "cpus": "2",
                     "pids_limit": 512,
                     "container_socket": False,
-                }
+                },
+                "container-build": {
+                    "image": "example@sha256:" + "b" * 64,
+                    "labels": ["container-build"],
+                    "memory": "8g",
+                    "cpus": "4",
+                    "pids_limit": 1024,
+                    "container_socket": True,
+                },
             },
             "hosted_exceptions": {},
             "repositories": {"f5-sales-demo/fixture": {}},
@@ -158,6 +166,34 @@ jobs:
     runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
     steps:
       - run: true
+"""
+        )
+        self.assertEqual(self.audit(), [])
+
+    def test_super_linter_requires_container_build_profile(self):
+        self.write_workflow(
+            """name: Lint
+on: [push]
+jobs:
+  lint:
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
+    steps:
+      - uses: super-linter/super-linter@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+"""
+        )
+        errors = self.audit()
+        self.assertTrue(
+            any("requires a container socket profile" in item for item in errors)
+        )
+
+        self.write_workflow(
+            """name: Lint
+on: [push]
+jobs:
+  lint:
+    runs-on: [self-hosted, Linux, X64, fixture, container-build]
+    steps:
+      - uses: super-linter/super-linter@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 """
         )
         self.assertEqual(self.audit(), [])

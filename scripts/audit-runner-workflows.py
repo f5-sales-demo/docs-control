@@ -125,6 +125,18 @@ def audit_job(repository, relative, job_id, job, profiles, exceptions, default_p
             errors.append(
                 f"{relative}/{job_id}: runs-on must use the canonical repository route, got {runs_on!r}"
             )
+        uses_super_linter = any(
+            isinstance(step, dict)
+            and isinstance(step.get("uses"), str)
+            and step["uses"].startswith("super-linter/super-linter@")
+            for step in job.get("steps", [])
+        )
+        if uses_super_linter and (
+            profile not in profiles or not profiles[profile].get("container_socket")
+        ):
+            errors.append(
+                f"{relative}/{job_id}: Super-Linter requires a container socket profile"
+            )
     for index, step in enumerate(job.get("steps", [])):
         if not isinstance(step, dict) or "uses" not in step:
             continue

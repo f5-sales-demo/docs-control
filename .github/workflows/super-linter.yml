@@ -30,7 +30,7 @@ concurrency:
 jobs:
   lint:
     name: Lint Code Base
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", container-build]
     # Scoped to what the linter needs: read code/packages, write commit statuses
     # and PR annotations. The shell-unit-tests job below gets contents:read only.
     permissions:
