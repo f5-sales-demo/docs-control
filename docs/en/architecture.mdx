@@ -41,7 +41,7 @@ Three sets of credentials provide least-privilege separation:
 
 | Token / Secret | Permissions / Scope | Used by |
 | --- | --- | --- |
-| `REPO_SETTINGS_TOKEN` | Administration R/W, Pages R/W, Contents Read, Metadata Read | `enforce-repo-settings.yml`, `dispatch-downstream.yml`, `update-governed-workflow-pins.yml` |
+| `REPO_SETTINGS_TOKEN` | Administration R/W, Pages R/W, Contents Read, Metadata Read, and repository Secrets: write for every enrolled repository (or equivalent classic `repo` scope) | `enforce-repo-settings.yml`, `dispatch-downstream.yml`, `update-governed-workflow-pins.yml`, `provision-governance-secrets.sh` |
 | `REPO_SYNC_TOKEN` | Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read | `sync-managed-files.yml` |
 | `ANTIGRAVITY_TOKEN` & `GCP_PROJECT_ID` | Antigravity AI Authentication & GCP Project Access | `antigravity-review.yml`, `antigravity-translate.yml` |
 

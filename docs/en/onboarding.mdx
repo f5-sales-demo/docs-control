@@ -10,7 +10,7 @@ This page covers the procedure to enroll a new repository in the docs-control go
 ## Prerequisites
 
 - Org membership in `f5-sales-demo`
-- `REPO_SETTINGS_TOKEN` and `REPO_SYNC_TOKEN` secrets configured as organization-level secrets (or added to the new repository individually)
+- `REPO_SETTINGS_TOKEN` and `REPO_SYNC_TOKEN` secrets configured as organization-level secrets (or added to the new repository individually). `REPO_SETTINGS_TOKEN` must be authorized for every enrolled repository and retain Administration R/W, Pages R/W, Contents Read, Metadata Read, and repository **Secrets: write** permission (or use an equivalent classic `repo`-scoped credential).
 - `ANTIGRAVITY_TOKEN` and `GCP_PROJECT_ID` secrets configured for automated Antigravity AI code review and language translation
 - Access to the `ghcr.io/f5-sales-demo/docs-builder` container image
 
