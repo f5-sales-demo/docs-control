@@ -423,11 +423,38 @@ class EphemeralController:
             raise FleetError(f"duplicate Docker {context} inventory")
         return ids
 
-    def _inspect_container(self, container_id):
+    def _inspect_container(self, container_id, *, allow_disappeared=False):
         result = self.command(
             ["docker", "container", "inspect", container_id], check=False
         )
         if result.returncode != 0:
+            if allow_disappeared:
+                inventory = self.command(
+                    [
+                        "docker",
+                        "container",
+                        "ls",
+                        "--all",
+                        "--quiet",
+                        "--no-trunc",
+                        "--filter",
+                        f"id={container_id}",
+                    ],
+                    check=False,
+                )
+                if inventory.returncode != 0:
+                    raise FleetError(
+                        f"cannot confirm disappeared Docker container {container_id}"
+                    )
+                ids = self._container_ids(
+                    inventory.stdout, "exact disappeared container"
+                )
+                if not ids:
+                    return None
+                if ids != [container_id]:
+                    raise FleetError(
+                        f"unexpected Docker exact container inventory for {container_id}"
+                    )
             raise FleetError(f"cannot inspect Docker container {container_id}")
         try:
             payload = json.loads(result.stdout)
@@ -525,7 +552,9 @@ class EphemeralController:
         if result.returncode != 0:
             raise FleetError("cannot inventory nested Docker containers")
         for container_id in self._container_ids(result.stdout, "nested container"):
-            inspected = self._inspect_container(container_id)
+            inspected = self._inspect_container(container_id, allow_disappeared=True)
+            if inspected is None:
+                continue
             beneath = []
             for mount in inspected["Mounts"]:
                 if not isinstance(mount, dict) or not isinstance(
