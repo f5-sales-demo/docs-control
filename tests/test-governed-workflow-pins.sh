@@ -68,6 +68,15 @@ if not refs or set(refs) != {expected}:
     raise SystemExit(f"configured={expected}; callers={sorted(set(refs))}")
 PY
 
+check "governed Super-Linter pin references Docker-routed trusted implementation" \
+  bash -c '
+    revision=$(jq -er '\''.revision | select(type == "string" and test("^[0-9a-f]{40}$"))'\'' "$2") &&
+      implementation=$(git -C "$1" show "${revision}:.github/workflows/super-linter.yml") &&
+      grep -Fq '\''runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", container-build]'\'' <<<"$implementation" &&
+      grep -Fq '\''github.event.pull_request.head.repo.full_name == github.repository'\'' <<<"$implementation" &&
+      grep -Fq '\''Docker-capable lint is forbidden for fork pull requests.'\'' <<<"$implementation"
+  ' _ "$REPO_ROOT" "$PIN_CONFIG"
+
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/workflows" "$WORK/.github/config"
