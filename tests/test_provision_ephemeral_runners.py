@@ -26,8 +26,16 @@ class ProvisionRunnerTests(unittest.TestCase):
     def test_runner_images_include_pyyaml_and_separate_docker_target(self):
         content = (ROOT / "runner-images/Containerfile").read_text(encoding="utf-8")
         self.assertIn("python3-yaml", content)
-        self.assertIn(" gh ", content)
         self.assertIn(" nodejs ", content)
+        self.assertIn("ARG GH_VERSION=2.97.0", content)
+        self.assertIn(
+            "ARG GH_SHA256="
+            "a2c9b8497e1f85b1ad0dfcb78b5a622e098801b8e461e459e88e1ee12f018112",
+            content,
+        )
+        self.assertIn("gh_${GH_VERSION}_linux_amd64.tar.gz", content)
+        self.assertIn("/usr/local/bin/gh", content)
+        self.assertNotIn("git git-lfs gh jq", content)
         self.assertLess(content.index("python3-yaml"), content.index("AS socketless"))
         socketless = content.split("FROM runner-base AS socketless", 1)[1].split(
             "FROM runner-base AS docker-capable", 1
@@ -62,7 +70,8 @@ class ProvisionRunnerTests(unittest.TestCase):
             "docker cp",
             'runner_root="${RUNNER_RUNTIME_DIR:?}"',
             'python3 -c "import yaml"',
-            "gh --version",
+            "gh version 2.97.0",
+            'gh api --help | grep -q -- "--slurp"',
             "node --version",
             "docker buildx version",
             "docker compose version",

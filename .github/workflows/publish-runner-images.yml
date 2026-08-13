@@ -115,14 +115,14 @@ jobs:
           fi
           if [[ "$TARGET" == socketless ]]; then
             docker run --rm --entrypoint bash "$published" -c \
-              'python3 -c "import yaml" && gh --version && node --version && ! command -v docker'
+              'python3 -c "import yaml" && gh --version | grep -q "gh version 2.97.0" && gh api --help | grep -q -- "--slurp" && node --version && ! command -v docker'
           else
             socket_gid="$(stat -c '%g' /run/docker.sock)"
             docker run --rm --entrypoint bash \
               --group-add "$socket_gid" \
               --volume /run/docker.sock:/run/docker.sock:rw \
               "$published" -c \
-              'python3 -c "import yaml" && gh --version && node --version && docker version && docker buildx version && docker compose version'
+              'python3 -c "import yaml" && gh --version | grep -q "gh version 2.97.0" && gh api --help | grep -q -- "--slurp" && node --version && docker version && docker buildx version && docker compose version'
           fi
           # shellcheck disable=SC2016
           printf '### %s\n\n`%s@%s`\n' "$PROFILE" "$IMAGE" "$digest" >> "$GITHUB_STEP_SUMMARY"
