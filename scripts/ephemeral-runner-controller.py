@@ -5,11 +5,15 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
+import pwd
 import re
 import secrets
+import shutil
 import signal
+import stat
 import subprocess
 import sys
 import time
@@ -298,7 +302,7 @@ class EphemeralController:
 
     def runtime_workspace(self, spec, profile, slot):
         """Return the host-visible action workspace for one ephemeral runner."""
-        return self.state_dir(spec, profile, slot) / "runtime"
+        return self.base_dir / "workspaces" / spec.name / profile.name / str(slot)
 
     @staticmethod
     def container_name(spec, profile, slot):
@@ -350,7 +354,90 @@ class EphemeralController:
         name = self.container_name(spec, profile, slot)
         account, runtime = self.prepare_account(spec, profile)
         prefix = self.podman_prefix(account, runtime)
-        self.command([*prefix, "rm", "--force", "--ignore", name], check=False)
+        result = self.command([*prefix, "rm", "--force", "--ignore", name], check=False)
+        if result.returncode != 0:
+            raise FleetError(f"cannot stop exact runner container {name}")
+
+    def prepare_workspace(self, spec, profile, slot):
+        """Create the exact host-visible workspace owned by its runner account."""
+        workspace = self.runtime_workspace(spec, profile, slot)
+        try:
+            relative = workspace.relative_to(self.base_dir)
+            descriptor = os.open(
+                self.base_dir, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+            )
+        except OSError as exc:
+            raise FleetError(f"cannot open runner workspace base: {exc}") from exc
+        try:
+            for component in relative.parts:
+                with contextlib.suppress(FileExistsError):
+                    os.mkdir(component, 0o700, dir_fd=descriptor)
+                next_descriptor = os.open(
+                    component,
+                    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+                    dir_fd=descriptor,
+                )
+                os.close(descriptor)
+                descriptor = next_descriptor
+                if component != relative.parts[-1]:
+                    os.fchmod(descriptor, 0o711)
+            account = pwd.getpwnam(spec.account_for(profile))
+            os.fchmod(descriptor, 0o700)
+            os.fchown(descriptor, account.pw_uid, account.pw_gid)
+        except (KeyError, OSError) as exc:
+            raise FleetError(f"cannot prepare runner workspace: {exc}") from exc
+        finally:
+            os.close(descriptor)
+        return workspace
+
+    def reset_workspace(self, spec, profile, slot):
+        """Remove stale state only after the exact runner container is stopped."""
+        workspace = self.runtime_workspace(spec, profile, slot)
+        if workspace.is_symlink():
+            raise FleetError("runner workspace is unsafe")
+        if not workspace.exists():
+            return
+        if not workspace.is_dir():
+            raise FleetError("runner workspace is unsafe")
+        for child in workspace.iterdir():
+            if child.is_symlink():
+                child.unlink()
+                continue
+            try:
+                if child.is_dir():
+                    shutil.rmtree(child, onerror=self.remove_read_only)
+                else:
+                    child.unlink()
+            except OSError as exc:
+                raise FleetError(f"cannot reset runner workspace: {exc}") from exc
+
+    @staticmethod
+    def remove_read_only(function, path, exception_info):
+        """Retry a removal without following untrusted links in the workspace."""
+        error = exception_info[1]
+        if not isinstance(error, PermissionError):
+            raise error
+        target = Path(path)
+        if target.is_symlink():
+            target.unlink()
+            return
+        directory = (
+            target if function in (os.open, os.scandir, os.listdir) else target.parent
+        )
+        try:
+            descriptor = os.open(directory, os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW)
+        except OSError as exc:
+            raise FleetError(
+                f"cannot safely reset read-only workspace path: {exc}"
+            ) from exc
+        try:
+            Path(f"/proc/self/fd/{descriptor}").chmod(stat.S_IRWXU)
+        finally:
+            os.close(descriptor)
+        if function is os.open:
+            shutil.rmtree(target, onerror=EphemeralController.remove_read_only)
+            return
+        function(path)
 
     def remove_registration(self, spec, profile, slot):
         """Remove registrations left behind when an idle runner is stopped."""
@@ -384,19 +471,6 @@ class EphemeralController:
                 "-g",
                 account,
                 str(state),
-            ]
-        )
-        self.command(
-            [
-                "install",
-                "-d",
-                "-m",
-                "0700",
-                "-o",
-                account,
-                "-g",
-                account,
-                str(workspace),
             ]
         )
         name = self.container_name(spec, profile, slot)
@@ -473,6 +547,8 @@ class EphemeralController:
         if not 0 <= slot < spec.replicas:
             raise FleetError(f"slot must be between 0 and {spec.replicas - 1}")
         self.cleanup(spec, profile, slot)
+        self.prepare_workspace(spec, profile, slot)
+        self.reset_workspace(spec, profile, slot)
         token = self.github.registration_token(full_name)
         try:
             result = self.command(
@@ -486,6 +562,7 @@ class EphemeralController:
             token = ""  # Shorten the credential lifetime.
             try:
                 self.cleanup(spec, profile, slot)
+                self.reset_workspace(spec, profile, slot)
                 self.remove_registration(spec, profile, slot)
             finally:
                 self.release_namespace(spec, profile, slot)

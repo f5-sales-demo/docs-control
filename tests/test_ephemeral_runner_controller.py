@@ -4,6 +4,8 @@
 
 import importlib.util
 import json
+import os
+import stat
 import sys
 import tempfile
 import unittest
@@ -52,6 +54,13 @@ class EphemeralRunnerTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
+        (self.root / "state").mkdir()
+        self.account_lookup = mock.patch.object(
+            MODULE.pwd,
+            "getpwnam",
+            return_value=SimpleNamespace(pw_uid=os.getuid(), pw_gid=os.getgid()),
+        )
+        self.account_lookup.start()
         self.policy_path = self.root / "policy.json"
         self.policy_data: dict = {
             "schema_version": 2,
@@ -87,6 +96,7 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.write_policy()
 
     def tearDown(self):
+        self.account_lookup.stop()
         self.temp.cleanup()
 
     def write_policy(self):
@@ -157,13 +167,7 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertNotIn("--cgroups=disabled", command)
         self.assertIn("--cgroup-manager=cgroupfs", command)
         runtime_root = (
-            self.root
-            / "state"
-            / "diagnostics"
-            / "fixture"
-            / "ubuntu-24.04"
-            / "0"
-            / "runtime"
+            self.root / "state" / "workspaces" / "fixture" / "ubuntu-24.04" / "0"
         )
         self.assertIn(f"{runtime_root}:{runtime_root}:rw", command)
         self.assertNotIn("/runner-runtime:rw,nosuid,nodev,size=20g", command)
@@ -183,6 +187,133 @@ class EphemeralRunnerTests(unittest.TestCase):
         ]
         self.assertEqual(len(migrate_calls), 1)
         self.assertFalse(migrate_calls[0][1]["check"])
+
+    def test_workspace_reset_removes_stale_runner_state_after_container_cleanup(self):
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+        profile = spec.profiles[0]
+        workspace = controller.runtime_workspace(spec, profile, 0)
+        workspace.mkdir(parents=True)
+        (workspace / ".runner").write_text("stale", encoding="utf-8")
+        controller.reset_workspace(spec, profile, 0)
+        self.assertEqual(list(workspace.iterdir()), [])
+
+    def test_workspace_reset_unlinks_symlinked_state_without_following_it(self):
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+        profile = spec.profiles[0]
+        workspace = controller.runtime_workspace(spec, profile, 0)
+        workspace.mkdir(parents=True)
+        link = workspace / "outside"
+        link.symlink_to(self.root)
+        controller.reset_workspace(spec, profile, 0)
+        self.assertFalse(link.exists())
+        self.assertTrue(self.root.exists())
+
+    def test_workspace_preparation_rejects_a_symlinked_workspace(self):
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+        profile = spec.profiles[0]
+        workspace = controller.runtime_workspace(spec, profile, 0)
+        workspace.parent.mkdir(parents=True)
+        workspace.symlink_to(self.root)
+        with self.assertRaises(MODULE.FleetError):
+            controller.prepare_workspace(spec, profile, 0)
+
+    def test_workspace_parents_allow_runner_account_traversal(self):
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+        profile = spec.profiles[0]
+        workspace = controller.prepare_workspace(spec, profile, 0)
+        for parent in workspace.parents:
+            if parent == controller.base_dir:
+                break
+            self.assertEqual(stat.S_IMODE(parent.stat().st_mode), 0o711)
+
+    def test_workspace_reset_removes_read_only_artifacts(self):
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+        profile = spec.profiles[0]
+        workspace = controller.runtime_workspace(spec, profile, 0)
+        artifact = workspace / "read-only" / "artifact"
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text("stale", encoding="utf-8")
+        for mode in (0o500, 0o100, 0o300, 0o000):
+            with self.subTest(mode=oct(mode)):
+                artifact.parent.chmod(mode)
+                controller.reset_workspace(spec, profile, 0)
+                self.assertEqual(list(workspace.iterdir()), [])
+                artifact.parent.mkdir()
+                artifact.write_text("stale", encoding="utf-8")
+
+    def test_read_only_cleanup_unlinks_symlink_without_touching_target(self):
+        target = self.root / "outside"
+        target.mkdir()
+        target.chmod(0o500)
+        link = self.root / "link"
+        link.symlink_to(target, target_is_directory=True)
+        MODULE.EphemeralController.remove_read_only(
+            os.unlink,
+            str(link),
+            (PermissionError, PermissionError("denied"), None),
+        )
+        self.assertFalse(link.exists())
+        self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o500)
+
+    def test_read_only_open_retry_does_not_call_open_with_missing_flags(self):
+        directory = self.root / "unreadable"
+        directory.mkdir()
+        directory.chmod(0o000)
+        MODULE.EphemeralController.remove_read_only(
+            MODULE.os.open,
+            str(directory),
+            (PermissionError, PermissionError("denied"), None),
+        )
+        self.assertFalse(directory.exists())
+
+    def test_read_only_scandir_retry_repairs_the_target_directory(self):
+        directory = self.root / "unreadable"
+        directory.mkdir()
+        with (
+            mock.patch.object(MODULE.os, "open", return_value=7) as open_call,
+            mock.patch.object(MODULE.os, "fchmod"),
+            mock.patch.object(MODULE.os, "close"),
+            mock.patch.object(MODULE.os, "chmod"),
+            mock.patch.object(MODULE.os, "scandir") as scandir_call,
+        ):
+            MODULE.EphemeralController.remove_read_only(
+                MODULE.os.scandir,
+                str(directory),
+                (PermissionError, PermissionError("denied"), None),
+            )
+        self.assertEqual(open_call.call_args.args[0], directory)
+        scandir_call.assert_called_once_with(str(directory))
+
+    def test_cleanup_failure_blocks_workspace_reset(self):
+        recorder = CommandRecorder()
+        recorder_result = SimpleNamespace(returncode=1, stdout="", stderr="failed")
+
+        def failing_cleanup(command, **kwargs):
+            recorder.calls.append((command, kwargs))
+            if "rm" in command:
+                return recorder_result
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", failing_cleanup
+        )
+        with self.assertRaises(MODULE.FleetError):
+            controller.run_once("f5-sales-demo/fixture", "ubuntu-24.04")
 
     def test_shutdown_cleanup_removes_exact_slot_registration(self):
         github = FakeGitHub()
@@ -222,13 +353,7 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertIn("/run/f5-actions-podman/fixture/podman.sock", rendered)
         self.assertIn("DOCKER_HOST=unix:///run/podman/podman.sock", command)
         runtime_root = (
-            self.root
-            / "state"
-            / "diagnostics"
-            / "fixture"
-            / "container-build"
-            / "0"
-            / "runtime"
+            self.root / "state" / "workspaces" / "fixture" / "container-build" / "0"
         )
         self.assertIn(f"{runtime_root}:{runtime_root}:rw", command)
         self.assertNotIn("--privileged", command)
