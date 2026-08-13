@@ -39,6 +39,8 @@ CONTAINER_ID_RE = re.compile(r"[0-9a-f]{64}")
 DOCKER_SOCKET = "/run/docker.sock"
 MINIMUM_DOCKER_VERSION = "29.2.1"
 TARGET_DOCKER_VERSION = "29.7.2"
+TRANSIENT_INSPECT_ATTEMPTS = 5
+TRANSIENT_INSPECT_DELAY_SECONDS = 0.1
 
 
 class FleetError(RuntimeError):
@@ -424,38 +426,42 @@ class EphemeralController:
         return ids
 
     def _inspect_container(self, container_id, *, allow_disappeared=False):
-        result = self.command(
-            ["docker", "container", "inspect", container_id], check=False
-        )
-        if result.returncode != 0:
-            if allow_disappeared:
-                inventory = self.command(
-                    [
-                        "docker",
-                        "container",
-                        "ls",
-                        "--all",
-                        "--quiet",
-                        "--no-trunc",
-                        "--filter",
-                        f"id={container_id}",
-                    ],
-                    check=False,
+        attempts = TRANSIENT_INSPECT_ATTEMPTS if allow_disappeared else 1
+        for attempt in range(attempts):
+            result = self.command(
+                ["docker", "container", "inspect", container_id], check=False
+            )
+            if result.returncode == 0:
+                break
+            if not allow_disappeared:
+                raise FleetError(f"cannot inspect Docker container {container_id}")
+            inventory = self.command(
+                [
+                    "docker",
+                    "container",
+                    "ls",
+                    "--all",
+                    "--quiet",
+                    "--no-trunc",
+                    "--filter",
+                    f"id={container_id}",
+                ],
+                check=False,
+            )
+            if inventory.returncode != 0:
+                raise FleetError(
+                    f"cannot confirm disappeared Docker container {container_id}"
                 )
-                if inventory.returncode != 0:
-                    raise FleetError(
-                        f"cannot confirm disappeared Docker container {container_id}"
-                    )
-                ids = self._container_ids(
-                    inventory.stdout, "exact disappeared container"
+            ids = self._container_ids(inventory.stdout, "exact disappeared container")
+            if not ids:
+                return None
+            if ids != [container_id]:
+                raise FleetError(
+                    f"unexpected Docker exact container inventory for {container_id}"
                 )
-                if not ids:
-                    return None
-                if ids != [container_id]:
-                    raise FleetError(
-                        f"unexpected Docker exact container inventory for {container_id}"
-                    )
-            raise FleetError(f"cannot inspect Docker container {container_id}")
+            if attempt + 1 == attempts:
+                raise FleetError(f"cannot inspect Docker container {container_id}")
+            time.sleep(TRANSIENT_INSPECT_DELAY_SECONDS)
         try:
             payload = json.loads(result.stdout)
         except (TypeError, ValueError) as exc:
