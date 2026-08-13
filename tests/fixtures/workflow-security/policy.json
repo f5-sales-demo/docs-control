@@ -10,7 +10,7 @@
   "hosted_exceptions": {},
   "repositories": {
     "f5-sales-demo/fixture": {
-      "runner": {"profiles": ["ubuntu-24.04", "container-build"]},
+      "runner": { "profiles": ["ubuntu-24.04", "container-build"] },
       ".github/workflows/audit.yml": {
         "first": {
           "runs_on": ["self-hosted", "Linux", "X64", "fixture", "ubuntu-24.04"],
