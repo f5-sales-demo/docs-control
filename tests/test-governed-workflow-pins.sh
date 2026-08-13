@@ -68,17 +68,26 @@ if not refs or set(refs) != {expected}:
     raise SystemExit(f"configured={expected}; callers={sorted(set(refs))}")
 PY
 
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+
 check "governed Super-Linter pin references Docker-routed trusted implementation" \
   bash -c '
     revision=$(jq -er '\''.revision | select(type == "string" and test("^[0-9a-f]{40}$"))'\'' "$2") &&
-      implementation=$(git -C "$1" show "${revision}:.github/workflows/super-linter.yml") &&
+      if git -C "$1" cat-file -e "${revision}^{commit}" 2>/dev/null; then
+        implementation=$(git -C "$1" show "${revision}:.github/workflows/super-linter.yml")
+      else
+        remote=$(git -C "$1" remote get-url origin) &&
+          git init --quiet "$3" &&
+          git -C "$3" fetch --no-tags --quiet --depth=1 "$remote" "$revision" &&
+          test "$(git -C "$3" rev-parse FETCH_HEAD)" = "$revision" &&
+          implementation=$(git -C "$3" show "FETCH_HEAD:.github/workflows/super-linter.yml")
+      fi &&
       grep -Fq '\''runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", container-build]'\'' <<<"$implementation" &&
       grep -Fq '\''github.event.pull_request.head.repo.full_name == github.repository'\'' <<<"$implementation" &&
       grep -Fq '\''Docker-capable lint is forbidden for fork pull requests.'\'' <<<"$implementation"
-  ' _ "$REPO_ROOT" "$PIN_CONFIG"
+  ' _ "$REPO_ROOT" "$PIN_CONFIG" "$WORK/pinned-revision"
 
-WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
 mkdir -p "$WORK/workflows" "$WORK/.github/config"
 cp "$REPO_ROOT"/workflows/*.yml "$WORK/workflows/"
 cp "$PIN_CONFIG" "$WORK/.github/config/governed-workflow-pin.json"
