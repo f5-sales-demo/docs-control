@@ -152,11 +152,22 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertIn("slirp4netns:allow_host_loopback=false", command)
         self.assertNotIn("/var/run/docker.sock", " ".join(command))
         self.assertIn("--userns=keep-id:uid=1001,gid=1001", command)
-        self.assertIn("HOME=/runner-runtime/home", command)
         self.assertIn("RUNNER_EPHEMERAL=1", command)
         self.assertNotIn("/home/runner:rw,nosuid,nodev,size=4g", command)
         self.assertNotIn("--cgroups=disabled", command)
         self.assertIn("--cgroup-manager=cgroupfs", command)
+        runtime_root = (
+            self.root
+            / "state"
+            / "diagnostics"
+            / "fixture"
+            / "ubuntu-24.04"
+            / "0"
+            / "runtime"
+        )
+        self.assertIn(f"{runtime_root}:{runtime_root}:rw", command)
+        self.assertNotIn("/runner-runtime:rw,nosuid,nodev,size=20g", command)
+        self.assertIn(f"RUNNER_RUNTIME_DIR={runtime_root}", command)
         self.assertIn("/run/f5-actions-runner/gha-fixture", " ".join(command))
         self.assertIn(
             "/opt/f5-actions-runner/runner-entrypoint.sh:/usr/local/bin/runner-entrypoint:ro",
@@ -210,6 +221,16 @@ class EphemeralRunnerTests(unittest.TestCase):
         rendered = " ".join(command)
         self.assertIn("/run/f5-actions-podman/fixture/podman.sock", rendered)
         self.assertIn("DOCKER_HOST=unix:///run/podman/podman.sock", command)
+        runtime_root = (
+            self.root
+            / "state"
+            / "diagnostics"
+            / "fixture"
+            / "container-build"
+            / "0"
+            / "runtime"
+        )
+        self.assertIn(f"{runtime_root}:{runtime_root}:rw", command)
         self.assertNotIn("--privileged", command)
         self.assertNotIn("/dev/fuse", command)
 

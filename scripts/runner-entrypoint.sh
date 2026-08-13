@@ -4,6 +4,7 @@ set -euo pipefail
 : "${RUNNER_REPOSITORY:?RUNNER_REPOSITORY is required}"
 : "${RUNNER_NAME:?RUNNER_NAME is required}"
 : "${RUNNER_LABELS:?RUNNER_LABELS is required}"
+: "${RUNNER_RUNTIME_DIR:?RUNNER_RUNTIME_DIR is required}"
 
 IFS= read -r registration_token
 if [[ -z "$registration_token" ]]; then
@@ -11,15 +12,14 @@ if [[ -z "$registration_token" ]]; then
   exit 1
 fi
 
-unexpected_path="$(find /runner-runtime -mindepth 1 -maxdepth 1 ! -name _diag -print -quit)"
-if [[ ! -d /runner-runtime/_diag || -n "$unexpected_path" ]]; then
-  echo "runner runtime tmpfs or diagnostics mount is invalid" >&2
+if [[ "$RUNNER_RUNTIME_DIR" != /* || ! -d "$RUNNER_RUNTIME_DIR" ]]; then
+  echo "runner runtime workspace is invalid" >&2
   exit 1
 fi
 find /opt/actions-runner -mindepth 1 -maxdepth 1 \
-  -exec cp --archive --no-preserve=ownership --target-directory=/runner-runtime {} +
-install -d -m 0700 /runner-runtime/home
-cd /runner-runtime
+  -exec cp --archive --no-preserve=ownership --target-directory="$RUNNER_RUNTIME_DIR" {} +
+install -d -m 0700 "$RUNNER_RUNTIME_DIR/home"
+cd "$RUNNER_RUNTIME_DIR"
 ./config.sh \
   --url "https://github.com/${RUNNER_REPOSITORY}" \
   --token "$registration_token" \

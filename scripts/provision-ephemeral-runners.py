@@ -252,7 +252,7 @@ RestartSec=5
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths={home} {socket_dir}
+ReadWritePaths={home} {socket_dir} {DATA_ROOT}
 
 [Install]
 WantedBy=multi-user.target

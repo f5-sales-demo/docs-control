@@ -296,6 +296,10 @@ class EphemeralController:
             raise FleetError("runner state path escapes base directory")
         return path
 
+    def runtime_workspace(self, spec, profile, slot):
+        """Return the host-visible action workspace for one ephemeral runner."""
+        return self.state_dir(spec, profile, slot) / "runtime"
+
     @staticmethod
     def container_name(spec, profile, slot):
         return f"gha-{spec.name}-{profile.name}-{slot}"
@@ -367,6 +371,7 @@ class EphemeralController:
 
     def podman_command(self, spec, profile, slot):
         state = self.state_dir(spec, profile, slot)
+        workspace = self.runtime_workspace(spec, profile, slot)
         account, runtime = self.prepare_account(spec, profile)
         self.command(
             [
@@ -379,6 +384,19 @@ class EphemeralController:
                 "-g",
                 account,
                 str(state),
+            ]
+        )
+        self.command(
+            [
+                "install",
+                "-d",
+                "-m",
+                "0700",
+                "-o",
+                account,
+                "-g",
+                account,
+                str(workspace),
             ]
         )
         name = self.container_name(spec, profile, slot)
@@ -405,14 +423,16 @@ class EphemeralController:
             "slirp4netns:allow_host_loopback=false",
             "--tmpfs",
             "/tmp:rw,nosuid,nodev,size=2g",
-            "--tmpfs",
-            "/runner-runtime:rw,nosuid,nodev,size=20g",
             "--volume",
             f"{state}:/runner-runtime/_diag:rw",
             "--volume",
+            f"{workspace}:{workspace}:rw",
+            "--volume",
             f"{HOST_ENTRYPOINT}:/usr/local/bin/runner-entrypoint:ro",
             "--env",
-            "HOME=/runner-runtime/home",
+            f"HOME={workspace}/home",
+            "--env",
+            f"RUNNER_RUNTIME_DIR={workspace}",
             "--env",
             "RUNNER_EPHEMERAL=1",
             "--env",

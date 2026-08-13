@@ -76,6 +76,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             "unix:///run/f5-actions-podman/docs-control/podman.sock",
             unit,
         )
+        self.assertIn(str(MODULE.DATA_ROOT), unit)
 
     def test_safe_write_is_atomic_and_rejects_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
