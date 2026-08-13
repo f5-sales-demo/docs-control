@@ -88,8 +88,10 @@ jobs:
             "$plugins_dir/docker-compose"
           docker container rm "$tools_container" >/dev/null
           export PATH="$tools_dir:$PATH"
-          export DOCKER_CLI_PLUGIN_EXTRA_DIRS="$plugins_dir"
           test "$(docker version --format '{{.Client.Version}}')" = 29.7.2
+          jq -n --arg plugins "$plugins_dir" \
+            '{cliPluginsExtraDirs:[$plugins]}' > "$auth_dir/config.json"
+          docker --config "$auth_dir" buildx version
           printf '%s' "$GHCR_TOKEN" | docker --config "$auth_dir" login \
             ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
           docker --config "$auth_dir" buildx build \

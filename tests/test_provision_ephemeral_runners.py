@@ -55,7 +55,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             "containerimage.digest",
             "imagetools inspect --raw",
             "sha256sum",
-            "DOCKER_CLI_PLUGIN_EXTRA_DIRS",
+            "cliPluginsExtraDirs",
             "docker cp",
             'runner_root="${RUNNER_RUNTIME_DIR:?}"',
             'python3 -c "import yaml"',
