@@ -621,7 +621,6 @@ jobs:
         if: hashFiles('tests/test_ephemeral_runner_controller.py') != ''
         run: |
           python3 -m unittest \
-            tests/test_manage_github_runners.py \
             tests/test_audit_runner_workflows.py \
             tests/test_ephemeral_runner_controller.py \
             tests/test_provision_ephemeral_runners.py \

@@ -5,10 +5,8 @@
 from __future__ import annotations
 
 import argparse
-import errno
 import importlib.util
 import os
-import re
 import stat
 import subprocess
 import sys
@@ -27,7 +25,6 @@ DATA_ROOT = Path("/data/actions-runners")
 STATE_ROOT = DATA_ROOT / "f5-sales-demo-ephemeral"
 TOKEN_PATH = CONFIG_ROOT / "github.token"
 RUNNER_UNIT = "f5-actions-runner@.service"
-LEGACY_UNIT_RE = re.compile(r"f5-actions-podman-([A-Za-z0-9_.-]+)\.service")
 
 
 class ProvisionError(RuntimeError):
@@ -137,23 +134,6 @@ def active_policy():
     return _POLICY
 
 
-def remove_legacy_resource_dropin(item):
-    """Remove the exact rootless-Podman-era drop-in for a managed runner unit."""
-    directory = SYSTEMD_ROOT / f"{item.unit}.d"
-    path = directory / "resources.conf"
-    if path.is_symlink() or (path.exists() and not path.is_file()):
-        raise ProvisionError(f"refusing unsafe legacy runner drop-in: {path}")
-    if path.exists():
-        path.unlink()
-    try:
-        directory.rmdir()
-    except FileNotFoundError:
-        pass
-    except OSError as exc:
-        if exc.errno != errno.ENOTEMPTY:
-            raise
-
-
 def runner_unit_text():
     return f"""[Unit]
 Description=Ephemeral GitHub Actions runner (%i)
@@ -226,7 +206,6 @@ def install_definition():
     )
     safe_write(SYSTEMD_ROOT / RUNNER_UNIT, runner_unit_text())
     for item in instances(policy):
-        remove_legacy_resource_dropin(item)
         safe_write(
             INSTANCE_ROOT / f"{item.identifier}.env",
             f"RUNNER_REPOSITORY={item.repository}\nRUNNER_PROFILE={item.profile}\nRUNNER_SLOT={item.slot}\n",
@@ -265,33 +244,6 @@ def enable(repository, profile=None):
         command(["systemctl", "enable", "--now", item.unit])
 
 
-def retire_legacy_podman_units():
-    """Remove only inactive runner-owned Podman API unit definitions."""
-    require_root()
-    governed = {item.repository_name for item in all_instances()}
-    for path in sorted(SYSTEMD_ROOT.glob("f5-actions-podman-*.service")):
-        match = LEGACY_UNIT_RE.fullmatch(path.name)
-        if match is None or match.group(1) not in governed or path.is_symlink():
-            raise ProvisionError(f"refusing unknown legacy runner unit: {path.name}")
-        repository_name = match.group(1)
-        related = [
-            item
-            for item in all_instances()
-            if item.repository_name == repository_name and item.docker_socket
-        ]
-        for item in related:
-            state = command(
-                ["systemctl", "is-active", item.unit], check=False, capture=True
-            )
-            if state.returncode == 0 or state.stdout.strip() == "active":
-                raise ProvisionError(
-                    f"runner must be inactive before retiring {path.name}: {item.unit}"
-                )
-        command(["systemctl", "disable", "--now", path.name])
-        path.unlink()
-    command(["systemctl", "daemon-reload"])
-
-
 def docker_host_errors(policy):
     errors = []
     service = command(
@@ -324,11 +276,6 @@ def docker_host_errors(policy):
                 )
         except (RuntimeError, ValueError) as exc:
             errors.append(str(exc))
-    stale = sorted(
-        path.name for path in SYSTEMD_ROOT.glob("f5-actions-podman-*.service")
-    )
-    if stale:
-        errors.append(f"stale runner Podman units: {stale}")
     return errors
 
 
@@ -371,7 +318,6 @@ def main(argv=None):
     subparsers.add_parser("plan")
     subparsers.add_parser("install")
     subparsers.add_parser("install-credential")
-    subparsers.add_parser("retire-legacy-podman-units")
     enable_parser = subparsers.add_parser("enable")
     enable_parser.add_argument("repository")
     enable_parser.add_argument("--profile")
@@ -385,8 +331,6 @@ def main(argv=None):
             install_definition()
         elif args.action == "install-credential":
             install_credential()
-        elif args.action == "retire-legacy-podman-units":
-            retire_legacy_podman_units()
         elif args.action == "enable":
             enable(args.repository, args.profile)
         else:
