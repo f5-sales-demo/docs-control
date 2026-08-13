@@ -68,6 +68,11 @@ class ProvisionRunnerTests(unittest.TestCase):
             "e650b7a58d7f56be91d4f7be799196380a3bbc1bcbc41f1f4dff1b36ac309e1e",
             content,
         )
+        self.assertLess(
+            content.index('find "$auth_dir" -depth -delete'),
+            content.index('find "$tools_dir" -depth -delete'),
+        )
+        self.assertNotIn('rmdir "$plugins_dir"', content)
         self.assertNotIn("podman", content)
 
     def test_every_governed_repository_has_container_build_profile(self):

@@ -62,13 +62,12 @@ jobs:
           plugins_dir="$tools_dir/cli-plugins"
           tools_container="f5-runner-tools-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${PROFILE}"
           cleanup() {
+            cleanup_status=0
             docker container rm --force "$tools_container" >/dev/null 2>&1 || true
-            rm -f "$metadata_file"
-            rm -f "$tools_dir/docker"
-            rm -f "$plugins_dir/docker-buildx" "$plugins_dir/docker-compose"
-            rmdir "$plugins_dir"
-            rmdir "$tools_dir"
-            find "$auth_dir" -depth -delete
+            if ! find "$auth_dir" -depth -delete; then cleanup_status=1; fi
+            if ! find "$tools_dir" -depth -delete; then cleanup_status=1; fi
+            if ! rm -f "$metadata_file"; then cleanup_status=1; fi
+            return "$cleanup_status"
           }
           trap cleanup EXIT
           mkdir "$plugins_dir"
