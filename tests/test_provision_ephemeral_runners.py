@@ -75,6 +75,13 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertNotIn('rmdir "$plugins_dir"', content)
         self.assertNotIn("podman", content)
 
+    def test_runner_entrypoint_keeps_executable_temp_files_in_workspace(self):
+        content = (ROOT / "scripts/runner-entrypoint.sh").read_text(encoding="utf-8")
+        self.assertIn(
+            'install -d -m 0700 "$RUNNER_RUNTIME_DIR/home" "$RUNNER_RUNTIME_DIR/tmp"',
+            content,
+        )
+
     def test_every_governed_repository_has_container_build_profile(self):
         by_repository: dict[str, set[str]] = {}
         for item in MODULE.all_instances():

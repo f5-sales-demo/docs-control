@@ -745,6 +745,8 @@ class EphemeralController:
             "--env",
             f"HOME={workspace}/home",
             "--env",
+            f"TMPDIR={workspace}/tmp",
+            "--env",
             f"RUNNER_RUNTIME_DIR={workspace}",
             "--env",
             "RUNNER_EPHEMERAL=1",

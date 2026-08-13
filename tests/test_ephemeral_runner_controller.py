@@ -232,6 +232,7 @@ class EphemeralRunnerTests(unittest.TestCase):
         )
         self.assertNotIn("/runner-runtime:rw,nosuid,nodev,size=20g", command)
         self.assertIn(f"RUNNER_RUNTIME_DIR={runtime_root}", command)
+        self.assertIn(f"TMPDIR={runtime_root / 'tmp'}", command)
         self.assertIn(
             "/opt/f5-actions-runner/runner-entrypoint.sh:/usr/local/bin/runner-entrypoint:ro",
             command,

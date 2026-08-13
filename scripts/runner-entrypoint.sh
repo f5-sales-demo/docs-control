@@ -18,7 +18,7 @@ if [[ "$RUNNER_RUNTIME_DIR" != /* || ! -d "$RUNNER_RUNTIME_DIR" ]]; then
 fi
 find /opt/actions-runner -mindepth 1 -maxdepth 1 \
   -exec cp --archive --no-preserve=ownership --target-directory="$RUNNER_RUNTIME_DIR" {} +
-install -d -m 0700 "$RUNNER_RUNTIME_DIR/home"
+install -d -m 0700 "$RUNNER_RUNTIME_DIR/home" "$RUNNER_RUNTIME_DIR/tmp"
 cd "$RUNNER_RUNTIME_DIR"
 ./config.sh \
   --url "https://github.com/${RUNNER_REPOSITORY}" \
