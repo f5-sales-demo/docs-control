@@ -164,7 +164,10 @@ function testProgressRouting() {
   const watcher = fs.readFileSync(watcherWorkflow, 'utf8');
   assert.match(review, /cp scripts\/agy-review[.]sh scripts\/run-with-progress[.]sh/);
   assert.match(review, /2>&1 \| tee "\$RUNNER_TEMP\/review[.]log"/);
-  assert.match(translation, /[$]RUNNER_TEMP\/agy-translation-contract\/run-with-progress[.]sh" --phase translation-generation/);
+  assert.match(
+    translation,
+    /[$]RUNNER_TEMP\/agy-translation-contract\/run-with-progress[.]sh" --phase translation-generation/,
+  );
   assert.match(watcher, /scripts\/run-with-progress[.]sh --phase fleet-triage/);
 }
 
