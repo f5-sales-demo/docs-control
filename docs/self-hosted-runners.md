@@ -89,7 +89,7 @@ Before merging a runner release:
 Run these commands on the Ubuntu workstation from a clean `docs-control` checkout:
 
 ```bash
-sudo systemctl stop f5-actions-runner@docs-control--container-build--0.service
+sudo systemctl stop "f5-actions-runner@$(systemd-escape 'docs-control--container-build--0').service"
 sudo python3 scripts/provision-ephemeral-runners.py install
 sudo python3 scripts/provision-ephemeral-runners.py retire-legacy-podman-units
 printf '%s\n' '<RUNNER_FLEET_GITHUB_TOKEN>' |
