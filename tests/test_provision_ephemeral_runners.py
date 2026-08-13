@@ -57,6 +57,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             "sha256sum",
             "DOCKER_CLI_PLUGIN_EXTRA_DIRS",
             "docker cp",
+            'runner_root="${RUNNER_RUNTIME_DIR:?}"',
             'python3 -c "import yaml"',
             "docker buildx version",
             "docker compose version",
