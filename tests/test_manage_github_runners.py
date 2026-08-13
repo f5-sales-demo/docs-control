@@ -96,6 +96,7 @@ class RunnerManagerTests(unittest.TestCase):
                     "X64",
                     self.repo,
                     self.org,
+                    "ubuntu-24.04",
                 ]
             ],
         }
@@ -338,8 +339,17 @@ class RunnerManagerTests(unittest.TestCase):
         self.assert_audit_contains("busy", require_idle=True)
         for labels in (
             ["self-hosted"],
+            ["self-hosted", "Linux", "X64", self.repo, self.org],
             ["self-hosted", "Linux", "X64", self.repo, self.org, "extra"],
-            ["self-hosted", "Linux", "X64", "ubuntu-latest", self.repo, self.org],
+            [
+                "self-hosted",
+                "Linux",
+                "X64",
+                "ubuntu-latest",
+                self.repo,
+                self.org,
+                "ubuntu-24.04",
+            ],
         ):
             self.github.items = [
                 self.runner_record(labels=[{"name": label} for label in labels])
@@ -465,7 +475,7 @@ class RunnerManagerTests(unittest.TestCase):
             command for command in commands if command[:2] == ["./config.sh", "--url"]
         )
         labels = config[config.index("--labels") + 1]
-        self.assertEqual(labels, f"{self.repo},{self.org}")
+        self.assertEqual(labels, f"{self.repo},{self.org},ubuntu-24.04")
         self.assertNotIn("ubuntu-latest", labels)
         self.assertEqual(commands.count(["./svc.sh", "install", self.user]), 1)
         self.assertEqual(commands.count(["./svc.sh", "start"]), 1)
