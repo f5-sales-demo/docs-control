@@ -56,6 +56,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             'docker --config "$auth_dir" buildx imagetools inspect --raw',
             "sha256sum",
             "cliPluginsExtraDirs",
+            'find "$auth_dir" -depth -delete',
             "docker cp",
             'runner_root="${RUNNER_RUNTIME_DIR:?}"',
             'python3 -c "import yaml"',

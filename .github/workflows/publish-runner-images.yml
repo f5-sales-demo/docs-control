@@ -64,12 +64,11 @@ jobs:
           cleanup() {
             docker container rm --force "$tools_container" >/dev/null 2>&1 || true
             rm -f "$metadata_file"
-            rm -f "$auth_dir/config.json"
             rm -f "$tools_dir/docker"
             rm -f "$plugins_dir/docker-buildx" "$plugins_dir/docker-compose"
             rmdir "$plugins_dir"
             rmdir "$tools_dir"
-            rmdir "$auth_dir"
+            find "$auth_dir" -depth -delete
           }
           trap cleanup EXIT
           mkdir "$plugins_dir"
