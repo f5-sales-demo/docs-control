@@ -24,7 +24,6 @@ jq -r '.[]' .github/config/downstream-repos.json | {
       base_sha=$(jq -r .base.sha <<<"$pull")
       base_ref=$(jq -r .base.ref <<<"$pull")
       head_sha=$(jq -r .head.sha <<<"$pull")
-      head_ref=$(jq -r .head.ref <<<"$pull")
       head_repo=$(jq -r '.head.repo.full_name // ""' <<<"$pull")
       [ "$head_repo" = "$full_repo" ] || continue
 
@@ -46,11 +45,7 @@ jq -r '.[]' .github/config/downstream-repos.json | {
       fi
 
       review_title="Antigravity review PR $number @ $head_sha"
-      translation_title="Antigravity translation PR $number @ $head_sha"
       exact_review=$(jq -c --arg title "$review_title" \
-        '[.workflow_runs[] | select(.display_title == $title)] | first // null' \
-        <<<"$recent_runs")
-      exact_translation=$(jq -c --arg title "$translation_title" \
         '[.workflow_runs[] | select(.display_title == $title)] | first // null' \
         <<<"$recent_runs")
 
@@ -63,49 +58,10 @@ jq -r '.[]' .github/config/downstream-repos.json | {
         fi
       fi
 
-      translationNeedsRecovery=false
-      if [ "$exact_translation" = null ]; then
-        translationNeedsRecovery=true
-      elif [ "$(jq -r .status <<<"$exact_translation")" = completed ] &&
-        [ "$(jq -r '.conclusion // "failure"' <<<"$exact_translation")" != success ]; then
-        translationNeedsRecovery=true
-      fi
 
-      automated=false
-      case "$head_ref" in
-      governance/* | sync/* | release/* | openapi-sync/* | plugin-sync/* | deps/* | \
-        docs/update-* | auto-regenerate/* | auto-generate/* | autoresearch/* | dependabot/*)
-        automated=true
-        ;;
-      esac
-
-      major_release=false
-      if [ "$state" = open ] && [ "${TRANSLATIONS_ENABLED:-false}" = true ] &&
-        [[ "$head_ref" =~ ^release/v[1-9][0-9]*\.0\.0$ ]]; then
-        tag_file="$output/tags-${repo}-${number}.txt"
-        github_get "repos/$full_repo/git/matching-refs/tags/v?per_page=100" \
-          --paginate | jq -r '.[].ref | sub("^refs/tags/"; "")' >"$tag_file"
-        release_decision=$(bash scripts/translation-release-policy.sh \
-          --head-ref "$head_ref" --tags-file "$tag_file")
-        printf '[i18n] %s PR %s: %s\n' "$full_repo" "$number" \
-          "$(tr '\n' ' ' <<<"$release_decision")"
-        if grep -qxF 'eligible=true' <<<"$release_decision"; then
-          major_release=true
-        fi
-      fi
-
-      needs_translation=false
-      if [ "$major_release" = true ]; then
-        if github_get "repos/$full_repo/contents/docs/en?ref=$head_sha" \
-          >/dev/null 2>&1 ||
-          github_get "repos/$full_repo/contents/src/content/docs/en?ref=$head_sha" \
-            >/dev/null 2>&1; then
-          needs_translation=true
-        fi
-      fi
 
       queued=false
-      if [ "$state" = open ] && [ "$automated" = false ] &&
+      if [ "$state" = open ] &&
         [ "${REVIEW_ENABLED:-false}" = true ] && [ "$reviewNeedsRecovery" = true ]; then
         prior_run_id=$(jq -r 'if . == null then 0 else .id end' <<<"$exact_review")
         jq --arg repository "$full_repo" --arg workflow antigravity-review.yml \
@@ -114,19 +70,6 @@ jq -r '.[]' .github/config/downstream-repos.json | {
           '. + [{repository: $repository, workflow: $workflow, ref: $ref,
             pr_number: $number, base_sha: $base, head_sha: $head,
             prior_run_id: $prior_run_id}]' \
-          "$output/dispatches.json" >"$output/dispatches.next"
-        mv "$output/dispatches.next" "$output/dispatches.json"
-        queued=true
-      fi
-      if [ "$needs_translation" = true ] && [ "$translationNeedsRecovery" = true ]; then
-        prior_run_id=$(jq -r 'if . == null then 0 else .id end' <<<"$exact_translation")
-        jq --arg repository "$full_repo" --arg workflow antigravity-translate.yml \
-          --arg ref "$base_ref" --arg number "$number" --arg base "$base_sha" \
-          --arg head "$head_sha" --argjson prior_run_id "$prior_run_id" \
-          --argjson reconcile_all true \
-          '. + [{repository: $repository, workflow: $workflow, ref: $ref,
-            pr_number: $number, base_sha: $base, head_sha: $head,
-            prior_run_id: $prior_run_id, reconcile_all: $reconcile_all}]' \
           "$output/dispatches.json" >"$output/dispatches.next"
         mv "$output/dispatches.next" "$output/dispatches.json"
         queued=true
@@ -141,14 +84,8 @@ jq -r '.[]' .github/config/downstream-repos.json | {
       if [ "$exact_review" != null ]; then
         head_runs=$(jq -c --argjson run "$exact_review" '. + [$run] | unique_by(.id)' \
           <<<"$head_runs")
-      elif [ "${REVIEW_ENABLED:-false}" = true ] && [ "$automated" = false ] &&
+      elif [ "${REVIEW_ENABLED:-false}" = true ] &&
         [ "$state" = open ]; then
-        continue
-      fi
-      if [ "$exact_translation" != null ]; then
-        head_runs=$(jq -c --argjson run "$exact_translation" '. + [$run] | unique_by(.id)' \
-          <<<"$head_runs")
-      elif [ "$needs_translation" = true ]; then
         continue
       fi
 

@@ -208,34 +208,28 @@ credential, or a product decision that requires the user.
 
 ## Translations (GitHub Actions controlled)
 
-Documentation development is English-first. Feature, fix, minor-release, and patch-release work
-updates only `docs/en/` or `src/content/docs/en/`; developers and coding agents do not regenerate
-locale files. Local hooks remain deterministic and model-free, and expected stale hashes between
-major releases do not block development.
+Documentation development is English-first. Developers and coding agents update only `docs/en/`
+or `src/content/docs/en/`; local hooks remain deterministic and model-free.
 
-GitHub Actions owns translation generation. The fleet watcher selects only an exact next-major
-release branch (`release/vN.0.0`) where `N` is one greater than the highest stable root `vX.Y.Z` tag.
-It dispatches a full-corpus Antigravity reconciliation for every Markdown/MDX English source. Minor
-(`release/vN.M.0` where `M > 0`), patch, ordinary development, repeated-major, and skipped-major
-branches never spend translation quota. A repository with no stable SemVer tags begins at
-`release/v1.0.0`.
+GitHub Actions owns translation generation. A maintainer applies the organization-governed,
+one-shot `i18n:ready` label only after English documentation in an open, issue-linked,
+same-repository PR is stable. The governed caller records the exact base/head receipt, rejects
+forks and stale heads, translates only Markdown/MDX sources whose hashes need output, and consumes
+the label after success. A fresh corpus is a successful no-op. English changes after translation
+require the label to be applied again. The manual exact-head dispatch is the recovery mechanism.
 
 GitHub Actions translation is fail-closed unless the organisation variable `TRANSLATIONS_ENABLED`
-is the literal string `true`. Its immutable runtime, exact-head and workflow receipts, isolated model
-credentials, 12-locale validation, allowlisted patch, and guarded publication are covered by
-executable security UAT. The workflow files remain enabled; the organisation variable is the only
-runtime switch. Keep same-named repository variables absent because they override the organisation
-value.
-
-How the translation pipeline operates:
+is the literal string `true`. Its immutable workflow receipt, isolated model credentials,
+allowlisted patch, and guarded same-branch publication remain mandatory. Keep same-named repository
+variables absent because they override the organisation value.
 
 | Part | Where | How it Works |
 | ---- | ----- | ------------ |
-| Local validation | Pre-commit locale/hash validation | **Deterministic only.** English-only changes pass without locale generation. |
-| Release policy | `scripts/translation-release-policy.sh` | Verifies the exact next `release/vN.0.0` against stable root SemVer tags. |
-| Automated translation | `.github/workflows/antigravity-translate.yml` — invokes `agy` on a GitHub Actions runner | Full-corpus reconciliation only for the eligible major release; the organisation variable remains the positive runtime switch. |
-| Freshness audit | `.github/workflows/translation-audit.yml` | Returns successful/not-applicable during normal development and validates the complete 12-locale corpus on the eligible major release. |
-| Required Context | `audit / Translation freshness` in branch protection | **Not required.** Requiring a check while its job can skip would deadlock pull requests. |
+| Readiness command | `i18n:ready` PR label | Explicit maintainer approval independent of releases, tags, titles, or commit syntax. |
+| Automated translation | `.github/workflows/antigravity-translate.yml` | Validates the exact issue-linked same-repository PR head and invokes the pinned reusable workflow. |
+| Source scope | Source hashes | Generates only stale Markdown/MDX locale output; an unchanged corpus makes no commit. |
+| Recovery | Manual exact-head dispatch | Re-runs a reviewed exact base/head after a failed or interrupted request. |
+| Required Context | `audit / Translation freshness` | **Not required.** A conditionally inapplicable check must not deadlock ordinary PRs. |
 
 ### Activating Antigravity Actions
 

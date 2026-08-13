@@ -1,8 +1,13 @@
 ---
-# Governed exact-head caller. Only the trusted docs-control orchestrator dispatches it.
+# Governed exact-head caller. `i18n:ready` is a one-shot command handled without
+# model or publication credentials; workflow_dispatch remains the trusted recovery path.
 name: Antigravity Language Translation
-run-name: Antigravity translation PR ${{ inputs.pr_number }} @ ${{ inputs.expected_head_sha }}
+run-name: >-
+  Antigravity translation PR ${{ github.event.pull_request.number || inputs.pr_number }} @
+  ${{ github.event.pull_request.head.sha || inputs.expected_head_sha }}
 on:
+  pull_request:
+    types: [labeled]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -18,7 +23,7 @@ on:
         required: true
         type: string
       reconcile_all:
-        description: Reconcile the complete stale corpus for a verified major release
+        description: Reconcile the complete stale corpus for a trusted manual recovery
         required: false
         default: false
         type: boolean
@@ -26,12 +31,83 @@ on:
 permissions: {}
 
 concurrency:
-  group: ${{ github.workflow }}-${{ inputs.pr_number }}-${{ inputs.expected_head_sha }}
+  group: >-
+    ${{ github.workflow }}-${{ github.event.pull_request.number || inputs.pr_number }}-
+    ${{ github.event.pull_request.head.sha || inputs.expected_head_sha }}
   cancel-in-progress: true
 
 jobs:
+  dispatch-ready-label:
+    name: Validate and consume i18n readiness command
+    if: >-
+      vars.TRANSLATIONS_ENABLED == 'true' &&
+      github.event_name == 'pull_request' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'i18n:ready' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    permissions:
+      actions: write # dispatch the protected-base exact-head caller
+      issues: write # consume a successfully accepted command label
+      pull-requests: read
+    steps:
+      - name: Dispatch the exact trusted receipt
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const eventPull = context.payload.pull_request;
+            const {data: pull} = await github.rest.pulls.get({
+              ...context.repo,
+              pull_number: eventPull.number,
+            });
+            if (pull.state !== 'open' || pull.head.repo?.full_name !== process.env.GITHUB_REPOSITORY ||
+                pull.base.sha !== eventPull.base.sha || pull.head.sha !== eventPull.head.sha) {
+              throw new Error('i18n:ready pull request no longer matches its exact receipt');
+            }
+            const linked = await github.graphql(
+              `query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    closingIssuesReferences(first: 1) { nodes { number } }
+                  }
+                }
+              }`,
+              {owner: context.repo.owner, repo: context.repo.repo, number: pull.number},
+            );
+            if (linked.repository.pullRequest.closingIssuesReferences.nodes.length === 0) {
+              throw new Error('i18n:ready requires a pull request linked to a GitHub issue');
+            }
+            const title = `Antigravity translation PR ${pull.number} @ ${pull.head.sha}`;
+            const {data: runs} = await github.rest.actions.listWorkflowRunsForRepo({
+              ...context.repo,
+              per_page: 100,
+            });
+            if (!runs.workflow_runs.some((run) => run.display_title === title)) {
+              await github.rest.actions.createWorkflowDispatch({
+                ...context.repo,
+                workflow_id: 'antigravity-translate.yml',
+                ref: pull.base.ref,
+                inputs: {
+                  pr_number: String(pull.number),
+                  expected_base_sha: pull.base.sha,
+                  expected_head_sha: pull.head.sha,
+                  reconcile_all: 'false',
+                },
+              });
+            }
+            try {
+              await github.rest.issues.removeLabel({
+                ...context.repo,
+                issue_number: pull.number,
+                name: 'i18n:ready',
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              core.info('i18n:ready was already removed');
+            }
+
   translate:
-    if: vars.TRANSLATIONS_ENABLED == 'true'
+    if: github.event_name == 'workflow_dispatch' && vars.TRANSLATIONS_ENABLED == 'true'
     uses: f5-sales-demo/docs-control/.github/workflows/antigravity-translate.yml@12441608cde0a05c819c602d8042527c75cb98e7
     with:
       pr_number: ${{ inputs.pr_number }}

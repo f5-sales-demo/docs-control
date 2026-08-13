@@ -71,10 +71,10 @@ Apply where applicable to this repo:
   Legitimate ACME service, protocol, and challenge references remain exact. Run the pre-publish checklist before opening a documentation PR.
 - **English-first translations** — author documentation in English during feature, fix, minor, and
   patch development. Locale generation is GitHub Actions output owned by docs-control and runs only
-  for the next stable `release/vN.0.0` major-release PR. Expected stale hashes between major
-  releases are not a development blocker; do not retranslate them locally.
-- **PII minimization** — repositories, fixtures, generated output, logs, telemetry, media, and commit messages contain no real personally identifiable information. Remove nonessential identity fields; authentication may retain only an opaque provider subject, which is never logged and is not persisted unless indispensable.
-  Run the managed PII scanner in enforcement and audit modes, inspect media manually, then audit reachable history. Preserve only required legal/upstream attribution and normal source-control provenance.
+- **English-first translations** — author documentation in English during feature, fix, and docs
+  development. Locale generation is GitHub Actions output owned by docs-control and begins only
+  after a maintainer applies `i18n:ready` to a stable, issue-linked same-repository PR. Source
+  hashes determine scope; do not retranslate locally or expect automatic runs on every push.
 - **Clean branches** — merge only verified, feature-complete, necessary work. After `MERGED`, retire
   the worktree, return to main, delete the confirmed-merged branch, and report git hygiene (branch,
   uncommitted changes, stale `[gone]` branches, and remaining worktrees); see CONTRIBUTING.md.

@@ -172,13 +172,14 @@ assert_exact_audit_route true $'policy\nvalidator:--all' \
   "policy-approved exact major candidates run the full-corpus validator"
 assert_exact_audit_route false 'policy' \
   "policy-rejected exact major candidates do not run the validator"
-
-if grep -qF 'scripts/translation-release-policy.sh' "$WATCHER_COLLECTOR" &&
-  grep -qF -- '--argjson reconcile_all true' "$WATCHER_COLLECTOR"; then
-  pass "fleet watcher routes only policy-approved full reconciliation"
+if grep -qF 'types: [labeled]' "$CALLER" &&
+  grep -qF "github.event.label.name == 'i18n:ready'" "$CALLER" &&
+  ! grep -qF 'scripts/translation-release-policy.sh' "$WATCHER_COLLECTOR"; then
+  pass "i18n readiness label, not release policy, selects fleet translation"
 else
-  fail "fleet watcher routes only policy-approved full reconciliation" \
-    "release policy or reconciliation dispatch is absent"
+  fail "i18n readiness label, not release policy, selects fleet translation" \
+    "caller trigger or watcher retirement is incomplete"
+fi
 fi
 
 if grep -qF 'reconcile_all:' "$CALLER" && grep -qF 'reconcile_all:' "$TRANSLATE" &&

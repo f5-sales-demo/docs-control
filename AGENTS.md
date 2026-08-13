@@ -28,9 +28,9 @@ repository classes for every coding assistant.
 
 ## Translations
 
-- Develop documentation in English; do not refresh locales for features, fixes, minor, or patch
-  releases. Expected stale hashes are not a development blocker.
-- GitHub Actions alone reconciles translations on the next stable `release/vN.0.0` major release.
+- GitHub Actions reconciles translations only when a maintainer applies the one-shot
+  `i18n:ready` label to an open, same-repository, issue-linked pull request with stable English
+  documentation. Source hashes decide scope; reapply the label after later English changes.
   Investigate drift only when that release reconciliation fails.
 
 ## Continuous contribution lifecycle

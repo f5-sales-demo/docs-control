@@ -133,6 +133,7 @@ jobs:
             core.exportVariable('HEAD_REF', pull.head.ref);
 
       - name: Prepare exact pull-request snapshot
+        id: prepare
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$BASE_SHA"
@@ -156,7 +157,13 @@ jobs:
             git diff --name-only --no-renames "$BASE_SHA...$HEAD_SHA" -- \
               docs/en src/content/docs/en >"$RUNNER_TEMP/changed-english.txt"
           fi
-          grep -Eq '^(docs/en|src/content/docs/en)/.*\.mdx?$' "$RUNNER_TEMP/changed-english.txt"
+          output_file=${GITHUB_OUTPUT:-"$RUNNER_TEMP/prepare-output"}
+          if grep -Eq '^(docs/en|src/content/docs/en)/.*\.mdx?$' "$RUNNER_TEMP/changed-english.txt"; then
+            echo "has_sources=true" >>"$output_file"
+          else
+            echo "[i18n] no changed English Markdown/MDX sources at $HEAD_SHA; publishing a no-op receipt"
+            echo "has_sources=false" >>"$output_file"
+          fi
           python3 - "$HEAD_SHA" "$RUNNER_TEMP/changed-english.txt" \
             "$RUNNER_TEMP/expected-source-hashes.tsv" <<'PY'
           import hashlib
@@ -182,6 +189,7 @@ jobs:
           install -m 0444 "$RUNNER_TEMP/expected-source-hashes.tsv" "$contract/expected-source-hashes.tsv"
 
       - name: Install pinned Antigravity runtime
+        if: steps.prepare.outputs.has_sources == 'true'
         run: |
           set -euo pipefail
           archive="$RUNNER_TEMP/agy-${AGY_VERSION}.tar.gz"
@@ -197,6 +205,7 @@ jobs:
           printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
 
       - name: Generate translations without write credentials
+        if: steps.prepare.outputs.has_sources == 'true'
         env:
           ANTIGRAVITY_TOKEN: ${{ secrets.ANTIGRAVITY_TOKEN }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
