@@ -553,6 +553,115 @@ class EphemeralRunnerTests(unittest.TestCase):
             calls,
         )
 
+    def test_nested_cleanup_tolerates_confirmed_concurrent_container_removal(self):
+        workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
+        (workspace / "_work").mkdir(parents=True)
+        disappeared_id = "1" * 64
+        nested_id = "2" * 64
+        calls = []
+
+        def docker_fixture(command, **_kwargs):
+            calls.append(command)
+            if command[:4] == ["docker", "container", "ls", "--all"]:
+                if "--filter" not in command:
+                    return SimpleNamespace(
+                        returncode=0,
+                        stdout=f"{disappeared_id}\n{nested_id}\n",
+                        stderr="",
+                    )
+                container_filter = command[command.index("--filter") + 1]
+                if container_filter == f"id={disappeared_id}":
+                    return SimpleNamespace(returncode=0, stdout="", stderr="")
+                return SimpleNamespace(returncode=0, stdout="", stderr="")
+            if command == ["docker", "container", "inspect", disappeared_id]:
+                return SimpleNamespace(
+                    returncode=1,
+                    stdout="",
+                    stderr=f"No such container: {disappeared_id}",
+                )
+            if command == ["docker", "container", "inspect", nested_id]:
+                payload = {
+                    "Id": nested_id,
+                    "Name": "/nested",
+                    "Config": {"Labels": {}},
+                    "Mounts": [
+                        {
+                            "Type": "bind",
+                            "Source": str(workspace / "_work"),
+                        }
+                    ],
+                }
+                return SimpleNamespace(
+                    returncode=0, stdout=json.dumps(payload), stderr=""
+                )
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", docker_fixture
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+
+        controller.cleanup(spec, spec.profiles[0], 0)
+
+        self.assertIn(
+            [
+                "docker",
+                "container",
+                "ls",
+                "--all",
+                "--quiet",
+                "--no-trunc",
+                "--filter",
+                f"id={disappeared_id}",
+            ],
+            calls,
+        )
+        self.assertIn(
+            ["docker", "container", "rm", "--force", nested_id],
+            calls,
+        )
+
+    def test_nested_cleanup_fails_closed_when_disappearance_is_not_proven(self):
+        workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
+        workspace.mkdir(parents=True)
+        container_id = "3" * 64
+        other_id = "4" * 64
+        for returncode, output in (
+            (1, ""),
+            (0, container_id + "\n"),
+            (0, other_id + "\n"),
+            (0, "not-a-container-id\n"),
+        ):
+            with self.subTest(returncode=returncode, output=output):
+
+                def docker_fixture(
+                    command, returncode=returncode, output=output, **_kwargs
+                ):
+                    if command[:4] == ["docker", "container", "ls", "--all"]:
+                        if "--filter" not in command:
+                            return SimpleNamespace(
+                                returncode=0, stdout=container_id + "\n", stderr=""
+                            )
+                        container_filter = command[command.index("--filter") + 1]
+                        if container_filter == f"id={container_id}":
+                            return SimpleNamespace(
+                                returncode=returncode, stdout=output, stderr="failed"
+                            )
+                        return SimpleNamespace(returncode=0, stdout="", stderr="")
+                    if command == ["docker", "container", "inspect", container_id]:
+                        return SimpleNamespace(
+                            returncode=1, stdout="", stderr="inspection failed"
+                        )
+                    return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+                controller = MODULE.EphemeralController(
+                    self.policy(), FakeGitHub(), self.root / "state", docker_fixture
+                )
+                spec = self.policy().repository("f5-sales-demo/fixture")
+
+                with self.assertRaises(MODULE.FleetError):
+                    controller.cleanup(spec, spec.profiles[0], 0)
+
     def test_nested_cleanup_rejects_malformed_or_mixed_bind_mounts(self):
         workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
         (workspace / "_work").mkdir(parents=True)
