@@ -414,7 +414,7 @@ class EphemeralRunnerTests(unittest.TestCase):
 
     def test_stop_request_reaches_exact_blocking_outer_container_then_cleans(self):
         outer_id = "a" * 64
-        events = []
+        events: list[tuple[Any, ...]] = []
         exact_inventories = 0
         github = FakeGitHub()
         github.records = [{"id": 42, "name": "gha-fixture-ubuntu-24.04-0-deadbeef"}]
@@ -494,7 +494,7 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertEqual(github.deleted, [("f5-sales-demo/fixture", 42)])
 
     def test_completed_outer_process_does_not_request_an_extra_stop(self):
-        events = []
+        events: list[tuple[Any, ...]] = []
 
         class CompletedRunnerProcess:
             returncode = 0
