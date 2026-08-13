@@ -91,7 +91,6 @@ Run these commands on the Ubuntu workstation from a clean `docs-control` checkou
 ```bash
 sudo systemctl stop "f5-actions-runner@$(systemd-escape 'docs-control--container-build--0').service"
 sudo python3 scripts/provision-ephemeral-runners.py install
-sudo python3 scripts/provision-ephemeral-runners.py retire-legacy-podman-units
 printf '%s\n' '<RUNNER_FLEET_GITHUB_TOKEN>' |
   sudo python3 scripts/provision-ephemeral-runners.py install-credential
 sudo python3 scripts/provision-ephemeral-runners.py enable \
@@ -104,11 +103,7 @@ argument. Use the narrowest token that can create repository runner registration
 the private runner packages. Prefer a GitHub App installation token when that credential path is
 available.
 
-Keep Podman installed for unrelated project testing. The retirement command affects only exact
-`f5-actions-podman-*` runner units and refuses to remove one while its builder runner unit is
-active. First verify that the Docker-backed runner is online with only the canonical repository and
-profile labels, dispatch a harmless job, and validate one-job de-registration. Cut over one
-repository at a time.
+Podman is not part of the runner fleet. Runner services are Docker-backed ephemeral instances only.
 
 ## Docker Engine maintenance
 
@@ -145,7 +140,3 @@ If a runner or image may be compromised:
 4. Rebuild from newly verified base and runner digests.
 5. Replace the policy digest through a reviewed pull request.
 6. Re-enable the pilot and repeat one-job acceptance before broader rollout.
-
-The legacy `manage-github-runners.py` remains only for evidence-based management and retirement
-of the first-generation persistent runners. New runner creation uses the ephemeral controller and
-provisioner.

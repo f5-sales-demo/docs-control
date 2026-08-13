@@ -141,21 +141,6 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertEqual(item.stop_timeout, 300)
         self.assertEqual(item.network, "bridge")
 
-    def test_install_removes_only_exact_legacy_resource_dropin(self):
-        item = MODULE.all_instances()[0]
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            dropin_dir = root / f"{item.unit}.d"
-            dropin_dir.mkdir()
-            legacy = dropin_dir / "resources.conf"
-            unrelated = dropin_dir / "operator.conf"
-            legacy.write_text("RuntimeDirectory=legacy\n", encoding="utf-8")
-            unrelated.write_text("RestartSec=10\n", encoding="utf-8")
-            with mock.patch.object(MODULE, "SYSTEMD_ROOT", root):
-                MODULE.remove_legacy_resource_dropin(item)
-            self.assertFalse(legacy.exists())
-            self.assertEqual(unrelated.read_text(encoding="utf-8"), "RestartSec=10\n")
-
     def test_enable_requires_shared_docker_service_before_runner(self):
         calls = []
         with (
@@ -174,46 +159,6 @@ class ProvisionRunnerTests(unittest.TestCase):
             MODULE.enable("f5-sales-demo/docs-control")
         self.assertEqual(calls[0], ["systemctl", "start", "docker.service"])
         self.assertEqual(calls[1][0:3], ["systemctl", "enable", "--now"])
-
-    def test_retirement_removes_only_known_inactive_legacy_units(self):
-        calls = []
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            legacy = root / "f5-actions-podman-docs-control.service"
-            legacy.write_text("legacy", encoding="utf-8")
-
-            def command(argv, **_kwargs):
-                calls.append(argv)
-                if argv[:2] == ["systemctl", "is-active"]:
-                    return mock.Mock(returncode=3, stdout="inactive\n", stderr="")
-                return mock.Mock(returncode=0, stdout="", stderr="")
-
-            with (
-                mock.patch.object(MODULE, "require_root"),
-                mock.patch.object(MODULE, "SYSTEMD_ROOT", root),
-                mock.patch.object(MODULE, "command", side_effect=command),
-            ):
-                MODULE.retire_legacy_podman_units()
-            self.assertFalse(legacy.exists())
-        self.assertIn(
-            ["systemctl", "disable", "--now", "f5-actions-podman-docs-control.service"],
-            calls,
-        )
-
-    def test_retirement_fails_when_runner_unit_is_active(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            legacy = root / "f5-actions-podman-docs-control.service"
-            legacy.write_text("legacy", encoding="utf-8")
-            active = mock.Mock(returncode=0, stdout="active\n", stderr="")
-            with (
-                mock.patch.object(MODULE, "require_root"),
-                mock.patch.object(MODULE, "SYSTEMD_ROOT", root),
-                mock.patch.object(MODULE, "command", return_value=active),
-                self.assertRaises(MODULE.ProvisionError),
-            ):
-                MODULE.retire_legacy_podman_units()
-            self.assertTrue(legacy.exists())
 
     def test_safe_write_is_atomic_and_rejects_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
