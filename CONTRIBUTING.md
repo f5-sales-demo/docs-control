@@ -209,7 +209,7 @@ credential, or a product decision that requires the user.
 ## Translations (GitHub Actions controlled)
 
 Documentation development is English-first. Developers and coding agents update only `docs/en/`
-or `src/content/docs/en/`; local hooks remain deterministic and model-free.
+or `src/content/docs/en/`; local validation is **Deterministic only** and model-free.
 
 GitHub Actions owns translation generation. A maintainer applies the organization-governed,
 one-shot `i18n:ready` label only after English documentation in an open, issue-linked,
