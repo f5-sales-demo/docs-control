@@ -125,16 +125,22 @@ class ProvisionRunnerTests(unittest.TestCase):
 
     def test_inventory_is_repository_and_profile_scoped(self):
         items = MODULE.all_instances()
-        self.assertEqual(len(items), 80)
+        self.assertEqual(len(items), 81)
         docs = [
             item for item in items if item.repository == "f5-sales-demo/docs-control"
         ]
         self.assertEqual(
             {item.profile for item in docs},
-            {"ubuntu-24.04", "automation", "container-build"},
+            {
+                "ubuntu-24.04",
+                "ubuntu-24.04-secondary",
+                "automation",
+                "container-build",
+            },
         )
         sockets = {item.profile: item.docker_socket for item in docs}
         self.assertFalse(sockets["ubuntu-24.04"])
+        self.assertFalse(sockets["ubuntu-24.04-secondary"])
         self.assertFalse(sockets["automation"])
         self.assertTrue(sockets["container-build"])
 
@@ -193,6 +199,17 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertEqual(
             policy["profiles"]["automation"]["image"],
             policy["profiles"]["ubuntu-24.04"]["image"],
+        )
+
+    def test_secondary_standard_lane_matches_primary_profile(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            policy["profiles"]["ubuntu-24.04-secondary"],
+            policy["profiles"]["ubuntu-24.04"],
         )
 
     def test_enable_requires_shared_docker_service_before_runner(self):

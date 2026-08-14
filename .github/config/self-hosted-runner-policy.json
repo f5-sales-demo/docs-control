@@ -20,6 +20,16 @@
       "network": "bridge",
       "docker_socket": false
     },
+    "ubuntu-24.04-secondary": {
+      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:7b1016451a59afd38d165ab72025a96fc9c5cd2303efd670d258bfb9ed4cd269",
+      "labels": ["ubuntu-24.04"],
+      "memory": "8g",
+      "cpus": "4",
+      "pids_limit": 4096,
+      "stop_timeout": 300,
+      "network": "bridge",
+      "docker_socket": false
+    },
     "automation": {
       "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:7b1016451a59afd38d165ab72025a96fc9c5cd2303efd670d258bfb9ed4cd269",
       "labels": ["automation"],
@@ -182,7 +192,7 @@
     },
     "f5-sales-demo/docs-control": {
       "runner": {
-        "profiles": ["ubuntu-24.04", "automation", "container-build"]
+        "profiles": ["ubuntu-24.04", "ubuntu-24.04-secondary", "automation", "container-build"]
       }
     },
     "f5-sales-demo/docs-icons": {
