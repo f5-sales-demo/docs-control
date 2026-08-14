@@ -169,10 +169,15 @@ fi
 
 invoke_agy() {
   local phase=$1 prompt_file=$2 stream_file=$3 result_file=$4
+  local -a project_args=()
+  if [ -n "${AGY_PROJECT_ID:-}" ]; then
+    project_args=(--project "$AGY_PROJECT_ID")
+  fi
   if ! "$progress_runner" --phase "$phase" -- \
     env -u GH_TOKEN -u GITHUB_TOKEN -u REPO_SETTINGS_TOKEN -u REPO_SYNC_TOKEN \
     -u GATEWAY_TOKEN -u GATEWAY_URL AGY_REVIEW_ACTIVE=1 \
     agy --new-project --sandbox --mode plan --disable-slash-commands \
+    "${project_args[@]}" \
     --model "Gemini 3.6 Flash (High)" \
     --output-format stream-json --json-schema "$schema" \
     --print-timeout 25m --print "$(<"$prompt_file")" >"$stream_file"; then

@@ -151,6 +151,23 @@ else
 fi
 
 setup_repo
+if run_review "$WORK/bin:$PATH" env AGY_PROJECT_ID=enterprise-vertex-project &&
+  [ "$(grep -c -- "--project" "$WORK/calls")" -eq 2 ] &&
+  [ "$(grep -c -- "enterprise-vertex-project" "$WORK/calls")" -eq 2 ]; then
+  pass "optional AGY project is forwarded to both review passes"
+else
+  fail "optional AGY project is forwarded to both review passes" "project flag was not forwarded"
+fi
+
+setup_repo
+if run_review "$WORK/bin:$PATH" env &&
+  ! grep -q -- "--project" "$WORK/calls"; then
+  pass "AGY project is omitted when not configured"
+else
+  fail "AGY project is omitted when not configured" "unexpected project flag"
+fi
+
+setup_repo
 if run_review "$WORK/bin:$PATH" env FAKE_AGY_DELAY_CALL=1 FAKE_AGY_DELAY_SECONDS=2 \
   AGY_PROGRESS_INTERVAL_SECONDS=1 &&
   grep -q 'component=antigravity phase=reviewer state=started' "$WORK/output" &&
