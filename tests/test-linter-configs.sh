@@ -130,7 +130,8 @@ else
   fail "3.x .ruff.toml is valid TOML" "no available validator could parse it"
 fi
 
-if python3 - "$REPO_ROOT/.ruff.toml" "$REPO_ROOT/scripts/audit-runner-workflows.py" <<'PY'; then
+if python3 - "$REPO_ROOT/.ruff.toml" "$REPO_ROOT" <<'PY'; then
+import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -140,12 +141,25 @@ with open(sys.argv[1], "rb") as config_file:
 
 lint = config["lint"]
 script_ignores = lint["per-file-ignores"]["scripts/**"]
-auditor_source = Path(sys.argv[2]).read_text(encoding="utf-8")
+repo_root = Path(sys.argv[2])
+auditor = repo_root / "scripts/audit-runner-workflows.py"
+n999_files = [
+    repo_root / path
+    for path in subprocess.check_output(
+        ["git", "-C", repo_root, "ls-files", "*.py"], text=True
+    ).splitlines()
+    if "# ruff: noqa:" in (repo_root / path).read_text(encoding="utf-8")
+    and "N999" in next(
+        line
+        for line in (repo_root / path).read_text(encoding="utf-8").splitlines()
+        if line.startswith("# ruff: noqa:")
+    )
+]
 raise SystemExit(
     0
     if "N999" not in script_ignores
     and "N999" not in lint["ignore"]
-    and "# ruff: noqa: N999, RUF100" in auditor_source
+    and n999_files == [auditor]
     else 1
 )
 PY
