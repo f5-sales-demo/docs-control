@@ -71,6 +71,37 @@ else
     "self-hosted-runner.labels must contain the exact governed labels"
 fi
 
+if jq -e '
+  [.managed_files.files[] |
+    select(.src == ".github/actionlint.yaml" and .dest == ".github/actionlint.yaml")] |
+  length == 1
+' "$REPO_SETTINGS" >/dev/null; then
+  pass "2.2 canonical actionlint config has one managed path mapping"
+else
+  fail "2.2 canonical actionlint config has one managed path mapping" \
+    "repo-settings must manage .github/actionlint.yaml at the same destination"
+fi
+
+if jq -e '
+  (.protected_files | index(".github/actionlint.yaml") != null) and
+  (.protected_files | index("actionlint.yml") == null)
+' "$REPO_ROOT/.claude/governance.json" >/dev/null; then
+  pass "2.3 governance protects only the canonical actionlint config"
+else
+  fail "2.3 governance protects only the canonical actionlint config" \
+    "replace the retired root path with .github/actionlint.yaml"
+fi
+
+if jq -e '
+  (.managed_files.absent_files | index("actionlint.yml") != null) and
+  ([.managed_files.files[] | select(.src == "actionlint.yml" or .dest == "actionlint.yml")] | length == 0)
+' "$REPO_SETTINGS" >/dev/null; then
+  pass "2.4 root actionlint.yml is explicitly retired downstream"
+else
+  fail "2.4 root actionlint.yml is explicitly retired downstream" \
+    "root actionlint.yml must be absent and have no managed-file mapping"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 3: TOML Parse Validity (Python lint configs)
 # ════════════════════════════════════════════════════════════════════
