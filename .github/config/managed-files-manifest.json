@@ -1,17 +1,17 @@
 {
-  "source_commit": "619d85f06f95bfa7e45a307687635eb415245de1",
+  "source_commit": "cc9f083ffff9ae1cd761c06504e81239ee0d5951",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
       "dest": ".github/workflows/github-pages-deploy.yml",
-      "sha": "3977c0602b11ec6d5dda2a482126b8f4302633bc",
+      "sha": "ec649e4e1794a8986a7cbfef1dda6903d7700798",
       "size": 855,
       "mode": "100644"
     },
     ".github/workflows/enforce-repo-settings.yml": {
       "src": "workflows/enforce-repo-settings.yml",
       "dest": ".github/workflows/enforce-repo-settings.yml",
-      "sha": "4ce9012933f0f02e11d1e7951a18ec051dfff451",
+      "sha": "bb8531e230571486ecee109c8e798f21ae08457b",
       "size": 11879,
       "mode": "100644"
     },
@@ -25,28 +25,28 @@
     ".github/workflows/super-linter.yml": {
       "src": "workflows/super-linter.yml",
       "dest": ".github/workflows/super-linter.yml",
-      "sha": "72f5571e94bd1cddfb38308a1929cefa3f1d5a0e",
+      "sha": "b8806a4a047aee0f0e88d624b9d14958cbebe38c",
       "size": 913,
       "mode": "100644"
     },
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
       "dest": ".github/workflows/translation-audit.yml",
-      "sha": "1b55fbe9263c104f865c82346b44b8ee0ca6f091",
+      "sha": "d9a98680ac22557d4af42f49855c6d1098ee23b3",
       "size": 1241,
       "mode": "100644"
     },
     ".github/workflows/antigravity-review.yml": {
       "src": "workflows/antigravity-review.yml",
       "dest": ".github/workflows/antigravity-review.yml",
-      "sha": "79743346e1a6d66efb25270a42f83f9d6b1a5d24",
+      "sha": "6dda907c933aac59ec8132803fe004454dcb92f9",
       "size": 1309,
       "mode": "100644"
     },
     ".github/workflows/antigravity-translate.yml": {
       "src": "workflows/antigravity-translate.yml",
       "dest": ".github/workflows/antigravity-translate.yml",
-      "sha": "54ea2096a9c051d24057fad0872d01244e627e81",
+      "sha": "f6de1677aa2c6ba61b91a0d80067cd6e1e63be4e",
       "size": 1620,
       "mode": "100644"
     },
@@ -186,7 +186,7 @@
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "d1790e4b9b0f4f3c69a0533dab0d7a5854c0af37",
+      "sha": "a7d06683c332087d93766423501891579add43c7",
       "size": 3158,
       "mode": "100644"
     },
@@ -417,15 +417,15 @@
     "tests/test-github-api-resilience.sh": {
       "src": "tests/test-github-api-resilience.sh",
       "dest": "tests/test-github-api-resilience.sh",
-      "sha": "ef54df94c02b808bbb1f0a2ac670ca4238ef07a9",
-      "size": 22679,
+      "sha": "28127d854cb1e82513f13416fdd41a46008c7a24",
+      "size": 22793,
       "mode": "100644"
     },
     "tests/test-translation-release-policy.sh": {
       "src": "tests/test-translation-release-policy.sh",
       "dest": "tests/test-translation-release-policy.sh",
-      "sha": "1ebb22934eb86f4ee744ca56c34ebb8ad8ccfd92",
-      "size": 8844,
+      "sha": "a33ca345bed0db177607c780c24d81b2b8b82c37",
+      "size": 8938,
       "mode": "100755"
     },
     "tests/test-validate-translations.sh": {
@@ -438,8 +438,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "033107e68e7834727072a813c53c941fed0c2c16",
-      "size": 6420,
+      "sha": "71feccc53726c1c3dc3397f8b7a61ef15901f7d5",
+      "size": 6470,
       "mode": "100644"
     },
     ".claude/settings.json": {
@@ -480,14 +480,14 @@
     "scripts/audit-runner-workflows.py": {
       "src": "scripts/audit-runner-workflows.py",
       "dest": "scripts/audit-runner-workflows.py",
-      "sha": "dc9db1eada25849f34fb4e0218bb38a5b2a59151",
-      "size": 11234,
+      "sha": "ebb8ede0baa5fe8ff07a14412a18c8c6837a85df",
+      "size": 12900,
       "mode": "100755"
     },
     ".github/config/self-hosted-runner-policy.json": {
       "src": ".github/config/self-hosted-runner-policy.json",
       "dest": ".github/config/self-hosted-runner-policy.json",
-      "sha": "8c7be88dd197e956cade35f43de10b0dfcadffe1",
+      "sha": "deaae210915deb224bc0079a60abaacfb93307b8",
       "size": 12908,
       "mode": "100644"
     },
