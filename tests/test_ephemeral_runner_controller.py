@@ -556,7 +556,18 @@ class EphemeralRunnerTests(unittest.TestCase):
                 controller = MODULE.EphemeralController(
                     self.policy(), FakeGitHub(), self.root / "state", recorder
                 )
-                controller.run_once("f5-sales-demo/fixture", profile)
+                if profile == "container-build":
+                    # The contract under test is Docker argv construction, not
+                    # the host's Docker-socket metadata. Socketless CI runners
+                    # deliberately have no /run/docker.sock.
+                    with mock.patch.object(
+                        MODULE.EphemeralController,
+                        "docker_socket_group",
+                        return_value=997,
+                    ):
+                        controller.run_once("f5-sales-demo/fixture", profile)
+                else:
+                    controller.run_once("f5-sales-demo/fixture", profile)
                 command = next(
                     call[0]
                     for call in recorder.calls
