@@ -67,11 +67,12 @@ The design follows GitHub's current primary guidance:
 ## Image publication
 
 `publish-runner-images.yml` builds Ubuntu 24.04, Ubuntu 22.04, and container-build images from
-digest-pinned Ubuntu bases. Every image includes PyYAML. Socketless targets omit Docker completely;
-the builder target copies the Docker 29.7.2 CLI, Buildx, and Compose from the digest-pinned official
-Docker CLI image. Publication uses `docker buildx build --push --metadata-file`, validates the
-registry manifest digest, and smoke-tests each published target before reporting its digest.
-It verifies the GitHub runner archive checksum and publishes to GHCR.
+digest-pinned Ubuntu bases. Every image includes PyYAML and the digest-pinned official Node
+22.22.2 toolchain, including npm and npx. Socketless targets omit Docker completely; the builder
+target copies the Docker 29.7.2 CLI, Buildx, and Compose from the digest-pinned official Docker CLI
+image. Publication uses `docker buildx build --push --metadata-file`, validates the registry
+manifest digest, and smoke-tests each published target before reporting its digest. It verifies the
+GitHub runner archive checksum and publishes to GHCR.
 Record the manifest digest reported in the job summary and place that exact digest in the policy.
 Tags are discovery aids only and are never accepted by the controller.
 

@@ -164,7 +164,10 @@ function testProgressRouting() {
   const watcher = fs.readFileSync(watcherWorkflow, 'utf8');
   assert.match(review, /cp scripts\/agy-review[.]sh scripts\/run-with-progress[.]sh/);
   assert.match(review, /2>&1 \| tee "\$RUNNER_TEMP\/review[.]log"/);
-  assert.match(translation, /\/opt\/agy-translation-contract\/run-with-progress[.]sh --phase translation-generation/);
+  assert.match(
+    translation,
+    /[$]RUNNER_TEMP\/agy-translation-contract\/run-with-progress[.]sh" --phase translation-generation/,
+  );
   assert.match(watcher, /scripts\/run-with-progress[.]sh --phase fleet-triage/);
 }
 
@@ -442,36 +445,15 @@ async function testReviewerPreparation() {
 
 function runTranslationPreparation(fixture, reconcileAll = false) {
   const runner = temporaryDirectory('agy-translation-prepare-');
-  const bin = path.join(runner, 'bin');
-  const installed = path.join(runner, 'installed');
-  fs.mkdirSync(bin);
-  fs.mkdirSync(installed);
-  writeExecutable(
-    path.join(bin, 'sudo'),
-    `#!/usr/bin/env bash
-set -euo pipefail
-test "$1" = install
-shift
-if [ "\${1:-}" = -d ]; then
-  exit 0
-fi
-previous=""
-for argument in "$@"; do
-  source_path=$previous
-  previous=$argument
-done
-cp "$source_path" "$FAKE_INSTALL_DIR/$(basename "$previous")"
-`,
-  );
+  const installed = path.join(runner, 'agy-translation-contract');
   const result = runShell(extractStepBlock(translationWorkflow, 'Prepare exact pull-request snapshot'), {
     cwd: fixture.repository,
     env: {
       BASE_SHA: fixture.base,
-      FAKE_INSTALL_DIR: installed,
       GH_TOKEN: 'read-only-fixture',
       GITHUB_REPOSITORY: 'f5-sales-demo/example',
       HEAD_SHA: fixture.head,
-      PATH: `${bin}:${process.env.PATH}`,
+      PATH: process.env.PATH,
       PR_NUMBER: '42',
       RECONCILE_ALL: String(reconcileAll),
       RUNNER_TEMP: runner,
@@ -561,25 +543,6 @@ cp "$ARCHIVE_FIXTURE" "$output"
 `,
   );
   writeExecutable(
-    path.join(bin, 'sudo'),
-    `#!/usr/bin/env bash
-set -euo pipefail
-if [ "$1" = apt-get ]; then
-  exit 0
-fi
-test "$1" = install
-shift
-previous=""
-for argument in "$@"; do
-  source_path=$previous
-  previous=$argument
-done
-rm -f "$FAKE_AGY_PATH"
-cp "$source_path" "$FAKE_AGY_PATH"
-chmod 0555 "$FAKE_AGY_PATH"
-`,
-  );
-  writeExecutable(
     path.join(bin, 'sha512sum'),
     `#!/usr/bin/env bash
 set -euo pipefail
@@ -597,7 +560,7 @@ test "$actual" = "$expected"
       AGY_URL: 'https://example.com/immutable-fixture.tar.gz',
       AGY_VERSION: '1.1.10',
       ARCHIVE_FIXTURE: archive,
-      FAKE_AGY_PATH: path.join(bin, 'agy'),
+      GITHUB_PATH: path.join(work, 'github-path'),
       PATH: `${bin}:${process.env.PATH}`,
       RUNNER_TEMP: work,
     },
@@ -661,6 +624,7 @@ printf '%s\n' '{"reviewer":{"verdict":"pass","summary":"clean","findings":[],"ne
     env: {
       AGY_VERSION: '1.1.10',
       ANTIGRAVITY_TOKEN: missingSecret ? null : 'go-keyring-base64:dGVzdA==',
+      AGY_PROGRESS_INTERVAL_SECONDS: '1',
       BASE_SHA: 'b'.repeat(40),
       GCP_PROJECT_ID: 'fixture-project',
       GITHUB_REPOSITORY: 'f5-sales-demo/example',
@@ -840,7 +804,7 @@ esac
   const changedEnglish = path.join(work, 'changed-english.txt');
   fs.writeFileSync(changedEnglish, 'docs/en/page.mdx\n');
   const script = extractStepBlock(translationWorkflow, 'Generate translations without write credentials').replace(
-    '/opt/agy-translation-contract/run-with-progress.sh',
+    '$RUNNER_TEMP/agy-translation-contract/run-with-progress.sh',
     path.join(root, 'scripts/run-with-progress.sh'),
   );
   const result = runShell(script, {
@@ -848,6 +812,7 @@ esac
     env: {
       AGY_VERSION: '1.1.10',
       ANTIGRAVITY_TOKEN: missingSecret ? null : 'go-keyring-base64:dGVzdA==',
+      AGY_PROGRESS_INTERVAL_SECONDS: '1',
       GATEWAY_TOKEN: 'must-not-reach-model',
       GATEWAY_URL: 'must-not-reach-model',
       GCP_PROJECT_ID: 'fixture-project',
@@ -878,14 +843,12 @@ function testTranslationModel() {
   ]) {
     assert.match(argumentsUsed, new RegExp(`^${argument}$`, 'm'));
   }
-  assert.match(
-    argumentsUsed,
-    /\/opt\/agy-translation-contract\/changed-english[.]txt/,
+  assert.ok(
+    argumentsUsed.includes(path.join(completed.work, 'agy-translation-contract/changed-english.txt')),
     'the translator prompt must use the exact-head manifest copied into its sandbox-readable contract directory',
   );
-  assert.match(
-    argumentsUsed,
-    /\/opt\/agy-translation-contract\/expected-source-hashes[.]tsv/,
+  assert.ok(
+    argumentsUsed.includes(path.join(completed.work, 'agy-translation-contract/expected-source-hashes.tsv')),
     'the translator prompt must use deterministic hashes derived from the exact PR head',
   );
   assert.doesNotMatch(argumentsUsed, /--dangerously-skip-permissions/);
@@ -909,7 +872,7 @@ function testTranslationModel() {
     allow: [
       'command(*)',
       `read_file(${completed.work})`,
-      'read_file(/opt/agy-translation-contract)',
+      `read_file(${path.join(completed.work, 'agy-translation-contract')})`,
       ...locales.map((locale) => `write_file(${completed.work}/docs/${locale})`),
       ...locales.map((locale) => `write_file(${completed.work}/src/content/docs/${locale})`),
     ],
@@ -917,7 +880,7 @@ function testTranslationModel() {
       'unsandboxed(*)',
       'read_url(*)',
       'execute_url(*)',
-      'write_file(/opt/agy-translation-contract)',
+      `write_file(${path.join(completed.work, 'agy-translation-contract')})`,
       `write_file(${completed.work}/docs/en)`,
       `write_file(${completed.work}/src/content/docs/en)`,
       `read_file(${completed.work}/.git)`,
@@ -1013,7 +976,7 @@ function initializeTranslationFixture() {
 function runTranslationPackage(fixture, reconcileAll = false) {
   const runner = temporaryDirectory('agy-translation-package-');
   const script = extractStepBlock(translationWorkflow, 'Validate and package allowlisted translation patch').replaceAll(
-    '/opt/agy-translation-contract/validate-translations.sh',
+    '$RUNNER_TEMP/agy-translation-contract/validate-translations.sh',
     path.join(root, 'scripts/validate-translations.sh'),
   );
   const result = runShell(script, {
@@ -1110,7 +1073,7 @@ function runTranslationPublication(packaged, { missingToken = false, remoteDrift
     path.join(artifact, 'translations.patch'),
   );
   const script = extractStepBlock(translationWorkflow, 'Validate, commit, and publish translations').replaceAll(
-    '/opt/agy-publication-validator/validate-translations.sh',
+    '$RUNNER_TEMP/agy-publication-validator/validate-translations.sh',
     path.join(root, 'scripts/validate-translations.sh'),
   );
   const result = runShell(script, {

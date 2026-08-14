@@ -83,7 +83,6 @@ jobs:
     steps:
       - uses: actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
       - uses: ./local-action
-      - uses: docker://alpine:3.22
 """
         )
         self.assertEqual(self.audit(), [])
@@ -238,7 +237,7 @@ jobs:
                 + rendered_guard
                 + """    runs-on: [self-hosted, Linux, X64, fixture, container-build]
     steps:
-      - run: docker version
+      - run: true
 """
             )
             with self.subTest(guard=guard):
@@ -286,7 +285,45 @@ jobs:
 """
         )
         errors = self.audit()
-        self.assertTrue(any("trusted manual" in item for item in errors))
+        self.assertTrue(any("same-repository guard" in item for item in errors))
+
+    def test_callable_docker_profile_allows_protected_default_branch_guard(self):
+        self.write_workflow(
+            """name: Docs
+on:
+  workflow_call:
+jobs:
+  trust-gate:
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
+    steps:
+      - run: true
+  build:
+    needs: trust-gate
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, Linux, X64, fixture, container-build]
+    steps:
+      - run: docker version
+"""
+        )
+        self.assertEqual(self.audit(), [])
+
+    def test_docker_steps_and_privileged_package_installs_are_detected(self):
+        self.write_workflow(
+            """name: CI
+on: [push]
+jobs:
+  test:
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
+    steps:
+      - uses: docker/login-action@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      - run: |
+          # docker is only a comment
+          apt-get install thing
+"""
+        )
+        errors = self.audit()
+        self.assertTrue(any("Docker workload" in item for item in errors))
+        self.assertTrue(any("sudo or apt" in item for item in errors))
 
 
 if __name__ == "__main__":

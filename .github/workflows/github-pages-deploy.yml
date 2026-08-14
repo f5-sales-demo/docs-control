@@ -36,9 +36,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  trust-gate:
+    name: Verify trusted Pages invocation
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    steps:
+      - name: Reject untrusted invocations
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then exit 0; fi
+          if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == "refs/heads/$DEFAULT_BRANCH" ]]; then exit 0; fi
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            if [[ -n "$HEAD_REPOSITORY" && "$HEAD_REPOSITORY" == "$REPOSITORY" ]]; then
+              exit 0
+            fi
+            echo "::error::Docker-capable docs builds are forbidden for fork pull requests."
+            exit 1
+          fi
+          echo "::error::unsupported event or non-default branch"
+          exit 1
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
+          REPOSITORY: ${{ github.repository }}
+
   build:
     name: Build Documentation
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    needs: trust-gate
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", container-build]
     permissions:
       contents: read # checkout the documentation source
       packages: read # authenticate and resolve the latest builder image from GHCR
@@ -163,6 +188,7 @@ jobs:
           TITLE_ARGS=()
           [ -z "$DOCS_TITLE" ] || TITLE_ARGS=(-e "DOCS_TITLE=$DOCS_TITLE")
 
+          # shellcheck disable=SC2153
           docker run --rm --pull always \
             --name docs-builder \
             -v "$WORKSPACE/$CONTENT_PATH:/content/docs:ro" \

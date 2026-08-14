@@ -23,6 +23,13 @@ CALLABLE_DOCKER_GUARD = (
     "(github.event_name == 'pull_request' && "
     "github.event.pull_request.head.repo.full_name == github.repository)"
 )
+DEFAULT_BRANCH_DOCKER_GUARD = (
+    "github.event_name == 'workflow_dispatch' || "
+    "(github.event_name == 'push' && "
+    "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) || "
+    "(github.event_name == 'pull_request' && "
+    "github.event.pull_request.head.repo.full_name == github.repository)"
+)
 
 
 class AuditError(ValueError):
@@ -100,17 +107,20 @@ def audit_docker_route(workflow, job_id, job, profiles, profile):
         triggers = trigger_names(workflow)
     except AuditError as exc:
         return [f"Docker-capable job has a malformed trigger: {exc}"]
-    allowed = {"pull_request", "workflow_call", "workflow_dispatch"}
+    allowed = {"pull_request", "push", "workflow_call", "workflow_dispatch"}
     if not triggers or not triggers <= allowed:
         errors.append(
-            "Docker-capable jobs allow same-repository PRs or trusted manual workflows only"
+            "Docker-capable jobs require a protected push, same-repository PR, or manual dispatch"
         )
         return errors
     if triggers == {"workflow_dispatch"}:
         return errors
-    expected_guard = (
-        PULL_REQUEST_GUARD if triggers == {"pull_request"} else CALLABLE_DOCKER_GUARD
-    )
+    if triggers == {"pull_request"}:
+        expected_guard = PULL_REQUEST_GUARD
+    elif "push" in triggers or triggers == {"workflow_call"}:
+        expected_guard = DEFAULT_BRANCH_DOCKER_GUARD
+    else:
+        expected_guard = CALLABLE_DOCKER_GUARD
     if job.get("if") != expected_guard:
         errors.append(
             "Docker-capable PR job requires the complete same-repository guard"
@@ -136,6 +146,33 @@ def audit_docker_route(workflow, job_id, job, profiles, profile):
     ):
         errors.append("Docker-capable PR job requires a socketless trust-gate job")
     return errors
+
+
+def step_requires_docker(step):
+    """Return whether an executable step needs the Docker socket, not comments."""
+    if not isinstance(step, dict):
+        return False
+    uses = step.get("uses")
+    if isinstance(uses, str) and uses.startswith(
+        ("docker://", "docker/", "super-linter/super-linter@")
+    ):
+        return True
+    run = step.get("run")
+    if not isinstance(run, str):
+        return False
+    executable = "\n".join(line.split("#", 1)[0] for line in run.splitlines())
+    return bool(re.search(r"(?<![\w-])docker(?:\s|$)", executable))
+
+
+def step_has_privileged_package_install(step):
+    """Reject self-hosted provisioning assumptions in executable shell content."""
+    if not isinstance(step, dict) or not isinstance(step.get("run"), str):
+        return False
+    executable = "\n".join(line.split("#", 1)[0] for line in step["run"].splitlines())
+    return bool(
+        re.search(r"(?<![\w-])sudo(?:\s|$)", executable)
+        or re.search(r"(?<![\w-])apt(?:-get)?\s+(?:update|install)(?:\s|$)", executable)
+    )
 
 
 def audit_job(  # pylint: disable=too-many-locals
@@ -200,22 +237,25 @@ def audit_job(  # pylint: disable=too-many-locals
             errors.append(
                 f"{relative}/{job_id}: runs-on must use the canonical repository route, got {runs_on!r}"
             )
-        uses_super_linter = any(
-            isinstance(step, dict)
-            and isinstance(step.get("uses"), str)
-            and step["uses"].startswith("super-linter/super-linter@")
-            for step in job.get("steps", [])
+        requires_docker = any(
+            step_requires_docker(step) for step in job.get("steps", [])
         )
-        if uses_super_linter and (
+        if requires_docker and (
             profile not in profiles or not profiles[profile].get("docker_socket")
         ):
             errors.append(
-                f"{relative}/{job_id}: Super-Linter requires a Docker socket profile"
+                f"{relative}/{job_id}: Docker workload requires a Docker socket profile"
             )
         errors.extend(
             f"{relative}/{job_id}: {error}"
             for error in audit_docker_route(workflow, job_id, job, profiles, profile)
         )
+        if any(
+            step_has_privileged_package_install(step) for step in job.get("steps", [])
+        ):
+            errors.append(
+                f"{relative}/{job_id}: self-hosted jobs cannot use sudo or apt package installation"
+            )
     for index, step in enumerate(job.get("steps", [])):
         if not isinstance(step, dict) or "uses" not in step:
             continue

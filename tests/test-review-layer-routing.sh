@@ -132,26 +132,40 @@ contains "$REVIEW_WORKFLOW" '2>&1 | tee "$RUNNER_TEMP/review.log"' \
 
 TRANSLATION_WORKFLOW="$REPO_ROOT/.github/workflows/antigravity-translate.yml"
 contains "$TRANSLATION_WORKFLOW" \
-  'scripts/run-with-progress.sh /opt/agy-translation-contract/run-with-progress.sh' \
+  'install -m 0555 scripts/run-with-progress.sh "$contract/run-with-progress.sh"' \
   "Antigravity translation installs the trusted progress runner before head checkout"
 contains "$TRANSLATION_WORKFLOW" \
-  '/opt/agy-translation-contract/run-with-progress.sh --phase translation-generation' \
+  '"$RUNNER_TEMP/agy-translation-contract/run-with-progress.sh" --phase translation-generation' \
   "Antigravity translation emits structured generation heartbeats"
+rejects "$TRANSLATION_WORKFLOW" '/opt/agy-translation-contract' \
+  "Antigravity translation uses only runner-owned temporary contracts"
 
 contains "$REPO_ROOT/.gitignore" '.agy-review.*' \
   "Antigravity temporary review directories are ignored"
 
 WATCHER="$REPO_ROOT/.github/workflows/antigravity-fleet-watcher.yml"
+WATCHER_COLLECTOR="$REPO_ROOT/scripts/collect-antigravity-fleet-state.sh"
 contains "$WATCHER" 'schedule:' "fleet watcher is scheduled"
 contains "$WATCHER" 'workflow_dispatch:' "fleet watcher supports manual recovery"
+contains "$WATCHER" 'scripts/collect-antigravity-fleet-state.sh' \
+  "fleet watcher uses the governed collection script"
+if [ -x "$WATCHER_COLLECTOR" ] && jq -e \
+  '.protected_files | index("scripts/collect-antigravity-fleet-state.sh") != null' \
+  "$GOVERNANCE" >/dev/null; then
+  pass "fleet watcher collection script is executable and protected"
+else
+  fail "fleet watcher collection script is executable and protected" \
+    "executable bit or protection entry is missing"
+fi
 contains "$WATCHER" "needs.collect.outputs.has_failures == 'true'" \
   "Antigravity triage runs only for failures"
-contains "$WATCHER" '<!-- agy-workflow-receipt:' "watcher publishes machine receipt markers"
+contains "$WATCHER_COLLECTOR" '<!-- agy-workflow-receipt:' \
+  "watcher publishes machine receipt markers"
 for enterprise_term in 'merge_group:' 'required-reviewer' 'audit-log'; do
   rejects "$WATCHER" "$enterprise_term" "watcher avoids enterprise-only surface $enterprise_term"
 done
 contains "$WATCHER" 'GitHub Free-compatible' "watcher declares its GitHub Free contract"
-contains "$WATCHER" 'python3 scripts/redact_automation_log.py' \
+contains "$WATCHER_COLLECTOR" 'python3 scripts/redact_automation_log.py' \
   "watcher redacts logs with the tested trusted helper"
 contains "$WATCHER" 'scripts/run-with-progress.sh --phase fleet-triage' \
   "watcher triage emits structured model heartbeats"

@@ -1477,11 +1477,10 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 17: self-hosted jobs repair Docker-owned output before and
-#             after Super-Linter runs
+# SECTION 17: one-job ephemeral jobs never require privileged repair
 # ════════════════════════════════════════════════════════════════════
 echo ""
-echo "=== Section 17: self-hosted workspace ownership repair ==="
+echo "=== Section 17: immutable one-job runner contract ==="
 
 if python3 - "$SUPER_LINTER_WORKFLOW" <<'PY'; then
 import sys
@@ -1491,62 +1490,22 @@ import yaml
 with open(sys.argv[1], encoding="utf-8") as workflow_file:
     workflow = yaml.safe_load(workflow_file)
 
-expected_condition = "runner.environment == 'self-hosted'"
-required_fragments = (
-    'workspace="${GITHUB_WORKSPACE:?}"',
-    'repository="${GITHUB_REPOSITORY:?}"',
-    'repository_name="${repository##*/}"',
-    'expected_workspace="${RUNNER_WORKSPACE:?}/${repository_name}"',
-    '[ "$workspace" = "$expected_workspace" ]',
-    'sudo -n chown -R -- "$(id -u):$(id -g)" "$workspace"',
-)
-forbidden_fragments = ("/home/", "/data/actions-runners/")
-
 for job_name in ("lint", "shell-unit-tests"):
     steps = workflow["jobs"][job_name]["steps"]
-    repairs = [step for step in steps if step.get("name") == "Repair self-hosted runner workspace"]
-    checkouts = [step for step in steps if step.get("name") == "Checkout"]
-    if len(repairs) != 1 or len(checkouts) != 1:
+    if sum(step.get("name") == "Checkout" for step in steps) != 1:
         raise SystemExit(1)
-    repair = repairs[0]
-    if steps.index(repair) >= steps.index(checkouts[0]):
-        raise SystemExit(1)
-    if repair.get("if") != expected_condition or repair.get("shell") != "bash":
-        raise SystemExit(1)
-    command = repair.get("run", "")
-    if any(fragment not in command for fragment in required_fragments):
-        raise SystemExit(1)
-    if any(fragment in command for fragment in forbidden_fragments):
-        raise SystemExit(1)
-
-lint_steps = workflow["jobs"]["lint"]["steps"]
-super_linter_steps = [step for step in lint_steps if step.get("name") == "Run Super-Linter"]
-restores = [
-    step
-    for step in lint_steps
-    if step.get("name") == "Restore self-hosted runner workspace ownership"
-]
-if len(super_linter_steps) != 1 or len(restores) != 1:
-    raise SystemExit(1)
-restore = restores[0]
-if lint_steps.index(restore) <= lint_steps.index(super_linter_steps[0]):
-    raise SystemExit(1)
-if restore.get("if") != "always() && runner.environment == 'self-hosted'":
-    raise SystemExit(1)
-if restore.get("shell") != "bash":
-    raise SystemExit(1)
-restore_command = restore.get("run", "")
-if any(fragment not in restore_command for fragment in required_fragments):
-    raise SystemExit(1)
-if any(fragment in restore_command for fragment in forbidden_fragments):
-    raise SystemExit(1)
-if "rm " in restore_command or "rm\n" in restore_command:
-    raise SystemExit(1)
+    for step in steps:
+        name = step.get("name", "").lower()
+        if "repair" in name or "ownership" in name:
+            raise SystemExit(1)
+        command = step.get("run", "")
+        if "sudo" in command or "apt-get" in command:
+            raise SystemExit(1)
 PY
-  pass "17.1 jobs repair the exact workspace before checkout and after Super-Linter"
+  pass "17.1 one-job jobs contain no privileged workspace repair"
 else
-  fail "17.1 jobs repair the exact workspace before checkout and after Super-Linter" \
-    "the lint job needs guarded pre-checkout repair and unconditional post-lint restoration"
+  fail "17.1 one-job jobs contain no privileged workspace repair" \
+    "schema-v3 ephemeral jobs must not assume sudo or shared workspace ownership"
 fi
 
 # ════════════════════════════════════════════════════════════════════
