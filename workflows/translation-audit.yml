@@ -27,4 +27,4 @@ jobs:
     # toward not spending money. The audit stays advisory because this job can
     # skip when the runtime switch is disabled.
     if: vars.TRANSLATIONS_ENABLED == 'true'
-    uses: f5-sales-demo/docs-control/.github/workflows/translation-audit.yml@2062cd557231a7827ad8e732a9c714987295efff
+    uses: f5-sales-demo/docs-control/.github/workflows/translation-audit.yml@48f79777e5cc8ab78863edeeab7109d5ed1a21f1
