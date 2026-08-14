@@ -138,16 +138,16 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertTrue(sockets["container-build"])
 
     def test_fleet_watcher_uses_dedicated_socketless_automation_profile(self):
-        workflow = (
-            ROOT / ".github/workflows/antigravity-fleet-watcher.yml"
-        ).read_text(encoding="utf-8")
+        workflow = (ROOT / ".github/workflows/antigravity-fleet-watcher.yml").read_text(
+            encoding="utf-8"
+        )
         route = (
-            'runs-on: [self-hosted, Linux, X64, '
+            "runs-on: [self-hosted, Linux, X64, "
             '"${{ github.event.repository.name }}", automation]'
         )
         self.assertEqual(workflow.count(route), 3)
         self.assertNotIn(
-            'runs-on: [self-hosted, Linux, X64, '
+            "runs-on: [self-hosted, Linux, X64, "
             '"${{ github.event.repository.name }}", ubuntu-24.04]',
             workflow,
         )
