@@ -369,5 +369,59 @@ jobs:
         self.assertTrue(any("sudo or apt" in item for item in errors))
 
 
+    def test_unlisted_self_hosted_repository_fails_then_schema_v3_policy_passes(self):
+        self.write_workflow(
+            """name: CI
+on: [pull_request]
+jobs:
+  audit:
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
+    steps:
+      - run: true
+"""
+        )
+        del self.data["repositories"]["f5-sales-demo/fixture"]
+        self.write_policy()
+        with self.assertRaisesRegex(
+            MODULE.AuditError, "repository is not governed: f5-sales-demo/fixture"
+        ):
+            self.audit()
+
+        self.data["repositories"]["f5-sales-demo/fixture"] = {
+            "runner": {"profiles": ["ubuntu-24.04"]}
+        }
+        self.write_policy()
+        self.assertEqual(self.audit(), [])
+
+    def test_github_hosted_audit_requires_an_exact_policy_exception(self):
+        self.write_workflow(
+            """name: Workflow Security Audit
+on: [pull_request]
+jobs:
+  workflow-security-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - run: true
+"""
+        )
+        errors = self.audit()
+        self.assertTrue(any("canonical repository route" in item for item in errors))
+
+        self.data["hosted_exceptions"] = {
+            "f5-sales-demo/fixture": {
+                ".github/workflows/ci.yml": {
+                    "workflow-security-audit": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "read-only pull request workflow security audit",
+                    }
+                }
+            }
+        }
+        self.write_policy()
+        self.assertEqual(self.audit(), [])
+
+
 if __name__ == "__main__":
     unittest.main()

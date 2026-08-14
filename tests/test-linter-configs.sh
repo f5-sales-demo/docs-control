@@ -130,21 +130,29 @@ else
   fail "3.x .ruff.toml is valid TOML" "no available validator could parse it"
 fi
 
-if python3 - "$REPO_ROOT/.ruff.toml" <<'PY'; then
+if python3 - "$REPO_ROOT/.ruff.toml" "$REPO_ROOT/scripts/audit-runner-workflows.py" <<'PY'; then
 import sys
 import tomllib
+from pathlib import Path
 
 with open(sys.argv[1], "rb") as config_file:
     config = tomllib.load(config_file)
 
 lint = config["lint"]
 script_ignores = lint["per-file-ignores"]["scripts/**"]
-raise SystemExit(0 if "N999" in script_ignores and "N999" not in lint["ignore"] else 1)
+auditor_source = Path(sys.argv[2]).read_text(encoding="utf-8")
+raise SystemExit(
+    0
+    if "N999" not in script_ignores
+    and "N999" not in lint["ignore"]
+    and "# ruff: noqa: N999, RUF100" in auditor_source
+    else 1
+)
 PY
-  pass "3.1 hyphenated Python CLI filenames are allowed only under scripts"
+  pass "3.1 only the canonical hyphenated auditor is exempt from N999"
 else
-  fail "3.1 hyphenated Python CLI filenames are allowed only under scripts" \
-    "scripts/** must ignore N999 without disabling it globally"
+  fail "3.1 only the canonical hyphenated auditor is exempt from N999" \
+    "audit-runner-workflows.py must carry the file-level N999 exemption without broad suppression"
 fi
 
 # ════════════════════════════════════════════════════════════════════
