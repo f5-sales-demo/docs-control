@@ -368,7 +368,6 @@ jobs:
         self.assertTrue(any("Docker workload" in item for item in errors))
         self.assertTrue(any("sudo or apt" in item for item in errors))
 
-
     def test_unlisted_self_hosted_repository_fails_then_schema_v3_policy_passes(self):
         self.write_workflow(
             """name: CI
