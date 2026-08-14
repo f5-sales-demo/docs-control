@@ -422,6 +422,25 @@ jobs:
         self.write_policy()
         self.assertEqual(self.audit(), [])
 
+    def test_docs_control_hosted_audit_exception_is_exact(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        exception = policy["hosted_exceptions"]["f5-sales-demo/docs-control"]
+        self.assertEqual(
+            exception,
+            {
+                ".github/workflows/workflow-security-audit.yml": {
+                    "workflow-security-audit": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "read-only pull request workflow security audit",
+                    }
+                }
+            },
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

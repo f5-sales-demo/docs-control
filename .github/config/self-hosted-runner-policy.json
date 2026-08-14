@@ -80,6 +80,14 @@
         }
       }
     },
+    "f5-sales-demo/docs-control": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
     "f5-sales-demo/vscode-xcsh": {
       ".github/workflows/ci.yml": {
         "test-macos": {
