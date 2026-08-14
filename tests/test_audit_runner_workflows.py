@@ -446,9 +446,7 @@ jobs:
                 encoding="utf-8"
             )
         )
-        exception = policy["hosted_exceptions"][
-            "f5-sales-demo/terraform-provider-xcsh"
-        ]
+        exception = policy["hosted_exceptions"]["f5-sales-demo/terraform-provider-xcsh"]
         self.assertEqual(
             exception,
             {
