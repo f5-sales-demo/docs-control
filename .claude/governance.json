@@ -100,7 +100,11 @@
     "trivy.yaml",
     ".claude/settings.json",
     ".claude/governance.json",
-    ".claude/hooks/protect-managed-files.sh"
+    ".claude/hooks/protect-managed-files.sh",
+    "CODE_OF_CONDUCT.md",
+    "SECURITY.md",
+    "SUPPORT.md",
+    ".github/CODEOWNERS"
   ],
   "repo_classes": {
     "_default": "developer",

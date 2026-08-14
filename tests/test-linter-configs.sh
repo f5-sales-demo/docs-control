@@ -45,7 +45,7 @@ done
 echo ""
 echo "=== Section 2: YAML parse validity ==="
 
-for f in .yamllint.yaml zizmor.yaml .checkov.yaml .textlintrc actionlint.yml; do
+for f in .yamllint.yaml zizmor.yaml .checkov.yaml .textlintrc .github/actionlint.yaml; do
   if python3 -c "import sys, yaml; yaml.safe_load(open('$REPO_ROOT/$f'))" 2>/dev/null; then
     pass "2.x $f is valid YAML"
   else
@@ -53,7 +53,7 @@ for f in .yamllint.yaml zizmor.yaml .checkov.yaml .textlintrc actionlint.yml; do
   fi
 done
 
-if python3 - "$REPO_ROOT/actionlint.yml" "$REPO_ROOT/.claude/governance.json" <<'PY'; then
+if python3 - "$REPO_ROOT/.github/actionlint.yaml" "$REPO_ROOT/.claude/governance.json" <<'PY'; then
 import json, sys, yaml
 config = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
 governance = json.load(open(sys.argv[2], encoding="utf-8"))
