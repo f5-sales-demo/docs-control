@@ -1,5 +1,5 @@
 {
-  "source_commit": "b550ebf3a093191731727a9fd2be2f989467fc90",
+  "source_commit": "79532226f85cc7367a816488b6232ed35e0f3a0b",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -277,8 +277,8 @@
     ".ruff.toml": {
       "src": ".ruff.toml",
       "dest": ".ruff.toml",
-      "sha": "2cb29e64ca6efb19613acc987061d8aac532f68c",
-      "size": 2117,
+      "sha": "5fcf5fc9eb2f6f958a16db01865a7d4195968214",
+      "size": 2129,
       "mode": "100644"
     },
     ".isort.cfg": {
