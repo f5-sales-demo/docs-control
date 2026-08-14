@@ -130,21 +130,43 @@ else
   fail "3.x .ruff.toml is valid TOML" "no available validator could parse it"
 fi
 
-if python3 - "$REPO_ROOT/.ruff.toml" <<'PY'; then
+if python3 - "$REPO_ROOT/.ruff.toml" "$REPO_ROOT" <<'PY'; then
+import subprocess
 import sys
 import tomllib
+from pathlib import Path
 
 with open(sys.argv[1], "rb") as config_file:
     config = tomllib.load(config_file)
 
 lint = config["lint"]
 script_ignores = lint["per-file-ignores"]["scripts/**"]
-raise SystemExit(0 if "N999" in script_ignores and "N999" not in lint["ignore"] else 1)
+repo_root = Path(sys.argv[2])
+auditor = repo_root / "scripts/audit-runner-workflows.py"
+n999_files = [
+    repo_root / path
+    for path in subprocess.check_output(
+        ["git", "-C", repo_root, "ls-files", "*.py"], text=True
+    ).splitlines()
+    if "# ruff: noqa:" in (repo_root / path).read_text(encoding="utf-8")
+    and "N999" in next(
+        line
+        for line in (repo_root / path).read_text(encoding="utf-8").splitlines()
+        if line.startswith("# ruff: noqa:")
+    )
+]
+raise SystemExit(
+    0
+    if "N999" not in script_ignores
+    and "N999" not in lint["ignore"]
+    and n999_files == [auditor]
+    else 1
+)
 PY
-  pass "3.1 hyphenated Python CLI filenames are allowed only under scripts"
+  pass "3.1 only the canonical hyphenated auditor is exempt from N999"
 else
-  fail "3.1 hyphenated Python CLI filenames are allowed only under scripts" \
-    "scripts/** must ignore N999 without disabling it globally"
+  fail "3.1 only the canonical hyphenated auditor is exempt from N999" \
+    "audit-runner-workflows.py must carry the file-level N999 exemption without broad suppression"
 fi
 
 # ════════════════════════════════════════════════════════════════════
@@ -207,7 +229,7 @@ has_inline_portability_suppression = any(
 has_downstream_lint_contract = all(
     marker in source
     for marker in (
-        "# ruff: noqa: ANN001, ANN201, D101, D103, EM101, EM102, N999, RUF100, TRY003",
+        "# ruff: noqa: ANN001, ANN201, D101, D103, EM101, EM102, RUF100, TRY003",
         "# pylint: disable=invalid-name,too-many-branches,broad-exception-caught,import-error",
         "# fmt: off",
     )
