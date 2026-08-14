@@ -117,6 +117,7 @@ jobs:
           mkdir -p "$tool_dir"
           install -m 0555 "$RUNNER_TEMP/agy-extract/antigravity" "$tool_dir/agy"
           test "$("$tool_dir/agy" --version)" = "$AGY_VERSION"
+          sha512sum "$tool_dir/agy" >"$RUNNER_TEMP/agy-review-bin.sha512"
           printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
 
       - name: Run isolated reviewer and verifier
@@ -200,8 +201,8 @@ jobs:
               verifier: {verdict: "needs-attention", summary: "Independent verification was unavailable.", findings: [], next_steps: ["Rerun after repairing review execution."]}
             }' >"$RUNNER_TEMP/review-artifact/report.json"
           fi
-          test "$(agy --version)" = "$AGY_VERSION"
           INNER
+          sha512sum --check --strict "$RUNNER_TEMP/agy-review-bin.sha512"
           jq --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" \
             --arg head "$HEAD_SHA" --arg workflow "$GITHUB_WORKFLOW_SHA" \
             --arg version "$AGY_VERSION" --arg status "$(cat "$RUNNER_TEMP/review-artifact/tool-status")" '. + {

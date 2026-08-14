@@ -194,6 +194,7 @@ jobs:
           mkdir -p "$tool_dir"
           install -m 0555 "$RUNNER_TEMP/agy-extract/antigravity" "$tool_dir/agy"
           test "$("$tool_dir/agy" --version)" = "$AGY_VERSION"
+          sha512sum "$tool_dir/agy" >"$RUNNER_TEMP/agy-translate-bin.sha512"
           printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
 
       - name: Generate translations without write credentials
@@ -334,8 +335,8 @@ jobs:
             ' "$stream" >&2 || true
             exit 1
           fi
-          test "$(agy --version)" = "$AGY_VERSION"
           INNER
+          sha512sum --check --strict "$RUNNER_TEMP/agy-translate-bin.sha512"
 
       - name: Validate and package allowlisted translation patch
         run: |
