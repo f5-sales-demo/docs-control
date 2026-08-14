@@ -91,11 +91,10 @@ def profile_for_route(runs_on, profiles):
     """Resolve one security-equivalent profile for an exact scheduling route."""
     if not isinstance(runs_on, list) or len(runs_on) != 5:
         return None
-    candidates = [
-        (name, spec)
-        for name, spec in profiles.items()
-        if runs_on[-1] in spec.get("labels", [])
-    ]
+    candidates = []
+    for name, spec in profiles.items():
+        if runs_on[-1] in spec.get("labels", []):
+            candidates.append((name, spec))
     if not candidates:
         return None
     reference = candidates[0][1]
