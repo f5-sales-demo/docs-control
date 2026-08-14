@@ -28,6 +28,7 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertIn("python3-yaml", content)
         for package in (
             " make ",
+            " pipx ",
             " dbus-x11 ",
             " libsecret-1-0 ",
             " gnome-keyring ",
@@ -110,6 +111,7 @@ class ProvisionRunnerTests(unittest.TestCase):
         )
         self.assertNotIn('rmdir "$plugins_dir"', content)
         self.assertNotIn("podman", content)
+        self.assertEqual(content.count("pipx --version"), 2)
 
     def test_every_governed_repository_has_container_build_profile(self):
         by_repository: dict[str, set[str]] = {}
