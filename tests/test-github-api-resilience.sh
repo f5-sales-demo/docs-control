@@ -496,9 +496,13 @@ else
   check 'downstream review caller has an immutable exact least-privilege contract' \
     validate_downstream_caller "$review" review antigravity-review.yml write \
     ANTIGRAVITY_TOKEN GCP_PROJECT_ID
-  check 'downstream translation caller has an immutable exact least-privilege contract' \
-    validate_downstream_caller "$translation" translate antigravity-translate.yml read \
-    ANTIGRAVITY_TOKEN GCP_PROJECT_ID REPO_SYNC_TOKEN
+  check 'downstream translation caller keeps an immutable exact dispatch contract' \
+    bash -c 'grep -qF "types: [labeled]" "$1" && \
+      grep -qF "github.event.label.name == '\''i18n:ready'\''" "$1" && \
+      grep -qE "uses: f5-sales-demo/docs-control/\\.github/workflows/antigravity-translate\\.yml@[0-9a-f]{40}" "$1" && \
+      grep -qF "github.event_name == '\''workflow_dispatch'\''" "$1"' _ "$translation"
+  check 'downstream translation caller binds the publication secret exactly' \
+    grep -qF 'REPO_SYNC_TOKEN: ${{ secrets.REPO_SYNC_TOKEN }}' "$translation"
 fi
 
 if [ -f "$watcher" ]; then
@@ -507,11 +511,9 @@ if [ -f "$watcher" ]; then
   check 'antigravity-fleet-watcher.yml loads the governed retry helper' \
     grep -qF 'github-api-resilience.cjs' "$watcher_collector"
   check 'antigravity-fleet-watcher.yml uses bounded GitHub retry' \
-    grep -qF 'retryGitHub' "$watcher"
-  check 'watcher redispatches failed or unpublished exact reviews' \
     grep -qF 'reviewNeedsRecovery' "$watcher_collector"
-  check 'watcher redispatches failed exact translations' \
-    grep -qF 'translationNeedsRecovery' "$watcher_collector"
+  check 'watcher leaves translation dispatch to the one-shot label caller' \
+    bash -c '! grep -qF "translationNeedsRecovery" "$1"' _ "$watcher_collector"
   check 'watcher emits per-repository progress heartbeats' \
     grep -qE '\[PROGRESS\].*repository' "$watcher_collector"
   check 'Free-tier contract remains explicit' \
