@@ -549,6 +549,34 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertNotIn("--privileged", command)
         self.assertNotIn("/dev/fuse", command)
 
+    def test_every_outer_runner_enables_manual_signal_forwarding(self):
+        for profile in ("ubuntu-24.04", "container-build"):
+            with self.subTest(profile=profile):
+                recorder = CommandRecorder()
+                controller = MODULE.EphemeralController(
+                    self.policy(), FakeGitHub(), self.root / "state", recorder
+                )
+                if profile == "container-build":
+                    # The contract under test is Docker argv construction, not
+                    # the host's Docker-socket metadata. Socketless CI runners
+                    # deliberately have no /run/docker.sock.
+                    with mock.patch.object(
+                        MODULE.EphemeralController,
+                        "docker_socket_group",
+                        return_value=997,
+                    ):
+                        controller.run_once("f5-sales-demo/fixture", profile)
+                else:
+                    controller.run_once("f5-sales-demo/fixture", profile)
+                command = next(
+                    call[0]
+                    for call in recorder.calls
+                    if call[0][:2] == ["docker", "run"]
+                )
+                self.assertEqual(command.count("RUNNER_MANUALLY_TRAP_SIG=1"), 1)
+                signal_env = command.index("RUNNER_MANUALLY_TRAP_SIG=1")
+                self.assertEqual(command[signal_env - 1], "--env")
+
     def test_engine_below_minimum_fails_before_runner_launch(self):
         recorder = CommandRecorder()
 
