@@ -550,6 +550,10 @@ jobs:
         if: hashFiles('tests/test-workflow-security-validator-integration.sh') != ''
         run: bash tests/test-workflow-security-validator-integration.sh
 
+      - name: Run runner auditor portability test
+        if: hashFiles('tests/test-runner-auditor-portability.sh') != ''
+        run: bash tests/test-runner-auditor-portability.sh
+
       - name: Run runner fleet Python unit tests
         if: hashFiles('tests/test_ephemeral_runner_controller.py') != ''
         run: |
