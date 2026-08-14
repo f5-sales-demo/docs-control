@@ -344,6 +344,9 @@ jobs:
           VALIDATE_BIOME_FORMAT: false
           VALIDATE_BIOME_LINT: false
           LINTER_RULES_PATH: "."
+          # Super-Linter defaults to root actionlint.yml, while the actionlint
+          # CLI's governed convention is .github/actionlint.yaml.
+          GITHUB_ACTIONS_CONFIG_FILE: .github/actionlint.yaml
           # F5 XC API objects also use top-level apiVersion and kind fields.
           # Super-Linter otherwise misclassifies their native YAML sources as
           # Kubernetes. Limit this option to Kubeconform so YAML and security
