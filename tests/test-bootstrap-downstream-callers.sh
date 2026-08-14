@@ -27,6 +27,17 @@ LINT_CALLER_BLOB=$(printf '%s\n' "$LINT_CALLER_TEXT" | git hash-object --stdin)
 LINT_CONFIG_TEXT='self-hosted-runner:\n  labels: [container-build]'
 LINT_CONFIG_CONTENT=$(printf '%s\n' "$LINT_CONFIG_TEXT" | base64 | tr -d '\n')
 LINT_CONFIG_BLOB=$(printf '%s\n' "$LINT_CONFIG_TEXT" | git hash-object --stdin)
+LINT_BUNDLE_BLOB=$(printf 'super-linter=%s\nactionlint=%s\n' \
+  "$LINT_CALLER_BLOB" "$LINT_CONFIG_BLOB" | git hash-object --stdin)
+LINT_BUNDLE_CALLER_CHANGED=$(printf 'super-linter=%s\nactionlint=%s\n' \
+  "$OTHER_SHA" "$LINT_CONFIG_BLOB" | git hash-object --stdin)
+LINT_BUNDLE_CONFIG_CHANGED=$(printf 'super-linter=%s\nactionlint=%s\n' \
+  "$LINT_CALLER_BLOB" "$OTHER_SHA" | git hash-object --stdin)
+if [ "$LINT_BUNDLE_BLOB" = "$LINT_BUNDLE_CALLER_CHANGED" ] ||
+  [ "$LINT_BUNDLE_BLOB" = "$LINT_BUNDLE_CONFIG_CHANGED" ]; then
+  echo "[FAIL] combined lint receipt does not bind both managed inputs"
+  exit 1
+fi
 AUDIT_CALLER_TEXT='name: Translation Audit'
 AUDIT_CALLER_CONTENT=$(printf '%s\n' "$AUDIT_CALLER_TEXT" | base64 | tr -d '\n')
 AUDIT_CALLER_BLOB=$(printf '%s\n' "$AUDIT_CALLER_TEXT" | git hash-object --stdin)
@@ -1039,7 +1050,7 @@ chmod +x "$WORK/bin/gh"
 
 run_bootstrap() {
   local state="$1"
-  local expected_lint_receipt="$LINT_CALLER_BLOB"
+  local expected_lint_receipt="$LINT_BUNDLE_BLOB"
   local expected_audit_receipt="$AUDIT_CALLER_BLOB"
   if [ "${FAKE_SKIP_LINT_CALLER:-}" = 1 ]; then
     expected_lint_receipt=skipped
@@ -1047,11 +1058,15 @@ run_bootstrap() {
   if [ "${FAKE_SKIP_AUDIT_CALLER:-}" = 1 ]; then
     expected_audit_receipt=skipped
   fi
-  local expected_lint_config_receipt="$LINT_CONFIG_BLOB"
-  if [ "${FAKE_SKIP_LINT_CALLER:-}" = 1 ]; then
-    expected_lint_config_receipt=skipped
+  local expected_branch="sync/exact-caller-${CALLER_BLOB}${expected_lint_receipt}${expected_audit_receipt}${LINKED_CALLER_BLOB}"
+  local expected_suffix="${expected_branch#sync/exact-caller-}"
+  if [ "${FAKE_SKIP_LINT_CALLER:-}" != 1 ] &&
+    [ "${FAKE_SKIP_AUDIT_CALLER:-}" != 1 ] &&
+    { [ "${#expected_suffix}" -ne 160 ] ||
+      ! [[ "$expected_suffix" =~ ^[0-9a-f]{160}$ ]]; }; then
+    echo "[FAIL] exact-caller branch no longer matches the downstream 160-hex authorization contract"
+    return 1
   fi
-  local expected_branch="sync/exact-caller-${CALLER_BLOB}${expected_lint_receipt}${expected_lint_config_receipt}${expected_audit_receipt}${LINKED_CALLER_BLOB}"
   env \
     PATH="$WORK/bin:$PATH" \
     GITHUB_REPOSITORY=f5-sales-demo/docs-control \

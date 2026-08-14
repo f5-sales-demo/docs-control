@@ -165,18 +165,32 @@ audit_caller_applies() {
     "$governance_config" >/dev/null
 }
 
+lint_bundle_receipt() {
+  local lint_blob="$1" lint_config_blob="$2" receipt
+  if ! printf '%s' "$lint_blob" | grep -qE '^[0-9a-f]{40}$' ||
+    ! printf '%s' "$lint_config_blob" | grep -qE '^[0-9a-f]{40}$'; then
+    echo "[ERROR] Invalid Super-Linter bundle input receipt" >&2
+    return 1
+  fi
+  receipt=$(printf 'super-linter=%s\nactionlint=%s\n' \
+    "$lint_blob" "$lint_config_blob" | git hash-object --stdin) || return 1
+  if ! printf '%s' "$receipt" | grep -qE '^[0-9a-f]{40}$'; then
+    echo "[ERROR] Invalid Super-Linter bundle receipt" >&2
+    return 1
+  fi
+  printf '%s' "$receipt"
+}
+
 exact_caller_branch_for_repo() {
-  local name="$1" lint_receipt=skipped lint_config_receipt=skipped audit_receipt=skipped
+  local name="$1" lint_receipt=skipped audit_receipt=skipped
   if lint_caller_applies "$name"; then
-    lint_receipt="$expected_lint_blob"
-    lint_config_receipt="$expected_lint_config_blob"
+    lint_receipt="$expected_lint_bundle_blob"
   fi
   if audit_caller_applies "$name"; then
     audit_receipt="$expected_audit_blob"
   fi
-  printf 'sync/exact-caller-%s%s%s%s%s' \
-    "$expected_blob" "$lint_receipt" "$lint_config_receipt" \
-    "$audit_receipt" "$expected_linked_blob"
+  printf 'sync/exact-caller-%s%s%s%s' \
+    "$expected_blob" "$lint_receipt" "$audit_receipt" "$expected_linked_blob"
 }
 
 api_value_or_404() {
@@ -1462,6 +1476,8 @@ if [ "$(git hash-object "$work/lint-config.yaml")" != "$expected_lint_config_blo
   echo "[ERROR] Actionlint config bytes do not match the GitHub blob receipt" >&2
   exit 1
 fi
+expected_lint_bundle_blob=$(lint_bundle_receipt \
+  "$expected_lint_blob" "$expected_lint_config_blob") || exit 1
 set +e
 gh api \
   "repos/${repository}/contents/workflows/translation-audit.yml?ref=${source_sha}" \
