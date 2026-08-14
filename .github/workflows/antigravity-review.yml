@@ -117,6 +117,7 @@ jobs:
           mkdir -p "$tool_dir"
           install -m 0555 "$RUNNER_TEMP/agy-extract/antigravity" "$tool_dir/agy"
           test "$("$tool_dir/agy" --version)" = "$AGY_VERSION"
+          sha512sum "$tool_dir/agy" >"$RUNNER_TEMP/agy-review-bin.sha512"
           printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
 
       - name: Run isolated reviewer and verifier
@@ -142,10 +143,45 @@ jobs:
           eval "$(printf '%s\n' "$keyring_password" | gnome-keyring-daemon --unlock --daemonize --components=secrets)"
           unset keyring_password
           export SSH_AUTH_SOCK GNOME_KEYRING_CONTROL GNOME_KEYRING_PID
-          printf '%s' "${ANTIGRAVITY_TOKEN#go-keyring-base64:}" | base64 -d |
-            python3 -c 'import keyring,sys; keyring.set_password("gemini", "antigravity", sys.stdin.read())'
-          unset ANTIGRAVITY_TOKEN
-          mkdir -p "$HOME/.gemini/antigravity-cli"
+          credential_dir="$HOME/.gemini/antigravity-cli"
+          mkdir -p "$credential_dir"
+          case "$ANTIGRAVITY_TOKEN" in
+            agy-oauth-file-base64:*)
+              credential_payload=${ANTIGRAVITY_TOKEN#agy-oauth-file-base64:}
+              unset ANTIGRAVITY_TOKEN
+              credential_tmp=$(mktemp "$credential_dir/.antigravity-oauth-token.XXXXXX")
+              trap 'rm -f "$credential_tmp"' EXIT
+              if ! printf '%s' "$credential_payload" | base64 -d >"$credential_tmp"; then
+                echo "[review] ANTIGRAVITY_TOKEN contains invalid base64" >&2
+                exit 1
+              fi
+              unset credential_payload
+              if ! jq -e '
+                (type == "object") and
+                (.auth_method == "gcp") and
+                (.token | type == "object") and
+                (.token.refresh_token | type == "string" and length > 0)
+              ' "$credential_tmp" >/dev/null; then
+                echo "[review] ANTIGRAVITY_TOKEN contains an invalid GCP OAuth document" >&2
+                exit 1
+              fi
+              chmod 0600 "$credential_tmp"
+              mv "$credential_tmp" "$credential_dir/antigravity-oauth-token"
+              trap - EXIT
+              ;;
+            go-keyring-base64:*)
+              credential_payload=${ANTIGRAVITY_TOKEN#go-keyring-base64:}
+              unset ANTIGRAVITY_TOKEN
+              printf '%s' "$credential_payload" | base64 -d |
+                python3 -c 'import keyring,sys; keyring.set_password("gemini", "antigravity", sys.stdin.read())'
+              unset credential_payload
+              ;;
+            *)
+              unset ANTIGRAVITY_TOKEN
+              echo "[review] unsupported ANTIGRAVITY_TOKEN format" >&2
+              exit 1
+              ;;
+          esac
           jq -n --arg project "$GCP_PROJECT_ID" --arg workspace "$GITHUB_WORKSPACE" '{
             gcp: {project: $project, location: "global"},
             model: "Gemini 3.6 Flash (High)",
@@ -165,8 +201,8 @@ jobs:
               verifier: {verdict: "needs-attention", summary: "Independent verification was unavailable.", findings: [], next_steps: ["Rerun after repairing review execution."]}
             }' >"$RUNNER_TEMP/review-artifact/report.json"
           fi
-          test "$(agy --version)" = "$AGY_VERSION"
           INNER
+          sha512sum --check --strict "$RUNNER_TEMP/agy-review-bin.sha512"
           jq --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" \
             --arg head "$HEAD_SHA" --arg workflow "$GITHUB_WORKFLOW_SHA" \
             --arg version "$AGY_VERSION" --arg status "$(cat "$RUNNER_TEMP/review-artifact/tool-status")" '. + {
