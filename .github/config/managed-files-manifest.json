@@ -1,17 +1,17 @@
 {
-  "source_commit": "cc9f083ffff9ae1cd761c06504e81239ee0d5951",
+  "source_commit": "2877fc8c704151720c4c2c4ab5c566a682605813",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
       "dest": ".github/workflows/github-pages-deploy.yml",
-      "sha": "ec649e4e1794a8986a7cbfef1dda6903d7700798",
+      "sha": "d00b1b6830dda1a95edfd630257c937d5f3e3298",
       "size": 855,
       "mode": "100644"
     },
     ".github/workflows/enforce-repo-settings.yml": {
       "src": "workflows/enforce-repo-settings.yml",
       "dest": ".github/workflows/enforce-repo-settings.yml",
-      "sha": "bb8531e230571486ecee109c8e798f21ae08457b",
+      "sha": "a88f9f1498647dd76b45ba898a19b62fdce1d803",
       "size": 11879,
       "mode": "100644"
     },
@@ -25,57 +25,57 @@
     ".github/workflows/super-linter.yml": {
       "src": "workflows/super-linter.yml",
       "dest": ".github/workflows/super-linter.yml",
-      "sha": "b8806a4a047aee0f0e88d624b9d14958cbebe38c",
+      "sha": "8d06f72bb4aa32e9c0c1f25607ccd3e3e1be1ed3",
       "size": 913,
       "mode": "100644"
     },
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
       "dest": ".github/workflows/translation-audit.yml",
-      "sha": "d9a98680ac22557d4af42f49855c6d1098ee23b3",
+      "sha": "9510dde3d0b10aeb43c10b010be4e1e17c87d531",
       "size": 1241,
       "mode": "100644"
     },
     ".github/workflows/antigravity-review.yml": {
       "src": "workflows/antigravity-review.yml",
       "dest": ".github/workflows/antigravity-review.yml",
-      "sha": "6dda907c933aac59ec8132803fe004454dcb92f9",
+      "sha": "ddceefb087f29827f1a4094f33a6170fc69399a1",
       "size": 1309,
       "mode": "100644"
     },
     ".github/workflows/antigravity-translate.yml": {
       "src": "workflows/antigravity-translate.yml",
       "dest": ".github/workflows/antigravity-translate.yml",
-      "sha": "f6de1677aa2c6ba61b91a0d80067cd6e1e63be4e",
+      "sha": "b0110aa1490a90af7c388146c72adeea41df5e16",
       "size": 1620,
       "mode": "100644"
     },
     ".github/PULL_REQUEST_TEMPLATE.md": {
       "src": ".github/PULL_REQUEST_TEMPLATE.md",
       "dest": ".github/PULL_REQUEST_TEMPLATE.md",
-      "sha": "c6c6f6cc5a4c7a21119d032c855d5b6312b6a67e",
-      "size": 1175,
+      "sha": "8fa6f0db7f0affe53fb029e29894493c7eea0224",
+      "size": 1190,
       "mode": "100644"
     },
     ".github/ISSUE_TEMPLATE/bug_report.md": {
       "src": ".github/ISSUE_TEMPLATE/bug_report.md",
       "dest": ".github/ISSUE_TEMPLATE/bug_report.md",
-      "sha": "d51d74cc7558236c7f529dd15f6527d1e7cf0ac5",
-      "size": 826,
+      "sha": "d9a3cf932abdc3fcbc004b0ae76e3de5edd8ecfe",
+      "size": 845,
       "mode": "100644"
     },
     ".github/ISSUE_TEMPLATE/feature_request.md": {
       "src": ".github/ISSUE_TEMPLATE/feature_request.md",
       "dest": ".github/ISSUE_TEMPLATE/feature_request.md",
-      "sha": "a38b0eacaa10174b24a6495907cd0480f4f29290",
-      "size": 750,
+      "sha": "ecdb5a3a6dc83a975f36946f0c826152da46498a",
+      "size": 756,
       "mode": "100644"
     },
     ".github/ISSUE_TEMPLATE/documentation.md": {
       "src": ".github/ISSUE_TEMPLATE/documentation.md",
       "dest": ".github/ISSUE_TEMPLATE/documentation.md",
-      "sha": "db50c506b418db5f3c15832d36b0ea853c2a3310",
-      "size": 536,
+      "sha": "c3c4dd7402ee9395899f757afba117eb36c9443d",
+      "size": 739,
       "mode": "100644"
     },
     ".github/ISSUE_TEMPLATE/config.yml": {
@@ -88,8 +88,8 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "e87fd8aea9cc7167acb30ac396ab610f8a442b0a",
-      "size": 36710,
+      "sha": "0f409cfc68c3c43b7a279aaeab02d6ff30690145",
+      "size": 36761,
       "mode": "100644"
     },
     "CLAUDE.md": {
@@ -186,7 +186,7 @@
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "a7d06683c332087d93766423501891579add43c7",
+      "sha": "f541c8119c22c6e01127e1a0b7da2b573fe2fdf3",
       "size": 3158,
       "mode": "100644"
     },
@@ -277,8 +277,8 @@
     ".ruff.toml": {
       "src": ".ruff.toml",
       "dest": ".ruff.toml",
-      "sha": "2cb29e64ca6efb19613acc987061d8aac532f68c",
-      "size": 2117,
+      "sha": "5fcf5fc9eb2f6f958a16db01865a7d4195968214",
+      "size": 2129,
       "mode": "100644"
     },
     ".isort.cfg": {
@@ -417,8 +417,8 @@
     "tests/test-github-api-resilience.sh": {
       "src": "tests/test-github-api-resilience.sh",
       "dest": "tests/test-github-api-resilience.sh",
-      "sha": "28127d854cb1e82513f13416fdd41a46008c7a24",
-      "size": 22793,
+      "sha": "a9c1ea7a474310459e2e21f14c219887884eee0f",
+      "size": 23023,
       "mode": "100644"
     },
     "tests/test-translation-release-policy.sh": {
@@ -438,8 +438,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "71feccc53726c1c3dc3397f8b7a61ef15901f7d5",
-      "size": 6470,
+      "sha": "38fa3f0c04655e444b2525d490b910729b4426a2",
+      "size": 6568,
       "mode": "100644"
     },
     ".claude/settings.json": {
@@ -456,11 +456,11 @@
       "size": 3882,
       "mode": "100755"
     },
-    "actionlint.yml": {
-      "src": "actionlint.yml",
-      "dest": "actionlint.yml",
-      "sha": "ebb907db28a2fe388b04e428efc70813e60a6e01",
-      "size": 834,
+    ".github/actionlint.yaml": {
+      "src": ".github/actionlint.yaml",
+      "dest": ".github/actionlint.yaml",
+      "sha": "d075c99b031f046b1b9b07713e2598aacbb38098",
+      "size": 1019,
       "mode": "100644"
     },
     ".github/workflows/workflow-security-audit.yml": {
@@ -480,8 +480,8 @@
     "scripts/audit-runner-workflows.py": {
       "src": "scripts/audit-runner-workflows.py",
       "dest": "scripts/audit-runner-workflows.py",
-      "sha": "ebb8ede0baa5fe8ff07a14412a18c8c6837a85df",
-      "size": 12900,
+      "sha": "16cee13a33890f0454b05a4943ee96197db49756",
+      "size": 13199,
       "mode": "100755"
     },
     ".github/config/self-hosted-runner-policy.json": {

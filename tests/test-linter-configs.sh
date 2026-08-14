@@ -71,6 +71,37 @@ else
     "self-hosted-runner.labels must contain the exact governed labels"
 fi
 
+if jq -e '
+  [.managed_files.files[] |
+    select(.src == ".github/actionlint.yaml" and .dest == ".github/actionlint.yaml")] |
+  length == 1
+' "$REPO_SETTINGS" >/dev/null; then
+  pass "2.2 canonical actionlint config has one managed path mapping"
+else
+  fail "2.2 canonical actionlint config has one managed path mapping" \
+    "repo-settings must manage .github/actionlint.yaml at the same destination"
+fi
+
+if jq -e '
+  (.protected_files | index(".github/actionlint.yaml") != null) and
+  (.protected_files | index("actionlint.yml") == null)
+' "$REPO_ROOT/.claude/governance.json" >/dev/null; then
+  pass "2.3 governance protects only the canonical actionlint config"
+else
+  fail "2.3 governance protects only the canonical actionlint config" \
+    "replace the retired root path with .github/actionlint.yaml"
+fi
+
+if jq -e '
+  (.managed_files.absent_files | index("actionlint.yml") != null) and
+  ([.managed_files.files[] | select(.src == "actionlint.yml" or .dest == "actionlint.yml")] | length == 0)
+' "$REPO_SETTINGS" >/dev/null; then
+  pass "2.4 root actionlint.yml is explicitly retired downstream"
+else
+  fail "2.4 root actionlint.yml is explicitly retired downstream" \
+    "root actionlint.yml must be absent and have no managed-file mapping"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 3: TOML Parse Validity (Python lint configs)
 # ════════════════════════════════════════════════════════════════════
@@ -90,6 +121,23 @@ if "${TOML_VALIDATOR[@]}" >/dev/null 2>&1; then
   pass "3.x .ruff.toml is valid TOML"
 else
   fail "3.x .ruff.toml is valid TOML" "no available validator could parse it"
+fi
+
+if python3 - "$REPO_ROOT/.ruff.toml" <<'PY'; then
+import sys
+import tomllib
+
+with open(sys.argv[1], "rb") as config_file:
+    config = tomllib.load(config_file)
+
+lint = config["lint"]
+script_ignores = lint["per-file-ignores"]["scripts/**"]
+raise SystemExit(0 if "N999" in script_ignores and "N999" not in lint["ignore"] else 1)
+PY
+  pass "3.1 hyphenated Python CLI filenames are allowed only under scripts"
+else
+  fail "3.1 hyphenated Python CLI filenames are allowed only under scripts" \
+    "scripts/** must ignore N999 without disabling it globally"
 fi
 
 # ════════════════════════════════════════════════════════════════════
@@ -492,6 +540,26 @@ if grep -qE '^[[:space:]]*VALIDATE_RUST_[0-9]+:' "$SL_YML"; then
     "Rust validator keys belong in GITHUB_ENV, not the static action env"
 else
   pass "5e.4 the Super-Linter env does not mix include and exclude modes"
+fi
+
+if grep -qE \
+  '^[[:space:]]*GITHUB_ACTIONS_CONFIG_FILE:[[:space:]]+\.github/actionlint\.yaml$' \
+  "$SL_YML"; then
+  pass "5e.4a Super-Linter actionlint loads the governed custom-runner labels"
+else
+  fail "5e.4a Super-Linter actionlint loads the governed custom-runner labels" \
+    "GITHUB_ACTIONS_CONFIG_FILE must select .github/actionlint.yaml"
+fi
+
+if grep -qF \
+  'rhysd/actionlint@sha256:435ecdb63b1169e80ca3e136290072548c07fc4d76a044cf5541021712f8f344' \
+  "$SL_YML" &&
+  grep -qF -- '--user "$(id -u):$(id -g)"' "$SL_YML" &&
+  grep -qE '^[[:space:]]*VALIDATE_GITHUB_ACTIONS:[[:space:]]+false$' "$SL_YML"; then
+  pass "5e.4b actionlint is pinned outside Super-Linter"
+else
+  fail "5e.4b actionlint is pinned outside Super-Linter" \
+    "the bundled actionlint regression can hang on managed inline workflows"
 fi
 
 # Each entry below is an explicit "not relevant" decision captured with

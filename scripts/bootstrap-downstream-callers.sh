@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Deliver the exact enforcement, Super-Linter, translation-audit, and linked-issue
-# workflows through bounded, monotonic PRs before reusable governance is invoked.
+# Deliver the exact enforcement, Super-Linter, actionlint config, translation-audit,
+# and linked-issue workflows through bounded, monotonic PRs before reusable
+# governance is invoked.
 set -euo pipefail
 
 repository="${GITHUB_REPOSITORY:-}"
@@ -13,6 +14,7 @@ repo_settings_config="${REPO_SETTINGS_CONFIG:-.github/config/repo-settings.json}
 governance_config="${GOVERNANCE_CONFIG:-.claude/governance.json}"
 caller_path=".github/workflows/enforce-repo-settings.yml"
 lint_caller_path=".github/workflows/super-linter.yml"
+lint_config_path=".github/actionlint.yaml"
 audit_caller_path=".github/workflows/translation-audit.yml"
 linked_caller_path=".github/workflows/require-linked-issue.yml"
 linked_context="Check linked issues"
@@ -164,15 +166,17 @@ audit_caller_applies() {
 }
 
 exact_caller_branch_for_repo() {
-  local name="$1" lint_receipt=skipped audit_receipt=skipped
+  local name="$1" lint_receipt=skipped lint_config_receipt=skipped audit_receipt=skipped
   if lint_caller_applies "$name"; then
     lint_receipt="$expected_lint_blob"
+    lint_config_receipt="$expected_lint_config_blob"
   fi
   if audit_caller_applies "$name"; then
     audit_receipt="$expected_audit_blob"
   fi
-  printf 'sync/exact-caller-%s%s%s%s' \
-    "$expected_blob" "$lint_receipt" "$audit_receipt" "$expected_linked_blob"
+  printf 'sync/exact-caller-%s%s%s%s%s' \
+    "$expected_blob" "$lint_receipt" "$lint_config_receipt" \
+    "$audit_receipt" "$expected_linked_blob"
 }
 
 api_value_or_404() {
@@ -1017,6 +1021,8 @@ recover_linked_transition_receipt() {
   if lint_caller_applies "$name"; then
     actual=$(gh api "repos/${slug}/contents/${lint_caller_path}?ref=${head}" --jq '.sha')
     [ "$actual" = "$expected_lint_blob" ] || return 1
+    actual=$(gh api "repos/${slug}/contents/${lint_config_path}?ref=${head}" --jq '.sha')
+    [ "$actual" = "$expected_lint_config_blob" ] || return 1
   fi
   if audit_caller_applies "$name"; then
     actual=$(gh api "repos/${slug}/contents/${audit_caller_path}?ref=${head}" --jq '.sha')
@@ -1427,6 +1433,37 @@ if [ "$(git hash-object "$work/lint-caller.yml")" != "$expected_lint_blob" ]; th
 fi
 set +e
 gh api \
+  "repos/${repository}/contents/${lint_config_path}?ref=${source_sha}" \
+  >"$work/lint-config.json"
+rc=$?
+set -e
+if [ "$rc" -eq 84 ]; then
+  exit 84
+fi
+if [ "$rc" -ne 0 ]; then
+  echo "[ERROR] Could not fetch the exact actionlint config" >&2
+  exit 1
+fi
+if ! jq -e '
+  .type == "file" and .encoding == "base64" and
+  (.sha | type == "string" and test("^[0-9a-f]{40}$")) and
+  (.content | type == "string" and length > 0)
+' "$work/lint-config.json" >/dev/null; then
+  echo "[ERROR] Actionlint config response is malformed" >&2
+  exit 1
+fi
+expected_lint_config_blob=$(jq -r '.sha' "$work/lint-config.json")
+jq -r '.content' "$work/lint-config.json" | tr -d '\n' >"$work/lint-config.b64"
+if ! base64 -d <"$work/lint-config.b64" >"$work/lint-config.yaml"; then
+  echo "[ERROR] Actionlint config response contains invalid base64" >&2
+  exit 1
+fi
+if [ "$(git hash-object "$work/lint-config.yaml")" != "$expected_lint_config_blob" ]; then
+  echo "[ERROR] Actionlint config bytes do not match the GitHub blob receipt" >&2
+  exit 1
+fi
+set +e
+gh api \
   "repos/${repository}/contents/workflows/translation-audit.yml?ref=${source_sha}" \
   >"$work/audit-caller.json"
 rc=$?
@@ -1537,13 +1574,15 @@ echo "[OK] Downstream enforcement workflows are disabled with no active runs"
 
 bootstrap_one() {
   local name="$1" slug default_branch base_sha main_sha actual_blob actual_lint_blob
-  local actual_audit_blob actual_linked_blob protection_state rc branch_head branch_blob
-  local branch_lint_blob branch_audit_blob branch_linked_blob
+  local actual_lint_config_blob actual_audit_blob actual_linked_blob protection_state rc
+  local branch_head branch_blob branch_lint_blob branch_lint_config_blob
+  local branch_audit_blob branch_linked_blob
   local expected_change_count first_repo=false
-  local branch manages_lint_caller=true lint_caller_exact=true
+  local branch manages_lint_caller=true lint_caller_exact=true lint_config_exact=true
   local manages_audit_caller=true audit_caller_exact=true
   local pr_number pr_url pr_body created_pr_number compare_file pr_file verified_head verified_blob
-  local verified_lint_blob verified_audit_blob verified_linked_blob transition_checks
+  local verified_lint_blob verified_lint_config_blob verified_audit_blob
+  local verified_linked_blob transition_checks
   local base_commit_file base_tree_sha refresh_tree_file refresh_tree_sha refresh_commit_file
   local refresh_head refresh_ref_file current_base_sha current_branch_head
   slug="${owner}/${name}"
@@ -1578,6 +1617,7 @@ bootstrap_one() {
   *) return 1 ;;
   esac
   actual_lint_blob=""
+  actual_lint_config_blob=""
   if [ "$manages_lint_caller" = true ]; then
     set +e
     actual_lint_blob=$(api_value_or_404 \
@@ -1596,6 +1636,23 @@ bootstrap_one() {
     *) return 1 ;;
     esac
     [ "$actual_lint_blob" = "$expected_lint_blob" ] || lint_caller_exact=false
+    set +e
+    actual_lint_config_blob=$(api_value_or_404 \
+      "repos/${slug}/contents/${lint_config_path}?ref=${main_sha}" '.sha')
+    rc=$?
+    set -e
+    case "$rc" in
+    0)
+      if ! printf '%s' "$actual_lint_config_blob" | grep -qE '^[0-9a-f]{40}$'; then
+        echo "[ERROR] Invalid live actionlint config blob for ${name}" >&2
+        return 1
+      fi
+      ;;
+    44) actual_lint_config_blob="" ;;
+    84) return 84 ;;
+    *) return 1 ;;
+    esac
+    [ "$actual_lint_config_blob" = "$expected_lint_config_blob" ] || lint_config_exact=false
   fi
   actual_audit_blob=""
   if [ "$manages_audit_caller" = true ]; then
@@ -1634,7 +1691,8 @@ bootstrap_one() {
   *) return 1 ;;
   esac
   if [ -z "$actual_blob" ] && [ -z "$actual_linked_blob" ] &&
-    { [ "$manages_lint_caller" = false ] || [ -z "$actual_lint_blob" ]; } &&
+    { [ "$manages_lint_caller" = false ] ||
+      { [ -z "$actual_lint_blob" ] && [ -z "$actual_lint_config_blob" ]; }; } &&
     { [ "$manages_audit_caller" = false ] || [ -z "$actual_audit_blob" ]; }; then
     first_repo=true
   fi
@@ -1644,6 +1702,7 @@ bootstrap_one() {
   fi
   if [ "$actual_blob" = "$expected_blob" ] &&
     [ "$lint_caller_exact" = true ] &&
+    [ "$lint_config_exact" = true ] &&
     [ "$audit_caller_exact" = true ] &&
     [ "$actual_linked_blob" = "$expected_linked_blob" ]; then
     return 0
@@ -1658,6 +1717,7 @@ bootstrap_one() {
   expected_change_count=0
   [ "$actual_blob" = "$expected_blob" ] || expected_change_count=$((expected_change_count + 1))
   [ "$lint_caller_exact" = true ] || expected_change_count=$((expected_change_count + 1))
+  [ "$lint_config_exact" = true ] || expected_change_count=$((expected_change_count + 1))
   [ "$audit_caller_exact" = true ] || expected_change_count=$((expected_change_count + 1))
   [ "$actual_linked_blob" = "$expected_linked_blob" ] || expected_change_count=$((expected_change_count + 1))
   default_branch=$(gh api "repos/${slug}" --jq '.default_branch')
@@ -1717,6 +1777,7 @@ bootstrap_one() {
   esac
 
   branch_lint_blob=""
+  branch_lint_config_blob=""
   if [ "$manages_lint_caller" = true ]; then
     set +e
     branch_lint_blob=$(api_value_or_404 \
@@ -1731,6 +1792,22 @@ bootstrap_one() {
       fi
       ;;
     44) branch_lint_blob="" ;;
+    84) return 84 ;;
+    *) return 1 ;;
+    esac
+    set +e
+    branch_lint_config_blob=$(api_value_or_404 \
+      "repos/${slug}/contents/${lint_config_path}?ref=${branch_head}" '.sha')
+    rc=$?
+    set -e
+    case "$rc" in
+    0)
+      if ! printf '%s' "$branch_lint_config_blob" | grep -qE '^[0-9a-f]{40}$'; then
+        echo "[ERROR] Invalid bootstrap actionlint config blob for ${name}" >&2
+        return 1
+      fi
+      ;;
+    44) branch_lint_config_blob="" ;;
     84) return 84 ;;
     *) return 1 ;;
     esac
@@ -1776,6 +1853,8 @@ bootstrap_one() {
   if { [ "$branch_blob" != "$expected_blob" ] ||
     { [ "$manages_lint_caller" = true ] &&
       [ "$branch_lint_blob" != "$expected_lint_blob" ]; } ||
+    { [ "$manages_lint_caller" = true ] &&
+      [ "$branch_lint_config_blob" != "$expected_lint_config_blob" ]; } ||
     { [ "$manages_audit_caller" = true ] &&
       [ "$branch_audit_blob" != "$expected_audit_blob" ]; } ||
     [ "$branch_linked_blob" != "$expected_linked_blob" ]; } &&
@@ -1806,6 +1885,19 @@ bootstrap_one() {
        if .sha == "" then del(.sha) else . end' >"$work/update-lint-${name}.json"
     gh api "repos/${slug}/contents/${lint_caller_path}" \
       --method PUT --input "$work/update-lint-${name}.json" >/dev/null
+    branch_head=$(gh api "repos/${slug}/git/ref/heads/${branch}" --jq '.object.sha')
+  fi
+  if [ "$manages_lint_caller" = true ] &&
+    [ "$branch_lint_config_blob" != "$expected_lint_config_blob" ]; then
+    jq -n \
+      --arg message "chore(governance): bootstrap exact actionlint config" \
+      --arg branch "$branch" \
+      --arg sha "$branch_lint_config_blob" \
+      --rawfile content "$work/lint-config.b64" \
+      '{message: $message, content: $content, branch: $branch, sha: $sha} |
+       if .sha == "" then del(.sha) else . end' >"$work/update-lint-config-${name}.json"
+    gh api "repos/${slug}/contents/${lint_config_path}" \
+      --method PUT --input "$work/update-lint-config-${name}.json" >/dev/null
     branch_head=$(gh api "repos/${slug}/git/ref/heads/${branch}" --jq '.object.sha')
   fi
   if [ "$manages_audit_caller" = true ] &&
@@ -1847,6 +1939,8 @@ bootstrap_one() {
     fi
     if ! jq -e --arg path "$caller_path" --arg blob "$expected_blob" \
       --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
+      --arg lint_config_path "$lint_config_path" \
+      --arg lint_config_blob "$expected_lint_config_blob" \
       --arg audit_path "$audit_caller_path" --arg audit_blob "$expected_audit_blob" \
       --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" \
       --argjson manages_lint "$manages_lint_caller" \
@@ -1857,6 +1951,8 @@ bootstrap_one() {
       all(.files[];
         ((.filename == $path and .sha == $blob) or
          ($manages_lint and .filename == $lint_path and .sha == $lint_blob) or
+         ($manages_lint and .filename == $lint_config_path and
+           .sha == $lint_config_blob) or
          ($manages_audit and .filename == $audit_path and .sha == $audit_blob) or
          (.filename == $linked_path and .sha == $linked_blob)) and
         (.status == "added" or .status == "modified"))
@@ -1878,6 +1974,8 @@ bootstrap_one() {
     jq -n --arg base_tree "$base_tree_sha" \
       --arg path "$caller_path" --arg blob "$expected_blob" \
       --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
+      --arg lint_config_path "$lint_config_path" \
+      --arg lint_config_blob "$expected_lint_config_blob" \
       --arg audit_path "$audit_caller_path" --arg audit_blob "$expected_audit_blob" \
       --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" \
       --argjson manages_lint "$manages_lint_caller" \
@@ -1887,7 +1985,9 @@ bootstrap_one() {
         tree: (
           [{path: $path, mode: "100644", type: "blob", sha: $blob}] +
           (if $manages_lint then
-            [{path: $lint_path, mode: "100644", type: "blob", sha: $lint_blob}]
+            [{path: $lint_path, mode: "100644", type: "blob", sha: $lint_blob},
+             {path: $lint_config_path, mode: "100644", type: "blob",
+              sha: $lint_config_blob}]
           else [] end) +
           (if $manages_audit then
             [{path: $audit_path, mode: "100644", type: "blob", sha: $audit_blob}]
@@ -1958,6 +2058,8 @@ bootstrap_one() {
   fi
   if ! jq -e --arg path "$caller_path" --arg blob "$expected_blob" \
     --arg lint_path "$lint_caller_path" --arg lint_blob "$expected_lint_blob" \
+    --arg lint_config_path "$lint_config_path" \
+    --arg lint_config_blob "$expected_lint_config_blob" \
     --arg audit_path "$audit_caller_path" --arg audit_blob "$expected_audit_blob" \
     --arg linked_path "$linked_caller_path" --arg linked_blob "$expected_linked_blob" \
     --argjson manages_lint "$manages_lint_caller" \
@@ -1969,6 +2071,8 @@ bootstrap_one() {
     all(.files[];
       ((.filename == $path and .sha == $blob) or
        ($manages_lint and .filename == $lint_path and .sha == $lint_blob) or
+       ($manages_lint and .filename == $lint_config_path and
+         .sha == $lint_config_blob) or
        ($manages_audit and .filename == $audit_path and .sha == $audit_blob) or
        (.filename == $linked_path and .sha == $linked_blob)) and
       (.status == "added" or .status == "modified"))
@@ -1980,9 +2084,9 @@ bootstrap_one() {
   pr_number="$bootstrap_pr_number"
   created_pr_number=""
   if [ -z "$pr_number" ]; then
-    pr_body="Installs the exact enforcement, Super-Linter, translation-audit, and linked-issue workflows before fleet enforcement resumes. The sync/ branch uses the governed automation exemption from linked-issue enforcement."
+    pr_body="Installs the exact enforcement, Super-Linter, actionlint config, translation-audit, and linked-issue workflows before fleet enforcement resumes. The sync/ branch uses the governed automation exemption from linked-issue enforcement."
     if [ "$first_repo" = true ]; then
-      pr_body="Installs the exact enforcement, Super-Linter, translation-audit, and linked-issue workflows for a first governed repository. Classic branch protection temporarily requires only real checks available on the bootstrap PR; the canonical linked-issue context is restored only after its default-branch workflow reports a real success."
+      pr_body="Installs the exact enforcement, Super-Linter, actionlint config, translation-audit, and linked-issue workflows for a first governed repository. Classic branch protection temporarily requires only real checks available on the bootstrap PR; the canonical linked-issue context is restored only after its default-branch workflow reports a real success."
     fi
     pr_url=$(gh pr create \
       --repo "$slug" \
@@ -2008,6 +2112,7 @@ bootstrap_one() {
   gh pr view "$pr_number" --repo "$slug" \
     --json baseRefName,headRefName,headRefOid,files,commits >"$pr_file"
   if ! jq -e --arg path "$caller_path" --arg lint_path "$lint_caller_path" \
+    --arg lint_config_path "$lint_config_path" \
     --arg audit_path "$audit_caller_path" \
     --arg linked_path "$linked_caller_path" \
     --arg base "$default_branch" --arg head "$branch" --arg oid "$branch_head" \
@@ -2018,6 +2123,7 @@ bootstrap_one() {
     (.commits | length) >= $change_count and (.files | length) == $change_count and
     all(.files[];
       .path == $path or ($manages_lint and .path == $lint_path) or
+      ($manages_lint and .path == $lint_config_path) or
       ($manages_audit and .path == $audit_path) or
       .path == $linked_path)
   ' "$pr_file" >/dev/null; then
@@ -2048,6 +2154,12 @@ bootstrap_one() {
       "repos/${slug}/contents/${lint_caller_path}?ref=${verified_head}" --jq '.sha')
     if [ "$verified_lint_blob" != "$expected_lint_blob" ]; then
       echo "[ERROR] Super-Linter caller changed after exact PR verification for ${name}" >&2
+      return 1
+    fi
+    verified_lint_config_blob=$(gh api \
+      "repos/${slug}/contents/${lint_config_path}?ref=${verified_head}" --jq '.sha')
+    if [ "$verified_lint_config_blob" != "$expected_lint_config_blob" ]; then
+      echo "[ERROR] Actionlint config changed after exact PR verification for ${name}" >&2
       return 1
     fi
   fi
@@ -2219,6 +2331,24 @@ while true; do
           exit 1
         fi
         [ "$live_lint_blob" = "$expected_lint_blob" ] || pending=$((pending + 1))
+        ;;
+      44) pending=$((pending + 1)) ;;
+      84) exit 84 ;;
+      *) exit 1 ;;
+      esac
+      set +e
+      live_lint_config_blob=$(api_value_or_404 \
+        "repos/${slug}/contents/${lint_config_path}?ref=${main_sha}" '.sha')
+      rc=$?
+      set -e
+      case "$rc" in
+      0)
+        if ! printf '%s' "$live_lint_config_blob" | grep -qE '^[0-9a-f]{40}$'; then
+          echo "[ERROR] Invalid live actionlint config receipt while verifying ${name}" >&2
+          exit 1
+        fi
+        [ "$live_lint_config_blob" = "$expected_lint_config_blob" ] ||
+          pending=$((pending + 1))
         ;;
       44) pending=$((pending + 1)) ;;
       84) exit 84 ;;
