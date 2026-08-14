@@ -1,5 +1,5 @@
 {
-  "source_commit": "55990306b63dd0df16ea139446beef77e9b95f82",
+  "source_commit": "3b24ba35402244699b416e234796e04e8e8dbb09",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -487,8 +487,8 @@
     ".github/config/self-hosted-runner-policy.json": {
       "src": ".github/config/self-hosted-runner-policy.json",
       "dest": ".github/config/self-hosted-runner-policy.json",
-      "sha": "e498138b58e1440b857aa6bfdd104d3480a627b7",
-      "size": 13258,
+      "sha": "2836bf8d999bf1c42483807f5cc56d5c5ee89680",
+      "size": 13634,
       "mode": "100644"
     },
     ".github/workflows/semgrep.yml": {
