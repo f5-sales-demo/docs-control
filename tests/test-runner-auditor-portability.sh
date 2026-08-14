@@ -8,6 +8,18 @@ uvx --from 'ruff==0.15.17' ruff format --check --isolated \
   --config 'line-length = 88' "$auditor"
 uvx --from 'ruff==0.15.17' ruff format --check --isolated \
   --config 'line-length = 120' "$auditor"
+
+# Some governed repositories make scripts/ an importable package. In that
+# context Ruff evaluates managed CLI filenames as modules, so the auditor must
+# carry its own portability exception instead of relying on docs-control's
+# per-file config.
+portability_root=$(mktemp -d)
+trap 'rm -rf "$portability_root"' EXIT
+mkdir -p "$portability_root/scripts"
+cp "$auditor" "$portability_root/scripts/audit-runner-workflows.py"
+touch "$portability_root/scripts/__init__.py"
+uvx --from 'ruff==0.15.17' ruff check --isolated \
+  --select N999 "$portability_root/scripts"
 uvx --from 'pylint==4.0.6' pylint \
   --disable=all \
   --enable=import-error,unused-argument \
