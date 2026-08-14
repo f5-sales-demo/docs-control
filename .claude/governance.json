@@ -79,6 +79,7 @@
     "scripts/agy-review.sh",
     "scripts/agy-review-output.schema.json",
     "scripts/run-with-progress.sh",
+    "scripts/collect-antigravity-fleet-state.sh",
     "scripts/github-api-resilience.cjs",
     "scripts/configure-antigravity-controls.cjs",
     "scripts/agy-triage-output.schema.json",
