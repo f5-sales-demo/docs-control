@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 SPEC = importlib.util.spec_from_file_location(
@@ -26,7 +27,7 @@ class WorkflowAuditTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / ".github/workflows").mkdir(parents=True)
         self.policy = self.root / "policy.json"
-        self.data = {
+        self.data: dict[str, Any] = {
             "schema_version": 3,
             "docker": {
                 "socket": "/run/docker.sock",
@@ -177,6 +178,48 @@ jobs:
 """
         )
         self.assertEqual(self.audit(), [])
+
+    def test_equivalent_profiles_can_share_a_scheduling_label(self):
+        self.data["profiles"]["ubuntu-24.04-secondary"] = dict(
+            self.data["profiles"]["ubuntu-24.04"]
+        )
+        self.write_policy()
+        self.write_workflow(
+            """name: Docker
+on:
+  pull_request:
+jobs:
+  trust-gate:
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
+    steps:
+      - run: true
+  build:
+    needs: trust-gate
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Linux, X64, fixture, container-build]
+    steps:
+      - run: docker version
+"""
+        )
+        self.assertEqual(self.audit(), [])
+
+    def test_same_label_profiles_must_be_equivalent(self):
+        secondary = dict(self.data["profiles"]["ubuntu-24.04"])
+        secondary["memory"] = "8g"
+        self.data["profiles"]["ubuntu-24.04-secondary"] = secondary
+        self.write_policy()
+        self.write_workflow(
+            """name: CI
+on: [push]
+jobs:
+  test:
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
+    steps:
+      - run: true
+"""
+        )
+        errors = self.audit()
+        self.assertTrue(any("canonical repository route" in item for item in errors))
 
     def test_super_linter_requires_container_build_profile(self):
         self.write_workflow(
