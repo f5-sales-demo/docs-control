@@ -399,6 +399,16 @@ class EphemeralController:
         """Return the host-visible action workspace for one ephemeral runner."""
         return self.base_dir / "workspaces" / spec.name / profile.name / str(slot)
 
+    def cleanup_lock_path(self, spec, profile, slot):
+        """Return the lock dedicated to one runner's container cleanup.
+
+        Container inventory is global, but every cleanup action below is scoped to
+        the exact repository/profile/slot workspace.  A fleet-wide lock therefore
+        turns one slow workspace into head-of-line blocking for unrelated runners.
+        The validated identifiers make this filename safe beneath ``base_dir``.
+        """
+        return self.base_dir / f".cleanup-{spec.name}-{profile.name}-{slot}.lock"
+
     @staticmethod
     def container_name(spec, profile, slot):
         return f"gha-{spec.name}-{profile.name}-{slot}"
@@ -651,7 +661,7 @@ class EphemeralController:
                 )
 
     def cleanup(self, spec, profile, slot):
-        lock_path = self.base_dir / ".cleanup.lock"
+        lock_path = self.cleanup_lock_path(spec, profile, slot)
         try:
             descriptor = os.open(
                 lock_path,
