@@ -566,11 +566,14 @@ cp "$ARCHIVE_FIXTURE" "$output"
     path.join(bin, 'sha512sum'),
     `#!/usr/bin/env bash
 set -euo pipefail
-test "$1" = --check
-test "$2" = --strict
-read -r expected file
-actual=$(/usr/bin/shasum -a 512 "$file" | awk '{print $1}')
-test "$actual" = "$expected"
+if [ "\${1:-}" = --check ]; then
+  test "$2" = --strict
+  read -r expected file
+  actual=$(/usr/bin/shasum -a 512 "$file" | awk '{print $1}')
+  test "$actual" = "$expected"
+else
+  /usr/bin/shasum -a 512 "$1"
+fi
 `,
   );
   const options = {
@@ -592,6 +595,13 @@ test "$actual" = "$expected"
 }
 
 function testPinnedInstallers() {
+  for (const [workflow, manifest] of [
+    [reviewWorkflow, 'agy-review-bin.sha512'],
+    [translationWorkflow, 'agy-translate-bin.sha512'],
+  ]) {
+    const installer = extractStepBlock(workflow, 'Install pinned Antigravity runtime');
+    assert.match(installer, new RegExp(`sha512sum .* >.*${manifest}`));
+  }
   const review = runPinnedInstaller(reviewWorkflow);
   assert.equal(review.status, 0, review.stderr);
   const translation = runPinnedInstaller(translationWorkflow);
@@ -618,7 +628,12 @@ printf 'GNOME_KEYRING_CONTROL=%q\nGNOME_KEYRING_PID=%q\n' "$RUNNER_TEMP/keyring"
   writeExecutable(path.join(bin, 'python3'), '#!/usr/bin/env bash\ncat >/dev/null\n');
 }
 
-function runReviewerModel({ fail = false, missingSecret = false, secret = fileCredential() } = {}) {
+function runReviewerModel({
+  fail = false,
+  missingSecret = false,
+  secret = fileCredential(),
+  tamperRuntime = false,
+} = {}) {
   const work = temporaryDirectory('agy-review-model-');
   const bin = path.join(work, 'bin');
   const tool = path.join(work, 'agy-review-tool');
@@ -626,7 +641,12 @@ function runReviewerModel({ fail = false, missingSecret = false, secret = fileCr
   fs.mkdirSync(tool);
   fs.mkdirSync(path.join(work, 'home'));
   writeSandboxCommandFakes(bin);
-  writeExecutable(path.join(bin, 'agy'), `#!/usr/bin/env bash\nif [ "\${1:-}" = --version ]; then echo 1.1.10; fi\n`);
+  const agyBinary = path.join(bin, 'agy');
+  writeExecutable(agyBinary, `#!/usr/bin/env bash\nif [ "\${1:-}" = --version ]; then exit 91; fi\n`);
+  fs.writeFileSync(
+    path.join(work, 'agy-review-bin.sha512'),
+    `${createHash('sha512').update(fs.readFileSync(agyBinary)).digest('hex')}  ${agyBinary}\n`,
+  );
   writeExecutable(
     path.join(tool, 'agy-review.sh'),
     `#!/usr/bin/env bash
@@ -637,12 +657,16 @@ if [ "\${STUB_REVIEW_FAIL:-false}" = true ]; then
   exit 19
 fi
 printf '%s\n' '{"reviewer":{"verdict":"pass","summary":"clean","findings":[],"next_steps":[]},"verifier":{"verdict":"pass","summary":"verified","findings":[],"next_steps":[]}}' >"$AGY_REVIEW_REPORT_FILE"
+if [ "\${STUB_TAMPER_RUNTIME:-false}" = true ]; then
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$AGY_BINARY_PATH"
+fi
 `,
   );
   const result = runShell(extractStepBlock(reviewWorkflow, 'Run isolated reviewer and verifier'), {
     cwd: work,
     env: {
       AGY_VERSION: '1.1.10',
+      AGY_BINARY_PATH: agyBinary,
       ANTIGRAVITY_TOKEN: missingSecret ? null : secret,
       AGY_PROGRESS_INTERVAL_SECONDS: '1',
       BASE_SHA: 'b'.repeat(40),
@@ -655,6 +679,7 @@ printf '%s\n' '{"reviewer":{"verdict":"pass","summary":"clean","findings":[],"ne
       PATH: `${bin}:${process.env.PATH}`,
       RUNNER_TEMP: work,
       STUB_REVIEW_FAIL: fail ? 'true' : 'false',
+      STUB_TAMPER_RUNTIME: tamperRuntime ? 'true' : 'false',
     },
   });
   return { result, work };
@@ -674,6 +699,11 @@ function runReviewGate(report) {
 function testReviewerModelAndGate() {
   const completed = runReviewerModel();
   assert.equal(completed.result.status, 0, completed.result.stderr);
+  assert.doesNotMatch(
+    extractStepBlock(reviewWorkflow, 'Run isolated reviewer and verifier'),
+    /agy --version/,
+    'a successful OAuth-backed review must not re-enter the CLI for a post-review version probe',
+  );
   const credentialFile = path.join(completed.work, 'home/.gemini/antigravity-cli/antigravity-oauth-token');
   assert.deepEqual(JSON.parse(fs.readFileSync(credentialFile, 'utf8')), fixtureOAuthDocument);
   assert.equal(fs.statSync(credentialFile).mode & 0o777, 0o600);
@@ -701,6 +731,11 @@ function testReviewerModelAndGate() {
   assert.equal(failedReport.reviewer.findings[0].severity, 'critical');
   assert.notEqual(runReviewGate(failedReport).status, 0);
   assert.notEqual(runReviewerModel({ missingSecret: true }).result.status, 0);
+  assert.notEqual(
+    runReviewerModel({ tamperRuntime: true }).result.status,
+    0,
+    'post-review binary tampering must fail the integrity check without invoking the CLI again',
+  );
   assert.equal(
     runReviewerModel({ secret: 'go-keyring-base64:dGVzdA==' }).result.status,
     0,
@@ -804,6 +839,7 @@ function runTranslationModel({
   modelResult = 'success',
   reconcileAll = false,
   secret = fileCredential(),
+  tamperRuntime = false,
 } = {}) {
   const work = temporaryDirectory('agy-translation-model-');
   const bin = path.join(work, 'bin');
@@ -814,10 +850,7 @@ function runTranslationModel({
     path.join(bin, 'agy'),
     `#!/usr/bin/env bash
 set -euo pipefail
-if [ "\${1:-}" = --version ]; then
-  echo 1.1.10
-  exit 0
-fi
+if [ "\${1:-}" = --version ]; then exit 91; fi
 printf '%s\n' "$@" >"$RUNNER_TEMP/translation-arguments"
 printf '%s|%s|%s|%s\n' "\${GH_TOKEN:-}" "\${GITHUB_TOKEN:-}" "\${GATEWAY_TOKEN:-}" "\${GATEWAY_URL:-}" >"$RUNNER_TEMP/translation-credentials"
 case "\${AGY_MODEL_RESULT:-success}" in
@@ -839,7 +872,15 @@ failed)
   printf '%s\n' 'not-json'
   ;;
 esac
+if [ "\${AGY_TAMPER_RUNTIME:-false}" = true ]; then
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$0"
+fi
 `,
+  );
+  const agyBinary = path.join(bin, 'agy');
+  fs.writeFileSync(
+    path.join(work, 'agy-translate-bin.sha512'),
+    `${createHash('sha512').update(fs.readFileSync(agyBinary)).digest('hex')}  ${agyBinary}\n`,
   );
   const changedEnglish = path.join(work, 'changed-english.txt');
   fs.writeFileSync(changedEnglish, 'docs/en/page.mdx\n');
@@ -861,6 +902,7 @@ esac
       GITHUB_WORKSPACE: work,
       HOME: path.join(work, 'home'),
       AGY_MODEL_RESULT: modelResult,
+      AGY_TAMPER_RUNTIME: tamperRuntime ? 'true' : 'false',
       PATH: `${bin}:${process.env.PATH}`,
       RECONCILE_ALL: String(reconcileAll),
       RUNNER_TEMP: work,
@@ -872,6 +914,11 @@ esac
 function testTranslationModel() {
   const completed = runTranslationModel();
   assert.equal(completed.result.status, 0, completed.result.stderr);
+  assert.doesNotMatch(
+    extractStepBlock(translationWorkflow, 'Generate translations without write credentials'),
+    /agy --version/,
+    'a successful OAuth-backed translation must not re-enter the CLI for a post-model version probe',
+  );
   const credentialFile = path.join(completed.work, 'home/.gemini/antigravity-cli/antigravity-oauth-token');
   assert.deepEqual(JSON.parse(fs.readFileSync(credentialFile, 'utf8')), fixtureOAuthDocument);
   assert.equal(fs.statSync(credentialFile).mode & 0o777, 0o600);
@@ -958,6 +1005,11 @@ function testTranslationModel() {
     'malformed Antigravity event streams must fail closed',
   );
   assert.notEqual(runTranslationModel({ missingSecret: true }).result.status, 0);
+  assert.notEqual(
+    runTranslationModel({ tamperRuntime: true }).result.status,
+    0,
+    'post-translation binary tampering must fail the integrity check without invoking the CLI again',
+  );
   assert.notEqual(runTranslationModel({ secret: 'agy-oauth-file-base64:not-base64!' }).result.status, 0);
 }
 
