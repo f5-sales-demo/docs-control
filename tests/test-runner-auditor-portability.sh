@@ -18,10 +18,11 @@ trap 'rm -rf "$portability_root"' EXIT
 mkdir -p "$portability_root/scripts"
 cp "$auditor" "$portability_root/scripts/audit-runner-workflows.py"
 touch "$portability_root/scripts/__init__.py"
+# Repositories that keep stricter local Ruff policies must not need to carry
+# config exceptions for the governed compatibility auditor.
 uvx --from 'ruff==0.15.17' ruff check --isolated \
-  --select N999 "$portability_root/scripts"
-uvx --from 'ruff==0.15.17' ruff check --isolated \
-  --select RUF100 "$auditor"
+  --select ANN,ARG001,D,EM,N999,PLR2004,RUF100,TRY003 \
+  "$portability_root/scripts/audit-runner-workflows.py"
 uvx --from 'pylint==4.0.6' pylint \
   --disable=all \
   --enable=import-error,unused-argument \
