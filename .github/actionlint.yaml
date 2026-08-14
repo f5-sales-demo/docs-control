@@ -10,7 +10,6 @@ self-hosted-runner:
     - bot-standard
     - cdn
     - cdn-simulator
-    - code-review
     - console
     - container-build
     - csd
