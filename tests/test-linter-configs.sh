@@ -61,6 +61,7 @@ expected = sorted([
     *governance["repo_classes"]["repos"],
     "container-build",
     "fixture",
+    "automation",
     "ubuntu-24.04-arm",
 ])
 assert config.get("self-hosted-runner", {}).get("labels") == expected

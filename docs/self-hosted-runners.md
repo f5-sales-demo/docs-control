@@ -36,6 +36,10 @@ dispatches behind a socketless trust gate. Fork pull requests fail that gate exp
 controller stops the exact labeled outer runner before workspace deletion and removes nested
 containers only when every validated bind mount is beneath that runner's exact workspace.
 
+The docs-control `automation` profile is a separate socketless runner for its scheduled fleet
+watcher. It keeps long-running fleet collection and optional triage from occupying the
+`ubuntu-24.04` runner that serves pull-request trust and shell-test gates.
+
 Native macOS, Windows, and ARM64 jobs remain on GitHub-hosted runners only when their exact
 workflow and job identifiers appear in the hosted-exception inventory. The audit rejects every
 other hosted label, mutable action reference, unapproved profile, and cross-repository route.
