@@ -180,7 +180,6 @@ else
   fail "i18n readiness label, not release policy, selects fleet translation" \
     "caller trigger or watcher retirement is incomplete"
 fi
-fi
 
 if grep -qF 'reconcile_all:' "$CALLER" && grep -qF 'reconcile_all:' "$TRANSLATE" &&
   grep -qF 'RECONCILE_ALL:' "$TRANSLATE"; then
