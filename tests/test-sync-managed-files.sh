@@ -394,125 +394,110 @@ else
     "manifest auto-merge can act on an unowned, duplicate, or stale-head PR"
 fi
 
-if grep -q 'read_sync_mergeable_state()' "$SYNC" &&
-  grep -q 'mergeable_state' "$SYNC" &&
-  grep -qE 'blocked\|unknown\|unstable\|has_hooks' "$SYNC" &&
-  grep -q 'clean)' "$SYNC"; then
-  pass "6.12 missing required contexts remain pending until the PR is clean"
+if grep -q 'enablePullRequestAutoMerge' "$SYNC" &&
+  grep -q 'retry_current_json 3 "$auto_merge_json"' "$SYNC" &&
+  ! grep -q 'gh pr checks' "$SYNC" &&
+  ! grep -q 'max_wait=3600' "$SYNC"; then
+  pass "6.12 sync releases the socketless runner before required checks"
 else
-  fail "6.12 missing required contexts remain pending until the PR is clean" \
-    "the merge path can still treat only the currently reported checks as complete"
+  fail "6.12 sync releases the socketless runner before required checks" \
+    "the sync job still polls generated-PR checks while holding the only runner"
 fi
 
 if grep -q 'confirm_exact_sync_pr_merged()' "$SYNC" &&
   grep -q '.merged == true' "$SYNC" &&
   grep -q '.head.sha == $sha' "$SYNC" &&
+  grep -q '.auto_merge.merge_method == "squash"' "$SYNC" &&
   grep -q '.base.ref == "main"' "$SYNC"; then
-  pass "6.13 a concurrent merge is accepted only for the proved exact PR"
+  pass "6.13 auto-merge receipt is accepted only for the proved exact PR"
 else
-  fail "6.13 a concurrent merge is accepted only for the proved exact PR" \
-    "a failed merge request cannot distinguish trusted auto-merge from an unsafe transition"
+  fail "6.13 auto-merge receipt is accepted only for the proved exact PR" \
+    "the handoff does not prove exact ownership, head, base, and squash mode"
 fi
 
 awk '
-  /^          read_sync_mergeable_state\(\) \{/ { found=1 }
+  /^          confirm_exact_sync_pr_merged\(\) \{/ { found=1 }
   found && /^          # --- Helper: file-backed Git tree payloads/ { exit }
   found { sub(/^          /, ""); print }
 ' "$SYNC" >"$WORK/auto-merge-helpers.sh"
 
-run_blocked_to_clean_merge() (
+run_auto_merge_handoff() (
   # shellcheck source=/dev/null
   source "$WORK/auto-merge-helpers.sh"
   local expected_sha=0123456789abcdef0123456789abcdef01234567
-  local state_count_file="$WORK/blocked-state-count"
-  local merge_count_file="$WORK/blocked-merge-count"
+  local merge_count_file="$WORK/handoff-merge-count"
   SYNC_BRANCH=governance/sync-managed-files-test
 
   require_sha() { :; }
   require_current_source_main() { :; }
   require_current_downstream_main() { :; }
   assert_sync_pr_head() { :; }
-  sleep() { :; }
-  gh() { printf 'pass\n'; }
-  retry() {
-    shift
-    "$@"
-  }
-  read_sync_mergeable_state() {
-    local count=0
-    [ -f "$state_count_file" ] && count=$(<"$state_count_file")
-    count=$((count + 1))
-    printf '%s\n' "$count" >"$state_count_file"
-    if [ "$count" -eq 1 ]; then
-      printf 'blocked\n'
-    else
-      printf 'clean\n'
-    fi
-  }
-  retry_current_json() {
-    local count=0
-    [ -f "$merge_count_file" ] && count=$(<"$merge_count_file")
-    printf '%s\n' "$((count + 1))" >"$merge_count_file"
-    printf '{"merged":true}\n'
-  }
-
-  auto_merge 17 example/consumer "$expected_sha" >/dev/null &&
-    [ "$(<"$state_count_file")" -eq 2 ] &&
-    [ "$(<"$merge_count_file")" -eq 1 ]
-)
-
-if [ -s "$WORK/auto-merge-helpers.sh" ] && run_blocked_to_clean_merge; then
-  pass "6.14 blocked required contexts settle to clean before one merge request"
-else
-  fail "6.14 blocked required contexts settle to clean before one merge request" \
-    "the production merge loop did not preserve the pending-to-clean transition"
-fi
-
-run_concurrent_auto_merge() (
-  # shellcheck source=/dev/null
-  source "$WORK/auto-merge-helpers.sh"
-  local expected_sha=0123456789abcdef0123456789abcdef01234567
-  local merge_count_file="$WORK/concurrent-merge-count"
-  SYNC_BRANCH=governance/sync-managed-files-test
-
-  require_sha() { :; }
-  require_current_source_main() { :; }
-  require_current_downstream_main() { :; }
-  assert_sync_pr_head() { :; }
-  sleep() { :; }
-  read_sync_mergeable_state() { printf 'clean\n'; }
   retry() {
     shift
     "$@"
   }
   gh() {
-    if [ "$1" = pr ]; then
-      printf 'pass\n'
-    else
-      jq -n --arg sha "$expected_sha" --arg branch "$SYNC_BRANCH" \
-        --arg repository example/consumer '
-        {merged:true,merged_at:"2026-08-12T00:00:00Z",
-         head:{sha:$sha,ref:$branch,repo:{full_name:$repository}},
-         base:{ref:"main"}}
-      '
-    fi
+    jq -n --arg sha "$expected_sha" --arg branch "$SYNC_BRANCH" \
+      --arg repository example/consumer '
+      {node_id:"PR_node",state:"open",merged:false,
+       auto_merge:{merge_method:"squash"},
+       head:{sha:$sha,ref:$branch,repo:{full_name:$repository}},
+       base:{ref:"main"}}
+    '
   }
   retry_current_json() {
     local count=0
     [ -f "$merge_count_file" ] && count=$(<"$merge_count_file")
     printf '%s\n' "$((count + 1))" >"$merge_count_file"
-    return 1
+    jq -n '{data:{enablePullRequestAutoMerge:{pullRequest:{number:17}}}}'
   }
 
-  auto_merge 18 example/consumer "$expected_sha" >/dev/null &&
+  auto_merge 17 example/consumer "$expected_sha" >/dev/null &&
     [ "$(<"$merge_count_file")" -eq 1 ]
 )
 
-if [ -s "$WORK/auto-merge-helpers.sh" ] && run_concurrent_auto_merge; then
-  pass "6.15 a concurrently auto-merged exact head settles successfully"
+if [ -s "$WORK/auto-merge-helpers.sh" ] && run_auto_merge_handoff; then
+  pass "6.14 exact auto-merge handoff succeeds without polling checks"
 else
-  fail "6.15 a concurrently auto-merged exact head settles successfully" \
-    "the production merge loop did not prove the trusted concurrent transition"
+  fail "6.14 exact auto-merge handoff succeeds without polling checks" \
+    "the production handoff did not enable and prove exact squash auto-merge"
+fi
+
+run_stale_auto_merge_receipt() (
+  # shellcheck source=/dev/null
+  source "$WORK/auto-merge-helpers.sh"
+  local expected_sha=0123456789abcdef0123456789abcdef01234567
+  SYNC_BRANCH=governance/sync-managed-files-test
+
+  require_sha() { :; }
+  require_current_source_main() { :; }
+  require_current_downstream_main() { :; }
+  assert_sync_pr_head() { :; }
+  retry() {
+    shift
+    "$@"
+  }
+  gh() {
+    jq -n --arg sha fedcba9876543210fedcba9876543210fedcba98 --arg branch "$SYNC_BRANCH" \
+      --arg repository example/consumer '
+      {node_id:"PR_node",state:"open",merged:false,
+       auto_merge:{merge_method:"squash"},
+       head:{sha:$sha,ref:$branch,repo:{full_name:$repository}},
+       base:{ref:"main"}}
+    '
+  }
+  retry_current_json() {
+    jq -n '{data:{enablePullRequestAutoMerge:{pullRequest:{number:18}}}}'
+  }
+
+  ! auto_merge 18 example/consumer "$expected_sha" >/dev/null 2>&1
+)
+
+if [ -s "$WORK/auto-merge-helpers.sh" ] && run_stale_auto_merge_receipt; then
+  pass "6.15 stale auto-merge receipt fails closed"
+else
+  fail "6.15 stale auto-merge receipt fails closed" \
+    "the production handoff accepted a different PR head"
 fi
 
 echo ""
@@ -815,8 +800,9 @@ fi
 echo ""
 echo "=== Section 8: protected-source and exact mutation receipts ==="
 
-if grep -q 'MERGE_JSON=.*--arg sha "$expected_sha"' "$SYNC" &&
-  grep -q 'pulls/${pr_num}/merge' "$SYNC" &&
+if grep -q 'select(.state == "open" and .merged == false' "$SYNC" &&
+  grep -q '.head.sha == $sha' "$SYNC" &&
+  grep -q 'confirm_exact_sync_pr_auto_merge' "$SYNC" &&
   grep -q -- '--match-head-commit "$EXPECTED_HEAD"' "$MANIFEST_BUILDER"; then
   pass "8.1 every sync and manifest merge is bound to its verified head"
 else
