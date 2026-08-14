@@ -324,10 +324,10 @@ jobs:
             fi
           done
 
-      # Super-Linter v8.7.0 currently bundles actionlint 1.7.12, which can
-      # deadlock while analyzing the large managed sync workflow. Run the last
-      # fleet-proven actionlint release in its immutable upstream image and
-      # keep the validator isolated from both the Docker socket and the network.
+      # Super-Linter v8.7.0's bundled actionlint can deadlock while analyzing
+      # the large managed sync workflow. Run actionlint 1.7.12 in its immutable
+      # upstream image and keep the validator isolated from both the Docker
+      # socket and the network.
       - name: Run pinned actionlint
         run: |
           docker run --rm \
@@ -342,7 +342,7 @@ jobs:
             --tmpfs /tmp:rw,noexec,nosuid,size=64m \
             --volume "$GITHUB_WORKSPACE:/repo:ro" \
             --workdir /repo \
-            rhysd/actionlint@sha256:435ecdb63b1169e80ca3e136290072548c07fc4d76a044cf5541021712f8f344 \
+            rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
             -config-file .github/actionlint.yaml
 
       - name: Run Super-Linter
