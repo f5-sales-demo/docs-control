@@ -10,14 +10,14 @@ import re
 import sys
 from pathlib import Path
 
-import yaml
+import yaml  # pylint: disable=import-error
 
 SHA_RE = re.compile(r"[0-9a-f]{40}")
 CANONICAL_REPOSITORY_LABEL = "${{ github.event.repository.name }}"
-PULL_REQUEST_GUARD = (
-    "github.event_name == 'pull_request' && "
-    "github.event.pull_request.head.repo.full_name == github.repository"
-)
+PULL_REQUEST_EVENT = "github.event_name == 'pull_request' && "
+PULL_REQUEST_HEAD_REPO = "github.event.pull_request.head.repo.full_name"
+PULL_REQUEST_SOURCE = PULL_REQUEST_HEAD_REPO + " == github.repository"
+PULL_REQUEST_GUARD = PULL_REQUEST_EVENT + PULL_REQUEST_SOURCE
 CALLABLE_DOCKER_GUARD = (
     "github.event_name == 'workflow_dispatch' || "
     "(github.event_name == 'pull_request' && "
@@ -72,13 +72,18 @@ def remote_dependency(value):
     return value
 
 
-def expected_self_hosted_labels(repository_name, profile, profiles):
+def expected_self_hosted_labels(profile, profiles):
     labels = ["self-hosted", "Linux", "X64", CANONICAL_REPOSITORY_LABEL]
     if profile:
         if profile not in profiles:
             raise AuditError(f"unknown runner profile: {profile}")
         labels.extend(profiles[profile].get("labels", []))
     return labels
+
+
+def docker_socket_value(profiles, profile):
+    spec = profiles.get(profile)
+    return spec.get("docker_socket") if isinstance(spec, dict) else None
 
 
 def exception_for(exceptions, relative, job_id):
@@ -99,7 +104,7 @@ def trigger_names(workflow):
     raise AuditError("workflow trigger is malformed")
 
 
-def audit_docker_route(workflow, job_id, job, profiles, profile):
+def audit_docker_route(workflow, job, profiles, profile):
     errors: list[str] = []
     if profile not in profiles or not profiles[profile].get("docker_socket"):
         return errors
@@ -110,7 +115,7 @@ def audit_docker_route(workflow, job_id, job, profiles, profile):
     allowed = {"pull_request", "push", "workflow_call", "workflow_dispatch"}
     if not triggers or not triggers <= allowed:
         errors.append(
-            "Docker-capable jobs require a protected push, same-repository PR, or manual dispatch"
+            "Docker-capable jobs require a protected push, same-repository PR, or manual dispatch",
         )
         return errors
     if triggers == {"workflow_dispatch"}:
@@ -123,27 +128,22 @@ def audit_docker_route(workflow, job_id, job, profiles, profile):
         expected_guard = CALLABLE_DOCKER_GUARD
     if job.get("if") != expected_guard:
         errors.append(
-            "Docker-capable PR job requires the complete same-repository guard"
+            "Docker-capable PR job requires the complete same-repository guard",
         )
     needs = job.get("needs")
-    if needs != "trust-gate" and not (
-        isinstance(needs, list) and needs == ["trust-gate"]
-    ):
+    needs_is_trust_gate_list = isinstance(needs, list) and needs == ["trust-gate"]
+    if needs != "trust-gate" and not needs_is_trust_gate_list:
         errors.append("Docker-capable PR job requires the socketless trust-gate")
     trust_gate = workflow.get("jobs", {}).get("trust-gate")
     trust_runs_on = trust_gate.get("runs-on") if isinstance(trust_gate, dict) else None
     trust_profile = None
     if isinstance(trust_runs_on, list) and len(trust_runs_on) == 5:
-        candidates = [
-            name
-            for name, spec in profiles.items()
-            if trust_runs_on[-1] in spec.get("labels", [])
-        ]
+        candidates = []
+        for name, spec in profiles.items():
+            if trust_runs_on[-1] in spec.get("labels", []):
+                candidates.append(name)
         trust_profile = candidates[0] if len(candidates) == 1 else None
-    if (
-        trust_profile not in profiles
-        or profiles[trust_profile].get("docker_socket") is not False
-    ):
+    if docker_socket_value(profiles, trust_profile) is not False:
         errors.append("Docker-capable PR job requires a socketless trust-gate job")
     return errors
 
@@ -153,9 +153,8 @@ def step_requires_docker(step):
     if not isinstance(step, dict):
         return False
     uses = step.get("uses")
-    if isinstance(uses, str) and uses.startswith(
-        ("docker://", "docker/", "super-linter/super-linter@")
-    ):
+    docker_uses = ("docker://", "docker/", "super-linter/super-linter@")
+    if isinstance(uses, str) and uses.startswith(docker_uses):
         return True
     run = step.get("run")
     if not isinstance(run, str):
@@ -195,7 +194,7 @@ def audit_job(  # pylint: disable=too-many-locals
             errors.append(f"{relative}/{job_id}: {exc}")
         if "runs-on" in job:
             errors.append(
-                f"{relative}/{job_id}: reusable-workflow job cannot set runs-on"
+                f"{relative}/{job_id}: reusable-workflow job cannot set runs-on",
             )
         return errors
     runs_on = job.get("runs-on")
@@ -205,11 +204,11 @@ def audit_job(  # pylint: disable=too-many-locals
         if allowed == "matrix":
             if not isinstance(runs_on, str) or "matrix." not in runs_on:
                 errors.append(
-                    f"{relative}/{job_id}: hosted exception requires matrix runs-on"
+                    f"{relative}/{job_id}: hosted exception requires matrix runs-on",
                 )
         elif runs_on != allowed:
             errors.append(
-                f"{relative}/{job_id}: hosted runs-on {runs_on!r} does not match {allowed!r}"
+                f"{relative}/{job_id}: hosted runs-on {runs_on!r} does not match {allowed!r}",
             )
         reason = exception.get("reason") if isinstance(exception, dict) else None
         if not isinstance(reason, str) or len(reason.strip()) < 12:
@@ -217,16 +216,13 @@ def audit_job(  # pylint: disable=too-many-locals
     else:
         profile = default_profile
         if isinstance(runs_on, list) and len(runs_on) == 5:
-            candidates = [
-                name
-                for name, spec in profiles.items()
-                if runs_on[-1] in spec.get("labels", [])
-            ]
+            candidates = []
+            for name, spec in profiles.items():
+                if runs_on[-1] in spec.get("labels", []):
+                    candidates.append(name)
             profile = candidates[0] if len(candidates) == 1 else None
         try:
-            expected = expected_self_hosted_labels(
-                repository.split("/", 1)[1], profile, profiles
-            )
+            expected = expected_self_hosted_labels(profile, profiles)
         except AuditError as exc:
             errors.append(f"{relative}/{job_id}: {exc}")
             expected = []
@@ -235,26 +231,21 @@ def audit_job(  # pylint: disable=too-many-locals
             static[3] = repository.split("/", 1)[1]
         if runs_on not in (expected, static):
             errors.append(
-                f"{relative}/{job_id}: runs-on must use the canonical repository route, got {runs_on!r}"
+                f"{relative}/{job_id}: runs-on must use the canonical repository route, got {runs_on!r}",
             )
-        requires_docker = any(
-            step_requires_docker(step) for step in job.get("steps", [])
-        )
-        if requires_docker and (
-            profile not in profiles or not profiles[profile].get("docker_socket")
-        ):
+        steps = job.get("steps", [])
+        requires_docker = any(map(step_requires_docker, steps))
+        profile_has_socket = docker_socket_value(profiles, profile) is True
+        if requires_docker and not profile_has_socket:
             errors.append(
-                f"{relative}/{job_id}: Docker workload requires a Docker socket profile"
+                f"{relative}/{job_id}: Docker workload requires a Docker socket profile",
             )
-        errors.extend(
-            f"{relative}/{job_id}: {error}"
-            for error in audit_docker_route(workflow, job_id, job, profiles, profile)
-        )
-        if any(
-            step_has_privileged_package_install(step) for step in job.get("steps", [])
-        ):
+        route_errors = audit_docker_route(workflow, job, profiles, profile)
+        route_prefix = f"{relative}/{job_id}: "
+        errors.extend(route_prefix + error for error in route_errors)
+        if any(map(step_has_privileged_package_install, steps)):
             errors.append(
-                f"{relative}/{job_id}: self-hosted jobs cannot use sudo or apt package installation"
+                f"{relative}/{job_id}: self-hosted jobs cannot use sudo or apt package installation",
             )
     for index, step in enumerate(job.get("steps", [])):
         if not isinstance(step, dict) or "uses" not in step:
@@ -299,9 +290,10 @@ def audit_repository(root, repository, policy_path):
                     (policy["defaults"]["profile"], document),
                 )
             )
-    declared_exceptions = {
-        (workflow, job_id) for workflow, jobs in exceptions.items() for job_id in jobs
-    }
+    declared_exceptions = set()
+    for workflow, jobs in exceptions.items():
+        for job_id in jobs:
+            declared_exceptions.add((workflow, job_id))
     for workflow, job_id in sorted(declared_exceptions - actual_exceptions):
         errors.append(f"unused hosted exception: {workflow}/{job_id}")
     return errors
@@ -328,9 +320,8 @@ def main(argv=None):
         for error in errors:
             print(f"::error::{error}", file=sys.stderr)
         if not errors:
-            print(
-                f"validated workflow routing and immutable pins for {args.repository}"
-            )
+            message = "validated workflow routing and immutable pins"
+            print(f"{message} for {args.repository}")
     return 1 if errors else 0
 
 

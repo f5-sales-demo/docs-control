@@ -494,6 +494,15 @@ else
   pass "5e.4 the Super-Linter env does not mix include and exclude modes"
 fi
 
+if grep -qE \
+  '^[[:space:]]*GITHUB_ACTIONS_CONFIG_FILE:[[:space:]]+\.github/actionlint\.yaml$' \
+  "$SL_YML"; then
+  pass "5e.4a Super-Linter actionlint loads the governed custom-runner labels"
+else
+  fail "5e.4a Super-Linter actionlint loads the governed custom-runner labels" \
+    "GITHUB_ACTIONS_CONFIG_FILE must select .github/actionlint.yaml"
+fi
+
 # Each entry below is an explicit "not relevant" decision captured with
 # its rationale in the workflow comment. Removing a disable re-introduces
 # a full audit surface for that validator on every governed repo.
