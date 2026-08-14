@@ -4,6 +4,7 @@
 
 import importlib.util
 import io
+import json
 import stat
 import sys
 import tempfile
@@ -182,6 +183,17 @@ class ProvisionRunnerTests(unittest.TestCase):
             self.assertEqual(item.pids_limit, 4096)
             self.assertEqual(item.stop_timeout, 300)
             self.assertEqual(item.network, "bridge")
+
+    def test_automation_uses_current_socketless_runner_image(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            policy["profiles"]["automation"]["image"],
+            policy["profiles"]["ubuntu-24.04"]["image"],
+        )
 
     def test_enable_requires_shared_docker_service_before_runner(self):
         calls = []
