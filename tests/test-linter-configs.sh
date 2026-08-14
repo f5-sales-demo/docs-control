@@ -123,6 +123,23 @@ else
   fail "3.x .ruff.toml is valid TOML" "no available validator could parse it"
 fi
 
+if python3 - "$REPO_ROOT/.ruff.toml" <<'PY'; then
+import sys
+import tomllib
+
+with open(sys.argv[1], "rb") as config_file:
+    config = tomllib.load(config_file)
+
+lint = config["lint"]
+script_ignores = lint["per-file-ignores"]["scripts/**"]
+raise SystemExit(0 if "N999" in script_ignores and "N999" not in lint["ignore"] else 1)
+PY
+  pass "3.1 hyphenated Python CLI filenames are allowed only under scripts"
+else
+  fail "3.1 hyphenated Python CLI filenames are allowed only under scripts" \
+    "scripts/** must ignore N999 without disabling it globally"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 4: .ruff.toml is self-contained (no dead extend references)
 # ════════════════════════════════════════════════════════════════════
