@@ -31,6 +31,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             " dbus-x11 ",
             " libsecret-1-0 ",
             " gnome-keyring ",
+            " pipx ",
             " python3-keyring ",
         ):
             self.assertIn(package, content)
@@ -93,6 +94,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             "node --version",
             'grep -q "^v22\\."',
             "npm --version",
+            "npx --version",
             "make --version",
             "dbus-run-session --version",
             "gnome-keyring-daemon --version",
@@ -100,6 +102,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             "docker compose version",
         ):
             self.assertIn(required, content)
+        self.assertEqual(content.count("pipx --version"), 2)
         self.assertIn(
             "e650b7a58d7f56be91d4f7be799196380a3bbc1bcbc41f1f4dff1b36ac309e1e",
             content,
