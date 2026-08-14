@@ -841,6 +841,8 @@ class EphemeralController:
             "--env",
             "RUNNER_EPHEMERAL=1",
             "--env",
+            "RUNNER_MANUALLY_TRAP_SIG=1",
+            "--env",
             f"RUNNER_REPOSITORY={spec.full_name}",
             "--env",
             f"RUNNER_NAME={name}-{secrets.token_hex(4)}",
