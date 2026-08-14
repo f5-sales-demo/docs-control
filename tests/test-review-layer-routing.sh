@@ -107,7 +107,7 @@ for asset in "${MANAGED_REVIEW_FILES[@]}"; do
   fi
 done
 
-for workflow in antigravity-review antigravity-translate; do
+for workflow in antigravity-review; do
   caller="$REPO_ROOT/workflows/$workflow.yml"
   contains "$caller" 'workflow_dispatch:' "$workflow uses trusted default-branch dispatch"
   rejects "$caller" 'pull_request_target:' "$workflow has no privileged PR trigger"
@@ -115,6 +115,16 @@ for workflow in antigravity-review antigravity-translate; do
   contains "$caller" 'expected_base_sha' "$workflow binds the exact base"
   contains "$caller" 'expected_head_sha' "$workflow binds the exact head"
 done
+
+TRANSLATION_CALLER="$REPO_ROOT/workflows/antigravity-translate.yml"
+contains "$TRANSLATION_CALLER" 'workflow_dispatch:' 'antigravity-translate keeps trusted default-branch dispatch'
+rejects "$TRANSLATION_CALLER" 'pull_request_target:' 'antigravity-translate has no privileged PR trigger'
+contains "$TRANSLATION_CALLER" 'types: [labeled]' 'antigravity-translate accepts only label activity'
+contains "$TRANSLATION_CALLER" "github.event.label.name == 'i18n:ready'" 'antigravity-translate filters the one-shot command label'
+contains "$TRANSLATION_CALLER" 'actions: write # dispatch the protected-base exact-head caller' 'label handler may dispatch but has no direct model credential'
+contains "$TRANSLATION_CALLER" 'github.event_name == '\''workflow_dispatch'\'' && vars.TRANSLATIONS_ENABLED' 'only trusted dispatch invokes the credentialed reusable workflow'
+contains "$TRANSLATION_CALLER" 'expected_base_sha' 'antigravity-translate binds the exact base'
+contains "$TRANSLATION_CALLER" 'expected_head_sha' 'antigravity-translate binds the exact head'
 
 REVIEW_WORKFLOW="$REPO_ROOT/.github/workflows/antigravity-review.yml"
 contains "$REVIEW_WORKFLOW" 'const pullNumber = Number(process.env.PR_NUMBER);' \
