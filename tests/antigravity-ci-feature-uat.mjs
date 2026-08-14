@@ -194,6 +194,20 @@ function testHeadlessCredentialBootstrap() {
   }
 }
 
+function testPinnedRuntimeAutoUpdateDisabled() {
+  for (const [workflow, jobName] of [
+    [reviewWorkflow, 'review'],
+    [translationWorkflow, 'translate'],
+    [watcherWorkflow, 'triage'],
+  ]) {
+    assert.match(
+      extractJobBlock(workflow, jobName),
+      /AGY_CLI_DISABLE_AUTO_UPDATE: "true"/,
+      `${jobName} must prevent the pinned Antigravity runtime from replacing itself`,
+    );
+  }
+}
+
 const fixtureOAuthDocument = {
   auth_method: 'gcp',
   token: {
@@ -1308,6 +1322,7 @@ await testReviewerPreparation();
 testNoAppTokenRouting();
 testProgressRouting();
 testHeadlessCredentialBootstrap();
+testPinnedRuntimeAutoUpdateDisabled();
 await testTranslationPreparation();
 testPinnedInstallers();
 testReviewerModelAndGate();

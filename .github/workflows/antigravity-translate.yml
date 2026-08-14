@@ -66,6 +66,7 @@ jobs:
     permissions:
       contents: read
     env:
+      AGY_CLI_DISABLE_AUTO_UPDATE: "true"
       AGY_VERSION: "1.1.10"
       AGY_URL: https://storage.googleapis.com/antigravity-public/antigravity-cli/1.1.10-6423386432339968/linux-x64/cli_linux_x64.tar.gz
       AGY_SHA512: e64d4e58ede0f8440f2b3dc021f9d6d36b05f5c2f74d5a9215c1f11b20d536c8c2e020f4ce5257aa67e940e94c94d5a16d3aa6461cda18ee7f3e74d3a20ca1ac
