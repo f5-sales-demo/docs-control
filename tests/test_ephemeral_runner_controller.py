@@ -695,7 +695,7 @@ class EphemeralRunnerTests(unittest.TestCase):
             calls,
         )
 
-    def test_cleanup_serializes_host_global_container_inventory(self):
+    def test_cleanup_serializes_one_runner_container_inventory(self):
         workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
         workspace.mkdir(parents=True)
         controller = MODULE.EphemeralController(
@@ -710,17 +710,45 @@ class EphemeralRunnerTests(unittest.TestCase):
         descriptor, operation = flock.call_args.args
         self.assertIsInstance(descriptor, int)
         self.assertEqual(operation, MODULE.fcntl.LOCK_EX)
-        lock_path = self.root / "state/.cleanup.lock"
+        lock_path = self.root / "state/.cleanup-fixture-ubuntu-24.04-0.lock"
         metadata = lock_path.stat(follow_symlinks=False)
         self.assertTrue(stat.S_ISREG(metadata.st_mode))
         self.assertEqual(stat.S_IMODE(metadata.st_mode), 0o600)
+
+    def test_cleanup_locks_are_scoped_to_runner_identity(self):
+        self.policy_data["repositories"]["f5-sales-demo/other-fixture"] = {
+            "runner": {
+                "replicas": 1,
+                "profiles": ["ubuntu-24.04", "container-build"],
+            }
+        }
+        self.write_policy()
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+        other_spec = self.policy().repository("f5-sales-demo/other-fixture")
+
+        default_lock = controller.cleanup_lock_path(spec, spec.profiles[0], 0)
+        container_lock = controller.cleanup_lock_path(spec, spec.profiles[1], 0)
+
+        self.assertEqual(
+            default_lock,
+            controller.cleanup_lock_path(spec, spec.profiles[0], 0),
+        )
+        self.assertNotEqual(default_lock, container_lock)
+        self.assertNotEqual(
+            default_lock,
+            controller.cleanup_lock_path(other_spec, other_spec.profiles[0], 0),
+        )
+        self.assertEqual(default_lock.parent, self.root / "state")
 
     def test_cleanup_rejects_symlink_lock_without_following_it(self):
         workspace = self.root / "state/workspaces/fixture/ubuntu-24.04/0"
         workspace.mkdir(parents=True)
         outside = self.root / "outside-lock"
         outside.write_text("preserve", encoding="utf-8")
-        (self.root / "state/.cleanup.lock").symlink_to(outside)
+        (self.root / "state/.cleanup-fixture-ubuntu-24.04-0.lock").symlink_to(outside)
         controller = MODULE.EphemeralController(
             self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
         )
