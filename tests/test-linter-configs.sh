@@ -534,6 +534,17 @@ else
     "GITHUB_ACTIONS_CONFIG_FILE must select .github/actionlint.yaml"
 fi
 
+if grep -qF \
+  'rhysd/actionlint@sha256:435ecdb63b1169e80ca3e136290072548c07fc4d76a044cf5541021712f8f344' \
+  "$SL_YML" &&
+  grep -qF -- '--user "$(id -u):$(id -g)"' "$SL_YML" &&
+  grep -qE '^[[:space:]]*VALIDATE_GITHUB_ACTIONS:[[:space:]]+false$' "$SL_YML"; then
+  pass "5e.4b actionlint is pinned outside Super-Linter"
+else
+  fail "5e.4b actionlint is pinned outside Super-Linter" \
+    "the bundled actionlint regression can hang on managed inline workflows"
+fi
+
 # Each entry below is an explicit "not relevant" decision captured with
 # its rationale in the workflow comment. Removing a disable re-introduces
 # a full audit surface for that validator on every governed repo.

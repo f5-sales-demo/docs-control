@@ -155,11 +155,11 @@ sync_guard_count=$(grep -c 'require_current_source_main' \
   "$REPO_ROOT/.github/workflows/sync-managed-files.yml")
 settings_guard_count=$(grep -c 'require_current_source_main' \
   "$REPO_ROOT/.github/workflows/enforce-repo-settings.yml")
-sync_max_wait=$(sed -n 's/^[[:space:]]*local max_wait=//p' \
-  "$REPO_ROOT/.github/workflows/sync-managed-files.yml")
 if [ "$sync_guard_count" -ge 10 ] && [ "$settings_guard_count" -ge 10 ] &&
-  [ "$sync_max_wait" -ge 1800 ] &&
-  ! grep -q -- '--auto' "$REPO_ROOT/.github/workflows/sync-managed-files.yml"; then
+  ! grep -q 'max_wait=' "$REPO_ROOT/.github/workflows/sync-managed-files.yml" &&
+  grep -q 'enablePullRequestAutoMerge' "$REPO_ROOT/.github/workflows/sync-managed-files.yml" &&
+  grep -q 'retry_current_json 3.*auto_merge_json' \
+    "$REPO_ROOT/.github/workflows/sync-managed-files.yml"; then
   echo "[OK] source guards run initially and again at every governed result or mutation boundary"
   PASS=$((PASS + 1))
 else

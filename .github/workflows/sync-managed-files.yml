@@ -678,18 +678,6 @@ jobs:
             jq -er '.number | select(type == "number" and floor == . and . >= 1)' <<<"$response"
           }
 
-          read_sync_mergeable_state() {
-            local pr_num="$1" repo_slug="$2" response
-            if ! response=$(retry 3 gh api "repos/${repo_slug}/pulls/${pr_num}"); then
-              echo "[ERROR] Could not read sync PR #${pr_num} merge state" >&2
-              return 1
-            fi
-            jq -er '.mergeable_state | select(type == "string" and
-              (. == "clean" or . == "blocked" or . == "unknown" or
-               . == "unstable" or . == "has_hooks" or . == "behind" or
-               . == "dirty"))' <<<"$response"
-          }
-
           confirm_exact_sync_pr_merged() {
             local pr_num="$1" repo_slug="$2" expected_sha="$3" expected_branch="$4" response
             if ! response=$(retry 3 gh api "repos/${repo_slug}/pulls/${pr_num}"); then
@@ -706,79 +694,85 @@ jobs:
             fi
           }
 
-          # --- Helper: merge only while both receipts remain current --------
+          confirm_exact_sync_pr_auto_merge() {
+            local pr_num="$1" repo_slug="$2" expected_sha="$3" expected_branch="$4" response
+            if ! response=$(retry 3 gh api "repos/${repo_slug}/pulls/${pr_num}"); then
+              echo "[ERROR] Could not confirm sync PR #${pr_num} auto-merge state" >&2
+              return 1
+            fi
+            jq -e --arg sha "$expected_sha" --arg branch "$expected_branch" \
+              --arg repo "$repo_slug" '
+                .state == "open" and .merged == false and
+                .auto_merge.merge_method == "squash" and
+                .head.sha == $sha and .head.ref == $branch and
+                .head.repo.full_name == $repo and .base.ref == "main"
+              ' <<<"$response" >/dev/null
+          }
+
+          # --- Helper: hand off to branch-protected server auto-merge -------
           auto_merge() {
             local pr_num="$1"
             local repo_slug="$2"
             local expected_sha="$3"
-            local mergeable_state
+            local pr_response pr_node_id auto_merge_json auto_merge_response
             require_sha "expected auto-merge head" "$expected_sha" || return 1
 
-            echo "[INFO] Waiting to merge PR #${pr_num} while exact receipts remain current..."
+            echo "[INFO] Enabling exact-head auto-merge for sync PR #${pr_num}..."
             require_current_source_main
             require_current_downstream_main
-            local elapsed=0
-            # api-specs-enriched's required pytest context is measured at
-            # 13:47. Allow a full hour so a healthy slow fleet check converges
-            # instead of timing out, replacing its PR, and restarting CI.
-            local max_wait=3600
-            local poll_interval=60
+            retry 3 assert_sync_pr_head "$pr_num" "$SYNC_BRANCH" "$expected_sha"
+            require_current_source_main
+            require_current_downstream_main
 
-            while [ "$elapsed" -lt "$max_wait" ]; do
-              sleep "$poll_interval"
-              elapsed=$((elapsed + poll_interval))
-              require_current_source_main
-              require_current_downstream_main
+            if ! pr_response=$(retry 3 gh api "repos/${repo_slug}/pulls/${pr_num}"); then
+              echo "[ERROR] Could not resolve sync PR #${pr_num} node receipt" >&2
+              return 1
+            fi
+            if ! pr_node_id=$(jq -er --arg sha "$expected_sha" --arg branch "$SYNC_BRANCH" \
+              --arg repo "$repo_slug" '
+                select(.state == "open" and .merged == false and
+                  .head.sha == $sha and .head.ref == $branch and
+                  .head.repo.full_name == $repo and .base.ref == "main") |
+                .node_id | select(type == "string" and length > 0)
+              ' <<<"$pr_response"); then
+              echo "[ERROR] Sync PR #${pr_num} node receipt does not own the exact head" >&2
+              return 1
+            fi
 
-              BUCKET=$(gh pr checks "${pr_num}" --repo "${repo_slug}" \
-                --json bucket --jq '[.[].bucket] | unique |
-                  if . == ["pass"] then "pass"
-                  elif any(. == "fail") then "fail"
-                  else "pending" end' 2>/dev/null) || BUCKET="pending"
-
-              if [ "$BUCKET" = "pass" ]; then
-                retry 3 assert_sync_pr_head "$pr_num" "$SYNC_BRANCH" "$expected_sha"
-                require_current_source_main
-                require_current_downstream_main
-                mergeable_state=$(read_sync_mergeable_state "$pr_num" "$repo_slug")
-                case "$mergeable_state" in
-                  clean)
-                    MERGE_JSON=$(jq -n --arg sha "$expected_sha" \
-                      '{sha:$sha,merge_method:"squash"}')
-                    if MERGE_RESPONSE=$(retry_current_json 3 "$MERGE_JSON" \
-                      "repos/${repo_slug}/pulls/${pr_num}/merge" --method PUT) &&
-                      jq -e '.merged == true' <<<"$MERGE_RESPONSE" >/dev/null; then
-                      echo "[OK] Merged sync PR #${pr_num}"
-                      return 0
-                    fi
-                    if confirm_exact_sync_pr_merged "$pr_num" "$repo_slug" \
-                      "$expected_sha" "$SYNC_BRANCH"; then
-                      echo "[OK] Trusted auto-merge completed sync PR #${pr_num}"
-                      return 0
-                    fi
-                    echo "[ERROR] Failed to merge exact sync PR #${pr_num}" >&2
-                    return 1
-                    ;;
-                  blocked|unknown|unstable|has_hooks)
-                    echo "[INFO] Sync PR #${pr_num} is ${mergeable_state}; required contexts remain pending"
-                    ;;
-                  behind|dirty)
-                    echo "[ERROR] Sync PR #${pr_num} entered unsafe merge state ${mergeable_state}" >&2
-                    return 1
-                    ;;
-                  *)
-                    echo "[ERROR] Sync PR #${pr_num} returned invalid merge state" >&2
-                    return 1
-                    ;;
-                esac
-              elif [ "$BUCKET" = "fail" ]; then
-                echo "[WARN] CI checks failed on PR #${pr_num} -- skipping merge"
-                return 1
+            auto_merge_json=$(jq -n --arg pull_request_id "$pr_node_id" '{
+              query: "mutation($pullRequestId: ID!) { enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: SQUASH}) { pullRequest { number } } }",
+              variables: {pullRequestId: $pull_request_id}
+            }')
+            if ! auto_merge_response=$(retry_current_json 3 "$auto_merge_json" \
+              graphql --method POST) ||
+              ! jq -e --argjson number "$pr_num" '
+                (.errors // []) | length == 0
+              ' <<<"$auto_merge_response" >/dev/null ||
+              ! jq -e --argjson number "$pr_num" '
+                .data.enablePullRequestAutoMerge.pullRequest.number == $number
+              ' <<<"$auto_merge_response" >/dev/null; then
+              if confirm_exact_sync_pr_auto_merge "$pr_num" "$repo_slug" \
+                "$expected_sha" "$SYNC_BRANCH"; then
+                echo "[OK] Exact sync PR #${pr_num} auto-merge was enabled during the handoff race"
+                return 0
+              elif confirm_exact_sync_pr_merged "$pr_num" "$repo_slug" \
+                "$expected_sha" "$SYNC_BRANCH"; then
+                echo "[OK] Exact sync PR #${pr_num} merged during the handoff race"
+                return 0
               fi
-            done
+              echo "[ERROR] Could not enable exact sync PR #${pr_num} auto-merge" >&2
+              return 1
+            fi
 
-            echo "[ERROR] Timed out waiting for CI on exact sync PR #${pr_num}" >&2
-            return 1
+            require_current_source_main
+            require_current_downstream_main
+            retry 3 assert_sync_pr_head "$pr_num" "$SYNC_BRANCH" "$expected_sha"
+            if ! confirm_exact_sync_pr_auto_merge "$pr_num" "$repo_slug" \
+              "$expected_sha" "$SYNC_BRANCH"; then
+              echo "[ERROR] Exact sync PR #${pr_num} has no proved squash auto-merge receipt" >&2
+              return 1
+            fi
+            echo "[OK] Exact sync PR #${pr_num} is open with squash auto-merge enabled"
           }
 
           # --- Helper: file-backed Git tree payloads ---------------------------
@@ -1502,9 +1496,9 @@ jobs:
 
           if [ -n "$MANAGED_FILES" ] && [ "${OWNER}/${REPO}" != "$SOURCE_REPO" ]; then
             if [ "$SYNC_PR_CREATED" = true ]; then
-              echo "[OK] Sync PR created with a confirmed merge transition"
+              echo "[OK] Sync PR created with a confirmed auto-merge handoff"
             elif [ -n "$EXISTING_PR" ]; then
-              echo "[OK] Existing sync PR #${EXISTING_PR} has a confirmed merge transition"
+              echo "[OK] Existing sync PR #${EXISTING_PR} has a confirmed auto-merge handoff"
             else
               echo "[OK] Managed files verified"
             fi
