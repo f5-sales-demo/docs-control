@@ -107,14 +107,13 @@ for asset in "${MANAGED_REVIEW_FILES[@]}"; do
   fi
 done
 
-for workflow in antigravity-review; do
-  caller="$REPO_ROOT/workflows/$workflow.yml"
-  contains "$caller" 'workflow_dispatch:' "$workflow uses trusted default-branch dispatch"
-  rejects "$caller" 'pull_request_target:' "$workflow has no privileged PR trigger"
-  rejects "$caller" 'pull_request:' "$workflow does not load a PR-authored caller"
-  contains "$caller" 'expected_base_sha' "$workflow binds the exact base"
-  contains "$caller" 'expected_head_sha' "$workflow binds the exact head"
-done
+workflow=antigravity-review
+caller="$REPO_ROOT/workflows/$workflow.yml"
+contains "$caller" 'workflow_dispatch:' "$workflow uses trusted default-branch dispatch"
+rejects "$caller" 'pull_request_target:' "$workflow has no privileged PR trigger"
+rejects "$caller" 'pull_request:' "$workflow does not load a PR-authored caller"
+contains "$caller" 'expected_base_sha' "$workflow binds the exact base"
+contains "$caller" 'expected_head_sha' "$workflow binds the exact head"
 
 TRANSLATION_CALLER="$REPO_ROOT/workflows/antigravity-translate.yml"
 contains "$TRANSLATION_CALLER" 'workflow_dispatch:' 'antigravity-translate keeps trusted default-branch dispatch'

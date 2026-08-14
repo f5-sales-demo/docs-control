@@ -57,9 +57,6 @@ jq -r '.[]' .github/config/downstream-repos.json | {
           reviewNeedsRecovery=true
         fi
       fi
-
-
-
       queued=false
       if [ "$state" = open ] &&
         [ "${REVIEW_ENABLED:-false}" = true ] && [ "$reviewNeedsRecovery" = true ]; then

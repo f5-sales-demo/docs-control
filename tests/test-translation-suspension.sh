@@ -79,13 +79,12 @@ else
     "workflow or managed catalog omits the validator"
 fi
 
-if grep -qF 'release/vN.0.0' "$CONTRIBUTING" &&
-  grep -qF 'Keep `audit / Translation freshness` advisory' "$CONTRIBUTING" &&
-  grep -qF 'do not regenerate' "$CONTRIBUTING"; then
-  pass "contributor policy keeps development English-only and major-release reconciliation advisory"
+if grep -qF '`i18n:ready`' "$CONTRIBUTING" &&
+  grep -qF 'English-first' "$CONTRIBUTING"; then
+  pass "contributor policy keeps development English-only with explicit readiness"
 else
-  fail "contributor policy keeps development English-only and major-release reconciliation advisory" \
-    "major-release cost boundary or advisory audit guidance is absent"
+  fail "contributor policy keeps development English-only with explicit readiness" \
+    "readiness command or English-first guidance is absent"
 fi
 
 printf '\nResults: %d passed, %d failed\n' "$PASS" "$FAIL"
