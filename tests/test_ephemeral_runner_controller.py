@@ -556,7 +556,12 @@ class EphemeralRunnerTests(unittest.TestCase):
                 controller = MODULE.EphemeralController(
                     self.policy(), FakeGitHub(), self.root / "state", recorder
                 )
-                controller.run_once("f5-sales-demo/fixture", profile)
+                with mock.patch.object(
+                    MODULE.EphemeralController,
+                    "docker_socket_group",
+                    return_value=997,
+                ):
+                    controller.run_once("f5-sales-demo/fixture", profile)
                 command = next(
                     call[0]
                     for call in recorder.calls
