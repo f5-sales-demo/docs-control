@@ -64,11 +64,17 @@ expected = sorted([
     "ubuntu-24.04-arm",
 ])
 assert config.get("self-hosted-runner", {}).get("labels") == expected
+workflow_ignores = config["paths"][".github/workflows/**/*.{yml,yaml}"]["ignore"]
+assert workflow_ignores == [
+    "shellcheck reported issue in this script: SC2002:.+",
+    "shellcheck reported issue in this script: SC2015:.+",
+    "shellcheck reported issue in this script: SC2016:.+",
+]
 PY
   pass "2.1 actionlint recognizes governed repository, builder, and ARM labels"
 else
   fail "2.1 actionlint recognizes governed repository, builder, and ARM labels" \
-    "self-hosted-runner.labels must contain the exact governed labels"
+    "labels and narrow embedded-shell compatibility ignores must be exact"
 fi
 
 if jq -e '
@@ -552,8 +558,9 @@ else
 fi
 
 if grep -qF \
-  'rhysd/actionlint@sha256:435ecdb63b1169e80ca3e136290072548c07fc4d76a044cf5541021712f8f344' \
+  'rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667' \
   "$SL_YML" &&
+  grep -qF 'Run actionlint 1.7.12 in its immutable' "$SL_YML" &&
   grep -qF -- '--user "$(id -u):$(id -g)"' "$SL_YML" &&
   grep -qE '^[[:space:]]*VALIDATE_GITHUB_ACTIONS:[[:space:]]+false$' "$SL_YML"; then
   pass "5e.4b actionlint is pinned outside Super-Linter"
