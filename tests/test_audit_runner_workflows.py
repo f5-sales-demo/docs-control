@@ -190,7 +190,9 @@ jobs:
 """
         )
         errors = self.audit()
-        self.assertTrue(any("requires a Docker socket profile" in item for item in errors))
+        self.assertTrue(
+            any("requires a Docker socket profile" in item for item in errors)
+        )
 
         self.write_workflow(
             """name: Lint

@@ -168,9 +168,7 @@ def step_has_privileged_package_install(step):
     """Reject self-hosted provisioning assumptions in executable shell content."""
     if not isinstance(step, dict) or not isinstance(step.get("run"), str):
         return False
-    executable = "\n".join(
-        line.split("#", 1)[0] for line in step["run"].splitlines()
-    )
+    executable = "\n".join(line.split("#", 1)[0] for line in step["run"].splitlines())
     return bool(
         re.search(r"(?<![\w-])sudo(?:\s|$)", executable)
         or re.search(r"(?<![\w-])apt(?:-get)?\s+(?:update|install)(?:\s|$)", executable)
@@ -239,7 +237,9 @@ def audit_job(  # pylint: disable=too-many-locals
             errors.append(
                 f"{relative}/{job_id}: runs-on must use the canonical repository route, got {runs_on!r}"
             )
-        requires_docker = any(step_requires_docker(step) for step in job.get("steps", []))
+        requires_docker = any(
+            step_requires_docker(step) for step in job.get("steps", [])
+        )
         if requires_docker and (
             profile not in profiles or not profiles[profile].get("docker_socket")
         ):
@@ -250,7 +250,9 @@ def audit_job(  # pylint: disable=too-many-locals
             f"{relative}/{job_id}: {error}"
             for error in audit_docker_route(workflow, job_id, job, profiles, profile)
         )
-        if any(step_has_privileged_package_install(step) for step in job.get("steps", [])):
+        if any(
+            step_has_privileged_package_install(step) for step in job.get("steps", [])
+        ):
             errors.append(
                 f"{relative}/{job_id}: self-hosted jobs cannot use sudo or apt package installation"
             )

@@ -1508,7 +1508,6 @@ else
     "schema-v3 ephemeral jobs must not assume sudo or shared workspace ownership"
 fi
 
-
 # ════════════════════════════════════════════════════════════════════
 # Summary
 # ════════════════════════════════════════════════════════════════════

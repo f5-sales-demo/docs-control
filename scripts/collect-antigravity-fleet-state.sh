@@ -73,10 +73,10 @@ jq -r '.[]' .github/config/downstream-repos.json | {
 
       automated=false
       case "$head_ref" in
-        governance/* | sync/* | release/* | openapi-sync/* | plugin-sync/* | deps/* | \
-          docs/update-* | auto-regenerate/* | auto-generate/* | autoresearch/* | dependabot/*)
-          automated=true
-          ;;
+      governance/* | sync/* | release/* | openapi-sync/* | plugin-sync/* | deps/* | \
+        docs/update-* | auto-regenerate/* | auto-generate/* | autoresearch/* | dependabot/*)
+        automated=true
+        ;;
       esac
 
       major_release=false
