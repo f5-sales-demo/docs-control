@@ -11,43 +11,44 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/config/repo-settings.json'
-      - '.github/workflows/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/PULL_REQUEST_TEMPLATE.md'
-      - '.github/dependabot.yml'
-      - 'workflows/**'
-      - 'CONTRIBUTING.md'
-      - 'CLAUDE.md'
-      - 'AGENTS.md'
-      - '.agents/**'
-      - 'README.md'
-      - 'LICENSE'
-      - '.editorconfig'
-      - '.gitignore'
-      - '.pre-commit-config.yaml'
-      - '.yamllint.yaml'
-      - '.markdownlint.json'
-      - 'biome.json'
-      - '.jscpd.json'
-      - '.textlintrc'
-      - '.editorconfig-checker.json'
-      - '.checkov.yaml'
-      - 'zizmor.yaml'
-      - '.shellcheckrc'
-      - '.codespellrc'
-      - '.prettierignore'
-      - '.trivyignore'
-      - '.ruff.toml'
-      - 'ruff.toml'
-      - '.isort.cfg'
-      - '.python-lint'
-      - '.mypy.ini'
-      - '.claude/governance.json'
-      - '.claude/settings.json'
-      - 'scripts/**'
-      - 'tests/**'
-      - '.claude/hooks/**'
+      - ".github/config/repo-settings.json"
+      - ".github/config/self-hosted-runner-policy.json"
+      - ".github/workflows/**"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+      - ".github/dependabot.yml"
+      - "workflows/**"
+      - "CONTRIBUTING.md"
+      - "CLAUDE.md"
+      - "AGENTS.md"
+      - ".agents/**"
+      - "README.md"
+      - "LICENSE"
+      - ".editorconfig"
+      - ".gitignore"
+      - ".pre-commit-config.yaml"
+      - ".yamllint.yaml"
+      - ".markdownlint.json"
+      - "biome.json"
+      - ".jscpd.json"
+      - ".textlintrc"
+      - ".editorconfig-checker.json"
+      - ".checkov.yaml"
+      - "zizmor.yaml"
+      - ".shellcheckrc"
+      - ".codespellrc"
+      - ".prettierignore"
+      - ".trivyignore"
+      - ".ruff.toml"
+      - "ruff.toml"
+      - ".isort.cfg"
+      - ".python-lint"
+      - ".mypy.ini"
+      - ".claude/governance.json"
+      - ".claude/settings.json"
+      - "scripts/**"
+      - "tests/**"
+      - ".claude/hooks/**"
   workflow_dispatch:
 
 permissions: {}
@@ -59,7 +60,14 @@ concurrency:
 jobs:
   build:
     name: Build managed-files manifest
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    runs-on:
+      [
+        self-hosted,
+        Linux,
+        X64,
+        "${{ github.event.repository.name }}",
+        ubuntu-24.04,
+      ]
     environment: repository-settings
     permissions:
       contents: read # check out the protected governance source
