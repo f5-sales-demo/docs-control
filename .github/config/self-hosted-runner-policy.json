@@ -110,6 +110,10 @@
           "runs_on": "ubuntu-latest",
           "reason": "dependency audit uses the GitHub-hosted Node toolchain"
         },
+        "release-eligibility": {
+          "runs_on": "ubuntu-latest",
+          "reason": "release classification is a read-only hosted check"
+        },
         "release": {
           "runs_on": "ubuntu-latest",
           "reason": "extension publication uses GitHub-hosted release credentials"
