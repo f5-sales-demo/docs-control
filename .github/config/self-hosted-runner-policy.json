@@ -110,10 +110,6 @@
           "runs_on": "ubuntu-latest",
           "reason": "dependency audit uses the GitHub-hosted Node toolchain"
         },
-        "release-eligibility": {
-          "runs_on": "ubuntu-latest",
-          "reason": "release classification is a read-only hosted check"
-        },
         "release": {
           "runs_on": "ubuntu-latest",
           "reason": "extension publication uses GitHub-hosted release credentials"
@@ -142,14 +138,6 @@
     },
     "f5-sales-demo/xcsh": {
       ".github/workflows/ci.yml": {
-        "setup-zig-native": {
-          "runs_on": "matrix",
-          "reason": "native macOS and Windows toolchain validation"
-        },
-        "native-nonlinux": {
-          "runs_on": "matrix",
-          "reason": "native macOS and Windows release validation"
-        },
         "build-sign-macos": {
           "runs_on": "matrix",
           "reason": "Apple signing and notarization require macOS"
@@ -157,12 +145,6 @@
         "verify-homebrew-install": {
           "runs_on": "macos-14",
           "reason": "Homebrew release verification requires macOS"
-        }
-      },
-      ".github/workflows/container.yml": {
-        "container-build-arm64": {
-          "runs_on": "ubuntu-24.04-arm",
-          "reason": "native ARM64 container validation"
         }
       },
       ".github/workflows/test-codesign.yml": {
@@ -213,14 +195,6 @@
       }
     },
     "f5-sales-demo/api-specs": {
-      ".github/workflows/workflow-security-audit.yml": {
-        "workflow-security-audit": {
-          "runs_on": "ubuntu-latest",
-          "reason": "read-only pull request workflow security audit"
-        }
-      }
-    },
-    "f5-sales-demo/api-specs-enriched": {
       ".github/workflows/workflow-security-audit.yml": {
         "workflow-security-audit": {
           "runs_on": "ubuntu-latest",
