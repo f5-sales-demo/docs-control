@@ -440,6 +440,25 @@ jobs:
             },
         )
 
+    def test_api_specs_enriched_hosted_audit_exception_is_exact(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        exception = policy["hosted_exceptions"]["f5-sales-demo/api-specs-enriched"]
+        self.assertEqual(
+            exception,
+            {
+                ".github/workflows/workflow-security-audit.yml": {
+                    "workflow-security-audit": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "read-only pull request workflow security audit",
+                    }
+                }
+            },
+        )
+
     def test_terraform_hosted_reusable_workflow_exceptions_are_exact(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
