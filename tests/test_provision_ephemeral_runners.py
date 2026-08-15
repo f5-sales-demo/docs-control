@@ -30,6 +30,8 @@ class ProvisionRunnerTests(unittest.TestCase):
         for package in (
             " make ",
             " pipx ",
+            " apt-utils ",
+            " dpkg-dev ",
             " dbus-x11 ",
             " libsecret-1-0 ",
             " gnome-keyring ",
@@ -95,6 +97,9 @@ class ProvisionRunnerTests(unittest.TestCase):
             "node --version",
             'grep -q "^v22\\."',
             "npm --version",
+            "npx --version",
+            "dpkg-scanpackages --version",
+            "apt-ftparchive --version",
             "make --version",
             "dbus-run-session --version",
             "gnome-keyring-daemon --version",

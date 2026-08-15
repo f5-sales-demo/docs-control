@@ -14,7 +14,7 @@ ARG GH_SHA256=a2c9b8497e1f85b1ad0dfcb78b5a622e098801b8e461e459e88e1ee12f018112
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install --yes --no-install-recommends \
-      bash ca-certificates curl git git-lfs jq libssl3 make pipx python3 python3-keyring python3-venv python3-yaml \
+      apt-utils bash ca-certificates curl dpkg-dev git git-lfs jq libssl3 make pipx python3 python3-keyring python3-venv python3-yaml \
       dbus-x11 libsecret-1-0 gnome-keyring \
       unzip xz-utils zip \
     && if apt-cache show libicu74 >/dev/null 2>&1; then \
