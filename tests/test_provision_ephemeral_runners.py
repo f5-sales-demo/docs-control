@@ -4,6 +4,7 @@
 
 import importlib.util
 import io
+import json
 import stat
 import sys
 import tempfile
@@ -28,10 +29,10 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertIn("python3-yaml", content)
         for package in (
             " make ",
+            " pipx ",
             " dbus-x11 ",
             " libsecret-1-0 ",
             " gnome-keyring ",
-            " pipx ",
             " python3-keyring ",
         ):
             self.assertIn(package, content)
@@ -102,7 +103,6 @@ class ProvisionRunnerTests(unittest.TestCase):
             "docker compose version",
         ):
             self.assertIn(required, content)
-        self.assertEqual(content.count("pipx --version"), 2)
         self.assertIn(
             "e650b7a58d7f56be91d4f7be799196380a3bbc1bcbc41f1f4dff1b36ac309e1e",
             content,
@@ -113,6 +113,7 @@ class ProvisionRunnerTests(unittest.TestCase):
         )
         self.assertNotIn('rmdir "$plugins_dir"', content)
         self.assertNotIn("podman", content)
+        self.assertEqual(content.count("pipx --version"), 2)
 
     def test_every_governed_repository_has_container_build_profile(self):
         by_repository: dict[str, set[str]] = {}
@@ -125,17 +126,39 @@ class ProvisionRunnerTests(unittest.TestCase):
 
     def test_inventory_is_repository_and_profile_scoped(self):
         items = MODULE.all_instances()
-        self.assertGreaterEqual(len(items), 39)
+        self.assertEqual(len(items), 81)
         docs = [
             item for item in items if item.repository == "f5-sales-demo/docs-control"
         ]
         self.assertEqual(
             {item.profile for item in docs},
-            {"ubuntu-24.04", "container-build"},
+            {
+                "ubuntu-24.04",
+                "ubuntu-24.04-secondary",
+                "automation",
+                "container-build",
+            },
         )
         sockets = {item.profile: item.docker_socket for item in docs}
         self.assertFalse(sockets["ubuntu-24.04"])
+        self.assertFalse(sockets["ubuntu-24.04-secondary"])
+        self.assertFalse(sockets["automation"])
         self.assertTrue(sockets["container-build"])
+
+    def test_fleet_watcher_uses_dedicated_socketless_automation_profile(self):
+        workflow = (ROOT / ".github/workflows/antigravity-fleet-watcher.yml").read_text(
+            encoding="utf-8"
+        )
+        route = (
+            "runs-on: [self-hosted, Linux, X64, "
+            '"${{ github.event.repository.name }}", automation]'
+        )
+        self.assertEqual(workflow.count(route), 3)
+        self.assertNotIn(
+            "runs-on: [self-hosted, Linux, X64, "
+            '"${{ github.event.repository.name }}", ubuntu-24.04]',
+            workflow,
+        )
 
     def test_runner_unit_keeps_credential_out_of_argv(self):
         unit = MODULE.runner_unit_text()
@@ -155,17 +178,40 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertTrue(MODULE.ENTRYPOINT_SOURCE.is_file())
 
     def test_profile_resource_limits_are_owned_by_docker_controller(self):
-        item = next(
-            item
-            for item in MODULE.all_instances()
-            if item.repository == "f5-sales-demo/docs-control"
-            and item.profile == "ubuntu-24.04"
+        for profile in ("ubuntu-24.04", "automation"):
+            item = next(
+                item
+                for item in MODULE.all_instances()
+                if item.repository == "f5-sales-demo/docs-control"
+                and item.profile == profile
+            )
+            self.assertEqual(item.memory, "8g")
+            self.assertEqual(item.cpus, "4")
+            self.assertEqual(item.pids_limit, 4096)
+            self.assertEqual(item.stop_timeout, 300)
+            self.assertEqual(item.network, "bridge")
+
+    def test_automation_uses_current_socketless_runner_image(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
         )
-        self.assertEqual(item.memory, "8g")
-        self.assertEqual(item.cpus, "4")
-        self.assertEqual(item.pids_limit, 4096)
-        self.assertEqual(item.stop_timeout, 300)
-        self.assertEqual(item.network, "bridge")
+        self.assertEqual(
+            policy["profiles"]["automation"]["image"],
+            policy["profiles"]["ubuntu-24.04"]["image"],
+        )
+
+    def test_secondary_standard_lane_matches_primary_profile(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(
+            policy["profiles"]["ubuntu-24.04-secondary"],
+            policy["profiles"]["ubuntu-24.04"],
+        )
 
     def test_enable_requires_shared_docker_service_before_runner(self):
         calls = []

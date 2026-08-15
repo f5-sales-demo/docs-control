@@ -64,7 +64,7 @@
     ".editorconfig-checker.json",
     ".checkov.yaml",
     "zizmor.yaml",
-    "actionlint.yml",
+    ".github/actionlint.yaml",
     ".shellcheckrc",
     ".codespellrc",
     ".gitleaks.toml",

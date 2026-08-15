@@ -24,6 +24,20 @@ CALLER_BLOB=$(printf '%s\n' "$CALLER_TEXT" | git hash-object --stdin)
 LINT_CALLER_TEXT='name: Super-Linter'
 LINT_CALLER_CONTENT=$(printf '%s\n' "$LINT_CALLER_TEXT" | base64 | tr -d '\n')
 LINT_CALLER_BLOB=$(printf '%s\n' "$LINT_CALLER_TEXT" | git hash-object --stdin)
+LINT_CONFIG_TEXT='self-hosted-runner:\n  labels: [container-build]'
+LINT_CONFIG_CONTENT=$(printf '%s\n' "$LINT_CONFIG_TEXT" | base64 | tr -d '\n')
+LINT_CONFIG_BLOB=$(printf '%s\n' "$LINT_CONFIG_TEXT" | git hash-object --stdin)
+LINT_BUNDLE_BLOB=$(printf 'super-linter=%s\nactionlint=%s\n' \
+  "$LINT_CALLER_BLOB" "$LINT_CONFIG_BLOB" | git hash-object --stdin)
+LINT_BUNDLE_CALLER_CHANGED=$(printf 'super-linter=%s\nactionlint=%s\n' \
+  "$OTHER_SHA" "$LINT_CONFIG_BLOB" | git hash-object --stdin)
+LINT_BUNDLE_CONFIG_CHANGED=$(printf 'super-linter=%s\nactionlint=%s\n' \
+  "$LINT_CALLER_BLOB" "$OTHER_SHA" | git hash-object --stdin)
+if [ "$LINT_BUNDLE_BLOB" = "$LINT_BUNDLE_CALLER_CHANGED" ] ||
+  [ "$LINT_BUNDLE_BLOB" = "$LINT_BUNDLE_CONFIG_CHANGED" ]; then
+  echo "[FAIL] combined lint receipt does not bind both managed inputs"
+  exit 1
+fi
 AUDIT_CALLER_TEXT='name: Translation Audit'
 AUDIT_CALLER_CONTENT=$(printf '%s\n' "$AUDIT_CALLER_TEXT" | base64 | tr -d '\n')
 AUDIT_CALLER_BLOB=$(printf '%s\n' "$AUDIT_CALLER_TEXT" | git hash-object --stdin)
@@ -127,6 +141,13 @@ if ! grep -Fq 'contents/workflows/super-linter.yml?ref=${source_sha}' "$SOURCE" 
 fi
 echo "[OK] bootstrap carries the lint caller that validates its own PR"
 
+if ! grep -Fq 'contents/${lint_config_path}?ref=${source_sha}' "$SOURCE" ||
+  ! grep -Fq 'lint_config_path=".github/actionlint.yaml"' "$SOURCE"; then
+  echo "[FAIL] exact-caller bootstrap does not carry the lint caller's exact actionlint config"
+  exit 1
+fi
+echo "[OK] bootstrap carries the actionlint config required by the lint caller"
+
 if ! grep -Fq 'contents/workflows/translation-audit.yml?ref=${source_sha}' "$SOURCE" ||
   ! grep -Fq '.github/workflows/translation-audit.yml' "$SOURCE"; then
   echo "[FAIL] exact-caller bootstrap does not carry the major-only translation audit caller"
@@ -185,6 +206,16 @@ case "$1 $endpoint" in
     else
       printf '{"type":"file","encoding":"base64","sha":"%s","content":"%s"}\n' \
         "$LINT_CALLER_BLOB" "$LINT_CALLER_CONTENT"
+    fi
+    ;;
+  'api repos/f5-sales-demo/docs-control/contents/.github/actionlint.yaml?ref='*)
+    if [[ "$*" == *'--jq .sha'* ]]; then
+      printf '%s\n' "$LINT_CONFIG_BLOB"
+    elif [ "${FAKE_MALFORMED_LINT_CONFIG:-}" = 1 ]; then
+      printf '{"type":"file","encoding":"base64","sha":"bad","content":"%%%"}\n'
+    else
+      printf '{"type":"file","encoding":"base64","sha":"%s","content":"%s"}\n' \
+        "$LINT_CONFIG_BLOB" "$LINT_CONFIG_CONTENT"
     fi
     ;;
   'api repos/f5-sales-demo/docs-control/contents/workflows/translation-audit.yml?ref='*)
@@ -442,6 +473,9 @@ case "$1 $endpoint" in
   'api repos/f5-sales-demo/example-two/contents/.github/workflows/super-linter.yml?ref='*)
     printf '%s\n' "$DOWNSTREAM_LINT_BLOB"
     ;;
+  'api repos/f5-sales-demo/example-two/contents/.github/actionlint.yaml?ref='*)
+    printf '%s\n' "$DOWNSTREAM_LINT_CONFIG_BLOB"
+    ;;
   'api repos/f5-sales-demo/example-two/contents/.github/workflows/translation-audit.yml?ref='*)
     printf '%s\n' "$DOWNSTREAM_AUDIT_BLOB"
     ;;
@@ -604,6 +638,34 @@ case "$1 $endpoint" in
       printf '%s\n' "$DOWNSTREAM_LINT_BLOB"
     fi
     ;;
+  'api repos/f5-sales-demo/example/contents/.github/actionlint.yaml?ref='*)
+    if [ "${FAKE_FORBID_LINT_READ:-}" = 1 ]; then
+      echo 'unexpected opted-out actionlint config read' >&2
+      exit 65
+    fi
+    ref=${endpoint##*ref=}
+    if [ "${FAKE_BAD_RECOVER_LINT_CONFIG:-}" = 1 ] && [ "$ref" = "$BRANCH_HEAD" ]; then
+      printf '%s\n' "$OLD_BLOB"
+    elif { [ "${FAKE_FIRST_REPO:-}" = 1 ] ||
+      [ "${FAKE_PROTECTED_EMPTY_CALLERS:-}" = 1 ]; } &&
+      [ ! -f "$FAKE_STATE/merged" ] &&
+      [ "$ref" != "$BRANCH_HEAD" ]; then
+      echo 'gh: Not Found (HTTP 404)' >&2
+      exit 1
+    elif { [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; } &&
+      [ -f "$FAKE_STATE/lint-config-updated" ]; then
+      printf '%s\n' "$LINT_CONFIG_BLOB"
+    elif [ "$ref" = "$BRANCH_HEAD" ] || [ "$ref" = "$REFRESH_HEAD" ]; then
+      printf '%s\n' "$DOWNSTREAM_LINT_CONFIG_BLOB"
+    elif [ -f "$FAKE_STATE/merged" ] &&
+      [ "${FAKE_POST_MERGE_STALE_LINT_CONFIG:-}" = 1 ]; then
+      printf '%s\n' "$OLD_BLOB"
+    elif [ -f "$FAKE_STATE/merged" ]; then
+      printf '%s\n' "$LINT_CONFIG_BLOB"
+    else
+      printf '%s\n' "$DOWNSTREAM_LINT_CONFIG_BLOB"
+    fi
+    ;;
   'api repos/f5-sales-demo/example/contents/.github/workflows/translation-audit.yml?ref='*)
     if [ "${FAKE_FORBID_AUDIT_READ:-}" = 1 ]; then
       echo 'unexpected opted-out translation-audit caller read' >&2
@@ -738,6 +800,7 @@ case "$1 $endpoint" in
       elif [ -f "$FAKE_STATE/refreshed" ]; then
         printf '%s\n' "$REFRESH_HEAD"
       elif [ -f "$FAKE_STATE/updated" ] || [ -f "$FAKE_STATE/lint-updated" ] ||
+        [ -f "$FAKE_STATE/lint-config-updated" ] ||
         [ -f "$FAKE_STATE/audit-updated" ] || [ -f "$FAKE_STATE/linked-updated" ]; then
         printf '%s\n' "$BRANCH_HEAD"
       else
@@ -767,14 +830,16 @@ case "$1 $endpoint" in
     [ "${FAKE_SKIP_LINT_CALLER:-}" != 1 ] || skip_lint=true
     [ "${FAKE_SKIP_AUDIT_CALLER:-}" != 1 ] || skip_audit=true
     jq -e --arg base "$BASE_TREE" --arg caller "$CALLER_BLOB" \
-      --arg lint "$LINT_CALLER_BLOB" --arg audit "$AUDIT_CALLER_BLOB" \
+      --arg lint "$LINT_CALLER_BLOB" --arg lint_config "$LINT_CONFIG_BLOB" \
+      --arg audit "$AUDIT_CALLER_BLOB" \
       --arg linked "$LINKED_CALLER_BLOB" --argjson skip_lint "$skip_lint" \
       --argjson skip_audit "$skip_audit" '
       .base_tree == $base and
       .tree == (
         [{path:".github/workflows/enforce-repo-settings.yml",mode:"100644",type:"blob",sha:$caller}] +
         (if $skip_lint then [] else
-          [{path:".github/workflows/super-linter.yml",mode:"100644",type:"blob",sha:$lint}]
+          [{path:".github/workflows/super-linter.yml",mode:"100644",type:"blob",sha:$lint},
+           {path:".github/actionlint.yaml",mode:"100644",type:"blob",sha:$lint_config}]
         end) +
         (if $skip_audit then [] else
           [{path:".github/workflows/translation-audit.yml",mode:"100644",type:"blob",sha:$audit}]
@@ -827,6 +892,9 @@ case "$1 $endpoint" in
   'api repos/f5-sales-demo/example/contents/.github/workflows/super-linter.yml')
     touch "$FAKE_STATE/lint-updated"
     ;;
+  'api repos/f5-sales-demo/example/contents/.github/actionlint.yaml')
+    touch "$FAKE_STATE/lint-config-updated"
+    ;;
   'api repos/f5-sales-demo/example/contents/.github/workflows/translation-audit.yml')
     touch "$FAKE_STATE/audit-updated"
     ;;
@@ -845,6 +913,12 @@ case "$1 $endpoint" in
       [ "$DOWNSTREAM_LINT_BLOB" != "$LINT_CALLER_BLOB" ]; then
       files=$(jq -cn --argjson files "$files" --arg sha "$LINT_CALLER_BLOB" \
         '$files + [{filename:".github/workflows/super-linter.yml",sha:$sha,status:"modified"}]')
+      count=$((count + 1))
+    fi
+    if [ "${FAKE_SKIP_LINT_CALLER:-}" != 1 ] &&
+      [ "$DOWNSTREAM_LINT_CONFIG_BLOB" != "$LINT_CONFIG_BLOB" ]; then
+      files=$(jq -cn --argjson files "$files" --arg sha "$LINT_CONFIG_BLOB" \
+        '$files + [{filename:".github/actionlint.yaml",sha:$sha,status:"modified"}]')
       count=$((count + 1))
     fi
     if [ "${FAKE_SKIP_AUDIT_CALLER:-}" != 1 ] &&
@@ -932,6 +1006,12 @@ case "$1 $endpoint" in
       files=$(jq -cn --argjson files "$files" '$files + [{path:".github/workflows/super-linter.yml"}]')
       count=$((count + 1))
     fi
+    if [ "${FAKE_SKIP_LINT_CALLER:-}" != 1 ] &&
+      [ "$DOWNSTREAM_LINT_CONFIG_BLOB" != "$LINT_CONFIG_BLOB" ]; then
+      files=$(jq -cn --argjson files "$files" \
+        '$files + [{path:".github/actionlint.yaml"}]')
+      count=$((count + 1))
+    fi
     if [ "${FAKE_SKIP_AUDIT_CALLER:-}" != 1 ] &&
       [ "$DOWNSTREAM_AUDIT_BLOB" != "$AUDIT_CALLER_BLOB" ]; then
       files=$(jq -cn --argjson files "$files" \
@@ -970,7 +1050,7 @@ chmod +x "$WORK/bin/gh"
 
 run_bootstrap() {
   local state="$1"
-  local expected_lint_receipt="$LINT_CALLER_BLOB"
+  local expected_lint_receipt="$LINT_BUNDLE_BLOB"
   local expected_audit_receipt="$AUDIT_CALLER_BLOB"
   if [ "${FAKE_SKIP_LINT_CALLER:-}" = 1 ]; then
     expected_lint_receipt=skipped
@@ -979,6 +1059,14 @@ run_bootstrap() {
     expected_audit_receipt=skipped
   fi
   local expected_branch="sync/exact-caller-${CALLER_BLOB}${expected_lint_receipt}${expected_audit_receipt}${LINKED_CALLER_BLOB}"
+  local expected_suffix="${expected_branch#sync/exact-caller-}"
+  if [ "${FAKE_SKIP_LINT_CALLER:-}" != 1 ] &&
+    [ "${FAKE_SKIP_AUDIT_CALLER:-}" != 1 ] &&
+    { [ "${#expected_suffix}" -ne 160 ] ||
+      ! [[ "$expected_suffix" =~ ^[0-9a-f]{160}$ ]]; }; then
+    echo "[FAIL] exact-caller branch no longer matches the downstream 160-hex authorization contract"
+    return 1
+  fi
   env \
     PATH="$WORK/bin:$PATH" \
     GITHUB_REPOSITORY=f5-sales-demo/docs-control \
@@ -1008,12 +1096,15 @@ run_bootstrap() {
     CALLER_CONTENT="$CALLER_CONTENT" \
     LINT_CALLER_BLOB="$LINT_CALLER_BLOB" \
     LINT_CALLER_CONTENT="$LINT_CALLER_CONTENT" \
+    LINT_CONFIG_BLOB="$LINT_CONFIG_BLOB" \
+    LINT_CONFIG_CONTENT="$LINT_CONFIG_CONTENT" \
     AUDIT_CALLER_BLOB="$AUDIT_CALLER_BLOB" \
     AUDIT_CALLER_CONTENT="$AUDIT_CALLER_CONTENT" \
     LINKED_CALLER_BLOB="$LINKED_CALLER_BLOB" \
     LINKED_CALLER_CONTENT="$LINKED_CALLER_CONTENT" \
     DOWNSTREAM_BLOB="$DOWNSTREAM_BLOB" \
     DOWNSTREAM_LINT_BLOB="${DOWNSTREAM_LINT_BLOB:-$LINT_CALLER_BLOB}" \
+    DOWNSTREAM_LINT_CONFIG_BLOB="${DOWNSTREAM_LINT_CONFIG_BLOB:-$LINT_CONFIG_BLOB}" \
     DOWNSTREAM_AUDIT_BLOB="${DOWNSTREAM_AUDIT_BLOB:-$AUDIT_CALLER_BLOB}" \
     DOWNSTREAM_LINKED_BLOB="${DOWNSTREAM_LINKED_BLOB:-$LINKED_CALLER_BLOB}" \
     FAKE_SKIP_LINT_CALLER="${FAKE_SKIP_LINT_CALLER:-}" \
@@ -1024,6 +1115,7 @@ run_bootstrap() {
     FAKE_MAIN_ADVANCE_AT="${FAKE_MAIN_ADVANCE_AT:-}" \
     FAKE_DIVERGED_BASE="${FAKE_DIVERGED_BASE:-}" \
     FAKE_MALFORMED_CALLER="${FAKE_MALFORMED_CALLER:-}" \
+    FAKE_MALFORMED_LINT_CONFIG="${FAKE_MALFORMED_LINT_CONFIG:-}" \
     FAKE_MISSING_WORKFLOW="${FAKE_MISSING_WORKFLOW:-}" \
     FAKE_MERGE_LANDS="${FAKE_MERGE_LANDS:-}" \
     FAKE_ADVANCE_AFTER_ENABLE="${FAKE_ADVANCE_AFTER_ENABLE:-}" \
@@ -1050,6 +1142,8 @@ run_bootstrap() {
     FAKE_FIRST_REPO_LINT_MODE="${FAKE_FIRST_REPO_LINT_MODE:-}" \
     FAKE_FAST_FAIL="${FAKE_FAST_FAIL:-}" \
     FAKE_BAD_RECOVER_LINKED="${FAKE_BAD_RECOVER_LINKED:-}" \
+    FAKE_BAD_RECOVER_LINT_CONFIG="${FAKE_BAD_RECOVER_LINT_CONFIG:-}" \
+    FAKE_POST_MERGE_STALE_LINT_CONFIG="${FAKE_POST_MERGE_STALE_LINT_CONFIG:-}" \
     FAKE_FAIL_SECOND_BOOTSTRAP="${FAKE_FAIL_SECOND_BOOTSTRAP:-}" \
     REPO_SETTINGS_TOKEN=settings-token \
     "$SOURCE"
@@ -1057,6 +1151,7 @@ run_bootstrap() {
 
 DOWNSTREAM_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINT_CONFIG_BLOB="$OLD_BLOB"
 DOWNSTREAM_AUDIT_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
 for lint_mode in absent pending failed malformed spoofed wrong-pr wrong-run; do
@@ -1091,7 +1186,8 @@ for lint_mode in absent pending failed malformed spoofed wrong-pr wrong-run; do
     exit 1
   fi
 done
-unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_AUDIT_BLOB DOWNSTREAM_LINKED_BLOB
+unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINT_CONFIG_BLOB DOWNSTREAM_AUDIT_BLOB \
+  DOWNSTREAM_LINKED_BLOB
 echo "[OK] absent, pending, failed, malformed, spoofed, and untrusted first-repository lint receipts fail closed"
 
 state="$WORK/state-stale"
@@ -1148,10 +1244,12 @@ echo "[OK] recovery adopts the existing stable exact-caller receipt without chur
 state="$WORK/state-diverged-stable-receipt"
 mkdir -p "$state"
 touch "$state/disabled" "$state/branch" "$state/current-pr" \
-  "$state/updated" "$state/lint-updated" "$state/linked-updated"
+  "$state/updated" "$state/lint-updated" "$state/lint-config-updated" \
+  "$state/linked-updated"
 : >"$WORK/gh.log"
 DOWNSTREAM_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINT_CONFIG_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
 FAKE_DIVERGED_BASE=1
 set +e
@@ -1179,7 +1277,8 @@ run_bootstrap "$state" >"$WORK/adopt-refreshed-stable-receipt.out" \
   2>"$WORK/adopt-refreshed-stable-receipt.err"
 rc=$?
 set -e
-unset FAKE_DIVERGED_BASE DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINKED_BLOB
+unset FAKE_DIVERGED_BASE DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINT_CONFIG_BLOB \
+  DOWNSTREAM_LINKED_BLOB
 if [ "$rc" != 83 ] ||
   grep -qE '^pr (close|create) |git/(trees|commits) --method POST|git/refs/heads/.* --method PATCH' \
     "$WORK/gh.log" ||
@@ -1305,6 +1404,53 @@ if [ "$rc" != 83 ] ||
   exit 1
 fi
 echo "[OK] exact enforcement with stale lint updates only lint and remains quiesced"
+
+state="$WORK/state-stale-lint-config-only"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINT_CONFIG_BLOB="$OLD_BLOB"
+set +e
+run_bootstrap "$state" >"$WORK/stale-lint-config-only.out" \
+  2>"$WORK/stale-lint-config-only.err"
+rc=$?
+set -e
+unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINT_CONFIG_BLOB
+if [ "$rc" != 83 ] ||
+  grep -q 'contents/.github/workflows/enforce-repo-settings.yml --method PUT' "$WORK/gh.log" ||
+  ! grep -q 'contents/.github/workflows/super-linter.yml --method PUT' "$WORK/gh.log" ||
+  ! grep -q 'contents/.github/actionlint.yaml --method PUT' "$WORK/gh.log" ||
+  grep -q 'actions/workflows/enforce-repo-settings.yml/enable --method PUT' "$WORK/gh.log"; then
+  echo "[FAIL] stale actionlint config was not carried by the exact bootstrap PR"
+  cat "$WORK/stale-lint-config-only.err"
+  exit 1
+fi
+echo "[OK] stale actionlint config is replaced atomically with the managed lint caller"
+
+state="$WORK/state-post-merge-stale-lint-config"
+mkdir -p "$state"
+touch "$state/disabled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+FAKE_MERGE_LANDS=1
+FAKE_POST_MERGE_STALE_LINT_CONFIG=1
+set +e
+run_bootstrap "$state" >"$WORK/post-merge-stale-lint-config.out" \
+  2>"$WORK/post-merge-stale-lint-config.err"
+rc=$?
+set -e
+unset DOWNSTREAM_LINT_BLOB FAKE_MERGE_LANDS FAKE_POST_MERGE_STALE_LINT_CONFIG
+if [ "$rc" != 83 ] ||
+  ! grep -q 'contents/.github/actionlint.yaml?ref=' "$WORK/gh.log" ||
+  grep -q 'actions/workflows/enforce-repo-settings.yml/enable --method PUT' "$WORK/gh.log"; then
+  echo "[FAIL] post-merge actionlint drift did not keep enforcement quiesced"
+  cat "$WORK/post-merge-stale-lint-config.err"
+  exit 1
+fi
+echo "[OK] post-merge verification keeps stale actionlint config pending"
 
 state="$WORK/state-stale-audit-only"
 mkdir -p "$state"
@@ -1506,6 +1652,29 @@ if ! grep -q 'pulls?state=closed&sort=updated&direction=desc&per_page=100' "$WOR
   exit 1
 fi
 echo "[OK] interrupted transition recovers idempotently from its merged exact receipt"
+
+state="$WORK/state-hostile-recovered-lint-config"
+mkdir -p "$state"
+touch "$state/transition-required-checks-reconciled"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$CALLER_BLOB"
+FAKE_STAGED_LINKED_TRANSITION=1
+FAKE_RECOVER_MERGED_TRANSITION=1
+FAKE_BAD_RECOVER_LINT_CONFIG=1
+set +e
+run_bootstrap "$state" >/dev/null 2>"$WORK/hostile-recovered-lint-config.err"
+rc=$?
+set -e
+unset FAKE_STAGED_LINKED_TRANSITION FAKE_RECOVER_MERGED_TRANSITION \
+  FAKE_BAD_RECOVER_LINT_CONFIG
+if [ "$rc" = 0 ] ||
+  grep -qE 'require-linked-issue.yml/dispatches --method POST|required_status_checks --method PATCH|^pr merge' \
+    "$WORK/gh.log"; then
+  echo "[FAIL] hostile recovered actionlint config reached dispatch or protection mutation"
+  cat "$WORK/hostile-recovered-lint-config.err"
+  exit 1
+fi
+echo "[OK] interrupted transition rejects a mismatched actionlint config receipt"
 
 state="$WORK/state-exact"
 mkdir -p "$state"
@@ -1855,6 +2024,23 @@ if [ "$rc" = 0 ] || grep -qE '/disable|/cancel|/enable| --method PUT|^pr (create
 fi
 echo "[OK] malformed canonical caller fails before any workflow-state mutation"
 
+state="$WORK/state-malformed-lint-config"
+mkdir -p "$state"
+: >"$WORK/gh.log"
+DOWNSTREAM_BLOB="$OLD_BLOB"
+FAKE_MALFORMED_LINT_CONFIG=1
+set +e
+run_bootstrap "$state" >/dev/null 2>&1
+rc=$?
+set -e
+unset FAKE_MALFORMED_LINT_CONFIG
+if [ "$rc" = 0 ] ||
+  grep -qE '/disable|/cancel|/enable| --method PUT|^pr (create|merge)' "$WORK/gh.log"; then
+  echo "[FAIL] malformed canonical actionlint config caused a state or caller mutation"
+  exit 1
+fi
+echo "[OK] malformed canonical actionlint config fails before any workflow-state mutation"
+
 state="$WORK/state-superseded-before-enable"
 mkdir -p "$state"
 touch "$state/disabled"
@@ -2047,6 +2233,7 @@ mkdir -p "$state"
 : >"$WORK/gh.log"
 DOWNSTREAM_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINT_CONFIG_BLOB="$OLD_BLOB"
 DOWNSTREAM_AUDIT_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
 FAKE_FIRST_REPO=1
@@ -2056,8 +2243,8 @@ set +e
 run_bootstrap "$state" >"$WORK/first-repo.out" 2>"$WORK/first-repo.err"
 rc=$?
 set -e
-unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_AUDIT_BLOB DOWNSTREAM_LINKED_BLOB FAKE_FIRST_REPO \
-  FAKE_FIRST_REPO_LINT_MODE FAKE_MERGE_LANDS
+unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINT_CONFIG_BLOB DOWNSTREAM_AUDIT_BLOB \
+  DOWNSTREAM_LINKED_BLOB FAKE_FIRST_REPO FAKE_FIRST_REPO_LINT_MODE FAKE_MERGE_LANDS
 protection_line=$(grep -n 'branches/main/protection --method PUT' "$WORK/gh.log" |
   head -1 | cut -d: -f1 || true)
 check_line=$(grep -n '/check-runs' "$WORK/gh.log" | head -1 | cut -d: -f1 || true)
@@ -2080,7 +2267,7 @@ if [ "$rc" != 0 ] || [ -z "$protection_line" ] || [ -z "$check_line" ] ||
     "$state/transition-protection.json" >/dev/null ||
   ! jq -e '.contexts | index("Check linked issues") != null' \
     "$state/final-required-checks.json" >/dev/null; then
-  echo "[FAIL] first governed repository did not complete the verified four-caller transition"
+  echo "[FAIL] first governed repository did not complete the verified caller/config transition"
   echo "  rc=$rc"
   sed 's/^/  /' "$WORK/first-repo.err"
   sed 's/^/  log: /' "$WORK/gh.log"
@@ -2095,6 +2282,7 @@ cp "$WORK/state-first-repo/transition-protection.json" \
   "$state/transition-protection.json"
 : >"$WORK/gh.log"
 DOWNSTREAM_LINT_BLOB="$OLD_BLOB"
+DOWNSTREAM_LINT_CONFIG_BLOB="$OLD_BLOB"
 DOWNSTREAM_AUDIT_BLOB="$OLD_BLOB"
 DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
 FAKE_FIRST_REPO=1
@@ -2104,7 +2292,8 @@ run_bootstrap "$state" >"$WORK/resume-first-repo-protection.out" \
   2>"$WORK/resume-first-repo-protection.err"
 rc=$?
 set -e
-unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_AUDIT_BLOB DOWNSTREAM_LINKED_BLOB \
+unset DOWNSTREAM_LINT_BLOB DOWNSTREAM_LINT_CONFIG_BLOB DOWNSTREAM_AUDIT_BLOB \
+  DOWNSTREAM_LINKED_BLOB \
   FAKE_FIRST_REPO FAKE_MERGE_LANDS
 if [ "$rc" != 0 ] ||
   grep -q 'branches/main/protection --method PUT' "$WORK/gh.log" ||
@@ -2133,11 +2322,11 @@ if ! grep -q 'pulls?state=closed&sort=updated&direction=desc&per_page=100' "$WOR
   [ "$(grep -c 'required_status_checks --method PATCH' "$WORK/gh.log")" -ne 1 ] ||
   grep -qE 'git/refs --method POST|contents/.github/workflows/.* --method PUT|^pr (create|merge)' \
     "$WORK/gh.log"; then
-  echo "[FAIL] interrupted first-repository transition did not recover from four exact blobs"
+  echo "[FAIL] interrupted first-repository transition did not recover from exact artifacts"
   cat "$WORK/recover-first-repo.err"
   exit 1
 fi
-echo "[OK] interrupted first-repository transition recovers from four exact blobs"
+echo "[OK] interrupted first-repository transition recovers from exact artifacts"
 
 state="$WORK/state-hostile-first-repo-receipt"
 mkdir -p "$state"

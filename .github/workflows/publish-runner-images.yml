@@ -115,14 +115,14 @@ jobs:
           fi
           if [[ "$TARGET" == socketless ]]; then
             docker run --rm --entrypoint bash "$published" -c \
-              'node --version | grep -q "^v22\." && npm --version && npx --version && pipx --version && make --version && dbus-run-session --version && gnome-keyring-daemon --version && python3 -c "import keyring, yaml" && gh --version | grep -q "gh version 2.97.0" && gh api --help | grep -q -- "--slurp" && ! command -v docker'
+              'node --version | grep -q "^v22\." && npm --version && npx --version && make --version && pipx --version && dbus-run-session --version && gnome-keyring-daemon --version && python3 -c "import keyring, yaml" && gh --version | grep -q "gh version 2.97.0" && gh api --help | grep -q -- "--slurp" && ! command -v docker'
           else
             socket_gid="$(stat -c '%g' /run/docker.sock)"
             docker run --rm --entrypoint bash \
               --group-add "$socket_gid" \
               --volume /run/docker.sock:/run/docker.sock:rw \
               "$published" -c \
-              'node --version | grep -q "^v22\." && npm --version && npx --version && pipx --version && make --version && dbus-run-session --version && gnome-keyring-daemon --version && python3 -c "import keyring, yaml" && gh --version | grep -q "gh version 2.97.0" && gh api --help | grep -q -- "--slurp" && docker version && docker buildx version && docker compose version'
+              'node --version | grep -q "^v22\." && npm --version && npx --version && make --version && pipx --version && dbus-run-session --version && gnome-keyring-daemon --version && python3 -c "import keyring, yaml" && gh --version | grep -q "gh version 2.97.0" && gh api --help | grep -q -- "--slurp" && docker version && docker buildx version && docker compose version'
           fi
           # shellcheck disable=SC2016
           printf '### %s\n\n`%s@%s`\n' "$PROFILE" "$IMAGE" "$digest" >> "$GITHUB_STEP_SUMMARY"

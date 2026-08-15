@@ -324,6 +324,27 @@ jobs:
             fi
           done
 
+      # Super-Linter v8.7.0's bundled actionlint can deadlock while analyzing
+      # the large managed sync workflow. Run actionlint 1.7.12 in its immutable
+      # upstream image and keep the validator isolated from both the Docker
+      # socket and the network.
+      - name: Run pinned actionlint
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            --network none \
+            --read-only \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --pids-limit 256 \
+            --memory 512m \
+            --cpus 1 \
+            --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            --volume "$GITHUB_WORKSPACE:/repo:ro" \
+            --workdir /repo \
+            rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
+            -config-file .github/actionlint.yaml
+
       - name: Run Super-Linter
         uses: super-linter/super-linter@4ce20838b8ab83717e78138c5b3a1407148e0918 # v8.7.0
         env:
@@ -344,6 +365,11 @@ jobs:
           VALIDATE_BIOME_FORMAT: false
           VALIDATE_BIOME_LINT: false
           LINTER_RULES_PATH: "."
+          # The pinned native actionlint step owns GitHub Actions validation.
+          # Keep the config path explicit for contract auditing, but disable
+          # Super-Linter's regressed bundled actionlint below.
+          GITHUB_ACTIONS_CONFIG_FILE: .github/actionlint.yaml
+          VALIDATE_GITHUB_ACTIONS: false
           # F5 XC API objects also use top-level apiVersion and kind fields.
           # Super-Linter otherwise misclassifies their native YAML sources as
           # Kubernetes. Limit this option to Kubeconform so YAML and security
@@ -549,6 +575,10 @@ jobs:
       - name: Run workflow-security validator integration test
         if: hashFiles('tests/test-workflow-security-validator-integration.sh') != ''
         run: bash tests/test-workflow-security-validator-integration.sh
+
+      - name: Run runner auditor portability test
+        if: hashFiles('tests/test-runner-auditor-portability.sh') != ''
+        run: bash tests/test-runner-auditor-portability.sh
 
       - name: Run runner fleet Python unit tests
         if: hashFiles('tests/test_ephemeral_runner_controller.py') != ''

@@ -87,6 +87,9 @@
     },
     "api-specs-enriched": {
       "additional_contexts": ["Contract-diff gate", "Run pytest suite"]
+    },
+    "api-specs": {
+      "additional_contexts": ["Workflow security audit"]
     }
   },
   "consumer_shell_tests": {
@@ -130,6 +133,7 @@
   "managed_files": {
     "source_repo": "f5-sales-demo/docs-control",
     "absent_files": [
+      "actionlint.yml",
       ".github/workflows/claude-review.yml",
       ".github/workflows/code-review.yml",
       "scripts/antigravity-translate-staged.sh",
@@ -422,8 +426,8 @@
         "dest": ".claude/hooks/protect-managed-files.sh"
       },
       {
-        "src": "actionlint.yml",
-        "dest": "actionlint.yml"
+        "src": ".github/actionlint.yaml",
+        "dest": ".github/actionlint.yaml"
       },
       {
         "src": "workflows/workflow-security-audit.yml",

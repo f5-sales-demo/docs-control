@@ -61,14 +61,52 @@ expected = sorted([
     *governance["repo_classes"]["repos"],
     "container-build",
     "fixture",
+    "automation",
     "ubuntu-24.04-arm",
 ])
 assert config.get("self-hosted-runner", {}).get("labels") == expected
+workflow_ignores = config["paths"][".github/workflows/**/*.{yml,yaml}"]["ignore"]
+assert workflow_ignores == [
+    "shellcheck reported issue in this script: SC2002:.+",
+    "shellcheck reported issue in this script: SC2015:.+",
+    "shellcheck reported issue in this script: SC2016:.+",
+]
 PY
   pass "2.1 actionlint recognizes governed repository, builder, and ARM labels"
 else
   fail "2.1 actionlint recognizes governed repository, builder, and ARM labels" \
-    "self-hosted-runner.labels must contain the exact governed labels"
+    "labels and narrow embedded-shell compatibility ignores must be exact"
+fi
+
+if jq -e '
+  [.managed_files.files[] |
+    select(.src == ".github/actionlint.yaml" and .dest == ".github/actionlint.yaml")] |
+  length == 1
+' "$REPO_SETTINGS" >/dev/null; then
+  pass "2.2 canonical actionlint config has one managed path mapping"
+else
+  fail "2.2 canonical actionlint config has one managed path mapping" \
+    "repo-settings must manage .github/actionlint.yaml at the same destination"
+fi
+
+if jq -e '
+  (.protected_files | index(".github/actionlint.yaml") != null) and
+  (.protected_files | index("actionlint.yml") == null)
+' "$REPO_ROOT/.claude/governance.json" >/dev/null; then
+  pass "2.3 governance protects only the canonical actionlint config"
+else
+  fail "2.3 governance protects only the canonical actionlint config" \
+    "replace the retired root path with .github/actionlint.yaml"
+fi
+
+if jq -e '
+  (.managed_files.absent_files | index("actionlint.yml") != null) and
+  ([.managed_files.files[] | select(.src == "actionlint.yml" or .dest == "actionlint.yml")] | length == 0)
+' "$REPO_SETTINGS" >/dev/null; then
+  pass "2.4 root actionlint.yml is explicitly retired downstream"
+else
+  fail "2.4 root actionlint.yml is explicitly retired downstream" \
+    "root actionlint.yml must be absent and have no managed-file mapping"
 fi
 
 # ════════════════════════════════════════════════════════════════════
@@ -90,6 +128,45 @@ if "${TOML_VALIDATOR[@]}" >/dev/null 2>&1; then
   pass "3.x .ruff.toml is valid TOML"
 else
   fail "3.x .ruff.toml is valid TOML" "no available validator could parse it"
+fi
+
+if python3 - "$REPO_ROOT/.ruff.toml" "$REPO_ROOT" <<'PY'; then
+import subprocess
+import sys
+import tomllib
+from pathlib import Path
+
+with open(sys.argv[1], "rb") as config_file:
+    config = tomllib.load(config_file)
+
+lint = config["lint"]
+script_ignores = lint["per-file-ignores"]["scripts/**"]
+repo_root = Path(sys.argv[2])
+auditor = repo_root / "scripts/audit-runner-workflows.py"
+n999_files = [
+    repo_root / path
+    for path in subprocess.check_output(
+        ["git", "-C", repo_root, "ls-files", "*.py"], text=True
+    ).splitlines()
+    if "# ruff: noqa:" in (repo_root / path).read_text(encoding="utf-8")
+    and "N999" in next(
+        line
+        for line in (repo_root / path).read_text(encoding="utf-8").splitlines()
+        if line.startswith("# ruff: noqa:")
+    )
+]
+raise SystemExit(
+    0
+    if "N999" not in script_ignores
+    and "N999" not in lint["ignore"]
+    and n999_files == [auditor]
+    else 1
+)
+PY
+  pass "3.1 only the canonical hyphenated auditor is exempt from N999"
+else
+  fail "3.1 only the canonical hyphenated auditor is exempt from N999" \
+    "audit-runner-workflows.py must carry the file-level N999 exemption without broad suppression"
 fi
 
 # ════════════════════════════════════════════════════════════════════
@@ -152,7 +229,7 @@ has_inline_portability_suppression = any(
 has_downstream_lint_contract = all(
     marker in source
     for marker in (
-        "# ruff: noqa: ANN001, ANN201, D101, D103, EM101, EM102, N999, RUF100, TRY003",
+        "# ruff: noqa: ANN001, ANN201, D101, D103, EM101, EM102, RUF100, TRY003",
         "# pylint: disable=invalid-name,too-many-branches,broad-exception-caught,import-error",
         "# fmt: off",
     )
@@ -492,6 +569,27 @@ if grep -qE '^[[:space:]]*VALIDATE_RUST_[0-9]+:' "$SL_YML"; then
     "Rust validator keys belong in GITHUB_ENV, not the static action env"
 else
   pass "5e.4 the Super-Linter env does not mix include and exclude modes"
+fi
+
+if grep -qE \
+  '^[[:space:]]*GITHUB_ACTIONS_CONFIG_FILE:[[:space:]]+\.github/actionlint\.yaml$' \
+  "$SL_YML"; then
+  pass "5e.4a Super-Linter actionlint loads the governed custom-runner labels"
+else
+  fail "5e.4a Super-Linter actionlint loads the governed custom-runner labels" \
+    "GITHUB_ACTIONS_CONFIG_FILE must select .github/actionlint.yaml"
+fi
+
+if grep -qF \
+  'rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667' \
+  "$SL_YML" &&
+  grep -qF 'Run actionlint 1.7.12 in its immutable' "$SL_YML" &&
+  grep -qF -- '--user "$(id -u):$(id -g)"' "$SL_YML" &&
+  grep -qE '^[[:space:]]*VALIDATE_GITHUB_ACTIONS:[[:space:]]+false$' "$SL_YML"; then
+  pass "5e.4b actionlint is pinned outside Super-Linter"
+else
+  fail "5e.4b actionlint is pinned outside Super-Linter" \
+    "the bundled actionlint regression can hang on managed inline workflows"
 fi
 
 # Each entry below is an explicit "not relevant" decision captured with

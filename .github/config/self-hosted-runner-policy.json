@@ -11,7 +11,7 @@
   },
   "profiles": {
     "ubuntu-24.04": {
-      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:3df631f4b2a7d4b90bed868a545932e39067f9ef4a4f4356a80873c18b962a0c",
+      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:7b1016451a59afd38d165ab72025a96fc9c5cd2303efd670d258bfb9ed4cd269",
       "labels": ["ubuntu-24.04"],
       "memory": "8g",
       "cpus": "4",
@@ -20,8 +20,28 @@
       "network": "bridge",
       "docker_socket": false
     },
+    "ubuntu-24.04-secondary": {
+      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:7b1016451a59afd38d165ab72025a96fc9c5cd2303efd670d258bfb9ed4cd269",
+      "labels": ["ubuntu-24.04"],
+      "memory": "8g",
+      "cpus": "4",
+      "pids_limit": 4096,
+      "stop_timeout": 300,
+      "network": "bridge",
+      "docker_socket": false
+    },
+    "automation": {
+      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:7b1016451a59afd38d165ab72025a96fc9c5cd2303efd670d258bfb9ed4cd269",
+      "labels": ["automation"],
+      "memory": "8g",
+      "cpus": "4",
+      "pids_limit": 4096,
+      "stop_timeout": 300,
+      "network": "bridge",
+      "docker_socket": false
+    },
     "ubuntu-22.04": {
-      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:f4b5bd3e7991f2bdc6f594f899a195e5d639d6450fb05b904912ff0ea7424b9a",
+      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:0d6fe3f995e6de7e05997c26b17b59106368da5321b7be8777890784e89fae70",
       "labels": ["ubuntu-22.04"],
       "memory": "8g",
       "cpus": "4",
@@ -31,7 +51,7 @@
       "docker_socket": false
     },
     "container-build": {
-      "image": "ghcr.io/f5-sales-demo/actions-runner-container@sha256:b920382a609097f1f89cf64bfb6c36295cd2f341669aeee3ed8a74f910cc3442",
+      "image": "ghcr.io/f5-sales-demo/actions-runner-container@sha256:18bc89e50d73071641706218dcaae8fbba7a2e1628cc59cf7b557ea137ca0ed7",
       "labels": ["container-build"],
       "memory": "16g",
       "cpus": "6",
@@ -52,6 +72,20 @@
           "runs_on": "ubuntu-24.04-arm",
           "reason": "native ARM64 smoke test"
         }
+      },
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/docs-control": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
       }
     },
     "f5-sales-demo/vscode-xcsh": {
@@ -63,6 +97,12 @@
         "test-windows": {
           "runs_on": "windows-latest",
           "reason": "native Windows extension test"
+        }
+      },
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
         }
       }
     },
@@ -96,6 +136,12 @@
           "runs_on": "matrix",
           "reason": "Apple code signing requires native macOS"
         }
+      },
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
       }
     },
     "f5-sales-demo/xcsh-action": {
@@ -107,6 +153,320 @@
         "validate-native": {
           "runs_on": "matrix",
           "reason": "manifest validation covers native macOS, Windows, and ARM64"
+        }
+      },
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/administration": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/api-protection": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/api-specs": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/api-specs-enriched": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/apt-repo": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/bot-advanced": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/bot-standard": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/cdn": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/cdn-simulator": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/console": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/csd": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/ddos": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/demo-resource-template": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/demo-resources": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/dns": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/docs": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/docs-builder": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/docs-icons": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/docs-theme": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/i18n-core": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/marketplace": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/marketplace-claude-code": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/mcn": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/nginx": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/observability": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/origin-server": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/starlight-llms-txt": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/starlight-mega-menu": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/traffic-generator": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/waf": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/was": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/webapp-api-protection": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/xcsh-chrome-extension": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
+    "f5-sales-demo/terraform-provider-xcsh": {
+      ".github/workflows/_build-test.yml": {
+        "build": {
+          "runs_on": "ubuntu-latest",
+          "reason": "CGO race tests require the hosted compiler toolchain"
+        },
+        "lint": {
+          "runs_on": "ubuntu-latest",
+          "reason": "repository Go lint uses the hosted toolchain"
+        }
+      },
+      ".github/workflows/_generate-docs.yml": {
+        "generate": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only documentation generation uses hosted Terraform tooling"
+        }
+      },
+      ".github/workflows/_generate-provider.yml": {
+        "generate": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only provider generation uses the hosted Go toolchain"
+        }
+      },
+      ".github/workflows/_tag-release.yml": {
+        "preflight": {
+          "runs_on": "ubuntu-latest",
+          "reason": "release reproducibility verification uses isolated hosted tooling"
+        },
+        "publish": {
+          "runs_on": "ubuntu-latest",
+          "reason": "release signing and publication use isolated hosted execution"
+        },
+        "tag": {
+          "runs_on": "ubuntu-latest",
+          "reason": "release tag signing uses isolated hosted execution"
+        }
+      },
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
         }
       }
     }
@@ -172,7 +532,7 @@
     },
     "f5-sales-demo/docs-control": {
       "runner": {
-        "profiles": ["ubuntu-24.04", "container-build"]
+        "profiles": ["ubuntu-24.04", "ubuntu-24.04-secondary", "automation", "container-build"]
       }
     },
     "f5-sales-demo/docs-icons": {
