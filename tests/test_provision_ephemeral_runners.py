@@ -95,6 +95,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             "node --version",
             'grep -q "^v22\\."',
             "npm --version",
+            "npx --version",
             "make --version",
             "dbus-run-session --version",
             "gnome-keyring-daemon --version",
