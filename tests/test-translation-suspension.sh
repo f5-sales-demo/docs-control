@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
-# Translation generation is centrally gated while deterministic local validation stays active.
+# English-only suspension must prevent model-backed locale generation fleet-wide.
 set -euo pipefail
 
 REPO_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 REPO_SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
-AUDIT="$REPO_ROOT/workflows/translation-audit.yml"
+WATCHER="$REPO_ROOT/.github/workflows/antigravity-fleet-watcher.yml"
+COLLECTOR="$REPO_ROOT/scripts/collect-antigravity-fleet-state.sh"
+AUDIT="$REPO_ROOT/.github/workflows/translation-audit.yml"
 PRE_COMMIT="$REPO_ROOT/.pre-commit-config.yaml"
-CONTRIBUTING="$REPO_ROOT/CONTRIBUTING.md"
-CONTEXT='audit / Translation freshness'
 PASS=0
 FAIL=0
-
 pass() {
   printf '  PASS: %s\n' "$1"
   PASS=$((PASS + 1))
@@ -20,73 +19,34 @@ fail() {
   FAIL=$((FAIL + 1))
 }
 
-echo "Translation routing guards"
-
-required=$(jq -r --arg context "$CONTEXT" '
-  ((.branch_protection[0].required_status_checks.contexts // []) +
-   ([.repo_overrides[]?.additional_contexts // []] | flatten)) |
-  index($context) != null
-' "$REPO_SETTINGS")
-if grep -qE '^\s*if:\s*vars\.TRANSLATIONS_ENABLED' "$AUDIT"; then gated=true; else gated=false; fi
-if [ "$required" = true ] && [ "$gated" = true ]; then
-  fail "a gated audit is never required" "the status would remain pending forever"
-else
-  pass "a gated audit is never required"
-fi
-
-for workflow in \
-  "$REPO_ROOT/.github/workflows/antigravity-translate.yml" \
-  "$REPO_ROOT/workflows/antigravity-translate.yml"; do
-  if grep -qF "vars.TRANSLATIONS_ENABLED == 'true'" "$workflow"; then
-    pass "$(basename "$workflow") is positive-gated"
+echo "English-only translation suspension guards"
+for path in .github/workflows/antigravity-translate.yml .agents/skills/i18n-translate/SKILL.md; do
+  if [ ! -e "$REPO_ROOT/$path" ] && jq -e --arg path "$path" '.managed_files.absent_files | index($path) != null' "$REPO_SETTINGS" >/dev/null; then
+    pass "$path is retired from governed rollout"
   else
-    fail "$(basename "$workflow") is positive-gated" "literal true gate is absent"
-  fi
-  if grep -q 'workflow_dispatch:' "$workflow" || [[ "$workflow" == *'/.github/'* ]]; then
-    pass "$(basename "$workflow") has a trusted automation route"
-  else
-    fail "$(basename "$workflow") has a trusted automation route" "dispatch route is absent"
+    fail "$path is retired from governed rollout" "source or downstream deletion route remains"
   fi
 done
-
-hook=$(awk '
-  /^      - id: validate-translations$/ {capture=1}
-  capture && /^ci:/ {exit}
-  capture {print}
-' "$PRE_COMMIT")
-if grep -qF 'entry: bash scripts/validate-translations.sh --staged' <<<"$hook" &&
-  ! grep -qE 'agy|ANTHROPIC|TRANSLATIONS_ENABLED|accept-edits' <<<"$hook"; then
-  pass "local translation hook is deterministic and model-free"
+if ! jq -e '.managed_files.files[] | select(.src|test("antigravity-translate|i18n-translate"))' "$REPO_SETTINGS" >/dev/null; then
+  pass "managed catalog contains no translation generator"
 else
-  fail "local translation hook is deterministic and model-free" "hook invokes or depends on a model"
+  fail "managed catalog contains no translation generator" "generator mapping remains"
 fi
-
-for retired in scripts/antigravity-translate-staged.sh scripts/parse-translation-trigger.sh; do
-  if [ ! -e "$REPO_ROOT/$retired" ] &&
-    jq -e --arg retired "$retired" '.managed_files.absent_files | index($retired) != null' \
-      "$REPO_SETTINGS" >/dev/null; then
-    pass "$retired is removed fleet-wide"
-  else
-    fail "$retired is removed fleet-wide" "source or deletion route remains"
-  fi
-done
-
-if grep -qF 'scripts/validate-translations.sh' "$REPO_ROOT/.github/workflows/antigravity-translate.yml" &&
-  grep -qF 'scripts/validate-translations.sh' "$REPO_SETTINGS"; then
-  pass "trusted source-hash/output validator gates translation publication"
+if ! grep -qE 'antigravity-translate|TRANSLATIONS_ENABLED|translationNeedsRecovery|needs_translation|reconcile_all' "$WATCHER" "$COLLECTOR"; then
+  pass "fleet watcher cannot queue or redispatch translations"
 else
-  fail "trusted source-hash/output validator gates translation publication" \
-    "workflow or managed catalog omits the validator"
+  fail "fleet watcher cannot queue or redispatch translations" "translation dispatch surface remains"
 fi
-
-if grep -qF 'release/vN.0.0' "$CONTRIBUTING" &&
-  grep -qF 'Keep `audit / Translation freshness` advisory' "$CONTRIBUTING" &&
-  grep -qF 'do not regenerate' "$CONTRIBUTING"; then
-  pass "contributor policy keeps development English-only and major-release reconciliation advisory"
+hook=$(awk '/^      - id: validate-translations$/ {capture=1} capture && /^ci:/ {exit} capture {print}' "$PRE_COMMIT")
+if grep -qF 'entry: bash scripts/validate-translations.sh --staged' <<<"$hook" && ! grep -qE 'agy|ANTHROPIC|accept-edits' <<<"$hook"; then
+  pass "local validation remains deterministic and model-free"
 else
-  fail "contributor policy keeps development English-only and major-release reconciliation advisory" \
-    "major-release cost boundary or advisory audit guidance is absent"
+  fail "local validation remains deterministic and model-free" "validator hook changed"
 fi
-
+if ! grep -qE 'ANTIGRAVITY_TOKEN|GCP_PROJECT_ID|REPO_SYNC_TOKEN|uses:.*antigravity-translate' "$AUDIT"; then
+  pass "policy audit holds no model or publication credential"
+else
+  fail "policy audit holds no model or publication credential" "credentialed generation route remains"
+fi
 printf '\nResults: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

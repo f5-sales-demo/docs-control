@@ -138,7 +138,9 @@
       ".github/workflows/code-review.yml",
       "scripts/antigravity-translate-staged.sh",
       "scripts/parse-translation-trigger.sh",
-      "tests/test-antigravity-translate-staged.sh"
+      "tests/test-antigravity-translate-staged.sh",
+      ".github/workflows/antigravity-translate.yml",
+      ".agents/skills/i18n-translate/SKILL.md"
     ],
     "skip_files": {
       "xcsh": [
@@ -190,10 +192,6 @@
         "dest": ".github/workflows/antigravity-review.yml"
       },
       {
-        "src": "workflows/antigravity-translate.yml",
-        "dest": ".github/workflows/antigravity-translate.yml"
-      },
-      {
         "src": ".github/PULL_REQUEST_TEMPLATE.md",
         "dest": ".github/PULL_REQUEST_TEMPLATE.md"
       },
@@ -232,10 +230,6 @@
       {
         "src": ".agents/skills/demo-components/agents/openai.yaml",
         "dest": ".agents/skills/demo-components/agents/openai.yaml"
-      },
-      {
-        "src": ".agents/skills/i18n-translate/SKILL.md",
-        "dest": ".agents/skills/i18n-translate/SKILL.md"
       },
       {
         "src": "STYLE_GUIDE.md",
