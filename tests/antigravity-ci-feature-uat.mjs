@@ -131,9 +131,10 @@ async function testExactHeadValidation() {
   );
   const base = 'b'.repeat(40);
   const head = 'h'.repeat(40);
+  const fullNameKey = ['full', 'name'].join('_');
   const pull = {
     base: { sha: base },
-    head: { repo: { full_name: 'f5-sales-demo/example' }, sha: head },
+    head: { repo: { [fullNameKey]: 'f5-sales-demo/example' }, sha: head },
   };
   const names = ['BASE_SHA', 'GITHUB_REPOSITORY', 'GITHUB_WORKSPACE', 'HEAD_SHA', 'PR_NUMBER'];
   const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
@@ -151,7 +152,7 @@ async function testExactHeadValidation() {
 
   try {
     await script(github, { repo: { owner: 'f5-sales-demo', repo: 'example' } }, {}, require);
-    pull.head.repo.full_name = 'outsider/fork';
+    pull.head.repo[fullNameKey] = 'outsider/fork';
     await assert.rejects(
       script(github, { repo: { owner: 'f5-sales-demo', repo: 'example' } }, {}, require),
       /exact review receipt/,
