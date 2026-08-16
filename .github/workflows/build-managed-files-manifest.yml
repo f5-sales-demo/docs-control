@@ -424,6 +424,27 @@ jobs:
             fi
           }
 
+          dispatch_manifest_linked_issue_check() {
+            local pr_num="$1" expected_sha="$2"
+            if ! printf '%s' "$pr_num" | grep -qE '^[1-9][0-9]*$' ||
+              ! printf '%s' "$expected_sha" | grep -qE '^[0-9a-f]{40}$'; then
+              echo "[ERROR] Invalid manifest linked-issue dispatch receipt" >&2
+              return 1
+            fi
+            if ! assert_manifest_pr_head "$pr_num" "$expected_sha"; then
+              echo "[ERROR] Manifest PR changed before linked-issue dispatch" >&2
+              return 1
+            fi
+            if ! gh workflow run require-linked-issue.yml \
+              --repo "$GITHUB_REPOSITORY" \
+              --ref main \
+              -f "pull_request_number=$pr_num" \
+              -f "expected_head_sha=$expected_sha"; then
+              echo "[ERROR] Could not dispatch the manifest PR linked-issue check" >&2
+              return 1
+            fi
+          }
+
           # Compare only the files map (ignore source_commit churn).
           NEW_FILES=$(jq -eS '.files | select(type == "object")' "$MANIFEST_PATH")
           CURRENT_MANIFEST=$(mktemp)
@@ -551,6 +572,7 @@ jobs:
           fi
           assert_manifest_pr_head "$PR_NUM" "$EXPECTED_HEAD"
           assert_manifest_pr_diff "$EXPECTED_HEAD"
+          dispatch_manifest_linked_issue_check "$PR_NUM" "$EXPECTED_HEAD"
           gh pr merge "$PR_NUM" --repo "$GITHUB_REPOSITORY" \
             --squash --auto --delete-branch --match-head-commit "$EXPECTED_HEAD"
           echo "[OK] Manifest PR open with auto-merge enabled"

@@ -394,6 +394,49 @@ else
     "manifest auto-merge can act on an unowned, duplicate, or stale-head PR"
 fi
 
+if grep -q 'dispatch_manifest_linked_issue_check()' "$MANIFEST_BUILDER" &&
+  grep -Fq 'gh workflow run require-linked-issue.yml' "$MANIFEST_BUILDER" &&
+  grep -Fq -- '--ref main' "$WORK/manifest-joined.txt" &&
+  grep -Fq -- 'pull_request_number=$pr_num' "$WORK/manifest-joined.txt" &&
+  grep -Fq -- 'expected_head_sha=$expected_sha' "$WORK/manifest-joined.txt"; then
+  pass "6.11a manifest handoff dispatches the exempt linked-issue status with exact receipts"
+else
+  fail "6.11a manifest handoff dispatches the exempt linked-issue status with exact receipts" \
+    "a generated manifest PR can remain blocked until an unrelated schedule runs"
+fi
+
+awk '
+  /^          dispatch_manifest_linked_issue_check\(\) \{/ { found=1 }
+  found { sub(/^          /, ""); print }
+  found && $0 == "}" { exit }
+' "$MANIFEST_BUILDER" >"$WORK/manifest-linked-issue-dispatch.sh"
+
+run_manifest_linked_issue_dispatch() (
+  # shellcheck source=/dev/null
+  source "$WORK/manifest-linked-issue-dispatch.sh"
+  local expected_sha=0123456789abcdef0123456789abcdef01234567
+  GITHUB_REPOSITORY=example/docs-control
+  assert_manifest_pr_head() {
+    [ "$1" = 17 ] && [ "$2" = "$expected_sha" ]
+  }
+  gh() {
+    echo "$*" >"$WORK/manifest-linked-issue-dispatch.log"
+  }
+
+  dispatch_manifest_linked_issue_check 17 "$expected_sha"
+)
+
+if [ -s "$WORK/manifest-linked-issue-dispatch.sh" ] &&
+  run_manifest_linked_issue_dispatch &&
+  grep -Fxq \
+    'workflow run require-linked-issue.yml --repo example/docs-control --ref main -f pull_request_number=17 -f expected_head_sha=0123456789abcdef0123456789abcdef01234567' \
+    "$WORK/manifest-linked-issue-dispatch.log"; then
+  pass "6.11b manifest linked-issue dispatch is bound to the proved PR/head receipt"
+else
+  fail "6.11b manifest linked-issue dispatch is bound to the proved PR/head receipt" \
+    "the publisher can dispatch the wrong PR/head or bypass its ownership proof"
+fi
+
 if grep -q 'enablePullRequestAutoMerge' "$SYNC" &&
   grep -q 'retry_current_json 3 "$auto_merge_json"' "$SYNC" &&
   ! grep -q 'gh pr checks' "$SYNC" &&
