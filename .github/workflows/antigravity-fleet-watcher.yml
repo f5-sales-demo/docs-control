@@ -36,7 +36,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
           REVIEW_ENABLED: ${{ vars.ANTIGRAVITY_REVIEW_ENABLED }}
-          TRANSLATIONS_ENABLED: ${{ vars.TRANSLATIONS_ENABLED }}
         run: scripts/collect-antigravity-fleet-state.sh
 
       - name: Upload watcher inputs
@@ -277,7 +276,7 @@ jobs:
             for (const dispatch of dispatches) {
               core.info(`[PROGRESS] repository ${dispatch.repository}: recovering ${dispatch.workflow} for ${dispatch.head_sha}`);
               const [owner, repo] = dispatch.repository.split('/');
-              const label = dispatch.workflow === 'antigravity-review.yml' ? 'review' : 'translation';
+              const label = 'review';
               const title = `Antigravity ${label} PR ${dispatch.pr_number} @ ${dispatch.head_sha}`;
               await retryGitHub(async () => {
                 const runs = await github.rest.actions.listWorkflowRunsForRepo({
@@ -310,9 +309,6 @@ jobs:
                     pr_number: dispatch.pr_number,
                     expected_base_sha: dispatch.base_sha,
                     expected_head_sha: dispatch.head_sha,
-                    ...(dispatch.workflow === 'antigravity-translate.yml'
-                      ? {reconcile_all: String(dispatch.reconcile_all === true)}
-                      : {}),
                   },
                 });
               }, {

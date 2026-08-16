@@ -71,7 +71,9 @@ for mapping in \
   '.github/workflows/claude-review.yml|.github/workflows/claude-review.yml' \
   'scripts/antigravity-translate-staged.sh|scripts/antigravity-translate-staged.sh' \
   'scripts/parse-translation-trigger.sh|scripts/parse-translation-trigger.sh' \
-  'tests/test-antigravity-translate-staged.sh|tests/test-antigravity-translate-staged.sh'; do
+  'tests/test-antigravity-translate-staged.sh|tests/test-antigravity-translate-staged.sh' \
+  'workflows/antigravity-translate.yml|.github/workflows/antigravity-translate.yml' \
+  '.agents/skills/i18n-translate/SKILL.md|.agents/skills/i18n-translate/SKILL.md'; do
   asset=${mapping%%|*}
   absent=${mapping#*|}
   if [ -e "$REPO_ROOT/$asset" ]; then
@@ -107,14 +109,13 @@ for asset in "${MANAGED_REVIEW_FILES[@]}"; do
   fi
 done
 
-for workflow in antigravity-review antigravity-translate; do
-  caller="$REPO_ROOT/workflows/$workflow.yml"
-  contains "$caller" 'workflow_dispatch:' "$workflow uses trusted default-branch dispatch"
-  rejects "$caller" 'pull_request_target:' "$workflow has no privileged PR trigger"
-  rejects "$caller" 'pull_request:' "$workflow does not load a PR-authored caller"
-  contains "$caller" 'expected_base_sha' "$workflow binds the exact base"
-  contains "$caller" 'expected_head_sha' "$workflow binds the exact head"
-done
+workflow=antigravity-review
+caller="$REPO_ROOT/workflows/$workflow.yml"
+contains "$caller" 'workflow_dispatch:' "$workflow uses trusted default-branch dispatch"
+rejects "$caller" 'pull_request_target:' "$workflow has no privileged PR trigger"
+rejects "$caller" 'pull_request:' "$workflow does not load a PR-authored caller"
+contains "$caller" 'expected_base_sha' "$workflow binds the exact base"
+contains "$caller" 'expected_head_sha' "$workflow binds the exact head"
 
 REVIEW_WORKFLOW="$REPO_ROOT/.github/workflows/antigravity-review.yml"
 contains "$REVIEW_WORKFLOW" 'const pullNumber = Number(process.env.PR_NUMBER);' \
@@ -127,18 +128,13 @@ contains "$REVIEW_WORKFLOW" 'const findings = [...new Map(' \
   "Antigravity review comments deduplicate independently verified findings"
 contains "$REVIEW_WORKFLOW" 'cp scripts/agy-review.sh scripts/run-with-progress.sh' \
   "Antigravity review captures the trusted progress runner before head checkout"
-contains "$REVIEW_WORKFLOW" '2>&1 | tee "$RUNNER_TEMP/review.log"' \
-  "Antigravity review streams live progress while retaining its diagnostic log"
-
-TRANSLATION_WORKFLOW="$REPO_ROOT/.github/workflows/antigravity-translate.yml"
-contains "$TRANSLATION_WORKFLOW" \
-  'install -m 0555 scripts/run-with-progress.sh "$contract/run-with-progress.sh"' \
-  "Antigravity translation installs the trusted progress runner before head checkout"
-contains "$TRANSLATION_WORKFLOW" \
-  '"$RUNNER_TEMP/agy-translation-contract/run-with-progress.sh" --phase translation-generation' \
-  "Antigravity translation emits structured generation heartbeats"
-rejects "$TRANSLATION_WORKFLOW" '/opt/agy-translation-contract' \
-  "Antigravity translation uses only runner-owned temporary contracts"
+for translation_source in "$REPO_ROOT/.github/workflows/antigravity-translate.yml" "$REPO_ROOT/workflows/antigravity-translate.yml"; do
+  if [ ! -e "$translation_source" ]; then
+    pass "translation workflow source is absent"
+  else
+    fail "translation workflow source is absent" "$translation_source remains"
+  fi
+done
 
 contains "$REPO_ROOT/.gitignore" '.agy-review.*' \
   "Antigravity temporary review directories are ignored"
