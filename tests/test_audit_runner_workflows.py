@@ -459,6 +459,25 @@ jobs:
             },
         )
 
+    def test_xcsh_npm_backfill_hosted_exception_is_exact(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        exception = policy["hosted_exceptions"]["f5-sales-demo/xcsh"][
+            ".github/workflows/release-npm-backfill.yml"
+        ]
+        self.assertEqual(
+            exception,
+            {
+                "backfill": {
+                    "runs_on": "ubuntu-22.04",
+                    "reason": "npm backfill publication uses the hosted release environment",
+                }
+            },
+        )
+
     def test_terraform_hosted_reusable_workflow_exceptions_are_exact(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
