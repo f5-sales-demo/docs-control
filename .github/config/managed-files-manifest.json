@@ -1,5 +1,5 @@
 {
-  "source_commit": "c6379815ba22176504713243d428ad315184fcf3",
+  "source_commit": "d4c2c996049b73d3e0f9060ca274fb102269d7bf",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -32,8 +32,8 @@
     ".github/workflows/translation-audit.yml": {
       "src": "workflows/translation-audit.yml",
       "dest": ".github/workflows/translation-audit.yml",
-      "sha": "149c35f3c5426a4d10c0c4f6a062773241d331f5",
-      "size": 1241,
+      "sha": "af11202cc52216d25f1db1806817b3cd397e83bc",
+      "size": 722,
       "mode": "100644"
     },
     ".github/workflows/antigravity-review.yml": {
@@ -41,13 +41,6 @@
       "dest": ".github/workflows/antigravity-review.yml",
       "sha": "eab88d8c1be5b778ce6ce98ac62704a62db3ceaf",
       "size": 1309,
-      "mode": "100644"
-    },
-    ".github/workflows/antigravity-translate.yml": {
-      "src": "workflows/antigravity-translate.yml",
-      "dest": ".github/workflows/antigravity-translate.yml",
-      "sha": "7b79fd5e6a6b5fe08b94f538054899275c775003",
-      "size": 1620,
       "mode": "100644"
     },
     ".github/PULL_REQUEST_TEMPLATE.md": {
@@ -88,8 +81,8 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "0f409cfc68c3c43b7a279aaeab02d6ff30690145",
-      "size": 36761,
+      "sha": "a9ef43c866de40cf92eab1022119f7ed6312adeb",
+      "size": 29199,
       "mode": "100644"
     },
     "CLAUDE.md": {
@@ -118,13 +111,6 @@
       "dest": ".agents/skills/demo-components/agents/openai.yaml",
       "sha": "9dbf41a0e0a08808bafba972256f87f71ef5692f",
       "size": 208,
-      "mode": "100644"
-    },
-    ".agents/skills/i18n-translate/SKILL.md": {
-      "src": ".agents/skills/i18n-translate/SKILL.md",
-      "dest": ".agents/skills/i18n-translate/SKILL.md",
-      "sha": "07ce2b76bcf84499637159092e269757675f1d40",
-      "size": 5203,
       "mode": "100644"
     },
     "STYLE_GUIDE.md": {
@@ -417,15 +403,15 @@
     "tests/test-github-api-resilience.sh": {
       "src": "tests/test-github-api-resilience.sh",
       "dest": "tests/test-github-api-resilience.sh",
-      "sha": "a9c1ea7a474310459e2e21f14c219887884eee0f",
-      "size": 23023,
+      "sha": "6d0cf9682248caea890bf5e7aac01e0cb55c8340",
+      "size": 21644,
       "mode": "100644"
     },
     "tests/test-translation-release-policy.sh": {
       "src": "tests/test-translation-release-policy.sh",
       "dest": "tests/test-translation-release-policy.sh",
-      "sha": "a33ca345bed0db177607c780c24d81b2b8b82c37",
-      "size": 8938,
+      "sha": "1032399e8e5d711b19a7fe6d5bcf7e6c277d4f80",
+      "size": 1328,
       "mode": "100755"
     },
     "tests/test-validate-translations.sh": {
@@ -438,8 +424,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "38fa3f0c04655e444b2525d490b910729b4426a2",
-      "size": 6568,
+      "sha": "997e6f533ad213703ead581836c2b5714a775fbe",
+      "size": 6471,
       "mode": "100644"
     },
     ".claude/settings.json": {
