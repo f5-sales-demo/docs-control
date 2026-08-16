@@ -130,7 +130,7 @@ class ProvisionRunnerTests(unittest.TestCase):
 
     def test_inventory_is_repository_and_profile_scoped(self):
         items = MODULE.all_instances()
-        self.assertEqual(len(items), 81)
+        self.assertEqual(len(items), 82)
         docs = [
             item for item in items if item.repository == "f5-sales-demo/docs-control"
         ]
@@ -148,6 +148,20 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertFalse(sockets["ubuntu-24.04-secondary"])
         self.assertFalse(sockets["automation"])
         self.assertTrue(sockets["container-build"])
+
+    def test_api_specs_enriched_has_secondary_socketless_capacity(self):
+        runners = {
+            item.profile: item
+            for item in MODULE.all_instances()
+            if item.repository == "f5-sales-demo/api-specs-enriched"
+        }
+
+        self.assertEqual(
+            set(runners),
+            {"ubuntu-24.04", "ubuntu-24.04-secondary", "container-build"},
+        )
+        self.assertFalse(runners["ubuntu-24.04"].docker_socket)
+        self.assertFalse(runners["ubuntu-24.04-secondary"].docker_socket)
 
     def test_fleet_watcher_uses_dedicated_socketless_automation_profile(self):
         workflow = (ROOT / ".github/workflows/antigravity-fleet-watcher.yml").read_text(
