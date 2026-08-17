@@ -1084,21 +1084,33 @@ class EphemeralController:
                     )
                     time.sleep(delay)
                     continue
+                code = self.run_once(full_name, profile_name, slot)
+            except GitHubRateLimitError as exc:
                 try:
-                    code = self.run_once(full_name, profile_name, slot)
-                except GitHubRateLimitError as exc:
                     self.record_registration_cooldown(exc.retry_at)
+                except (
+                    FleetError,
+                    OSError,
+                    subprocess.SubprocessError,
+                ) as cooldown_error:
+                    print(
+                        f"runner cooldown update failed: {cooldown_error}",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    code = 1
+                else:
                     print(
                         f"runner cycle rate limited: {exc}", file=sys.stderr, flush=True
                     )
                     continue
-                except (FleetError, OSError, subprocess.SubprocessError) as exc:
-                    print(f"runner cycle failed: {exc}", file=sys.stderr, flush=True)
-                    code = 1
-                if code != 0:
-                    time.sleep(backoff)
+            except (FleetError, OSError, subprocess.SubprocessError) as exc:
+                print(f"runner cycle failed: {exc}", file=sys.stderr, flush=True)
+                code = 1
             except StopRequestedError:
                 break
+            if code != 0:
+                time.sleep(backoff)
         return 0
 
     def audit_containers(self, full_name):  # pylint: disable=too-many-locals

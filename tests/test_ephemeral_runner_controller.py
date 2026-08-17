@@ -179,6 +179,32 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertLessEqual(second_delay, 180)
         self.assertNotEqual(first_delay, second_delay)
 
+    def test_serve_retries_after_registration_cooldown_failure(self):
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        controller.registration_cooldown_delay = mock.Mock(
+            side_effect=[MODULE.FleetError("bad cooldown"), 0]
+        )
+
+        def settle(*_args):
+            controller.stopping = True
+            return 0
+
+        controller.run_once = mock.Mock(side_effect=settle)
+        with (
+            mock.patch.object(MODULE.signal, "signal"),
+            mock.patch.object(MODULE.time, "sleep") as sleep,
+        ):
+            self.assertEqual(
+                controller.serve("f5-sales-demo/fixture", "ubuntu-24.04"), 0
+            )
+
+        sleep.assert_called_once_with(5)
+        controller.run_once.assert_called_once_with(
+            "f5-sales-demo/fixture", "ubuntu-24.04", 0
+        )
+
     def test_policy_builds_exact_repository_profiles(self):
         spec = self.policy().repository("f5-sales-demo/fixture")
         self.assertEqual(
