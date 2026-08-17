@@ -277,27 +277,10 @@ case "$1 $endpoint" in
       cp "$input" "$FAKE_STATE/required-checks-input.json"
       if [ "${FAKE_FIRST_REPO:-}" = 1 ]; then
         jq -e '
-          (.contexts | index("Check linked issues")) != null and
-          (.contexts | index("check / Check linked issues")) == null
+          (.contexts | index("Check linked issues")) != null
         ' "$input" >/dev/null || exit 65
         cp "$input" "$FAKE_STATE/final-required-checks.json"
         touch "$FAKE_STATE/final-required-checks-reconciled"
-      elif [ "${FAKE_STAGED_LINKED_TRANSITION:-}" = 1 ]; then
-        if jq -e '
-          (.contexts | index("check / Check linked issues")) != null and
-          (.contexts | index("Check linked issues")) == null
-        ' "$input" >/dev/null; then
-          cp "$input" "$FAKE_STATE/transition-required-checks.json"
-          touch "$FAKE_STATE/transition-required-checks-reconciled"
-        elif jq -e '
-          (.contexts | index("Check linked issues")) != null and
-          (.contexts | index("check / Check linked issues")) == null
-        ' "$input" >/dev/null; then
-          cp "$input" "$FAKE_STATE/final-required-checks.json"
-          touch "$FAKE_STATE/final-required-checks-reconciled"
-        else
-          exit 65
-        fi
       else
         touch "$FAKE_STATE/required-checks-reconciled"
       fi
@@ -311,19 +294,13 @@ case "$1 $endpoint" in
       touch "$FAKE_STATE/required-check-failed"
       echo 'gh: synthetic required-check read failure (HTTP 500)' >&2
       exit 1
-    elif [ "${FAKE_STAGED_LINKED_TRANSITION:-}" = 1 ] &&
-      [ -f "$FAKE_STATE/transition-required-checks-reconciled" ] &&
-      [ ! -f "$FAKE_STATE/final-required-checks-reconciled" ]; then
-      printf '{"strict":true,"contexts":["check / Check linked issues","Example CI","lint / Lint Code Base"]}\n'
-    elif [ "${FAKE_STAGED_LINKED_TRANSITION:-}" = 1 ]; then
-      printf '{"strict":true,"contexts":["Check linked issues","Example CI","lint / Lint Code Base"]}\n'
     elif [ "${FAKE_STALE_REQUIRED_CHECKS:-}" = 1 ] &&
       { [ ! -f "$FAKE_STATE/required-checks-reconciled" ] ||
         [ "${FAKE_REQUIRED_CHECKS_VERIFY_DRIFT:-}" = 1 ]; }; then
       if [ -f "$FAKE_STATE/required-checks-reconciled" ]; then
         touch "$FAKE_STATE/required-check-failed"
       fi
-      printf '{"strict":true,"contexts":["check / Check linked issues","lint / Lint Code Base","lint / Shell Unit Tests"]}\n'
+      printf '{"strict":true,"contexts":["Stale required context","lint / Lint Code Base","lint / Shell Unit Tests"]}\n'
     else
       printf '{"strict":true,"contexts":["Check linked issues","Example CI","lint / Lint Code Base"]}\n'
     fi
@@ -374,16 +351,9 @@ case "$1 $endpoint" in
           ]}'
         ;;
       esac
-    elif [ "${FAKE_LEGACY_LINKED_CHECK:-}" = 1 ]; then
-      jq -cn --arg sha "$BRANCH_HEAD" \
-        '{check_runs:[{name:"check / Check linked issues",head_sha:$sha,status:"completed",conclusion:"success",details_url:"https://github.com/f5-sales-demo/example/actions/runs/999/job/1000",app:{id:15368,slug:"github-actions"}}]}'
     else
       printf '{"check_runs":[]}\n'
     fi
-    ;;
-  'api repos/f5-sales-demo/example/actions/runs/999')
-    jq -cn --arg sha "$BRANCH_HEAD" \
-      '{path:".github/workflows/require-linked-issue.yml",event:"pull_request_target",head_sha:$sha,status:"completed",conclusion:"success"}'
     ;;
   'api repos/f5-sales-demo/example/actions/runs/1001')
     run_path=.github/workflows/super-linter.yml
@@ -421,7 +391,7 @@ case "$1 $endpoint" in
       echo 'gh: Not Found (HTTP 404)' >&2
       exit 1
     fi
-    if [ "${FAKE_STAGED_LINKED_TRANSITION:-}" = 1 ] &&
+    if [ "${FAKE_UNSUPPORTED_LINKED_DISPATCH:-}" = 1 ] &&
       ! jq -e '.inputs.pull_request_number and .inputs.expected_head_sha' "$input" >/dev/null; then
       echo 'gh: workflow does not have workflow_dispatch trigger (HTTP 422)' >&2
       exit 1
@@ -974,7 +944,7 @@ case "$1 $endpoint" in
     fi
     ;;
   'api repos/f5-sales-demo/example/pulls?state=closed&sort=updated&direction=desc&per_page=100')
-    if [ "${FAKE_RECOVER_MERGED_TRANSITION:-}" = 1 ]; then
+    if [ "${FAKE_RECOVER_MERGED_BOOTSTRAP:-}" = 1 ]; then
       jq -cn --arg sha "$BRANCH_HEAD" --arg branch "$EXPECTED_BRANCH" \
         --arg repo "${GITHUB_REPOSITORY%/*}/example" \
         '[{number:42,merged_at:"2026-08-04T12:00:00Z",head:{ref:$branch,sha:$sha,repo:{full_name:$repo}},base:{ref:"main"}}]'
@@ -1133,9 +1103,8 @@ run_bootstrap() {
     FAKE_REQUIRED_CHECKS_ERROR="${FAKE_REQUIRED_CHECKS_ERROR:-}" \
     FAKE_REQUIRED_CHECKS_VERIFY_DRIFT="${FAKE_REQUIRED_CHECKS_VERIFY_DRIFT:-}" \
     FAKE_REQUIRED_CHECKS_PATCH_RATE_LIMIT="${FAKE_REQUIRED_CHECKS_PATCH_RATE_LIMIT:-}" \
-    FAKE_STAGED_LINKED_TRANSITION="${FAKE_STAGED_LINKED_TRANSITION:-}" \
-    FAKE_LEGACY_LINKED_CHECK="${FAKE_LEGACY_LINKED_CHECK:-}" \
-    FAKE_RECOVER_MERGED_TRANSITION="${FAKE_RECOVER_MERGED_TRANSITION:-}" \
+    FAKE_UNSUPPORTED_LINKED_DISPATCH="${FAKE_UNSUPPORTED_LINKED_DISPATCH:-}" \
+    FAKE_RECOVER_MERGED_BOOTSTRAP="${FAKE_RECOVER_MERGED_BOOTSTRAP:-}" \
     FAKE_FIRST_REPO="${FAKE_FIRST_REPO:-}" \
     FAKE_FIRST_REPO_PARTIAL="${FAKE_FIRST_REPO_PARTIAL:-}" \
     FAKE_PROTECTED_EMPTY_CALLERS="${FAKE_PROTECTED_EMPTY_CALLERS:-}" \
@@ -1593,89 +1562,6 @@ if [ "$rc" != 83 ] ||
 fi
 echo "[OK] stale linked-issue evaluator is bootstrapped before enforcement resumes"
 
-state="$WORK/state-staged-linked-transition"
-mkdir -p "$state"
-touch "$state/disabled"
-: >"$WORK/gh.log"
-DOWNSTREAM_BLOB="$CALLER_BLOB"
-DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
-FAKE_STAGED_LINKED_TRANSITION=1
-FAKE_LEGACY_LINKED_CHECK=1
-FAKE_MERGE_LANDS=1
-set +e
-run_bootstrap "$state" >"$WORK/staged-linked-transition.out" \
-  2>"$WORK/staged-linked-transition.err"
-rc=$?
-set -e
-unset DOWNSTREAM_LINKED_BLOB FAKE_STAGED_LINKED_TRANSITION FAKE_LEGACY_LINKED_CHECK \
-  FAKE_MERGE_LANDS
-legacy_check_line=$(grep -n '/check-runs' "$WORK/gh.log" | head -1 | cut -d: -f1 || true)
-transition_patch_line=$(grep -n 'required_status_checks --method PATCH' "$WORK/gh.log" | head -1 | cut -d: -f1 || true)
-merge_line=$(grep -n '^pr merge ' "$WORK/gh.log" | head -1 | cut -d: -f1 || true)
-dispatch_line=$(grep -n 'require-linked-issue.yml/dispatches --method POST' "$WORK/gh.log" | tail -1 | cut -d: -f1 || true)
-status_line=$(grep -n '/status' "$WORK/gh.log" | tail -1 | cut -d: -f1 || true)
-final_patch_line=$(grep -n 'required_status_checks --method PATCH' "$WORK/gh.log" | tail -1 | cut -d: -f1 || true)
-if [ "$rc" != 0 ] || [ -z "$legacy_check_line" ] || [ -z "$transition_patch_line" ] ||
-  [ -z "$merge_line" ] || [ -z "$dispatch_line" ] || [ -z "$status_line" ] ||
-  [ -z "$final_patch_line" ] || [ "$legacy_check_line" -ge "$transition_patch_line" ] ||
-  [ "$transition_patch_line" -ge "$merge_line" ] || [ "$merge_line" -ge "$dispatch_line" ] ||
-  [ "$dispatch_line" -ge "$status_line" ] || [ "$status_line" -ge "$final_patch_line" ] ||
-  [ "$(grep -c 'required_status_checks --method PATCH' "$WORK/gh.log")" -ne 2 ] ||
-  ! jq -e '.contexts | index("check / Check linked issues") != null' \
-    "$state/transition-required-checks.json" >/dev/null ||
-  ! jq -e '.contexts | index("Check linked issues") != null' \
-    "$state/final-required-checks.json" >/dev/null; then
-  echo "[FAIL] linked-issue evaluator transition did not retain a real gate through both stages"
-  cat "$WORK/staged-linked-transition.err"
-  sed 's/^/  log: /' "$WORK/gh.log"
-  exit 1
-fi
-echo "[OK] linked-issue evaluator transition preserves a verified real gate throughout"
-
-state="$WORK/state-recover-linked-transition"
-mkdir -p "$state"
-touch "$state/transition-required-checks-reconciled"
-: >"$WORK/gh.log"
-DOWNSTREAM_BLOB="$CALLER_BLOB"
-FAKE_STAGED_LINKED_TRANSITION=1
-FAKE_RECOVER_MERGED_TRANSITION=1
-run_bootstrap "$state" >"$WORK/recover-linked-transition.out" \
-  2>"$WORK/recover-linked-transition.err"
-unset FAKE_STAGED_LINKED_TRANSITION FAKE_RECOVER_MERGED_TRANSITION
-if ! grep -q 'pulls?state=closed&sort=updated&direction=desc&per_page=100' "$WORK/gh.log" ||
-  ! grep -q 'require-linked-issue.yml/dispatches --method POST' "$WORK/gh.log" ||
-  [ "$(grep -c 'required_status_checks --method PATCH' "$WORK/gh.log")" -ne 1 ] ||
-  grep -qE 'git/refs --method POST|contents/.github/workflows/.* --method PUT|^pr (create|merge)' \
-    "$WORK/gh.log"; then
-  echo "[FAIL] interrupted linked-issue transition did not recover from its merged exact receipt"
-  cat "$WORK/recover-linked-transition.err"
-  exit 1
-fi
-echo "[OK] interrupted transition recovers idempotently from its merged exact receipt"
-
-state="$WORK/state-hostile-recovered-lint-config"
-mkdir -p "$state"
-touch "$state/transition-required-checks-reconciled"
-: >"$WORK/gh.log"
-DOWNSTREAM_BLOB="$CALLER_BLOB"
-FAKE_STAGED_LINKED_TRANSITION=1
-FAKE_RECOVER_MERGED_TRANSITION=1
-FAKE_BAD_RECOVER_LINT_CONFIG=1
-set +e
-run_bootstrap "$state" >/dev/null 2>"$WORK/hostile-recovered-lint-config.err"
-rc=$?
-set -e
-unset FAKE_STAGED_LINKED_TRANSITION FAKE_RECOVER_MERGED_TRANSITION \
-  FAKE_BAD_RECOVER_LINT_CONFIG
-if [ "$rc" = 0 ] ||
-  grep -qE 'require-linked-issue.yml/dispatches --method POST|required_status_checks --method PATCH|^pr merge' \
-    "$WORK/gh.log"; then
-  echo "[FAIL] hostile recovered actionlint config reached dispatch or protection mutation"
-  cat "$WORK/hostile-recovered-lint-config.err"
-  exit 1
-fi
-echo "[OK] interrupted transition rejects a mismatched actionlint config receipt"
-
 state="$WORK/state-exact"
 mkdir -p "$state"
 : >"$WORK/gh.log"
@@ -2083,13 +1969,13 @@ touch "$state/disabled" "$state/disabled-example-two"
 : >"$WORK/gh.log"
 DOWNSTREAM_BLOB="$CALLER_BLOB"
 DOWNSTREAM_LINKED_BLOB="$OLD_BLOB"
-FAKE_STAGED_LINKED_TRANSITION=1
+FAKE_UNSUPPORTED_LINKED_DISPATCH=1
 FAKE_FAIL_SECOND_BOOTSTRAP=1
 set +e
 TEST_DOWNSTREAM_CONFIG="$WORK/repos-two.json" run_bootstrap "$state" >/dev/null 2>&1
 rc=$?
 set -e
-unset DOWNSTREAM_LINKED_BLOB FAKE_STAGED_LINKED_TRANSITION FAKE_FAIL_SECOND_BOOTSTRAP
+unset DOWNSTREAM_LINKED_BLOB FAKE_UNSUPPORTED_LINKED_DISPATCH FAKE_FAIL_SECOND_BOOTSTRAP
 if [ "$rc" != 1 ] || grep -q 'actions/workflows/enforce-repo-settings.yml/enable --method PUT' \
   "$WORK/gh.log"; then
   echo "[FAIL] recoverable transition state masked a permanent fleet bootstrap failure"
@@ -2313,10 +2199,10 @@ cp "$WORK/state-first-repo/transition-protection.json" \
 : >"$WORK/gh.log"
 DOWNSTREAM_BLOB="$CALLER_BLOB"
 FAKE_FIRST_REPO=1
-FAKE_RECOVER_MERGED_TRANSITION=1
+FAKE_RECOVER_MERGED_BOOTSTRAP=1
 run_bootstrap "$state" >"$WORK/recover-first-repo.out" \
   2>"$WORK/recover-first-repo.err"
-unset FAKE_FIRST_REPO FAKE_RECOVER_MERGED_TRANSITION
+unset FAKE_FIRST_REPO FAKE_RECOVER_MERGED_BOOTSTRAP
 if ! grep -q 'pulls?state=closed&sort=updated&direction=desc&per_page=100' "$WORK/gh.log" ||
   ! grep -q 'require-linked-issue.yml/dispatches --method POST' "$WORK/gh.log" ||
   [ "$(grep -c 'required_status_checks --method PATCH' "$WORK/gh.log")" -ne 1 ] ||
@@ -2336,13 +2222,13 @@ cp "$WORK/state-first-repo/transition-protection.json" \
 : >"$WORK/gh.log"
 DOWNSTREAM_BLOB="$CALLER_BLOB"
 FAKE_FIRST_REPO=1
-FAKE_RECOVER_MERGED_TRANSITION=1
+FAKE_RECOVER_MERGED_BOOTSTRAP=1
 FAKE_BAD_RECOVER_LINKED=1
 set +e
 run_bootstrap "$state" >/dev/null 2>"$WORK/hostile-first-repo-receipt.err"
 rc=$?
 set -e
-unset FAKE_FIRST_REPO FAKE_RECOVER_MERGED_TRANSITION FAKE_BAD_RECOVER_LINKED
+unset FAKE_FIRST_REPO FAKE_RECOVER_MERGED_BOOTSTRAP FAKE_BAD_RECOVER_LINKED
 if [ "$rc" = 0 ] ||
   grep -qE 'require-linked-issue.yml/dispatches --method POST|required_status_checks --method PATCH|^pr merge' \
     "$WORK/gh.log"; then
