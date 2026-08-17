@@ -18,7 +18,6 @@ lint_config_path=".github/actionlint.yaml"
 audit_caller_path=".github/workflows/translation-audit.yml"
 linked_caller_path=".github/workflows/require-linked-issue.yml"
 linked_context="Check linked issues"
-legacy_linked_context="check / Check linked issues"
 wait_seconds="${BOOTSTRAP_WAIT_SECONDS:-1800}"
 poll_seconds="${BOOTSTRAP_POLL_SECONDS:-30}"
 linked_wait_seconds="${BOOTSTRAP_LINKED_WAIT_SECONDS:-300}"
@@ -140,10 +139,6 @@ gh() {
     rm -f "$err_file"
     return 84
   fi
-  if grep -qE '\(HTTP 422\)$' "$err_file"; then
-    rm -f "$err_file"
-    return 85
-  fi
   cat "$err_file" >&2
   rm -f "$err_file"
   return "$rc"
@@ -256,7 +251,7 @@ retry() {
     )
     rc=$?
     if [ "$rc" -eq 0 ] || [ "$rc" -eq 74 ] ||
-      [ "$rc" -eq 76 ] || [ "$rc" -eq 84 ] || [ "$rc" -eq 85 ]; then
+      [ "$rc" -eq 76 ] || [ "$rc" -eq 84 ]; then
       return "$rc"
     fi
     if [ "$attempt" -ge "$max" ]; then
@@ -349,26 +344,12 @@ normalize_required_checks() {
   jq -c '{strict: .strict, contexts: (.contexts | unique | sort)}'
 }
 
-transition_required_checks_for_repo() {
-  local name="$1" desired
-  desired=$(required_checks_for_repo "$name")
-  printf '%s' "$desired" | jq -ce \
-    --arg current "$linked_context" --arg legacy "$legacy_linked_context" '
-    if ([.contexts[] | select(. == $current)] | length) != 1 then
-      error("authoritative linked-issue context is not unique")
-    else
-      .contexts = ([.contexts[] | select(. != $current)] + [$legacy] | unique | sort)
-    end
-  '
-}
-
 first_transition_required_checks_for_repo() {
   local name="$1" desired
   desired=$(required_checks_for_repo "$name")
   printf '%s' "$desired" | jq -ce \
-    --arg current "$linked_context" --arg legacy "$legacy_linked_context" '
-    if ([.contexts[] | select(. == $current)] | length) != 1 or
-      ([.contexts[] | select(. == $legacy)] | length) != 0 then
+    --arg current "$linked_context" '
+    if ([.contexts[] | select(. == $current)] | length) != 1 then
       error("authoritative first-repository linked context is not unique")
     else
       .contexts = [.contexts[] | select(. != $current)] |
@@ -839,64 +820,6 @@ required_checks_are_desired() {
     return 0
   fi
   return 77
-}
-
-legacy_linked_check_is_successful() {
-  local slug="$1" head="$2" response run_response run_ids run_id rc
-  response=$(mktemp "$work/legacy-linked-check.XXXXXX")
-  set +e
-  gh api "repos/${slug}/commits/${head}/check-runs" >"$response"
-  rc=$?
-  set -e
-  if [ "$rc" -ne 0 ]; then
-    rm -f "$response"
-    return "$rc"
-  fi
-  if ! jq -e '
-    type == "object" and (.check_runs | type == "array") and
-    all(.check_runs[];
-      (.name | type == "string") and (.head_sha | type == "string") and
-      (.status | type == "string") and
-      (.conclusion == null or (.conclusion | type == "string")) and
-      (.details_url | type == "string") and
-      (.app.id | type == "number" and . >= 1 and . == floor) and
-      (.app.slug | type == "string"))
-  ' "$response" >/dev/null; then
-    echo "[ERROR] Legacy linked-issue check response is malformed for ${slug}" >&2
-    rm -f "$response"
-    return 1
-  fi
-  run_ids=$(jq -r --arg head "$head" --arg context "$legacy_linked_context" \
-    --arg prefix "https://github.com/${slug}/actions/runs/" '
-    .check_runs[] |
-    select(.name == $context and .head_sha == $head and .status == "completed" and
-      .conclusion == "success" and .app.id == 15368 and .app.slug == "github-actions" and
-      (.details_url | startswith($prefix))) |
-    .details_url | capture("/actions/runs/(?<run>[1-9][0-9]*)/job/[1-9][0-9]*$").run
-  ' "$response")
-  rm -f "$response"
-  while IFS= read -r run_id; do
-    [ -n "$run_id" ] || continue
-    run_response=$(mktemp "$work/legacy-linked-run.XXXXXX")
-    set +e
-    gh api "repos/${slug}/actions/runs/${run_id}" >"$run_response"
-    rc=$?
-    set -e
-    if [ "$rc" -ne 0 ]; then
-      rm -f "$run_response"
-      return "$rc"
-    fi
-    if jq -e --arg head "$head" '
-      type == "object" and .path == ".github/workflows/require-linked-issue.yml" and
-      .event == "pull_request_target" and .head_sha == $head and
-      .status == "completed" and .conclusion == "success"
-    ' "$run_response" >/dev/null; then
-      rm -f "$run_response"
-      return 0
-    fi
-    rm -f "$run_response"
-  done <<<"$run_ids"
-  return 76
 }
 
 canonical_linked_status_ids() {
@@ -2235,25 +2158,6 @@ bootstrap_one() {
     fi
     if [ "$rc" -eq 0 ]; then
       reconcile_required_checks "$name"
-    elif [ "$rc" -eq 85 ]; then
-      if legacy_linked_check_is_successful "$slug" "$verified_head"; then
-        rc=0
-      else
-        rc=$?
-      fi
-      if [ "$rc" -ne 0 ]; then
-        if [ "$rc" -eq 76 ]; then
-          echo "[DEFER] Waiting for the legacy linked-issue gate on ${name} PR #${pr_number}"
-        fi
-        return "$rc"
-      fi
-      transition_checks=$(transition_required_checks_for_repo "$name") || {
-        echo "[ERROR] Could not derive transitional required checks for ${slug}" >&2
-        return 1
-      }
-      reconcile_required_checks_to "$name" "$transition_checks"
-      jq -n --argjson pr "$pr_number" --arg head "$verified_head" \
-        '{pull_request: $pr, head: $head}' >"$work/linked-transition-${name}.json"
     else
       if [ "$rc" -eq 76 ]; then
         echo "[DEFER] Waiting for the canonical linked-issue gate on ${name} PR #${pr_number}"
