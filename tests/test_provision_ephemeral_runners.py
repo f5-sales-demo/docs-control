@@ -238,6 +238,20 @@ class ProvisionRunnerTests(unittest.TestCase):
         ):
             MODULE.install_definition()
         self.assertIn(["systemctl", "enable", "--now", MODULE.CAPACITY_TIMER], calls)
+        self.assertIn(
+            [
+                "install",
+                "-o",
+                "root",
+                "-g",
+                "root",
+                "-m",
+                "0755",
+                str(MODULE.PROVISIONER_SOURCE),
+                str(MODULE.INSTALL_ROOT / MODULE.PROVISIONER_SOURCE.name),
+            ],
+            calls,
+        )
 
     def test_profile_resource_limits_are_owned_by_docker_controller(self):
         for profile in ("ubuntu-24.04", "automation"):

@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 SOURCE_ROOT = Path(__file__).resolve().parent.parent
+PROVISIONER_SOURCE = Path(__file__).resolve()
 CONTROLLER_SOURCE = SOURCE_ROOT / "scripts/ephemeral-runner-controller.py"
 ENTRYPOINT_SOURCE = SOURCE_ROOT / "scripts/runner-entrypoint.sh"
 POLICY_SOURCE = SOURCE_ROOT / ".github/config/self-hosted-runner-policy.json"
@@ -201,7 +202,6 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths={DATA_ROOT} /var/lib/docker
 """
 
 
@@ -251,7 +251,7 @@ def install_definition():
         INSTALL_ROOT,
     ):
         path.mkdir(parents=True, exist_ok=True)
-    for source in (CONTROLLER_SOURCE, ENTRYPOINT_SOURCE):
+    for source in (PROVISIONER_SOURCE, CONTROLLER_SOURCE, ENTRYPOINT_SOURCE):
         command(
             [
                 "install",
