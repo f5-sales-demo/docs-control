@@ -455,6 +455,13 @@ SAFE_IDENTITY_VALUES = {
     "xc kubernetes service",
 }
 SAFE_PERSONAL_VALUES = {"90210"}
+SAFE_XC_EXTENSION_PLACEHOLDERS = {
+    "x-f5xc-",
+    "x-f5xc-namespace",
+    "x-f5xc-tenant",
+    "x-f5xc-tenant-namespace",
+    "x-f5xc-user",
+}
 DOCUMENTATION_NETWORKS = (
     ipaddress.ip_network("192.0.2.0/24"),
     ipaddress.ip_network("198.51.100.0/24"),
@@ -1113,7 +1120,7 @@ def schema_placeholder_value(lower: str) -> bool:
     return (
         lower in SCHEMA_SENTINELS
         or lower in SAFE_IDENTITY_VALUES_LOWER
-        or bool(re.fullmatch(r"x-f5xc-(?:[a-z0-9]+(?:-[a-z0-9]+)*-?)?", lower))
+        or lower in SAFE_XC_EXTENSION_PLACEHOLDERS
     )
 
 
@@ -1964,7 +1971,7 @@ def is_json_structured_literal(
     """
     value = normalized_value(structured_field_value(path, line, match))
     json_path = PurePosixPath(path).suffix.lower() == ".json"
-    if (json_path and value.startswith(("{", "["))) or value in {"{", "["}:
+    if (json_path and value.startswith("{")) or value == "{":
         return False
     if not json_path or VSCODE_WHEN_PROPERTY_RE.search(line):
         return True
