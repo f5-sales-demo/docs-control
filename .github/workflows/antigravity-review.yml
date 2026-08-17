@@ -48,7 +48,7 @@ jobs:
     name: PR review with Antigravity
     if: vars.ANTIGRAVITY_REVIEW_ENABLED == 'true'
     runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
-    timeout-minutes: 35
+    timeout-minutes: 45
     permissions:
       contents: read
     env:
@@ -136,7 +136,7 @@ jobs:
             echo "[review] GCP_PROJECT_ID is required" >&2
             exit 1
           }
-          mkdir "$RUNNER_TEMP/review-artifact"
+          mkdir -p "$RUNNER_TEMP/review-artifact/diagnostics"
           dbus-run-session -- bash -euo pipefail <<'INNER'
           rm -rf "$HOME/.local/share/keyrings"
           mkdir -p "$HOME/.local/share/keyrings"
@@ -191,15 +191,17 @@ jobs:
           set +e
           AGY_REVIEW_SKIP_LOCAL_PII=1 \
             AGY_REVIEW_REPORT_FILE="$RUNNER_TEMP/review-artifact/report.json" \
+            AGY_REVIEW_DIAGNOSTIC_DIR="$RUNNER_TEMP/review-artifact/diagnostics" \
             bash "$RUNNER_TEMP/agy-review-tool/agy-review.sh" code --base "$BASE_SHA" \
             2>&1 | tee "$RUNNER_TEMP/review.log"
           review_rc=${PIPESTATUS[0]}
           set -e
           printf '%s\n' "$review_rc" >"$RUNNER_TEMP/review-artifact/tool-status"
           if [ ! -s "$RUNNER_TEMP/review-artifact/report.json" ]; then
-            jq -n '{
-              reviewer: {verdict: "needs-attention", summary: "Antigravity review did not produce a valid report.", findings: [{severity: "critical", title: "Review execution failed", body: "The isolated reviewer failed closed; inspect the workflow log.", file: ".github/workflows/antigravity-review.yml", line_start: 1, line_end: 1, confidence: 1, recommendation: "Repair and rerun the review workflow."}], next_steps: ["Inspect the workflow log."]},
-              verifier: {verdict: "needs-attention", summary: "Independent verification was unavailable.", findings: [], next_steps: ["Rerun after repairing review execution."]}
+            jq -n --argjson status "$review_rc" '{
+              reviewer: {verdict: "needs-attention", summary: "The review wrapper failed before producing a report.", findings: [{severity: "critical", title: "Review wrapper execution failed", body: "No approval was granted because the review wrapper did not produce a report.", file: ".github/workflows/antigravity-review.yml", line_start: 1, line_end: 1, confidence: 1, recommendation: "Repair and rerun the review workflow."}], next_steps: ["Rerun the review workflow."]},
+              verifier: {verdict: "needs-attention", summary: "Independent verification was unavailable.", findings: [], next_steps: ["Rerun the review workflow."]},
+              attempt_metadata: [{phase: "wrapper", count: 1, class: "wrapper-catastrophe", exit_status: $status, elapsed_seconds: 0}]
             }' >"$RUNNER_TEMP/review-artifact/report.json"
           fi
           INNER
@@ -270,8 +272,29 @@ jobs:
             .receipt.agy_version == $version and
             .receipt.model == "Gemini 3.6 Flash (High)" and
             (.receipt.tool_status | type == "number") and
-            (.reviewer.findings | type == "array") and
-            (.verifier.findings | type == "array")
+            (.attempt_metadata | type == "array" and length >= 1 and length <= 6) and
+            (.attempt_metadata | all(.[];
+              type == "object" and
+              (keys | sort) == ["class", "count", "elapsed_seconds", "exit_status", "phase"] and
+              (.phase == "reviewer" or .phase == "verifier" or .phase == "wrapper") and
+              (.count | type == "number" and floor == . and . >= 1 and . <= 3) and
+              (.class | type == "string" and length > 0 and length <= 64) and
+              (.exit_status | type == "number" and floor == . and . >= 0 and . <= 255) and
+              (.elapsed_seconds | type == "number" and floor == . and . >= 0 and . <= 900)
+            )) and
+            ([.reviewer, .verifier] | all(.[];
+              type == "object" and
+              (.verdict == "approve" or .verdict == "needs-attention") and
+              (.summary | type == "string" and length > 0) and
+              (.next_steps | type == "array" and all(.[]; type == "string" and length > 0)) and
+              (.findings | type == "array" and all(.[];
+                (keys | sort) == ["body", "confidence", "file", "line_end", "line_start", "recommendation", "severity", "title"] and
+                (.severity == "critical" or .severity == "high" or .severity == "medium" or .severity == "low") and
+                (.title | type == "string" and length > 0) and (.body | type == "string" and length > 0) and
+                (.file | type == "string" and length > 0) and (.line_start | type == "number" and floor == . and . >= 1) and
+                (.line_end | type == "number" and floor == . and . >= 1) and (.confidence | type == "number" and . >= 0 and . <= 1) and
+                (.recommendation | type == "string")
+              ))))
           ' "$report" >/dev/null
 
       - name: Validate exact current head
@@ -322,8 +345,14 @@ jobs:
             ).values()];
             const marker = `<!-- antigravity-pr-review:${report.receipt.head_sha} -->`;
             const blocking = findings.filter((finding) => ['critical', 'high'].includes(finding.severity));
+            const failedAttempt = report.receipt.tool_status === 0 ? undefined :
+              (report.attempt_metadata || []).filter((attempt) => attempt.class !== 'success').at(-1);
             const lines = [marker, '## Antigravity PR review', '', `Head: \`${report.receipt.head_sha}\``, `Model: ${report.receipt.model}`, ''];
-            lines.push(blocking.length ? `Blocking findings: ${blocking.length}` : 'No critical or high findings remain.');
+            if (failedAttempt) {
+              lines.push('Review execution failed — no approval was granted.', '', `Phase: ${failedAttempt.phase}`, `Retry count: ${failedAttempt.count}`, `Failure class: ${failedAttempt.class}`, '', 'Please re-run this workflow after the provider is available.');
+            } else {
+              lines.push(blocking.length ? `Blocking findings: ${blocking.length}` : 'No critical or high findings remain.');
+            }
             for (const finding of findings) {
               lines.push('', `- **${finding.severity.toUpperCase()}** ${finding.title} — \`${finding.file}:${finding.line_start}\``, `  ${finding.body}`);
             }
