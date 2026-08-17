@@ -305,15 +305,15 @@
     "scripts/agy-review.sh": {
       "src": "scripts/agy-review.sh",
       "dest": "scripts/agy-review.sh",
-      "sha": "80fc7d948bbf159292b800060efe2efa95ea24d9",
-      "size": 16865,
+      "sha": "d7e1d8e1427b1de5dba0a24d4212e2c6cd2100c4",
+      "size": 18334,
       "mode": "100755"
     },
     "scripts/agy-review-output.schema.json": {
       "src": "scripts/agy-review-output.schema.json",
       "dest": "scripts/agy-review-output.schema.json",
-      "sha": "455f616e09504d903354c6b66dbfd753ac599572",
-      "size": 1293,
+      "sha": "eff57405592709a6bfd638b9264218a26bec8d29",
+      "size": 1414,
       "mode": "100644"
     },
     "scripts/run-with-progress.sh": {
@@ -396,8 +396,8 @@
     "tests/test-agy-pre-push-review.sh": {
       "src": "tests/test-agy-pre-push-review.sh",
       "dest": "tests/test-agy-pre-push-review.sh",
-      "sha": "79eaca6fbc4a223b87d71a437687dc1fa3ca1ce3",
-      "size": 17687,
+      "sha": "30772ac034125457680415f348f1d8392d6f7775",
+      "size": 19077,
       "mode": "100755"
     },
     "tests/test-github-api-resilience.sh": {

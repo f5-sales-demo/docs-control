@@ -197,10 +197,12 @@ jobs:
           review_rc=${PIPESTATUS[0]}
           set -e
           printf '%s\n' "$review_rc" >"$RUNNER_TEMP/review-artifact/tool-status"
+          target_receipt=$(printf 'agy-review-target-v1\ncode\n%s\n%s\n' "$BASE_SHA" "$HEAD_SHA" |
+            sha256sum | awk '{print $1}')
           if [ ! -s "$RUNNER_TEMP/review-artifact/report.json" ]; then
-            jq -n --argjson status "$review_rc" '{
-              reviewer: {verdict: "needs-attention", summary: "The review wrapper failed before producing a report.", findings: [{severity: "critical", title: "Review wrapper execution failed", body: "No approval was granted because the review wrapper did not produce a report.", file: ".github/workflows/antigravity-review.yml", line_start: 1, line_end: 1, confidence: 1, recommendation: "Repair and rerun the review workflow."}], next_steps: ["Rerun the review workflow."]},
-              verifier: {verdict: "needs-attention", summary: "Independent verification was unavailable.", findings: [], next_steps: ["Rerun the review workflow."]},
+            jq -n --argjson status "$review_rc" --arg receipt "$target_receipt" '{
+              reviewer: {verdict: "needs-attention", summary: "The review wrapper failed before producing a report.", findings: [{severity: "critical", title: "Review wrapper execution failed", body: "No approval was granted because the review wrapper did not produce a report.", file: ".github/workflows/antigravity-review.yml", line_start: 1, line_end: 1, confidence: 1, recommendation: "Repair and rerun the review workflow."}], next_steps: ["Rerun the review workflow."], review_target_receipt: $receipt},
+              verifier: {verdict: "needs-attention", summary: "Independent verification was unavailable.", findings: [], next_steps: ["Rerun the review workflow."], review_target_receipt: $receipt},
               attempt_metadata: [{phase: "wrapper", count: 1, class: "wrapper-catastrophe", exit_status: $status, elapsed_seconds: 0}]
             }' >"$RUNNER_TEMP/review-artifact/report.json"
           fi
@@ -263,8 +265,12 @@ jobs:
         run: |
           set -euo pipefail
           report="$RUNNER_TEMP/review-artifact/report.json"
+          target_receipt=$(printf 'agy-review-target-v1\ncode\n%s\n%s\n' "$BASE_SHA" "$HEAD_SHA" |
+            sha256sum | awk '{print $1}')
           jq -e --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" \
-            --arg head "$HEAD_SHA" --arg workflow "$WORKFLOW_SHA" --arg version "$AGY_VERSION" '
+            --arg head "$HEAD_SHA" --arg workflow "$WORKFLOW_SHA" --arg version "$AGY_VERSION" --arg receipt "$target_receipt" '
+            (.receipt.tool_status) as $tool_status |
+            (
             .receipt.repository == $repository and
             .receipt.base_sha == $base and
             .receipt.head_sha == $head and
@@ -286,6 +292,9 @@ jobs:
               type == "object" and
               (.verdict == "approve" or .verdict == "needs-attention") and
               (.summary | type == "string" and length > 0) and
+              (if $tool_status == 0 then .review_target_receipt == $receipt
+               else ((.review_target_receipt | type) == "string" and .review_target_receipt == $receipt)
+               end) and
               (.next_steps | type == "array" and all(.[]; type == "string" and length > 0)) and
               (.findings | type == "array" and all(.[];
                 (keys | sort) == ["body", "confidence", "file", "line_end", "line_start", "recommendation", "severity", "title"] and
@@ -295,6 +304,7 @@ jobs:
                 (.line_end | type == "number" and floor == . and . >= 1) and (.confidence | type == "number" and . >= 0 and . <= 1) and
                 (.recommendation | type == "string")
               ))))
+            )
           ' "$report" >/dev/null
 
       - name: Validate exact current head

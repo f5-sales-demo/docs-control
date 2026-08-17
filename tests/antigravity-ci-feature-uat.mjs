@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -96,7 +97,12 @@ function writeExecutable(file, body) {
   fs.writeFileSync(file, body, { mode: 0o755 });
 }
 
+function reviewTargetReceipt(base, head) {
+  return createHash('sha256').update(`agy-review-target-v1\ncode\n${base}\n${head}\n`).digest('hex');
+}
+
 function reviewReport(base, head, workflow) {
+  const targetReceipt = reviewTargetReceipt(base, head);
   return {
     receipt: {
       repository: 'f5-sales-demo/example',
@@ -107,8 +113,20 @@ function reviewReport(base, head, workflow) {
       model: 'Gemini 3.6 Flash (High)',
       tool_status: 0,
     },
-    reviewer: { verdict: 'approve', summary: 'clean', findings: [], next_steps: [] },
-    verifier: { verdict: 'approve', summary: 'verified', findings: [], next_steps: [] },
+    reviewer: {
+      verdict: 'approve',
+      summary: 'clean',
+      findings: [],
+      next_steps: [],
+      review_target_receipt: targetReceipt,
+    },
+    verifier: {
+      verdict: 'approve',
+      summary: 'verified',
+      findings: [],
+      next_steps: [],
+      review_target_receipt: targetReceipt,
+    },
     attempt_metadata: [
       { phase: 'reviewer', count: 1, class: 'success', exit_status: 0, elapsed_seconds: 0 },
       { phase: 'verifier', count: 1, class: 'success', exit_status: 0, elapsed_seconds: 0 },
@@ -153,6 +171,7 @@ function testReviewerAndWatcherTrustBoundaries() {
   assert.match(reviewModel, /chmod 0600 "\$credential_tmp"/);
   assert.match(review, /timeout-minutes: 45/);
   assert.match(reviewModel, /AGY_REVIEW_DIAGNOSTIC_DIR="\$RUNNER_TEMP\/review-artifact\/diagnostics"/);
+  assert.match(reviewModel, /review_target_receipt/);
   assert.doesNotMatch(reviewModel, /AGY_REVIEW_(?:DEADLINE|ATTEMPT_TIMEOUT|ATTEMPT_CAP)_/);
   assert.match(review, /Review execution failed — no approval was granted/);
   assert.match(extractJobBlock(watcherWorkflow, 'triage'), /permissions:\n {6}contents: read/);
@@ -246,6 +265,9 @@ function testReceiptAndGate() {
     }).status,
     0,
   );
+  const mismatchedReceipt = structuredClone(valid);
+  mismatchedReceipt.reviewer.review_target_receipt = '0'.repeat(64);
+  assert.notEqual(validateReceipt(mismatchedReceipt).status, 0);
   assert.equal(validateGate(valid).status, 0);
   const blocking = structuredClone(valid);
   blocking.reviewer.findings.push({ severity: 'high' });
@@ -258,6 +280,7 @@ function childReport(verdict = 'approve', findings = []) {
     summary: verdict === 'approve' ? 'clean' : 'review unavailable',
     findings,
     next_steps: verdict === 'approve' ? [] : ['rerun'],
+    review_target_receipt: reviewTargetReceipt('b'.repeat(40), 'h'.repeat(40)),
   };
 }
 
