@@ -1108,6 +1108,15 @@ def unwrapped_identity_value(value: str) -> str:
     return unwrapped_identity_value(alias.group(1)) if alias else value
 
 
+def schema_placeholder_value(lower: str) -> bool:
+    """Return whether a normalized value is a safe schema placeholder."""
+    return (
+        lower in SCHEMA_SENTINELS
+        or lower in SAFE_IDENTITY_VALUES_LOWER
+        or bool(re.fullmatch(r"x-f5xc-(?:[a-z0-9]+-)*", lower))
+    )
+
+
 def placeholder_value(value: str) -> bool:
     """Return whether a value is synthetic, schematic, or schema syntax."""
     value = unwrapped_identity_value(value)
@@ -1118,9 +1127,7 @@ def placeholder_value(value: str) -> bool:
         return snippet_safety
     lower = value.lower()
     if (
-        lower in SCHEMA_SENTINELS
-        or lower in SAFE_IDENTITY_VALUES_LOWER
-        or bool(re.fullmatch(r"x-f5xc-(?:[a-z0-9]+-)*", lower))
+        schema_placeholder_value(lower)
         or lower in {"false", "true", "~"}
         or decimal_numeric_value(value) == 0
         or bool(re.fullmatch(r"[|>](?:[+-]?[1-9]?|[1-9][+-])", value))
@@ -2052,11 +2059,12 @@ def scan_structured_identity(
     for match in IDENTITY_FIELD_RE.finditer(line):
         if match_is_in_spans(match, context.localization_spans):
             continue
-        if not is_structured_identity_field(path, line, match):
+        if not (
+            is_structured_identity_field(path, line, match)
+            and is_json_structured_literal(path, line, match)
+        ):
             continue
         value = structured_field_value(path, line, match)
-        if not is_json_structured_literal(path, line, match):
-            continue
         if numeric_enum_member(match, value, context):
             continue
         in_jq_span = match_is_in_spans(match, context.jq_spans)
@@ -2096,9 +2104,7 @@ def scan_structured_identity(
 
     for match in ADDRESS_FIELD_RE.finditer(line):
         value = structured_field_value(path, line, match)
-        if not is_json_structured_literal(path, line, match):
-            continue
-        if is_nonliteral_code_expression(
+        if not is_json_structured_literal(path, line, match) or is_nonliteral_code_expression(
             line,
             match,
             source_code=context.source_code,
