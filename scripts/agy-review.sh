@@ -243,7 +243,7 @@ fi
 
 invoke_agy() {
   local phase=$1 prompt_file=$2 stream_file=$3 result_file=$4
-  local attempt=1 rc=0 class='' elapsed=0 remaining=0 backoff=0 required_budget=0 candidate="$work/$phase.result" stderr_file="$work/$phase.stderr"
+  local attempt=1 rc=0 class='' elapsed=0 remaining=0 backoff=0 required_budget=0 capture_pid=0 candidate="$work/$phase.result" stderr_file="$work/$phase.stderr" stderr_pipe="$work/$phase.stderr.pipe"
   while [ "$attempt" -le "$attempt_limit" ]; do
     remaining=$((deadline_seconds - ($(date +%s) - review_started)))
     # Keep a full capped attempt for the independent verifier. A reviewer retry
@@ -258,6 +258,10 @@ invoke_agy() {
     fi
     : >"$stream_file"
     : >"$stderr_file"
+    rm -f "$stderr_pipe"
+    mkfifo "$stderr_pipe"
+    capture_attempt_stderr "$phase" "$stderr_file" <"$stderr_pipe" &
+    capture_pid=$!
     local started
     started=$(date +%s)
     set +e
@@ -268,8 +272,10 @@ invoke_agy() {
       --model "Gemini 3.6 Flash (High)" \
       --output-format stream-json --json-schema "$schema" \
       --print-timeout "$attempt_timeout" --print "$(<"$prompt_file")" >"$stream_file" \
-      2> >(capture_attempt_stderr "$phase" "$stderr_file")
+      2>"$stderr_pipe"
     rc=$?
+    wait "$capture_pid"
+    rm -f "$stderr_pipe"
     set -e
     elapsed=$(($(date +%s) - started))
     if [ "$rc" -eq 0 ] && jq -s -e '
