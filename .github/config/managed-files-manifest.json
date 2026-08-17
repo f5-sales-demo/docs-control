@@ -1,5 +1,5 @@
 {
-  "source_commit": "c0c21ed088db83b920b8c200b90de9176710079c",
+  "source_commit": "621babfb78f05475a1f8c8b34131937575e7d7bc",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -354,8 +354,8 @@
     "scripts/check_pii.py": {
       "src": "scripts/check_pii.py",
       "dest": "scripts/check_pii.py",
-      "sha": "7b738221854ad8d2ba5a37feed5ebea9a17acd39",
-      "size": 97487,
+      "sha": "04647004ea4949e039266a0f89a778cd686fdbd1",
+      "size": 97504,
       "mode": "100644"
     },
     "scripts/check-pii.sh": {
@@ -382,8 +382,8 @@
     "tests/test-check-pii.sh": {
       "src": "tests/test-check-pii.sh",
       "dest": "tests/test-check-pii.sh",
-      "sha": "712d388d83c0540150580081af00d046d745a2a1",
-      "size": 94845,
+      "sha": "e4f053268f2888e12cab8f1d934030170f09c160",
+      "size": 95482,
       "mode": "100755"
     },
     "tests/test-lint-mdx-prose.sh": {
