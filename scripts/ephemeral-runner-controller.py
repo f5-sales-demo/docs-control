@@ -45,6 +45,7 @@ TRANSIENT_INSPECT_ATTEMPTS = 8
 TRANSIENT_INSPECT_INITIAL_DELAY_SECONDS = 0.1
 TRANSIENT_INSPECT_MAX_DELAY_SECONDS = 2.0
 TRANSIENT_INSPECT_MAX_TOTAL_SECONDS = 8.0
+DOCKER_COMMAND_TIMEOUT_SECONDS = 60
 REGISTRATION_RATE_LIMIT_FALLBACK_SECONDS = 300
 REGISTRATION_RECOVERY_JITTER_SECONDS = 120
 
@@ -68,6 +69,7 @@ class StopRequestedError(Exception):
 
 def run_command(command, *, input_text=None, check=True, capture=True):
     """Run an argv-only command without a shell."""
+    timeout = DOCKER_COMMAND_TIMEOUT_SECONDS if command[:1] == ["docker"] else None
     return subprocess.run(  # noqa: S603 - every caller passes an argv list
         command,
         check=check,
@@ -75,6 +77,7 @@ def run_command(command, *, input_text=None, check=True, capture=True):
         text=True,
         stdout=subprocess.PIPE if capture else None,
         stderr=subprocess.PIPE if capture else None,
+        timeout=timeout,
     )
 
 
@@ -545,6 +548,43 @@ class EphemeralController:
         """
         return self.base_dir / f".cleanup-{spec.name}-{profile.name}-{slot}.lock"
 
+    @property
+    def nested_container_inventory_lock_path(self):
+        """Return the lock for the Docker-wide nested-container inventory."""
+        return self.base_dir / ".nested-container-inventory.lock"
+
+    @contextlib.contextmanager
+    def nested_container_inventory_lock(self):
+        """Serialize global Docker inventory without serializing exact cleanup."""
+        lock_path = self.nested_container_inventory_lock_path
+        try:
+            self.base_dir.mkdir(parents=True, exist_ok=True)
+            descriptor = os.open(
+                lock_path,
+                os.O_CREAT | os.O_RDWR | os.O_CLOEXEC | os.O_NOFOLLOW,
+                0o600,
+            )
+        except OSError as exc:
+            raise FleetError(
+                f"cannot open nested container inventory lock: {exc}"
+            ) from exc
+        try:
+            metadata = os.fstat(descriptor)
+            if (
+                not stat.S_ISREG(metadata.st_mode)
+                or metadata.st_uid != os.geteuid()
+                or stat.S_IMODE(metadata.st_mode) != 0o600
+            ):
+                raise FleetError("nested container inventory lock is unsafe")
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            yield
+        except OSError as exc:
+            raise FleetError(
+                f"cannot use nested container inventory lock: {exc}"
+            ) from exc
+        finally:
+            os.close(descriptor)
+
     @staticmethod
     def container_name(spec, profile, slot):
         return f"gha-{spec.name}-{profile.name}-{slot}"
@@ -725,6 +765,11 @@ class EphemeralController:
             raise FleetError(f"cannot remove exact runner container {name}")
 
     def _remove_nested_containers(self, spec, profile, slot):
+        """Remove nested Docker containers scoped to this runner workspace."""
+        with self.nested_container_inventory_lock():
+            self._remove_nested_containers_locked(spec, profile, slot)
+
+    def _remove_nested_containers_locked(self, spec, profile, slot):
         workspace = self.runtime_workspace(spec, profile, slot)
         try:
             workspace_root = workspace.resolve(strict=True)

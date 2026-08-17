@@ -117,6 +117,20 @@ class EphemeralRunnerTests(unittest.TestCase):
     def policy(self):
         return MODULE.FleetPolicy(self.policy_path)
 
+    def test_run_command_bounds_docker_invocations(self):
+        with mock.patch.object(MODULE.subprocess, "run") as run:
+            MODULE.run_command(["docker", "container", "inspect", "fixture"])
+
+        self.assertEqual(
+            run.call_args.kwargs["timeout"], MODULE.DOCKER_COMMAND_TIMEOUT_SECONDS
+        )
+
+    def test_run_command_leaves_non_docker_invocations_unbounded(self):
+        with mock.patch.object(MODULE.subprocess, "run") as run:
+            MODULE.run_command(["git", "status"])
+
+        self.assertIsNone(run.call_args.kwargs["timeout"])
+
     def test_github_client_preserves_primary_rate_limit_reset(self):
         headers = Message()
         headers["X-RateLimit-Remaining"] = "0"
@@ -819,7 +833,7 @@ class EphemeralRunnerTests(unittest.TestCase):
         with mock.patch.object(MODULE.fcntl, "flock") as flock:
             controller.cleanup(spec, spec.profiles[0], 0)
 
-        flock.assert_called_once()
+        self.assertEqual(flock.call_count, 2)
         descriptor, operation = flock.call_args.args
         self.assertIsInstance(descriptor, int)
         self.assertEqual(operation, MODULE.fcntl.LOCK_EX)
@@ -827,6 +841,16 @@ class EphemeralRunnerTests(unittest.TestCase):
         metadata = lock_path.stat(follow_symlinks=False)
         self.assertTrue(stat.S_ISREG(metadata.st_mode))
         self.assertEqual(stat.S_IMODE(metadata.st_mode), 0o600)
+
+    def test_nested_container_inventory_lock_is_fleet_wide(self):
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+
+        self.assertEqual(
+            controller.nested_container_inventory_lock_path,
+            self.root / "state/.nested-container-inventory.lock",
+        )
 
     def test_cleanup_locks_are_scoped_to_runner_identity(self):
         self.policy_data["repositories"]["f5-sales-demo/other-fixture"] = {
