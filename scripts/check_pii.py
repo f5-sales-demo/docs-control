@@ -415,8 +415,6 @@ SAFE_PERSON_NAMES = {
     "amal b.",
     "noam k.",
     "rosario l.",
-    "xc container services",
-    "xc kubernetes service",
 }
 SCHEMA_SENTINELS = {
     "*",
@@ -453,6 +451,8 @@ SAFE_IDENTITY_VALUES = {
     "tenant or organization identifier",
     "tenant_and_identity",
     "user_namespace",
+    "xc container services",
+    "xc kubernetes service",
 }
 SAFE_PERSONAL_VALUES = {"90210"}
 DOCUMENTATION_NETWORKS = (
@@ -1113,7 +1113,7 @@ def schema_placeholder_value(lower: str) -> bool:
     return (
         lower in SCHEMA_SENTINELS
         or lower in SAFE_IDENTITY_VALUES_LOWER
-        or bool(re.fullmatch(r"x-f5xc-(?:[a-z0-9]+-)*", lower))
+        or bool(re.fullmatch(r"x-f5xc-(?:[a-z0-9]+(?:-[a-z0-9]+)*-?)?", lower))
     )
 
 

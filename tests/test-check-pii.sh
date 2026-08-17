@@ -2222,9 +2222,13 @@ namespace: default
 project: demo
 account: value
 extension_namespace: x-f5xc-
+tenant: x-f5xc-tenant
+namespace: x-f5xc-tenant-namespace
 example_namespace: user_namespace
 security_namespace: security
 domain: tenant_and_identity
+display_name: xc container services
+person_name: xc kubernetes service
 empty_tenant: {}
 empty_namespace: []
 zip_code: '90210'
