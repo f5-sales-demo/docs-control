@@ -140,6 +140,25 @@ python3 scripts/ephemeral-runner-controller.py audit
 sudo python3 scripts/provision-ephemeral-runners.py audit
 ```
 
+### Capacity guard
+
+`install` enables `f5-actions-runner-capacity.timer`. Every 15 minutes it checks the distinct
+filesystems backing `/data/actions-runners` and the host root filesystem. The guard writes exact
+free-space metrics to the system journal and fails when either filesystem has less than 50 GiB or
+10% free. It never deletes runner workspaces, diagnostics, images, or caches.
+
+Run the check immediately or inspect the latest timer result with:
+
+```bash
+sudo python3 scripts/provision-ephemeral-runners.py capacity-check
+systemctl status f5-actions-runner-capacity.service
+journalctl -u f5-actions-runner-capacity.service --since '1 hour ago'
+```
+
+A failed guard is an operational alert: preserve the affected runner diagnostics and active jobs,
+then add storage or perform a reviewed, scope-limited cleanup. Do not remove active runner
+workspaces as a capacity response.
+
 If a runner or image may be compromised:
 
 1. Disable the affected systemd runner instance without changing other repositories.
