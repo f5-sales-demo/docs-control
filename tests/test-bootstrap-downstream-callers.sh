@@ -1562,7 +1562,6 @@ if [ "$rc" != 83 ] ||
 fi
 echo "[OK] stale linked-issue evaluator is bootstrapped before enforcement resumes"
 
-
 state="$WORK/state-exact"
 mkdir -p "$state"
 : >"$WORK/gh.log"

@@ -344,7 +344,6 @@ normalize_required_checks() {
   jq -c '{strict: .strict, contexts: (.contexts | unique | sort)}'
 }
 
-
 first_transition_required_checks_for_repo() {
   local name="$1" desired
   desired=$(required_checks_for_repo "$name")
@@ -822,7 +821,6 @@ required_checks_are_desired() {
   fi
   return 77
 }
-
 
 canonical_linked_status_ids() {
   local slug="$1" head="$2" destination="$3" response rc
