@@ -1,5 +1,5 @@
 {
-  "source_commit": "621babfb78f05475a1f8c8b34131937575e7d7bc",
+  "source_commit": "1ce9b44240f126aa1e0ccea7f7c545a763df0d44",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -305,7 +305,7 @@
     "scripts/agy-review.sh": {
       "src": "scripts/agy-review.sh",
       "dest": "scripts/agy-review.sh",
-      "sha": "d5f66c7397be0e5588da67535409988400b94572",
+      "sha": "80fc7d948bbf159292b800060efe2efa95ea24d9",
       "size": 16865,
       "mode": "100755"
     },
@@ -399,13 +399,6 @@
       "sha": "79eaca6fbc4a223b87d71a437687dc1fa3ca1ce3",
       "size": 17687,
       "mode": "100755"
-    },
-    "tests/antigravity-ci-feature-uat.mjs": {
-      "src": "tests/antigravity-ci-feature-uat.mjs",
-      "dest": "tests/antigravity-ci-feature-uat.mjs",
-      "sha": "8d2863a193a2d592b916967ae7dde29c73ce8ea2",
-      "size": 18129,
-      "mode": "100644"
     },
     "tests/test-github-api-resilience.sh": {
       "src": "tests/test-github-api-resilience.sh",
