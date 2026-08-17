@@ -3,12 +3,15 @@
 """Hermetic tests for the ephemeral runner lifecycle."""
 
 import importlib.util
+import io
 import json
 import os
 import stat
 import sys
 import tempfile
 import unittest
+import urllib.error
+from email.message import Message
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -113,6 +116,116 @@ class EphemeralRunnerTests(unittest.TestCase):
 
     def policy(self):
         return MODULE.FleetPolicy(self.policy_path)
+
+    def test_github_client_preserves_primary_rate_limit_reset(self):
+        headers = Message()
+        headers["X-RateLimit-Remaining"] = "0"
+        headers["X-RateLimit-Reset"] = "1900000400"
+        error = urllib.error.HTTPError(
+            "https://api.github.com/test",
+            403,
+            "Forbidden",
+            headers,
+            io.BytesIO(b'{"message":"API rate limit exceeded"}'),
+        )
+        client = MODULE.GitHubClient("credential", opener=mock.Mock(side_effect=error))
+
+        with self.assertRaises(MODULE.GitHubRateLimitError) as raised:
+            client.registration_token("f5-sales-demo/fixture")
+
+        self.assertEqual(raised.exception.kind, "primary")
+        self.assertEqual(raised.exception.retry_at, 1900000400)
+
+    def test_github_client_preserves_secondary_rate_limit_delay(self):
+        headers = Message()
+        headers["Retry-After"] = "90"
+        error = urllib.error.HTTPError(
+            "https://api.github.com/test",
+            403,
+            "Forbidden",
+            headers,
+            io.BytesIO(b'{"message":"secondary rate limit"}'),
+        )
+        client = MODULE.GitHubClient("credential", opener=mock.Mock(side_effect=error))
+
+        with (
+            mock.patch.object(MODULE.time, "time", return_value=1000),
+            self.assertRaises(MODULE.GitHubRateLimitError) as raised,
+        ):
+            client.registration_token("f5-sales-demo/fixture")
+
+        self.assertEqual(raised.exception.kind, "secondary")
+        self.assertEqual(raised.exception.retry_at, 1300)
+
+    def test_registration_cooldown_is_shared_and_spreads_recovery(self):
+        first = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        second = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        with mock.patch.object(MODULE.time, "time", return_value=1000):
+            first.record_registration_cooldown(1060)
+            first_delay = first.registration_cooldown_delay(
+                "f5-sales-demo/fixture", "ubuntu-24.04", 0
+            )
+            second_delay = second.registration_cooldown_delay(
+                "f5-sales-demo/fixture", "container-build", 0
+            )
+
+        self.assertGreaterEqual(first_delay, 60)
+        self.assertLessEqual(first_delay, 180)
+        self.assertGreaterEqual(second_delay, 60)
+        self.assertLessEqual(second_delay, 180)
+        self.assertNotEqual(first_delay, second_delay)
+
+    def test_malformed_registration_cooldown_recovers_on_next_rate_limit(self):
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        controller.registration_cooldown_path.write_text("not-json", encoding="utf-8")
+
+        with mock.patch.object(MODULE.time, "time", return_value=1000):
+            self.assertEqual(
+                controller.registration_cooldown_delay(
+                    "f5-sales-demo/fixture", "ubuntu-24.04", 0
+                ),
+                0,
+            )
+            self.assertEqual(controller.record_registration_cooldown(1060), 1060)
+
+        self.assertEqual(
+            json.loads(
+                controller.registration_cooldown_path.read_text(encoding="utf-8")
+            ),
+            {"retry_at": 1060},
+        )
+
+    def test_serve_retries_after_registration_cooldown_failure(self):
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        controller.registration_cooldown_delay = mock.Mock(
+            side_effect=[MODULE.FleetError("bad cooldown"), 0]
+        )
+
+        def settle(*_args):
+            controller.stopping = True
+            return 0
+
+        controller.run_once = mock.Mock(side_effect=settle)
+        with (
+            mock.patch.object(MODULE.signal, "signal"),
+            mock.patch.object(MODULE.time, "sleep") as sleep,
+        ):
+            self.assertEqual(
+                controller.serve("f5-sales-demo/fixture", "ubuntu-24.04"), 0
+            )
+
+        sleep.assert_called_once_with(5)
+        controller.run_once.assert_called_once_with(
+            "f5-sales-demo/fixture", "ubuntu-24.04", 0
+        )
 
     def test_policy_builds_exact_repository_profiles(self):
         spec = self.policy().repository("f5-sales-demo/fixture")
