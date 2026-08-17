@@ -1977,7 +1977,11 @@ def is_json_structured_literal(
         return True
     key_start = match.start("key")
     key_end = match.end("key")
-    return not (key_start == 0 or line[key_start - 1] != '"' or line[key_end : key_end + 1] != '"')
+    return not (
+        key_start == 0
+        or line[key_start - 1] != '"'
+        or line[key_end : key_end + 1] != '"'
+    )
 
 
 def scan_contacts(
@@ -2111,7 +2115,9 @@ def scan_structured_identity(
 
     for match in ADDRESS_FIELD_RE.finditer(line):
         value = structured_field_value(path, line, match)
-        if not is_json_structured_literal(path, line, match) or is_nonliteral_code_expression(
+        if not is_json_structured_literal(
+            path, line, match
+        ) or is_nonliteral_code_expression(
             line,
             match,
             source_code=context.source_code,
@@ -2119,7 +2125,10 @@ def scan_structured_identity(
             value_override=value,
         ):
             continue
-        if not placeholder_value(value) and normalized_value(value) not in SAFE_PERSONAL_VALUES:
+        if (
+            not placeholder_value(value)
+            and normalized_value(value) not in SAFE_PERSONAL_VALUES
+        ):
             add_finding(
                 findings,
                 path=path,
