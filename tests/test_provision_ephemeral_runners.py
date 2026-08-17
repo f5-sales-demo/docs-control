@@ -227,6 +227,7 @@ class ProvisionRunnerTests(unittest.TestCase):
         calls = []
         with (
             mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(Path, "mkdir"),
             mock.patch.object(MODULE, "active_policy", return_value=object()),
             mock.patch.object(MODULE, "instances", return_value=()),
             mock.patch.object(MODULE, "safe_write"),
