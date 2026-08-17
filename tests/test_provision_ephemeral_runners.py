@@ -195,6 +195,50 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertNotIn("f5-actions-podman", unit)
         self.assertTrue(MODULE.ENTRYPOINT_SOURCE.is_file())
 
+    def test_capacity_guard_installs_a_persistent_systemd_timer(self):
+        unit = MODULE.capacity_unit_text()
+        timer = MODULE.capacity_timer_text()
+        self.assertIn("capacity-check", unit)
+        self.assertIn("/opt/f5-actions-runner/provision-ephemeral-runners.py", unit)
+        self.assertIn("OnUnitActiveSec=15min", timer)
+        self.assertIn("Persistent=true", timer)
+
+    def test_capacity_guard_fails_closed_below_either_free_space_limit(self):
+        healthy = type("Usage", (), {"total": 1000, "used": 800, "free": 200})()
+        low_bytes = type("Usage", (), {"total": 1000, "used": 901, "free": 99})()
+        low_percent = type("Usage", (), {"total": 1000, "used": 950, "free": 50})()
+
+        def check(usage):
+            with (
+                mock.patch.object(
+                    MODULE, "capacity_paths", return_value=(Path("/data"),)
+                ),
+                mock.patch.object(MODULE, "CAPACITY_MIN_FREE_BYTES", 100),
+                mock.patch.object(MODULE, "CAPACITY_MIN_FREE_PERCENT", 10),
+                mock.patch.object(MODULE.shutil, "disk_usage", return_value=usage),
+            ):
+                return MODULE.capacity_check()
+
+        self.assertEqual(check(healthy), 0)
+        self.assertEqual(check(low_bytes), 1)
+        self.assertEqual(check(low_percent), 1)
+
+    def test_install_enables_capacity_timer(self):
+        calls = []
+        with (
+            mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(MODULE, "active_policy", return_value=object()),
+            mock.patch.object(MODULE, "instances", return_value=()),
+            mock.patch.object(MODULE, "safe_write"),
+            mock.patch.object(
+                MODULE,
+                "command",
+                side_effect=lambda argv, **_kwargs: calls.append(argv),
+            ),
+        ):
+            MODULE.install_definition()
+        self.assertIn(["systemctl", "enable", "--now", MODULE.CAPACITY_TIMER], calls)
+
     def test_profile_resource_limits_are_owned_by_docker_controller(self):
         for profile in ("ubuntu-24.04", "automation"):
             item = next(
@@ -208,6 +252,23 @@ class ProvisionRunnerTests(unittest.TestCase):
             self.assertEqual(item.pids_limit, 4096)
             self.assertEqual(item.stop_timeout, 300)
             self.assertEqual(item.network, "bridge")
+
+    def test_audit_fails_when_capacity_guard_reports_exhaustion(self):
+        controller = type("Controller", (), {"audit_containers": lambda *_args: ()})()
+        controller_module = type(
+            "ControllerModule",
+            (),
+            {"EphemeralController": lambda *_args: controller},
+        )()
+        with (
+            mock.patch.object(MODULE, "capacity_check", return_value=1),
+            mock.patch.object(MODULE, "select", return_value=[]),
+            mock.patch.object(MODULE, "docker_host_errors", return_value=[]),
+            mock.patch.object(
+                MODULE, "load_controller", return_value=controller_module
+            ),
+        ):
+            self.assertEqual(MODULE.audit("f5-sales-demo/docs-control"), 1)
 
     def test_automation_uses_current_socketless_runner_image(self):
         policy = json.loads(

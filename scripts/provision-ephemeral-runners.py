@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -25,6 +26,10 @@ DATA_ROOT = Path("/data/actions-runners")
 STATE_ROOT = DATA_ROOT / "f5-sales-demo-ephemeral"
 TOKEN_PATH = CONFIG_ROOT / "github.token"
 RUNNER_UNIT = "f5-actions-runner@.service"
+CAPACITY_UNIT = "f5-actions-runner-capacity.service"
+CAPACITY_TIMER = "f5-actions-runner-capacity.timer"
+CAPACITY_MIN_FREE_BYTES = 50 * 1024 * 1024 * 1024
+CAPACITY_MIN_FREE_PERCENT = 10
 
 
 class ProvisionError(RuntimeError):
@@ -166,6 +171,75 @@ WantedBy=multi-user.target
 """
 
 
+def capacity_paths():
+    """Return distinct host filesystems that hold runner state or containers."""
+    paths = []
+    devices = set()
+    for path in (Path("/"), DATA_ROOT):
+        try:
+            device = path.stat().st_dev
+        except OSError as exc:
+            raise ProvisionError(
+                f"cannot inspect runner capacity path {path}: {exc}"
+            ) from exc
+        if device not in devices:
+            devices.add(device)
+            paths.append(path)
+    return tuple(paths)
+
+
+def capacity_unit_text():
+    return f"""[Unit]
+Description=F5 Actions runner capacity guard
+After=local-fs.target
+Wants=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 {INSTALL_ROOT}/provision-ephemeral-runners.py capacity-check
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={DATA_ROOT} /var/lib/docker
+"""
+
+
+def capacity_timer_text():
+    return f"""[Unit]
+Description=Schedule F5 Actions runner capacity guard
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=15min
+Persistent=true
+Unit={CAPACITY_UNIT}
+
+[Install]
+WantedBy=timers.target
+"""
+
+
+def capacity_check():
+    """Emit a systemd-visible alert before runner storage reaches exhaustion."""
+    failed = False
+    for path in capacity_paths():
+        usage = shutil.disk_usage(path)
+        free_percent = usage.free * 100 / usage.total
+        healthy = (
+            usage.free >= CAPACITY_MIN_FREE_BYTES
+            and free_percent >= CAPACITY_MIN_FREE_PERCENT
+        )
+        marker = "OK" if healthy else "ERROR"
+        print(
+            f"[{marker}] runner capacity path={path} free_bytes={usage.free} "
+            f"free_percent={free_percent:.1f} minimum_bytes={CAPACITY_MIN_FREE_BYTES} "
+            f"minimum_percent={CAPACITY_MIN_FREE_PERCENT}"
+        )
+        failed |= not healthy
+    return 1 if failed else 0
+
+
 def install_definition():
     require_root()
     policy = active_policy()
@@ -205,6 +279,8 @@ def install_definition():
         ]
     )
     safe_write(SYSTEMD_ROOT / RUNNER_UNIT, runner_unit_text())
+    safe_write(SYSTEMD_ROOT / CAPACITY_UNIT, capacity_unit_text())
+    safe_write(SYSTEMD_ROOT / CAPACITY_TIMER, capacity_timer_text())
     for item in instances(policy):
         safe_write(
             INSTANCE_ROOT / f"{item.identifier}.env",
@@ -212,6 +288,7 @@ def install_definition():
             0o600,
         )
     command(["systemctl", "daemon-reload"])
+    command(["systemctl", "enable", "--now", CAPACITY_TIMER])
 
 
 def install_credential():
@@ -280,11 +357,12 @@ def docker_host_errors(policy):
 
 
 def audit(repository=None):
+    capacity_failed = capacity_check() != 0
     selected = select(repository) if repository else list(all_instances())
     host_errors = docker_host_errors(active_policy())
     for error in host_errors:
         print(f"[ERROR] {error}")
-    failed = bool(host_errors)
+    failed = capacity_failed or bool(host_errors)
     controller_module = load_controller()
     controller = controller_module.EphemeralController(active_policy(), None)
     for full_name in sorted({item.repository for item in selected}):
@@ -318,6 +396,7 @@ def main(argv=None):
     subparsers.add_parser("plan")
     subparsers.add_parser("install")
     subparsers.add_parser("install-credential")
+    subparsers.add_parser("capacity-check")
     enable_parser = subparsers.add_parser("enable")
     enable_parser.add_argument("repository")
     enable_parser.add_argument("--profile")
@@ -331,6 +410,8 @@ def main(argv=None):
             install_definition()
         elif args.action == "install-credential":
             install_credential()
+        elif args.action == "capacity-check":
+            return capacity_check()
         elif args.action == "enable":
             enable(args.repository, args.profile)
         else:
