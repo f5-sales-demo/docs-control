@@ -305,8 +305,8 @@
     "scripts/agy-review.sh": {
       "src": "scripts/agy-review.sh",
       "dest": "scripts/agy-review.sh",
-      "sha": "0ce079b370eef9930fe018ad666fb30048340b84",
-      "size": 15988,
+      "sha": "d5f66c7397be0e5588da67535409988400b94572",
+      "size": 16865,
       "mode": "100755"
     },
     "scripts/agy-review-output.schema.json": {
@@ -396,8 +396,8 @@
     "tests/test-agy-pre-push-review.sh": {
       "src": "tests/test-agy-pre-push-review.sh",
       "dest": "tests/test-agy-pre-push-review.sh",
-      "sha": "f5ad0de4d708b369f1091ec7d05f54ee26ebecef",
-      "size": 16955,
+      "sha": "79eaca6fbc4a223b87d71a437687dc1fa3ca1ce3",
+      "size": 17687,
       "mode": "100755"
     },
     "tests/antigravity-ci-feature-uat.mjs": {

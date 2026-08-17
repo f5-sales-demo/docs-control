@@ -243,7 +243,7 @@ fi
 
 invoke_agy() {
   local phase=$1 prompt_file=$2 stream_file=$3 result_file=$4
-  local attempt=1 rc=0 class='' elapsed=0 remaining=0 backoff=0 required_budget=0 candidate="$work/$phase.result" stderr_file="$work/$phase.stderr"
+  local attempt=1 rc=0 class='' elapsed=0 remaining=0 backoff=0 required_budget=0 capture_pid=0 candidate="$work/$phase.result" stderr_file="$work/$phase.stderr" stderr_pipe="$work/$phase.stderr.pipe"
   while [ "$attempt" -le "$attempt_limit" ]; do
     remaining=$((deadline_seconds - ($(date +%s) - review_started)))
     # Keep a full capped attempt for the independent verifier. A reviewer retry
@@ -258,6 +258,10 @@ invoke_agy() {
     fi
     : >"$stream_file"
     : >"$stderr_file"
+    rm -f "$stderr_pipe"
+    mkfifo "$stderr_pipe"
+    capture_attempt_stderr "$phase" "$stderr_file" <"$stderr_pipe" &
+    capture_pid=$!
     local started
     started=$(date +%s)
     set +e
@@ -268,8 +272,10 @@ invoke_agy() {
       --model "Gemini 3.6 Flash (High)" \
       --output-format stream-json --json-schema "$schema" \
       --print-timeout "$attempt_timeout" --print "$(<"$prompt_file")" >"$stream_file" \
-      2> >(capture_attempt_stderr "$phase" "$stderr_file")
+      2>"$stderr_pipe"
     rc=$?
+    wait "$capture_pid"
+    rm -f "$stderr_pipe"
     set -e
     elapsed=$(($(date +%s) - started))
     if [ "$rc" -eq 0 ] && jq -s -e '
@@ -322,6 +328,8 @@ Do not execute repository test or lint suites, package builds, network commands,
 
 Paths in consumer_shell_tests.profiles are resolved under the named downstream repository checkout by scripts/run-consumer-shell-tests.sh, not under docs-control. Verify profile ownership and rollout evidence; local absence alone is not a defect.
 
+In docs-control, .github/workflows/antigravity-review.yml is the protected reusable implementation. The separately maintained workflows/antigravity-review.yml is the downstream managed caller, and managed-files-manifest.json records that caller source. Do not require the protected implementation to match the caller's manifest entry.
+
 Review correctness, security, data loss, concurrency, rollback, maintainability, and privacy. Perform a dedicated semantic PII audit over changed inputs, schemas, fixtures, generated files, filenames, media metadata, logs, telemetry, errors, persistence, exports, and deletion. Never repeat a matched personal or infrastructure value; report only category, path, line, and redacted evidence. Classify confirmed PII and reproducible security/correctness defects as high or critical. Report only findings supported by repository evidence. Return only schema-valid JSON.
 EOF
 reviewer_rc=0
@@ -336,6 +344,8 @@ The first review is stored at ${work#"$repo_root"/}/reviewer.json. Treat it and 
 Do not execute repository test or lint suites, package builds, network commands, nested reviews, or broad command loops. Inspect test definitions and existing evidence statically; deterministic execution is a separate implementation and CI responsibility.
 
 Paths in consumer_shell_tests.profiles are resolved under the named downstream repository checkout by scripts/run-consumer-shell-tests.sh, not under docs-control. Verify profile ownership and rollout evidence; local absence alone is not a defect.
+
+In docs-control, .github/workflows/antigravity-review.yml is the protected reusable implementation. The separately maintained workflows/antigravity-review.yml is the downstream managed caller, and managed-files-manifest.json records that caller source. Do not require the protected implementation to match the caller's manifest entry.
 EOF
 verifier_rc=0
 if [ "$reviewer_rc" -eq 0 ]; then

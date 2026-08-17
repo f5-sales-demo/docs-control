@@ -108,7 +108,11 @@ if [ -f "$scenario/stdout" ]; then
 else
   printf '%s\n' '{"event":"result","result":{"status":"SUCCESS","structured_output":{"verdict":"approve","summary":"clean","findings":[],"next_steps":[]}}}'
 fi
-if [ -f "$scenario/stderr" ]; then cat "$scenario/stderr" >&2; fi
+if [ -f "$scenario/async-stderr" ]; then
+  (/bin/sleep 0.2; cat "$scenario/stderr" >&2) &
+elif [ -f "$scenario/stderr" ]; then
+  cat "$scenario/stderr" >&2
+fi
 if [ -f "$scenario/status" ]; then exit "$(cat "$scenario/status")"; fi
 SH
   chmod +x "$WORK/bin/agy" "$WORK/bin/date" "$WORK/bin/sleep"
@@ -121,6 +125,11 @@ queue_scenario() {
   [ -z "$stderr" ] || printf '%s\n' "$stderr" >"$WORK/scenarios/$number/stderr"
   printf '%s\n' "$status" >"$WORK/scenarios/$number/status"
   printf '%s\n' "$elapsed" >"$WORK/scenarios/$number/elapsed"
+}
+
+queue_async_stderr_scenario() {
+  queue_scenario "$@"
+  : >"$WORK/scenarios/$1/async-stderr"
 }
 
 valid_result='{"event":"result","result":{"status":"SUCCESS","structured_output":{"verdict":"approve","summary":"clean","findings":[],"next_steps":[]}}}'
@@ -252,6 +261,17 @@ for entry in \
     fail "$label recovery" "$(cat "$WORK/output")"
   fi
 done
+
+setup_repo
+queue_async_stderr_scenario 1 "" 'network connection reset after command exit' 19
+report="$WORK/report.json"
+if run_review "$WORK/bin:$PATH" env AGY_REVIEW_REPORT_FILE="$report" &&
+  [ "$(cat "$WORK/count")" -eq 3 ] && [ "$(cat "$WORK/sleeps")" = 5 ] &&
+  jq -e '.attempt_metadata[0].class == "transient-cli-failure" and .attempt_metadata[1].class == "success"' "$report" >/dev/null; then
+  pass "delayed stderr is fully captured before retry classification"
+else
+  fail "delayed stderr synchronization" "$(cat "$WORK/output")"
+fi
 
 setup_repo
 for attempt in 1 2 3; do
