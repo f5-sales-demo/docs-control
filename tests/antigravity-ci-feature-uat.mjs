@@ -53,11 +53,11 @@ function read(file) {
 
 function extractStepBlock(workflowPath, stepName, key = 'run') {
   const lines = read(workflowPath).split('\n');
-  const start = lines.indexOf('      - name: ' + stepName);
+  const start = lines.indexOf(`      - name: ${stepName}`);
   if (start === -1) throw new Error('workflow step is missing');
   const end = lines.findIndex((line, index) => index > start && /^ {6}- name: /.test(line));
   const block = lines.slice(start, end === -1 ? undefined : end);
-  const marker = block.findIndex((line) => line === '        ' + key + ': |' || line === '          ' + key + ': |');
+  const marker = block.findIndex((line) => line === `        ${key}: |` || line === `          ${key}: |`);
   if (marker === -1) throw new Error('workflow step block is missing');
   const indentation = block[marker].search(/\S/) + 2;
   return block
@@ -68,7 +68,7 @@ function extractStepBlock(workflowPath, stepName, key = 'run') {
 
 function extractJobBlock(workflowPath, jobName) {
   const lines = read(workflowPath).split('\n');
-  const start = lines.indexOf('  ' + jobName + ':');
+  const start = lines.indexOf(`  ${jobName}:`);
   if (start === -1) throw new Error('workflow job is missing');
   const end = lines.findIndex((line, index) => index > start && /^ {2}[A-Za-z0-9_-]+:$/.test(line));
   return lines.slice(start, end === -1 ? undefined : end).join('\n');
@@ -80,12 +80,16 @@ function runShell(script, cwd, env = {}) {
     if (value === null) delete environment[name];
     else environment[name] = value;
   }
-  return spawnSync('timeout', ['--signal=TERM', '--kill-after=2s', '20s', 'bash', '-c', 'set -euo pipefail\n' + script], {
-    cwd,
-    encoding: 'utf8',
-    env: environment,
-    maxBuffer: 4 * 1024 * 1024,
-  });
+  return spawnSync(
+    'timeout',
+    ['--signal=TERM', '--kill-after=2s', '20s', 'bash', '-c', `set -euo pipefail\n${script}`],
+    {
+      cwd,
+      encoding: 'utf8',
+      env: environment,
+      maxBuffer: 4 * 1024 * 1024,
+    },
+  );
 }
 
 function writeExecutable(file, body) {
@@ -213,7 +217,7 @@ function testReceiptAndGate() {
   fs.mkdirSync(path.join(gateDirectory, 'review-artifact'));
 
   const validateReceipt = (report) => {
-    fs.writeFileSync(path.join(receiptDirectory, 'review-artifact/report.json'), JSON.stringify(report) + '\n');
+    fs.writeFileSync(path.join(receiptDirectory, 'review-artifact/report.json'), `${JSON.stringify(report)}\n`);
     return runShell(extractStepBlock(reviewWorkflow, 'Validate receipt'), receiptDirectory, {
       AGY_VERSION: '1.1.10',
       BASE_SHA: base,
@@ -225,7 +229,7 @@ function testReceiptAndGate() {
     });
   };
   const validateGate = (report) => {
-    fs.writeFileSync(path.join(gateDirectory, 'review-artifact/report.json'), JSON.stringify(report) + '\n');
+    fs.writeFileSync(path.join(gateDirectory, 'review-artifact/report.json'), `${JSON.stringify(report)}\n`);
     return runShell(extractStepBlock(reviewWorkflow, 'Enforce Antigravity gate'), gateDirectory, {
       RUNNER_TEMP: gateDirectory,
     });
@@ -235,10 +239,13 @@ function testReceiptAndGate() {
   assert.equal(validateReceipt(valid).status, 0);
   assert.notEqual(validateReceipt(reviewReport(base, head, 'stale-workflow')).status, 0);
   assert.notEqual(validateReceipt({ ...valid, attempt_metadata: [] }).status, 0);
-  assert.notEqual(validateReceipt({
-    ...valid,
-    reviewer: { ...valid.reviewer, verdict: 'pass' },
-  }).status, 0);
+  assert.notEqual(
+    validateReceipt({
+      ...valid,
+      reviewer: { ...valid.reviewer, verdict: 'pass' },
+    }).status,
+    0,
+  );
   assert.equal(validateGate(valid).status, 0);
   const blocking = structuredClone(valid);
   blocking.reviewer.findings.push({ severity: 'high' });
@@ -278,7 +285,11 @@ function runReviewWorkflow(report, status) {
   );
   writeExecutable(
     path.join(bin, 'gnome-keyring-daemon'),
-    '#!/usr/bin/env bash\nIFS= read -r password\ntest "${#password}" -eq 64\nprintf "GNOME_KEYRING_CONTROL=%q\\nGNOME_KEYRING_PID=%q\\n" "$RUNNER_TEMP/keyring" 12345\n',
+    `#!/usr/bin/env bash
+IFS= read -r password
+test "\${#password}" -eq 64
+printf "GNOME_KEYRING_CONTROL=%q\\nGNOME_KEYRING_PID=%q\\n" "$RUNNER_TEMP/keyring" 12345
+`,
   );
   writeExecutable(path.join(bin, 'python3'), '#!/usr/bin/env bash\ncat >/dev/null\n');
   writeExecutable(path.join(bin, 'agy'), '#!/usr/bin/env bash\necho 1.1.10\n');
@@ -323,20 +334,48 @@ function testWorkflowOutcomes() {
   const finding = { ...syntheticFinding, severity: 'high', title: 'Model finding' };
   const scenarios = [
     ['clean', { reviewer: childReport(), verifier: childReport(), attempt_metadata: successAttempts }, 0],
-    ['model finding', { reviewer: childReport('needs-attention', [finding]), verifier: childReport(), attempt_metadata: successAttempts }, 3],
-    ['reviewer failure', {
-      reviewer: childReport('needs-attention', [syntheticFinding]),
-      verifier: childReport('needs-attention'),
-      attempt_metadata: [1, 2, 3].map((count) => ({ phase: 'reviewer', count, class: 'transient-cli-failure', exit_status: 19, elapsed_seconds: 1 })),
-    }, 3],
-    ['verifier failure', {
-      reviewer: childReport(),
-      verifier: childReport('needs-attention', [syntheticFinding]),
-      attempt_metadata: [
-        successAttempts[0],
-        ...[1, 2, 3].map((count) => ({ phase: 'verifier', count, class: 'transient-cli-failure', exit_status: 19, elapsed_seconds: 1 })),
-      ],
-    }, 3],
+    [
+      'model finding',
+      {
+        reviewer: childReport('needs-attention', [finding]),
+        verifier: childReport(),
+        attempt_metadata: successAttempts,
+      },
+      3,
+    ],
+    [
+      'reviewer failure',
+      {
+        reviewer: childReport('needs-attention', [syntheticFinding]),
+        verifier: childReport('needs-attention'),
+        attempt_metadata: [1, 2, 3].map((count) => ({
+          phase: 'reviewer',
+          count,
+          class: 'transient-cli-failure',
+          exit_status: 19,
+          elapsed_seconds: 1,
+        })),
+      },
+      3,
+    ],
+    [
+      'verifier failure',
+      {
+        reviewer: childReport(),
+        verifier: childReport('needs-attention', [syntheticFinding]),
+        attempt_metadata: [
+          successAttempts[0],
+          ...[1, 2, 3].map((count) => ({
+            phase: 'verifier',
+            count,
+            class: 'transient-cli-failure',
+            exit_status: 19,
+            elapsed_seconds: 1,
+          })),
+        ],
+      },
+      3,
+    ],
     ['wrapper catastrophe', null, 19],
   ];
 
@@ -365,10 +404,16 @@ async function testFailureComment() {
   report.verifier = childReport('needs-attention', [syntheticFinding]);
   report.attempt_metadata = [
     report.attempt_metadata[0],
-    ...[1, 2, 3].map((count) => ({ phase: 'verifier', count, class: 'transient-cli-failure', exit_status: 19, elapsed_seconds: 1 })),
+    ...[1, 2, 3].map((count) => ({
+      phase: 'verifier',
+      count,
+      class: 'transient-cli-failure',
+      exit_status: 19,
+      elapsed_seconds: 1,
+    })),
   ];
   const reportPath = path.join(work, 'report.json');
-  fs.writeFileSync(reportPath, JSON.stringify(report) + '\n');
+  fs.writeFileSync(reportPath, `${JSON.stringify(report)}\n`);
   const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
   const script = new AsyncFunction(
     'github',

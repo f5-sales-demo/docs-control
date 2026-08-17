@@ -403,8 +403,8 @@
     "tests/antigravity-ci-feature-uat.mjs": {
       "src": "tests/antigravity-ci-feature-uat.mjs",
       "dest": "tests/antigravity-ci-feature-uat.mjs",
-      "sha": "60122737781cc35dd6bd902db08fc259ea2a057e",
-      "size": 17808,
+      "sha": "8d2863a193a2d592b916967ae7dde29c73ce8ea2",
+      "size": 18129,
       "mode": "100644"
     },
     "tests/test-github-api-resilience.sh": {
