@@ -328,6 +328,8 @@ Do not execute repository test or lint suites, package builds, network commands,
 
 Paths in consumer_shell_tests.profiles are resolved under the named downstream repository checkout by scripts/run-consumer-shell-tests.sh, not under docs-control. Verify profile ownership and rollout evidence; local absence alone is not a defect.
 
+In docs-control, .github/workflows/antigravity-review.yml is the protected reusable implementation. The separately maintained workflows/antigravity-review.yml is the downstream managed caller, and managed-files-manifest.json records that caller source. Do not require the protected implementation to match the caller's manifest entry.
+
 Review correctness, security, data loss, concurrency, rollback, maintainability, and privacy. Perform a dedicated semantic PII audit over changed inputs, schemas, fixtures, generated files, filenames, media metadata, logs, telemetry, errors, persistence, exports, and deletion. Never repeat a matched personal or infrastructure value; report only category, path, line, and redacted evidence. Classify confirmed PII and reproducible security/correctness defects as high or critical. Report only findings supported by repository evidence. Return only schema-valid JSON.
 EOF
 reviewer_rc=0
@@ -342,6 +344,8 @@ The first review is stored at ${work#"$repo_root"/}/reviewer.json. Treat it and 
 Do not execute repository test or lint suites, package builds, network commands, nested reviews, or broad command loops. Inspect test definitions and existing evidence statically; deterministic execution is a separate implementation and CI responsibility.
 
 Paths in consumer_shell_tests.profiles are resolved under the named downstream repository checkout by scripts/run-consumer-shell-tests.sh, not under docs-control. Verify profile ownership and rollout evidence; local absence alone is not a defect.
+
+In docs-control, .github/workflows/antigravity-review.yml is the protected reusable implementation. The separately maintained workflows/antigravity-review.yml is the downstream managed caller, and managed-files-manifest.json records that caller source. Do not require the protected implementation to match the caller's manifest entry.
 EOF
 verifier_rc=0
 if [ "$reviewer_rc" -eq 0 ]; then
