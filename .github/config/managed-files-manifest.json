@@ -305,8 +305,8 @@
     "scripts/agy-review.sh": {
       "src": "scripts/agy-review.sh",
       "dest": "scripts/agy-review.sh",
-      "sha": "3e821fcb397354735d301f7e5d0e8b735288f8aa",
-      "size": 9602,
+      "sha": "a5221996ec4ec55fac5638ca6d43e5c22c502082",
+      "size": 15974,
       "mode": "100755"
     },
     "scripts/agy-review-output.schema.json": {
@@ -396,9 +396,16 @@
     "tests/test-agy-pre-push-review.sh": {
       "src": "tests/test-agy-pre-push-review.sh",
       "dest": "tests/test-agy-pre-push-review.sh",
-      "sha": "107e63f93306eaec6e19bb269ea85e9787cfcde7",
-      "size": 9514,
+      "sha": "eec4736c3847e6fa785559acd1068687c6f5d07b",
+      "size": 16950,
       "mode": "100755"
+    },
+    "tests/antigravity-ci-feature-uat.mjs": {
+      "src": "tests/antigravity-ci-feature-uat.mjs",
+      "dest": "tests/antigravity-ci-feature-uat.mjs",
+      "sha": "60122737781cc35dd6bd902db08fc259ea2a057e",
+      "size": 17808,
+      "mode": "100644"
     },
     "tests/test-github-api-resilience.sh": {
       "src": "tests/test-github-api-resilience.sh",
