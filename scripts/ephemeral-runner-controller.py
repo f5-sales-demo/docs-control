@@ -470,11 +470,21 @@ class EphemeralController:
             )
         except FileNotFoundError:
             return 0
-        except (OSError, ValueError) as exc:
+        except OSError as exc:
             raise FleetError(f"cannot read registration cooldown: {exc}") from exc
+        except ValueError:
+            print(
+                "runner registration cooldown is malformed; ignoring it",
+                file=sys.stderr,
+            )
+            return 0
         retry_at = payload.get("retry_at") if isinstance(payload, dict) else None
         if not isinstance(retry_at, int) or retry_at < 0:
-            raise FleetError("registration cooldown is malformed")
+            print(
+                "runner registration cooldown is malformed; ignoring it",
+                file=sys.stderr,
+            )
+            return 0
         return retry_at
 
     def record_registration_cooldown(self, retry_at):

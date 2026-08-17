@@ -179,6 +179,28 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertLessEqual(second_delay, 180)
         self.assertNotEqual(first_delay, second_delay)
 
+    def test_malformed_registration_cooldown_recovers_on_next_rate_limit(self):
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
+        )
+        controller.registration_cooldown_path.write_text("not-json", encoding="utf-8")
+
+        with mock.patch.object(MODULE.time, "time", return_value=1000):
+            self.assertEqual(
+                controller.registration_cooldown_delay(
+                    "f5-sales-demo/fixture", "ubuntu-24.04", 0
+                ),
+                0,
+            )
+            self.assertEqual(controller.record_registration_cooldown(1060), 1060)
+
+        self.assertEqual(
+            json.loads(
+                controller.registration_cooldown_path.read_text(encoding="utf-8")
+            ),
+            {"retry_at": 1060},
+        )
+
     def test_serve_retries_after_registration_cooldown_failure(self):
         controller = MODULE.EphemeralController(
             self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
