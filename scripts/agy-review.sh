@@ -243,7 +243,7 @@ fi
 
 invoke_agy() {
   local phase=$1 prompt_file=$2 stream_file=$3 result_file=$4
-  local attempt=1 rc=0 class= elapsed=0 remaining=0 backoff=0 required_budget=0 candidate="$work/$phase.result" stderr_file="$work/$phase.stderr"
+  local attempt=1 rc=0 class='' elapsed=0 remaining=0 backoff=0 required_budget=0 candidate="$work/$phase.result" stderr_file="$work/$phase.stderr"
   while [ "$attempt" -le "$attempt_limit" ]; do
     remaining=$((deadline_seconds - ($(date +%s) - review_started)))
     # Keep a full capped attempt for the independent verifier. A reviewer retry
@@ -258,7 +258,8 @@ invoke_agy() {
     fi
     : >"$stream_file"
     : >"$stderr_file"
-    local started=$(date +%s)
+    local started
+    started=$(date +%s)
     set +e
     "$progress_runner" --phase "$phase" -- \
       env -u GH_TOKEN -u GITHUB_TOKEN -u REPO_SETTINGS_TOKEN -u REPO_SYNC_TOKEN \

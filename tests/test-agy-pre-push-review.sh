@@ -235,7 +235,12 @@ for entry in \
   'network stderr||network connection reset|19' \
   'rate-limit stdout|HTTP 429 rate limit exceeded||19' \
   'service-unavailable stderr||service unavailable temporarily|19'; do
-  label=${entry%%|*}; rest=${entry#*|}; stdout=${rest%%|*}; rest=${rest#*|}; stderr=${rest%%|*}; status=${rest##*|}
+  label=${entry%%|*}
+  rest=${entry#*|}
+  stdout=${rest%%|*}
+  rest=${rest#*|}
+  stderr=${rest%%|*}
+  status=${rest##*|}
   setup_repo
   queue_scenario 1 "$stdout" "$stderr" "$status"
   report="$WORK/report.json"
