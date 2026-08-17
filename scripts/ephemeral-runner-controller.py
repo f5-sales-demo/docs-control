@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -44,10 +45,21 @@ TRANSIENT_INSPECT_ATTEMPTS = 8
 TRANSIENT_INSPECT_INITIAL_DELAY_SECONDS = 0.1
 TRANSIENT_INSPECT_MAX_DELAY_SECONDS = 2.0
 TRANSIENT_INSPECT_MAX_TOTAL_SECONDS = 8.0
+REGISTRATION_RATE_LIMIT_FALLBACK_SECONDS = 300
+REGISTRATION_RECOVERY_JITTER_SECONDS = 120
 
 
 class FleetError(RuntimeError):
     """A fail-closed runner fleet error."""
+
+
+class GitHubRateLimitError(FleetError):
+    """A GitHub API rate-limit response with its earliest safe retry time."""
+
+    def __init__(self, kind, retry_at):
+        self.kind = kind
+        self.retry_at = retry_at
+        super().__init__(f"GitHub {kind} rate limit until {retry_at}")
 
 
 class StopRequestedError(Exception):
@@ -323,6 +335,44 @@ class GitHubClient:
         self.api_url = api_url.rstrip("/")
         self.opener = opener or urllib.request.urlopen
 
+    @staticmethod
+    def rate_limit_error(exc):
+        headers = exc.headers or {}
+        message = ""
+        try:
+            body = exc.read(4096)
+            if isinstance(body, bytes):
+                message = body.decode("utf-8", errors="replace")
+        except OSError:
+            pass
+        lower = message.lower()
+        now = int(time.time())
+        remaining = headers.get("X-RateLimit-Remaining")
+        reset = headers.get("X-RateLimit-Reset")
+        retry_after = headers.get("Retry-After")
+        try:
+            reset_at = int(reset) if reset is not None else 0
+        except ValueError:
+            reset_at = 0
+        try:
+            retry_after_seconds = int(retry_after) if retry_after is not None else 0
+        except ValueError:
+            retry_after_seconds = 0
+        primary = remaining == "0" or "api rate limit exceeded" in lower
+        secondary = "secondary rate limit" in lower or retry_after_seconds > 0
+        if primary:
+            return GitHubRateLimitError(
+                "primary",
+                max(reset_at, now + REGISTRATION_RATE_LIMIT_FALLBACK_SECONDS),
+            )
+        if secondary:
+            return GitHubRateLimitError(
+                "secondary",
+                now
+                + max(retry_after_seconds, REGISTRATION_RATE_LIMIT_FALLBACK_SECONDS),
+            )
+        return None
+
     def request(self, method, path, payload=None):
         body = None if payload is None else json.dumps(payload).encode()
         request = urllib.request.Request(
@@ -341,6 +391,9 @@ class GitHubClient:
                 response_body = response.read()
                 return json.loads(response_body) if response_body else {}
         except urllib.error.HTTPError as exc:
+            rate_limit = self.rate_limit_error(exc)
+            if rate_limit is not None:
+                raise rate_limit from exc
             raise FleetError(f"GitHub API {method} {path} returned {exc.code}") from exc
 
     def registration_token(self, full_name):
@@ -386,6 +439,79 @@ class EphemeralController:
             else None
         )
         self.stopping = False
+
+    @property
+    def registration_cooldown_path(self):
+        return self.base_dir / ".registration-rate-limit.json"
+
+    @property
+    def registration_cooldown_lock_path(self):
+        return self.base_dir / ".registration-rate-limit.lock"
+
+    @contextlib.contextmanager
+    def registration_cooldown_lock(self):
+        self.base_dir.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(
+            self.registration_cooldown_lock_path,
+            os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW,
+            0o600,
+        )
+        try:
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            yield
+        finally:
+            fcntl.flock(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
+
+    def read_registration_cooldown(self):
+        try:
+            payload = json.loads(
+                self.registration_cooldown_path.read_text(encoding="utf-8")
+            )
+        except FileNotFoundError:
+            return 0
+        except (OSError, ValueError) as exc:
+            raise FleetError(f"cannot read registration cooldown: {exc}") from exc
+        retry_at = payload.get("retry_at") if isinstance(payload, dict) else None
+        if not isinstance(retry_at, int) or retry_at < 0:
+            raise FleetError("registration cooldown is malformed")
+        return retry_at
+
+    def record_registration_cooldown(self, retry_at):
+        if not isinstance(retry_at, int) or retry_at <= 0:
+            raise FleetError("registration cooldown deadline is invalid")
+        with self.registration_cooldown_lock():
+            effective_retry_at = max(retry_at, self.read_registration_cooldown())
+            temporary = self.registration_cooldown_path.with_name(
+                self.registration_cooldown_path.name + ".tmp"
+            )
+            descriptor = os.open(
+                temporary,
+                os.O_CREAT | os.O_TRUNC | os.O_WRONLY | os.O_NOFOLLOW,
+                0o600,
+            )
+            try:
+                os.write(
+                    descriptor,
+                    json.dumps({"retry_at": effective_retry_at}).encode("utf-8"),
+                )
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+            temporary.replace(self.registration_cooldown_path)
+        return effective_retry_at
+
+    def registration_cooldown_delay(self, full_name, profile_name, slot):
+        with self.registration_cooldown_lock():
+            retry_at = self.read_registration_cooldown()
+        now = int(time.time())
+        if retry_at <= now:
+            return 0
+        identity = f"{full_name}:{profile_name}:{slot}".encode()
+        jitter = int.from_bytes(hashlib.sha256(identity).digest()[:2], "big") % (
+            REGISTRATION_RECOVERY_JITTER_SECONDS + 1
+        )
+        return retry_at - now + jitter
 
     def state_dir(self, spec, profile, slot):
         path = self.base_dir / "diagnostics" / spec.name / profile.name / str(slot)
@@ -949,8 +1075,23 @@ class EphemeralController:
         signal.signal(signal.SIGINT, stop)
         while not self.stopping:
             try:
+                delay = self.registration_cooldown_delay(full_name, profile_name, slot)
+                if delay:
+                    print(
+                        f"runner registration cooldown: sleeping {delay}s",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    time.sleep(delay)
+                    continue
                 try:
                     code = self.run_once(full_name, profile_name, slot)
+                except GitHubRateLimitError as exc:
+                    self.record_registration_cooldown(exc.retry_at)
+                    print(
+                        f"runner cycle rate limited: {exc}", file=sys.stderr, flush=True
+                    )
+                    continue
                 except (FleetError, OSError, subprocess.SubprocessError) as exc:
                     print(f"runner cycle failed: {exc}", file=sys.stderr, flush=True)
                     code = 1
