@@ -153,6 +153,31 @@ done <<<"$MANAGED_PATHS"
 assert_contains "$MANIFEST_WORKFLOW" "- 'AGENTS.md'" "manifest rebuild watches AGENTS.md"
 assert_contains "$MANIFEST_WORKFLOW" "- '.agents/**'" "manifest rebuild watches shared skills"
 
+echo "=== Section 3a: every managed source triggers a manifest rebuild ==="
+
+manifest_trigger_for_source() {
+  local source="$1"
+  case "$source" in
+    .agents/*) printf '%s\n' '.agents/**' ;;
+    .claude/hooks/*) printf '%s\n' '.claude/hooks/**' ;;
+    .github/ISSUE_TEMPLATE/*) printf '%s\n' '.github/ISSUE_TEMPLATE/**' ;;
+    workflows/*) printf '%s\n' 'workflows/**' ;;
+    scripts/*) printf '%s\n' 'scripts/**' ;;
+    tests/*) printf '%s\n' 'tests/**' ;;
+    *) printf '%s\n' "$source" ;;
+  esac
+}
+
+while IFS= read -r source; do
+  [ -n "$source" ] || continue
+  trigger=$(manifest_trigger_for_source "$source")
+  if grep -qF -- "- '$trigger'" "$MANIFEST_WORKFLOW"; then
+    pass "manifest rebuild watches managed source: $source"
+  else
+    fail "manifest rebuild watches managed source: $source" "missing trigger: $trigger"
+  fi
+done < <(jq -r '.managed_files.files[].src' "$REPO_SETTINGS")
+
 echo ""
 echo "=== Section 4: demo-components uses current progressive-discovery endpoints ==="
 

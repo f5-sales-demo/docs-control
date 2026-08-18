@@ -12,6 +12,7 @@ on:
     branches: [main]
     paths:
       - '.github/config/repo-settings.json'
+      - '.github/actionlint.yaml'
       - '.github/config/self-hosted-runner-policy.json'
       - '.github/workflows/**'
       - '.github/ISSUE_TEMPLATE/**'
@@ -21,6 +22,7 @@ on:
       - 'CONTRIBUTING.md'
       - 'CLAUDE.md'
       - 'AGENTS.md'
+      - 'STYLE_GUIDE.md'
       - '.agents/**'
       - 'README.md'
       - 'LICENSE'
@@ -33,6 +35,7 @@ on:
       - '.jscpd.json'
       - '.textlintrc'
       - '.editorconfig-checker.json'
+      - '.gitleaks.toml'
       - '.checkov.yaml'
       - 'zizmor.yaml'
       - '.shellcheckrc'
@@ -41,6 +44,7 @@ on:
       - '.trivyignore'
       - '.ruff.toml'
       - 'ruff.toml'
+      - 'trivy.yaml'
       - '.isort.cfg'
       - '.python-lint'
       - '.mypy.ini'
