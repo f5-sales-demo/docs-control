@@ -158,13 +158,13 @@ echo "=== Section 3a: every managed source triggers a manifest rebuild ==="
 manifest_trigger_for_source() {
   local source="$1"
   case "$source" in
-    .agents/*) printf '%s\n' '.agents/**' ;;
-    .claude/hooks/*) printf '%s\n' '.claude/hooks/**' ;;
-    .github/ISSUE_TEMPLATE/*) printf '%s\n' '.github/ISSUE_TEMPLATE/**' ;;
-    workflows/*) printf '%s\n' 'workflows/**' ;;
-    scripts/*) printf '%s\n' 'scripts/**' ;;
-    tests/*) printf '%s\n' 'tests/**' ;;
-    *) printf '%s\n' "$source" ;;
+  .agents/*) printf '%s\n' '.agents/**' ;;
+  .claude/hooks/*) printf '%s\n' '.claude/hooks/**' ;;
+  .github/ISSUE_TEMPLATE/*) printf '%s\n' '.github/ISSUE_TEMPLATE/**' ;;
+  workflows/*) printf '%s\n' 'workflows/**' ;;
+  scripts/*) printf '%s\n' 'scripts/**' ;;
+  tests/*) printf '%s\n' 'tests/**' ;;
+  *) printf '%s\n' "$source" ;;
   esac
 }
 
