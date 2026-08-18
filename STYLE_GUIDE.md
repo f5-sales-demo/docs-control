@@ -179,7 +179,7 @@ log, or audit ledger; record the category and remediation instead.
 
 ### Placeholder convention
 
-Use angle brackets with uppercase snake case (`<UPPERCASE_SNAKE_CASE>`) for all code, parameter, URL, and configuration placeholders:
+Use angle brackets with uppercase snake_case (`<UPPERCASE_SNAKE_CASE>`) for all code, parameter, URL, and configuration placeholders:
 
 ```text
 <XC_TENANT>
