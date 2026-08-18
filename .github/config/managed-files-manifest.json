@@ -1,5 +1,5 @@
 {
-  "source_commit": "f4769016f1036fa9ddd7693aa90eac3412fdea37",
+  "source_commit": "97a181b26d6aac3dfe0a471b915340fd54f77648",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -116,8 +116,8 @@
     "STYLE_GUIDE.md": {
       "src": "STYLE_GUIDE.md",
       "dest": "STYLE_GUIDE.md",
-      "sha": "7ed9920a4166dbf95812ef026b77f8d7f8be7682",
-      "size": 18259,
+      "sha": "f1aea6bed5146a0dd7c1113ac65b99b469ffc6b4",
+      "size": 20197,
       "mode": "100644"
     },
     ".editorconfig": {
