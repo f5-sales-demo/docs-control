@@ -11,7 +11,7 @@
   },
   "profiles": {
     "ubuntu-24.04": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:21c39226f17339d580a806f88649fa6a1ecd1d3868dc8ec16f9a363d77d5d92a",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:7762bec131e0f4439ebb42bb98a98bd2e76ceb3e490c2f8935ded72b0137e329",
       "labels": ["ubuntu-24.04"],
       "memory": "8g",
       "cpus": "4",
@@ -21,7 +21,7 @@
       "docker_socket": false
     },
     "ubuntu-24.04-secondary": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:21c39226f17339d580a806f88649fa6a1ecd1d3868dc8ec16f9a363d77d5d92a",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:7762bec131e0f4439ebb42bb98a98bd2e76ceb3e490c2f8935ded72b0137e329",
       "labels": ["ubuntu-24.04"],
       "memory": "8g",
       "cpus": "4",
@@ -31,7 +31,7 @@
       "docker_socket": false
     },
     "automation": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:21c39226f17339d580a806f88649fa6a1ecd1d3868dc8ec16f9a363d77d5d92a",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:7762bec131e0f4439ebb42bb98a98bd2e76ceb3e490c2f8935ded72b0137e329",
       "labels": ["automation"],
       "memory": "8g",
       "cpus": "4",
@@ -41,7 +41,7 @@
       "docker_socket": false
     },
     "ubuntu-22.04": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:21c39226f17339d580a806f88649fa6a1ecd1d3868dc8ec16f9a363d77d5d92a",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:7762bec131e0f4439ebb42bb98a98bd2e76ceb3e490c2f8935ded72b0137e329",
       "labels": ["ubuntu-22.04"],
       "memory": "8g",
       "cpus": "4",
@@ -51,7 +51,7 @@
       "docker_socket": false
     },
     "container-build": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:f75a78b63409add3df2a10d076b5b32fc53119a477ce534f121fe10e5611c9b1",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:aee8bdcc16c9f179f5e52905b110dc66e8b2976891b3cde23a6ae0ac1f7efd21",
       "labels": ["container-build"],
       "memory": "16g",
       "cpus": "6",
