@@ -2385,6 +2385,7 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
     fence_marker: str | None = None
     fence_language: str | None = None
     fence_close_column: int | None = None
+    fence_container: str | None = None
     active_jq_quote: str | None = None
     yaml_block_indent: int | None = None
     yaml_block_anchor: str | None = None
@@ -2446,6 +2447,14 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
             invalid_backtick_info = backtick_marker and "`" in fence.group("info")
         if invalid_backtick_info:
             fence = None
+        if fence_marker and fence_container and line.strip():
+            blockquote = ">" in fence_container
+            indentation = len(line) - len(line.lstrip(" "))
+            in_container = line.lstrip().startswith(">") if blockquote else indentation >= 2
+            if not in_container:
+                fence_marker = fence_language = fence_container = None
+                fence_close_column = None
+                active_jq_quote = None
         close = FENCE_CLOSE_RE.match(line) if fence_marker else None
         closing_fence = bool(
             close
@@ -2564,6 +2573,7 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
             fence_marker = None
             fence_language = None
             fence_close_column = None
+            fence_container = None
             active_jq_quote = None
 
 
