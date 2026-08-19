@@ -50,6 +50,19 @@ Copy the caller workflow templates from `workflows/` in docs-control into the ne
 
 These files are also synced automatically by the [file sync workflow](./file-sync/), but installing them manually bootstraps the process.
 
+### Pages caller content receipt
+
+Every Pages caller must pass its own exact commit to the reusable deployment workflow:
+
+```yaml
+with:
+  content-ref: ${{ github.sha }}
+```
+
+`content-ref` must be a full 40-character commit SHA. The reusable workflow checks that checkout resolves to that SHA, then proves it is the current protected `main` commit before it builds or publishes. It records the requested content SHA, checked-out commit, and resolved builder image in the published revision marker, so the deployed artifact has a deterministic identity.
+
+There is no mutable fallback: callers cannot omit `content-ref`, use a branch name, or publish an older or unmerged commit. In docs-control, `docs-site-deploy.yml` is the direct push/manual caller; `github-pages-deploy.yml` is reusable-only.
+
 ### 5. Trigger enforcement
 
 Run the enforcement workflow manually in the new repository:
