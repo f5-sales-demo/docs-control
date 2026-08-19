@@ -1310,6 +1310,7 @@ mkdir -p \
   "$GI_TMP/plugins/example" \
   "$GI_TMP/packages/example" \
   "$GI_TMP/superpowers" \
+  "$GI_TMP/internal" \
   "$GI_TMP/docs/superpowers"
 : >"$GI_TMP/vendor/modules.txt"
 : >"$GI_TMP/src/vendor/chat-ui/index.ts"
@@ -1318,6 +1319,10 @@ mkdir -p \
 : >"$GI_TMP/packages/example/bun.lock"
 : >"$GI_TMP/superpowers/session.txt"
 : >"$GI_TMP/docs/superpowers/session.txt"
+: >"$GI_TMP/package-lock.json"
+: >"$GI_TMP/plugins/example/package-lock.json"
+: >"$GI_TMP/terraform-provider-xcsh"
+: >"$GI_TMP/internal/terraform-provider-xcsh"
 : >"$GI_TMP/superpowers.txt"
 ln -s /tmp/example-venv "$GI_TMP/.venv"
 
@@ -1379,8 +1384,34 @@ fi
 if git -C "$GI_TMP" check-ignore -q superpowers.txt; then
   fail "8.8 superpowers.txt remains trackable" \
     "the directory rule unexpectedly ignores a similarly named file"
+
 else
   pass "8.8 superpowers.txt remains trackable"
+fi
+
+# npm lockfiles are reproducibility inputs and must be stageable without force.
+for package_lock in package-lock.json plugins/example/package-lock.json; do
+  if git -C "$GI_TMP" check-ignore -q "$package_lock"; then
+    fail "8.9 package-lock.json remains trackable ($package_lock)" \
+      "$package_lock is ignored by the managed template"
+  else
+    pass "8.9 package-lock.json remains trackable ($package_lock)"
+  fi
+done
+
+# The provider's release binary is emitted only at the repository root.
+if git -C "$GI_TMP" check-ignore -q terraform-provider-xcsh; then
+  pass "8.10 root terraform-provider-xcsh binary is ignored"
+else
+  fail "8.10 root terraform-provider-xcsh binary is ignored" \
+    "the 115 MB root build artifact is trackable"
+fi
+
+if git -C "$GI_TMP" check-ignore -q internal/terraform-provider-xcsh; then
+  fail "8.11 nested terraform-provider-xcsh remains trackable" \
+    "the provider-binary rule must be root-anchored"
+else
+  pass "8.11 nested terraform-provider-xcsh remains trackable"
 fi
 
 rm -rf "$GI_TMP"
