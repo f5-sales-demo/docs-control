@@ -1,5 +1,5 @@
 {
-  "source_commit": "97a181b26d6aac3dfe0a471b915340fd54f77648",
+  "source_commit": "b8e6be57bc65c2eb12344ee91d1619c2cf1892a9",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -130,8 +130,8 @@
     ".gitignore": {
       "src": ".gitignore",
       "dest": ".gitignore",
-      "sha": "e5d2f8f32651dd212ba17f87e2626e3c0845f454",
-      "size": 3263,
+      "sha": "291106ba7f8ae620e36c5a553af340b694833272",
+      "size": 3308,
       "mode": "100644"
     },
     "LICENSE": {
