@@ -6,6 +6,8 @@ REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 DEPLOY_WORKFLOW="$REPO_ROOT/.github/workflows/github-pages-deploy.yml"
 SELF_CALLER="$REPO_ROOT/.github/workflows/docs-site-deploy.yml"
 PAGES_CALLER="$REPO_ROOT/workflows/github-pages-deploy.yml"
+README="$REPO_ROOT/README.md"
+ONBOARDING="$REPO_ROOT/docs/en/onboarding.mdx"
 GOVERNANCE_CALLER="$REPO_ROOT/workflows/enforce-repo-settings.yml"
 SYNC_WORKFLOW="$REPO_ROOT/.github/workflows/sync-managed-files.yml"
 FAIL=0
@@ -177,6 +179,23 @@ if ! grep -qE '^  (push|workflow_dispatch):' "$DEPLOY_WORKFLOW" &&
   ok "direct docs-control triggers use a thin exact-ref caller"
 else
   bad "reusable Pages workflow owns a direct trigger or lacks an exact-ref caller"
+fi
+
+if grep -Fq 'actions/workflows/docs-site-deploy.yml/badge.svg' "$README" &&
+  grep -Fq 'actions/workflows/docs-site-deploy.yml)' "$README" &&
+  ! grep -Fq 'actions/workflows/github-pages-deploy.yml/badge.svg' "$README"; then
+  ok "Pages badge targets the direct docs-control caller"
+else
+  bad "Pages badge still targets the reusable workflow"
+fi
+
+if grep -Fq 'content-ref: ${{ github.sha }}' "$ONBOARDING" &&
+  grep -Fq 'full 40-character commit SHA' "$ONBOARDING" &&
+  grep -Fq 'current protected `main` commit' "$ONBOARDING" &&
+  grep -Fq 'no mutable fallback' "$ONBOARDING"; then
+  ok "Pages caller documentation describes the exact protected-main receipt"
+else
+  bad "Pages caller documentation omits the immutable receipt contract"
 fi
 
 if grep -qF 'CONTENT_REF: ${{ steps.content.outputs.content_ref }}' <<<"$revision_block" &&
