@@ -11,7 +11,7 @@
   },
   "profiles": {
     "ubuntu-24.04": {
-      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:33f152d25a5e3e072c1e37678f80cb0a860e51e64c44a73a54472ad604ca8ee1",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:21c39226f17339d580a806f88649fa6a1ecd1d3868dc8ec16f9a363d77d5d92a",
       "labels": ["ubuntu-24.04"],
       "memory": "8g",
       "cpus": "4",
@@ -21,7 +21,7 @@
       "docker_socket": false
     },
     "ubuntu-24.04-secondary": {
-      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:33f152d25a5e3e072c1e37678f80cb0a860e51e64c44a73a54472ad604ca8ee1",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:21c39226f17339d580a806f88649fa6a1ecd1d3868dc8ec16f9a363d77d5d92a",
       "labels": ["ubuntu-24.04"],
       "memory": "8g",
       "cpus": "4",
@@ -31,7 +31,7 @@
       "docker_socket": false
     },
     "automation": {
-      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:33f152d25a5e3e072c1e37678f80cb0a860e51e64c44a73a54472ad604ca8ee1",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:21c39226f17339d580a806f88649fa6a1ecd1d3868dc8ec16f9a363d77d5d92a",
       "labels": ["automation"],
       "memory": "8g",
       "cpus": "4",
@@ -41,7 +41,7 @@
       "docker_socket": false
     },
     "ubuntu-22.04": {
-      "image": "ghcr.io/f5-sales-demo/actions-runner@sha256:cebd0176739eda88f9afa7d9092bc418fd4b1d1d5f62437c133798c356d7fba5",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:21c39226f17339d580a806f88649fa6a1ecd1d3868dc8ec16f9a363d77d5d92a",
       "labels": ["ubuntu-22.04"],
       "memory": "8g",
       "cpus": "4",
@@ -51,7 +51,7 @@
       "docker_socket": false
     },
     "container-build": {
-      "image": "ghcr.io/f5-sales-demo/actions-runner-container@sha256:10a5e55507d1fb682fbd9614e6a0f1463efbf6236278cf5ae7ab090836788d8d",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:f75a78b63409add3df2a10d076b5b32fc53119a477ce534f121fe10e5611c9b1",
       "labels": ["container-build"],
       "memory": "16g",
       "cpus": "6",
