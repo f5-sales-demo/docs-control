@@ -89,7 +89,7 @@
       "additional_contexts": ["Contract-diff gate", "Run pytest suite"]
     },
     "api-specs": {
-      "additional_contexts": ["Workflow security audit"]
+      "additional_contexts": ["Workflow security audit", "Python test suite"]
     }
   },
   "consumer_shell_tests": {

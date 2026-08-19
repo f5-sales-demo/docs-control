@@ -396,6 +396,14 @@ else
     "container-test is not in xcsh additional_contexts"
 fi
 
+API_SPECS_CONTEXTS=$(jq -c '.repo_overrides["api-specs"].additional_contexts // []' "$REPO_SETTINGS")
+if echo "$API_SPECS_CONTEXTS" | jq -e 'index("Python test suite") != null' >/dev/null; then
+  pass "7c.4 api-specs requires the Python test suite"
+else
+  fail "7c.4 api-specs requires the Python test suite" \
+    "Python test suite is not in api-specs additional_contexts"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 7d: additional_contexts must name checks that ALWAYS run
 # ════════════════════════════════════════════════════════════════════
