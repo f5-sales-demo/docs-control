@@ -360,6 +360,7 @@ NUMERIC_LITERAL_RE = re.compile(
     r");?"
 )
 MAX_COMMONMARK_INDENT = 3
+LIST_FENCE_CONTENT_INDENT = 2
 DEFAULT_IGNORABLE_RANGES = (
     (0x034F, 0x034F),
     (0x115F, 0x1160),
@@ -2450,7 +2451,7 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
         if fence_marker and fence_container and line.strip():
             blockquote = ">" in fence_container
             indentation = len(line) - len(line.lstrip(" "))
-            in_container = line.lstrip().startswith(">") if blockquote else indentation >= 2
+            in_container = line.lstrip().startswith(">") if blockquote else indentation >= LIST_FENCE_CONTENT_INDENT
             if not in_container:
                 fence_marker = fence_language = fence_container = None
                 fence_close_column = None
