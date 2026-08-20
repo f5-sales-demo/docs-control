@@ -351,8 +351,10 @@ class ProvisionRunnerTests(unittest.TestCase):
             "NoNewPrivileges=true",
             "ProtectSystem=strict",
             "ProtectHome=true",
+            "ReadWritePaths=/data/actions-runners",
         ):
             self.assertIn(expected, unit)
+        self.assertNotIn("/run/docker.sock", unit)
         self.assertIn("${RUNNER_MODE}", MODULE.runner_unit_text())
         self.assertEqual({item.mode for item in MODULE.all_instances()}, {"serve"})
         self.assertEqual({item.mode for item in standby}, {"once"})
