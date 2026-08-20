@@ -295,6 +295,7 @@ ProtectHome=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
+ReadWritePaths={DATA_ROOT}
 
 """
 
