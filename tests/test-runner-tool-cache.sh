@@ -11,12 +11,12 @@ trap 'rm -rf "$scratch"' EXIT
 runtime="$scratch/runtime"
 image_cache="$scratch/image-cache"
 mkdir -p "$runtime" "$image_cache/go/1.25.12/x64"
-printf 'go tool\n' > "$image_cache/go/1.25.12/x64/go"
+printf 'go tool\n' >"$image_cache/go/1.25.12/x64/go"
 touch "$image_cache/go/1.25.12/x64.complete"
 
 RUNNER_RUNTIME_DIR="$runtime" \
-RUNNER_TOOL_CACHE="$runtime/_tool" \
-AGENT_TOOLSDIRECTORY="$image_cache" \
+  RUNNER_TOOL_CACHE="$runtime/_tool" \
+  AGENT_TOOLSDIRECTORY="$image_cache" \
   "$initializer"
 
 test -f "$runtime/_tool/go/1.25.12/x64.complete"

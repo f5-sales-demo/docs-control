@@ -580,6 +580,10 @@ jobs:
         if: hashFiles('tests/test-runner-auditor-portability.sh') != ''
         run: bash tests/test-runner-auditor-portability.sh
 
+      - name: Run runner tool-cache test
+        if: hashFiles('tests/test-runner-tool-cache.sh') != ''
+        run: bash tests/test-runner-tool-cache.sh
+
       - name: Run runner fleet Python unit tests
         if: hashFiles('tests/test_ephemeral_runner_controller.py') != ''
         run: |
