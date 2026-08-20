@@ -465,6 +465,19 @@ class EphemeralController:
         )
         self.stopping = False
 
+    def _reload_policy(self):
+        """Validate and adopt the on-disk policy between runner cycles.
+
+        A runner cycle captures ``self.policy`` before it creates a workspace or
+        obtains a registration token. Replacing it only from ``serve`` before
+        the following cycle means a policy installation can converge idle
+        services without interrupting a registered runner. Construct the
+        replacement before assigning it so an incomplete or invalid policy
+        fails closed and leaves the last known-good policy intact in memory.
+        """
+        replacement = FleetPolicy(self.policy.path)
+        self.policy = replacement
+
     @property
     def registration_cooldown_path(self):
         return self.base_dir / ".registration-rate-limit.json"
@@ -1153,6 +1166,10 @@ class EphemeralController:
         signal.signal(signal.SIGINT, stop)
         while not self.stopping:
             try:
+                # Reload only after the preceding run_once call has completed.
+                # Do not move this into run_once: that can replace policy state
+                # while an ephemeral runner is registered and executing a job.
+                self._reload_policy()
                 delay = self.registration_cooldown_delay(full_name, profile_name, slot)
                 if delay:
                     print(
