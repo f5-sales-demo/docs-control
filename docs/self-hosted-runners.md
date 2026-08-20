@@ -71,26 +71,27 @@ The design follows GitHub's current primary guidance:
   [Docker Engine 29 release notes](https://docs.docker.com/engine/release-notes/29/) and
   [Install Docker Engine on Ubuntu](https://docs.docker.com/engine/install/ubuntu/).
 
-## Image publication
+## Image authority and publication
 
-`publish-runner-images.yml` builds Ubuntu 24.04, Ubuntu 22.04, and container-build images from
-digest-pinned Ubuntu bases. Every image includes PyYAML and the digest-pinned official Node
-22.22.2 toolchain, including npm and npx. Socketless targets omit Docker completely; the builder
-target copies the Docker 29.7.2 CLI, Buildx, and Compose from the digest-pinned official Docker CLI
-image. Publication uses `docker buildx build --push --metadata-file`, validates the registry
-manifest digest, and smoke-tests each published target before reporting its digest. It verifies the
-GitHub runner archive checksum and publishes to GHCR.
-Record the manifest digest reported in the job summary and place that exact digest in the policy.
-Tags are discovery aids only and are never accepted by the controller.
+[`f5-sales-demo/self-hosted-runner`](https://github.com/f5-sales-demo/self-hosted-runner)
+is the fleet’s sole runner-image builder and publisher. It publishes the socketless standard and
+trust-gated container-build targets to `ghcr.io/f5-sales-demo/self-hosted-runner`, with an SBOM
+and provenance supplied by its hosted build workflow. `docs-control` deliberately does not build
+or publish runner images.
+
+The policy accepts only immutable `@sha256:` references. Before changing a policy digest, verify
+the builder repository’s published digest, provenance, SBOM, and smoke-test evidence; preload that
+exact digest into the Ubuntu workstation cache, then run the harmless pilot workflow. Tags are
+only discovery aids and are never accepted by the controller.
 
 Before merging a runner release:
 
-1. Confirm the upstream runner version is the latest stable release.
-2. Confirm every image job succeeds.
+1. Confirm the upstream runner version is the latest stable release in the builder repository.
+2. Confirm the builder’s image jobs, catalog verification, SBOM, and provenance succeed.
 3. Smoke-test `config.sh --ephemeral --disableupdate` and one harmless workflow in the pilot
    repository.
 4. Confirm the runner de-registers, the container is gone, and diagnostics remain.
-5. Confirm the image references in policy contain no placeholder or tag.
+5. Confirm the policy references contain no placeholder or tag.
 
 ## Provision and pilot
 
