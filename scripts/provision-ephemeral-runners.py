@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=global-statement,invalid-name
+# pylint: disable=global-statement,invalid-name,too-many-lines
 """Provision and audit repository-scoped ephemeral runner systemd services."""
 
 from __future__ import annotations
