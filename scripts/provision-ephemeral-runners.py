@@ -82,7 +82,7 @@ def load_controller():
 
 
 @dataclass(frozen=True)
-class Instance:
+class Instance:  # pylint: disable=too-many-instance-attributes
     repository: str
     repository_name: str
     profile: str
