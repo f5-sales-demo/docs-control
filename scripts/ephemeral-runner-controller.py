@@ -144,6 +144,8 @@ class RepositorySpec:
     replicas: int
     profiles: tuple[Profile, ...]
 
+    standby_profiles: tuple[Profile, ...]
+
 
 class FleetPolicy:
     """Strict schema-v3 fleet policy consumed by runtime and workflow audits."""
@@ -156,7 +158,7 @@ class FleetPolicy:
         "hosted_exceptions",
         "repositories",
     }
-    DEFAULT_FIELDS = {"replicas", "profile"}
+    DEFAULT_FIELDS = {"replicas", "profile", "standby_profiles"}
     DOCKER_FIELDS = {"socket", "minimum_version", "target_version"}
     PROFILE_FIELDS = {
         "image",
@@ -231,9 +233,19 @@ class FleetPolicy:
             raise FleetError(f"defaults fields must equal {sorted(cls.DEFAULT_FIELDS)}")
         replicas = value["replicas"]
         profile = value["profile"]
+        standby_profiles = value["standby_profiles"]
         if not isinstance(replicas, int) or not 1 <= replicas <= 8:
             raise FleetError("defaults.replicas must be between 1 and 8")
         validate_name(profile, PROFILE_RE, "default profile")
+        if (
+            not isinstance(standby_profiles, list)
+            or not standby_profiles
+            or not all(isinstance(item, str) for item in standby_profiles)
+            or len(standby_profiles) != len(set(standby_profiles))
+        ):
+            raise FleetError("defaults.standby_profiles must be unique profile names")
+        for standby_profile in standby_profiles:
+            validate_name(standby_profile, PROFILE_RE, "standby profile")
         return value
 
     @classmethod
@@ -324,7 +336,17 @@ class FleetPolicy:
             profiles = tuple(self.profiles[item] for item in profile_names)
         except KeyError as exc:
             raise FleetError(f"unknown profile for {full_name}: {exc.args[0]}") from exc
-        return RepositorySpec(full_name, name, replicas, profiles)
+        try:
+            standby_profiles = tuple(
+                self.profiles[item] for item in self.defaults["standby_profiles"]
+            )
+        except KeyError as exc:
+            raise FleetError(f"unknown standby profile: {exc.args[0]}") from exc
+        if any(profile not in profiles for profile in standby_profiles):
+            raise FleetError(f"standby profile is not enabled for {full_name}")
+        if any(profile.docker_socket for profile in standby_profiles):
+            raise FleetError("standby profiles must be socketless")
+        return RepositorySpec(full_name, name, replicas, profiles, standby_profiles)
 
     def governed(self):
         return tuple(sorted(self.raw["repositories"]))
@@ -1099,8 +1121,9 @@ class EphemeralController:
         )
         if profile is None:
             raise FleetError(f"profile {profile_name!r} is not enabled for {full_name}")
-        if not 0 <= slot < spec.replicas:
-            raise FleetError(f"slot must be between 0 and {spec.replicas - 1}")
+        maximum_slots = spec.replicas + int(profile in spec.standby_profiles)
+        if not 0 <= slot < maximum_slots:
+            raise FleetError(f"slot is invalid for profile {profile_name!r}")
         self.verify_engine()
         self.cleanup(spec, profile, slot)
         self.prepare_workspace(spec, profile, slot)
@@ -1174,7 +1197,7 @@ class EphemeralController:
         expected = {
             self.container_name(spec, profile, slot): (profile, slot)
             for profile in spec.profiles
-            for slot in range(spec.replicas)
+            for slot in range(spec.replicas + int(profile in spec.standby_profiles))
         }
         result = self.command(
             [
@@ -1265,7 +1288,7 @@ class EphemeralController:
         expected_names = {
             self.container_name(spec, profile, slot)
             for profile in spec.profiles
-            for slot in range(spec.replicas)
+            for slot in range(spec.replicas + int(profile in spec.standby_profiles))
         }
         for runner in actual:
             name = runner.get("name")
@@ -1292,7 +1315,9 @@ class EphemeralController:
                     for item in spec.profiles
                     if any(
                         base == self.container_name(spec, item, slot)
-                        for slot in range(spec.replicas)
+                        for slot in range(
+                            spec.replicas + int(item in spec.standby_profiles)
+                        )
                     )
                 )
                 expected_labels = self.expected_labels(spec, profile)

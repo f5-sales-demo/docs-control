@@ -29,6 +29,8 @@ TOKEN_PATH = CONFIG_ROOT / "github.token"
 RUNNER_UNIT = "f5-actions-runner@.service"
 CAPACITY_UNIT = "f5-actions-runner-capacity.service"
 CAPACITY_TIMER = "f5-actions-runner-capacity.timer"
+STANDBY_UNIT = "f5-actions-runner-standby.service"
+STANDBY_TIMER = "f5-actions-runner-standby.timer"
 CAPACITY_MIN_FREE_BYTES = 50 * 1024 * 1024 * 1024
 CAPACITY_MIN_FREE_PERCENT = 10
 
@@ -102,6 +104,33 @@ def instances(policy):
                     )
                 )
     return tuple(result)
+
+
+def standby_instances(policy=None):
+    policy = active_policy() if policy is None else policy
+    result = []
+    for repository in policy.governed():
+        spec = policy.repository(repository)
+        for profile in spec.standby_profiles:
+            result.append(
+                Instance(
+                    repository,
+                    spec.name,
+                    profile.name,
+                    spec.replicas,
+                    profile.docker_socket,
+                    profile.memory,
+                    profile.cpus,
+                    profile.pids_limit,
+                    profile.stop_timeout,
+                    profile.network,
+                )
+            )
+    return tuple(result)
+
+
+def all_standby_instances():
+    return standby_instances(active_policy())
 
 
 def require_root():
@@ -197,6 +226,7 @@ Wants=local-fs.target
 
 [Service]
 Type=oneshot
+
 ExecStart=/usr/bin/python3 {INSTALL_ROOT}/provision-ephemeral-runners.py capacity-check
 NoNewPrivileges=true
 PrivateTmp=true
@@ -214,6 +244,43 @@ OnBootSec=10min
 OnUnitActiveSec=15min
 Persistent=true
 Unit={CAPACITY_UNIT}
+
+[Install]
+WantedBy=timers.target
+"""
+
+
+def standby_scaler_unit_text():
+    return f"""[Unit]
+Description=F5 Actions runner standby scaler
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=RUNNER_FLEET_GITHUB_TOKEN_FILE={TOKEN_PATH}
+ExecStartPre=/usr/bin/test -r {TOKEN_PATH}
+ExecStart=/usr/bin/python3 {INSTALL_ROOT}/provision-ephemeral-runners.py standby-scale
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+"""
+
+
+def standby_scaler_timer_text():
+    return f"""[Unit]
+Description=Schedule F5 Actions runner standby scaler
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=60s
+Persistent=true
+Unit={STANDBY_UNIT}
 
 [Install]
 WantedBy=timers.target
@@ -281,13 +348,16 @@ def install_definition():
     safe_write(SYSTEMD_ROOT / RUNNER_UNIT, runner_unit_text())
     safe_write(SYSTEMD_ROOT / CAPACITY_UNIT, capacity_unit_text())
     safe_write(SYSTEMD_ROOT / CAPACITY_TIMER, capacity_timer_text())
-    for item in instances(policy):
+    safe_write(SYSTEMD_ROOT / STANDBY_UNIT, standby_scaler_unit_text())
+    safe_write(SYSTEMD_ROOT / STANDBY_TIMER, standby_scaler_timer_text())
+    for item in (*instances(policy), *standby_instances(policy)):
         safe_write(
             INSTANCE_ROOT / f"{item.identifier}.env",
             f"RUNNER_REPOSITORY={item.repository}\nRUNNER_PROFILE={item.profile}\nRUNNER_SLOT={item.slot}\n",
             0o600,
         )
     command(["systemctl", "daemon-reload"])
+    command(["systemctl", "enable", "--now", STANDBY_TIMER])
     command(["systemctl", "enable", "--now", CAPACITY_TIMER])
 
 
@@ -319,6 +389,45 @@ def enable(repository, profile=None):
     command(["systemctl", "start", "docker.service"])
     for item in select(repository, profile):
         command(["systemctl", "enable", "--now", item.unit])
+
+
+def standby_scale():
+    """Start one socketless burst slot only after its warm slot is busy."""
+    require_root()
+    controller_module = load_controller()
+    policy = active_policy()
+    standby = standby_instances(policy)
+    github = controller_module.GitHubClient(controller_module.token_from_environment())
+    inventories = {
+        repository: github.runners(repository) for repository in policy.governed()
+    }
+    for item in standby:
+        spec = policy.repository(item.repository)
+        records = inventories[item.repository]
+        warm_prefixes = tuple(
+            f"gha-{spec.name}-{item.profile}-{slot}-" for slot in range(spec.replicas)
+        )
+        standby_prefix = f"gha-{spec.name}-{item.profile}-{item.slot}-"
+        warm_busy = any(
+            isinstance(record.get("name"), str)
+            and record["name"].startswith(warm_prefixes)
+            and record.get("busy") is True
+            for record in records
+        )
+        standby_busy = any(
+            isinstance(record.get("name"), str)
+            and record["name"].startswith(standby_prefix)
+            and record.get("busy") is True
+            for record in records
+        )
+        state = command(
+            ["systemctl", "is-active", item.unit], check=False, capture=True
+        )
+        active = state.returncode == 0 and state.stdout.strip() == "active"
+        if warm_busy and not active:
+            command(["systemctl", "start", item.unit])
+        elif not warm_busy and active and not standby_busy:
+            command(["systemctl", "stop", item.unit])
 
 
 def docker_host_errors(policy):
@@ -402,6 +511,7 @@ def main(argv=None):
     enable_parser.add_argument("--profile")
     audit_parser = subparsers.add_parser("audit")
     audit_parser.add_argument("repository", nargs="?")
+    subparsers.add_parser("standby-scale")
     args = parser.parse_args(argv)
     try:
         if args.action == "plan":
@@ -414,10 +524,18 @@ def main(argv=None):
             return capacity_check()
         elif args.action == "enable":
             enable(args.repository, args.profile)
+        elif args.action == "standby-scale":
+            standby_scale()
         else:
             return audit(args.repository)
         return 0
-    except (ProvisionError, OSError, subprocess.SubprocessError, ValueError) as exc:
+    except (
+        ProvisionError,
+        RuntimeError,
+        OSError,
+        subprocess.SubprocessError,
+        ValueError,
+    ) as exc:
         print(f"runner provisioning failed: {exc}", file=sys.stderr)
         return 1
 
