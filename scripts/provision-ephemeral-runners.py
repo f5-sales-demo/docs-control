@@ -233,15 +233,21 @@ def retired_instance(path):
     profile = values["RUNNER_PROFILE"]
     slot_text = values["RUNNER_SLOT"]
     mode = values["RUNNER_MODE"]
-    if (
-        owner != "f5-sales-demo"
-        or not separator
-        or "/" in repository_name
-        or not valid_runner_component(repository_name)
-        or not valid_runner_component(profile)
-        or not slot_text.isdecimal()
-        or mode not in {"serve", "once"}
-    ):
+    repository_is_valid = (
+        owner == "f5-sales-demo"
+        and bool(separator)
+        and "/" not in repository_name
+        and valid_runner_component(repository_name)
+    )
+    definition_is_valid = all(
+        (
+            repository_is_valid,
+            valid_runner_component(profile),
+            slot_text.isdecimal(),
+            mode in {"serve", "once"},
+        )
+    )
+    if not definition_is_valid:
         raise ProvisionError(f"retired runner definition is malformed: {path}")
     slot = int(slot_text)
     instance = RetiredInstance(repository, repository_name, profile, slot, mode, path)
@@ -602,6 +608,15 @@ def standby_inventories(policy, controller_module):
     return inventories
 
 
+def single_idle_runner(runners):
+    """Return whether exactly one runner is online and idle."""
+    return (
+        len(runners) == 1
+        and runners[0].get("status") == "online"
+        and runners[0].get("busy") is False
+    )
+
+
 def standby_scale():
     """Start an inactive socketless standby when warm capacity is unavailable."""
     require_root()
@@ -670,9 +685,7 @@ def standby_scale():
             active
             and not warm_busy
             and warm_online
-            and len(standby_runners) == 1
-            and standby_runners[0]["status"] == "online"
-            and standby_runners[0]["busy"] is False
+            and single_idle_runner(standby_runners)
         ):
             # An idle standby must not remain warm after primary capacity returns.
             fresh_inventory = controller_module.GitHubClient(
@@ -709,9 +722,7 @@ def standby_scale():
             if (
                 not any(record["busy"] for record in fresh_warm)
                 and any(record["status"] == "online" for record in fresh_warm)
-                and len(fresh_standby) == 1
-                and fresh_standby[0]["status"] == "online"
-                and fresh_standby[0]["busy"] is False
+                and single_idle_runner(fresh_standby)
             ):
                 command(["systemctl", "stop", item.unit])
 
@@ -839,7 +850,7 @@ def retire_orphans(*, apply=False):
         return 0
     controller_module = load_controller()
     github = controller_module.GitHubClient(controller_module.token_from_environment())
-    inventories = {}
+    inventories: dict[str, list[dict]] = {}
     retired_count = 0
     skipped = 0
     for item in retired:

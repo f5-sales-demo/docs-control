@@ -24,7 +24,7 @@ sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
-class ProvisionRunnerTests(unittest.TestCase):
+class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-public-methods
     def test_installed_provisioner_resolves_installed_runner_assets(self):
         installed = MODULE.INSTALL_ROOT / "provision-ephemeral-runners.py"
         root, controller, entrypoint, policy = MODULE.source_paths(installed)
@@ -464,6 +464,11 @@ class ProvisionRunnerTests(unittest.TestCase):
             token_from_environment=lambda: "credential",
             GitHubClient=lambda _token: github,
         )
+
+        def command(argv, **_kwargs):
+            calls.append(argv)
+            return SimpleNamespace(returncode=0, stdout="active\n")
+
         with (
             mock.patch.object(MODULE, "require_root"),
             mock.patch.object(MODULE, "load_controller", return_value=controller),
@@ -474,14 +479,7 @@ class ProvisionRunnerTests(unittest.TestCase):
                 "standby_inventories",
                 return_value={"f5-sales-demo/fixture": [warm_idle, standby_idle]},
             ),
-            mock.patch.object(
-                MODULE,
-                "command",
-                side_effect=lambda argv, **_kwargs: (
-                    calls.append(argv)
-                    or SimpleNamespace(returncode=0, stdout="active\n")
-                ),
-            ),
+            mock.patch.object(MODULE, "command", side_effect=command),
         ):
             MODULE.standby_scale()
         self.assertNotIn(["systemctl", "stop", standby.unit], calls)
