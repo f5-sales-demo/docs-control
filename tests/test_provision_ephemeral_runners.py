@@ -353,6 +353,9 @@ class ProvisionRunnerTests(unittest.TestCase):
             "ProtectHome=true",
         ):
             self.assertIn(expected, unit)
+        self.assertIn("${RUNNER_MODE}", MODULE.runner_unit_text())
+        self.assertEqual({item.mode for item in MODULE.all_instances()}, {"serve"})
+        self.assertEqual({item.mode for item in standby}, {"once"})
 
     def test_standby_scaler_starts_stops_and_fails_closed(self):
         standby = MODULE.Instance(
@@ -366,6 +369,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             512,
             300,
             "bridge",
+            "once",
         )
         profile = SimpleNamespace(name="ubuntu-24.04")
         spec = SimpleNamespace(name="fixture", replicas=1, standby_profiles=(profile,))
@@ -402,12 +406,9 @@ class ProvisionRunnerTests(unittest.TestCase):
             return calls
 
         warm = {"name": "gha-fixture-ubuntu-24.04-0-token", "busy": True}
-        standby_idle = {"name": "gha-fixture-ubuntu-24.04-1-token", "busy": False}
-        standby_busy = {"name": "gha-fixture-ubuntu-24.04-1-token", "busy": True}
         self.assertIn(["systemctl", "start", standby.unit], run([warm], False))
         self.assertNotIn(["systemctl", "start", standby.unit], run([warm], True))
-        self.assertIn(["systemctl", "stop", standby.unit], run([standby_idle], True))
-        self.assertNotIn(["systemctl", "stop", standby.unit], run([standby_busy], True))
+        self.assertNotIn(["systemctl", "stop", standby.unit], run([], True))
 
         calls = []
         failed_github = SimpleNamespace(

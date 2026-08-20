@@ -93,6 +93,7 @@ class Instance:
     pids_limit: int
     stop_timeout: int
     network: str
+    mode: str
 
     @property
     def identifier(self):
@@ -121,6 +122,7 @@ def instances(policy):
                         profile.pids_limit,
                         profile.stop_timeout,
                         profile.network,
+                        "serve",
                     )
                 )
     return tuple(result)
@@ -144,6 +146,7 @@ def standby_instances(policy=None):
                     profile.pids_limit,
                     profile.stop_timeout,
                     profile.network,
+                    "once",
                 )
             )
     return tuple(result)
@@ -202,7 +205,7 @@ Type=simple
 Environment=RUNNER_FLEET_GITHUB_TOKEN_FILE={TOKEN_PATH}
 EnvironmentFile={INSTANCE_ROOT}/%i.env
 ExecStartPre=/usr/bin/test -r {TOKEN_PATH}
-ExecStart=/usr/bin/python3 {INSTALL_ROOT}/ephemeral-runner-controller.py --policy {INSTALL_ROOT}/self-hosted-runner-policy.json --base-dir {STATE_ROOT} serve ${{RUNNER_REPOSITORY}} --profile ${{RUNNER_PROFILE}} --slot ${{RUNNER_SLOT}}
+ExecStart=/usr/bin/python3 {INSTALL_ROOT}/ephemeral-runner-controller.py --policy {INSTALL_ROOT}/self-hosted-runner-policy.json --base-dir {STATE_ROOT} ${{RUNNER_MODE}} ${{RUNNER_REPOSITORY}} --profile ${{RUNNER_PROFILE}} --slot ${{RUNNER_SLOT}}
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=6min
@@ -373,7 +376,7 @@ def install_definition():
     for item in (*instances(policy), *standby_instances(policy)):
         safe_write(
             INSTANCE_ROOT / f"{item.identifier}.env",
-            f"RUNNER_REPOSITORY={item.repository}\nRUNNER_PROFILE={item.profile}\nRUNNER_SLOT={item.slot}\n",
+            f"RUNNER_REPOSITORY={item.repository}\nRUNNER_PROFILE={item.profile}\nRUNNER_SLOT={item.slot}\nRUNNER_MODE={item.mode}\n",
             0o600,
         )
     command(["systemctl", "daemon-reload"])
@@ -412,7 +415,7 @@ def enable(repository, profile=None):
 
 
 def standby_scale():
-    """Start one socketless burst slot only after its warm slot is busy."""
+    """Start an inactive one-job standby only after warm capacity is busy."""
     require_root()
     controller_module = load_controller()
     policy = active_policy()
@@ -423,22 +426,14 @@ def standby_scale():
     }
     for item in standby:
         spec = policy.repository(item.repository)
-        records = inventories[item.repository]
         warm_prefixes = tuple(
             f"gha-{spec.name}-{item.profile}-{slot}-" for slot in range(spec.replicas)
         )
-        standby_prefix = f"gha-{spec.name}-{item.profile}-{item.slot}-"
         warm_busy = any(
             isinstance(record.get("name"), str)
             and record["name"].startswith(warm_prefixes)
             and record.get("busy") is True
-            for record in records
-        )
-        standby_busy = any(
-            isinstance(record.get("name"), str)
-            and record["name"].startswith(standby_prefix)
-            and record.get("busy") is True
-            for record in records
+            for record in inventories[item.repository]
         )
         state = command(
             ["systemctl", "is-active", item.unit], check=False, capture=True
@@ -446,8 +441,6 @@ def standby_scale():
         active = state.returncode == 0 and state.stdout.strip() == "active"
         if warm_busy and not active:
             command(["systemctl", "start", item.unit])
-        elif not warm_busy and active and not standby_busy:
-            command(["systemctl", "stop", item.unit])
 
 
 def docker_host_errors(policy):
