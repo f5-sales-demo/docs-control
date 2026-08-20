@@ -1,5 +1,5 @@
 {
-  "source_commit": "14cf8ed084341598bae4598d6d4798e32ca43a83",
+  "source_commit": "1aa32ea7750287c5c45ee91d7c08d7af11f704ec",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -452,8 +452,8 @@
     ".github/workflows/workflow-security-audit.yml": {
       "src": "workflows/workflow-security-audit.yml",
       "dest": ".github/workflows/workflow-security-audit.yml",
-      "sha": "822addb404357ddb879a1501b90ceed3ec58bd5f",
-      "size": 5106,
+      "sha": "d6770013dd001f0c416c869c9d8d514953e6b35f",
+      "size": 4902,
       "mode": "100644"
     },
     "scripts/workflow-security-validator.py": {
