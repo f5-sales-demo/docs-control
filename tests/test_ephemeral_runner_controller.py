@@ -438,8 +438,13 @@ class EphemeralRunnerTests(unittest.TestCase):
         )
         self.assertNotIn("/runner-runtime:rw,nosuid,nodev,size=20g", command)
         self.assertIn(f"RUNNER_RUNTIME_DIR={runtime_root}", command)
+        self.assertIn(f"RUNNER_TOOL_CACHE={runtime_root}/_tool", command)
         self.assertIn(
             "/opt/f5-actions-runner/runner-entrypoint.sh:/usr/local/bin/runner-entrypoint:ro",
+            command,
+        )
+        self.assertIn(
+            "/opt/f5-actions-runner/prepare-runner-tool-cache.sh:/usr/local/libexec/prepare-runner-tool-cache:ro",
             command,
         )
         install_calls = [call for call in recorder.calls if call[0][0] == "install"]

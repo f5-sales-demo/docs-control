@@ -27,12 +27,13 @@ SPEC.loader.exec_module(MODULE)
 class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-public-methods
     def test_installed_provisioner_resolves_installed_runner_assets(self):
         installed = MODULE.INSTALL_ROOT / "provision-ephemeral-runners.py"
-        root, controller, entrypoint, policy = MODULE.source_paths(installed)
+        root, controller, entrypoint, initializer, policy = MODULE.source_paths(installed)
         self.assertEqual(root, MODULE.INSTALL_ROOT)
         self.assertEqual(
             controller, MODULE.INSTALL_ROOT / "ephemeral-runner-controller.py"
         )
         self.assertEqual(entrypoint, MODULE.INSTALL_ROOT / "runner-entrypoint.sh")
+        self.assertEqual(initializer, MODULE.INSTALL_ROOT / "prepare-runner-tool-cache.sh")
         self.assertEqual(policy, MODULE.INSTALL_ROOT / "self-hosted-runner-policy.json")
         self.assertEqual(
             MODULE.source_paths(MODULE.PROVISIONER_SOURCE),
@@ -40,6 +41,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 MODULE.SOURCE_ROOT,
                 MODULE.CONTROLLER_SOURCE,
                 MODULE.ENTRYPOINT_SOURCE,
+                MODULE.TOOL_CACHE_INITIALIZER_SOURCE,
                 MODULE.POLICY_SOURCE,
             ),
         )
@@ -131,6 +133,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertIn("/run/docker.sock", unit)
         self.assertNotIn("f5-actions-podman", unit)
         self.assertTrue(MODULE.ENTRYPOINT_SOURCE.is_file())
+        self.assertTrue(MODULE.TOOL_CACHE_INITIALIZER_SOURCE.is_file())
 
     def test_capacity_guard_installs_a_persistent_systemd_timer(self):
         unit = MODULE.capacity_unit_text()
@@ -193,6 +196,24 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             ],
             calls,
         )
+        self.assertTrue(any(call[-2:] == [str(MODULE.TOOL_CACHE_INITIALIZER_SOURCE), str(MODULE.INSTALL_ROOT / MODULE.TOOL_CACHE_INITIALIZER_SOURCE.name)] for call in calls))
+
+    def test_install_can_preserve_disabled_fleet_timers(self):
+        calls = []
+        with (
+            mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(Path, "mkdir"),
+            mock.patch.object(MODULE, "active_policy", return_value=object()),
+            mock.patch.object(MODULE, "instances", return_value=()),
+            mock.patch.object(MODULE, "standby_instances", return_value=()),
+            mock.patch.object(MODULE, "safe_write"),
+            mock.patch.object(
+                MODULE, "command", side_effect=lambda argv, **_kwargs: calls.append(argv)
+            ),
+        ):
+            MODULE.install_definition(enable_timers=False)
+        for timer in (MODULE.STANDBY_TIMER, MODULE.CAPACITY_TIMER, MODULE.RETIRED_TIMER):
+            self.assertNotIn(["systemctl", "enable", "--now", timer], calls)
 
     def test_profile_resource_limits_are_owned_by_docker_controller(self):
         for profile in ("ubuntu-24.04", "automation"):

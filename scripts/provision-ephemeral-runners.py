@@ -28,6 +28,7 @@ def source_paths(provisioner):
             INSTALL_ROOT,
             INSTALL_ROOT / "ephemeral-runner-controller.py",
             INSTALL_ROOT / "runner-entrypoint.sh",
+            INSTALL_ROOT / "prepare-runner-tool-cache.sh",
             INSTALL_ROOT / "self-hosted-runner-policy.json",
         )
     source_root = provisioner.parent.parent
@@ -35,13 +36,18 @@ def source_paths(provisioner):
         source_root,
         source_root / "scripts/ephemeral-runner-controller.py",
         source_root / "scripts/runner-entrypoint.sh",
+        source_root / "scripts/prepare-runner-tool-cache.sh",
         source_root / ".github/config/self-hosted-runner-policy.json",
     )
 
 
-SOURCE_ROOT, CONTROLLER_SOURCE, ENTRYPOINT_SOURCE, POLICY_SOURCE = source_paths(
-    PROVISIONER_SOURCE
-)
+(
+    SOURCE_ROOT,
+    CONTROLLER_SOURCE,
+    ENTRYPOINT_SOURCE,
+    TOOL_CACHE_INITIALIZER_SOURCE,
+    POLICY_SOURCE,
+) = source_paths(PROVISIONER_SOURCE)
 CONFIG_ROOT = Path("/etc/f5-actions-runner")
 INSTANCE_ROOT = CONFIG_ROOT / "instances"
 SYSTEMD_ROOT = Path("/etc/systemd/system")
@@ -479,7 +485,7 @@ def capacity_check():
     return 1 if failed else 0
 
 
-def install_definition():
+def install_definition(enable_timers=True):
     require_root()
     policy = active_policy()
     for path in (
@@ -490,7 +496,12 @@ def install_definition():
         INSTALL_ROOT,
     ):
         path.mkdir(parents=True, exist_ok=True)
-    for source in (PROVISIONER_SOURCE, CONTROLLER_SOURCE, ENTRYPOINT_SOURCE):
+    for source in (
+        PROVISIONER_SOURCE,
+        CONTROLLER_SOURCE,
+        ENTRYPOINT_SOURCE,
+        TOOL_CACHE_INITIALIZER_SOURCE,
+    ):
         command(
             [
                 "install",
@@ -531,9 +542,10 @@ def install_definition():
             0o600,
         )
     command(["systemctl", "daemon-reload"])
-    command(["systemctl", "enable", "--now", STANDBY_TIMER])
-    command(["systemctl", "enable", "--now", CAPACITY_TIMER])
-    command(["systemctl", "enable", "--now", RETIRED_TIMER])
+    if enable_timers:
+        command(["systemctl", "enable", "--now", STANDBY_TIMER])
+        command(["systemctl", "enable", "--now", CAPACITY_TIMER])
+        command(["systemctl", "enable", "--now", RETIRED_TIMER])
 
 
 def install_credential():
@@ -956,7 +968,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="action", required=True)
     subparsers.add_parser("plan")
-    subparsers.add_parser("install")
+    install_parser = subparsers.add_parser("install")
+    install_parser.add_argument("--no-enable-timers", action="store_true")
     subparsers.add_parser("install-credential")
     subparsers.add_parser("capacity-check")
     enable_parser = subparsers.add_parser("enable")
@@ -974,7 +987,7 @@ def main(argv=None):
         if args.action == "plan":
             plan()
         elif args.action == "install":
-            install_definition()
+            install_definition(enable_timers=not args.no_enable_timers)
         elif args.action == "install-credential":
             install_credential()
         elif args.action == "capacity-check":
