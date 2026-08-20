@@ -415,7 +415,7 @@ def enable(repository, profile=None):
 
 
 def standby_scale():
-    """Start an inactive one-job standby only after warm capacity is busy."""
+    """Start an inactive socketless standby when warm capacity is unavailable."""
     require_root()
     controller_module = load_controller()
     policy = active_policy()
@@ -424,22 +424,46 @@ def standby_scale():
     inventories = {
         repository: github.runners(repository) for repository in policy.governed()
     }
+    if any(
+        not isinstance(record, dict)
+        for inventory in inventories.values()
+        for record in inventory
+    ):
+        raise ProvisionError("GitHub runner inventory is malformed")
+    capacity = []
     for item in standby:
         spec = policy.repository(item.repository)
         warm_prefixes = tuple(
             f"gha-{spec.name}-{item.profile}-{slot}-" for slot in range(spec.replicas)
         )
-        warm_busy = any(
-            isinstance(record.get("name"), str)
-            and record["name"].startswith(warm_prefixes)
-            and record.get("busy") is True
+        warm = [
+            record
             for record in inventories[item.repository]
+            if isinstance(record.get("name"), str)
+            and record["name"].startswith(warm_prefixes)
+        ]
+        if any(
+            record.get("status") not in {"online", "offline"}
+            or not isinstance(record.get("busy"), bool)
+            for record in warm
+        ):
+            raise ProvisionError("GitHub warm runner inventory is malformed")
+        capacity.append(
+            (
+                item,
+                any(record["busy"] for record in warm),
+                any(record["status"] == "online" for record in warm),
+            )
         )
+    for item, warm_busy, warm_online in capacity:
         state = command(
             ["systemctl", "is-active", item.unit], check=False, capture=True
         )
         active = state.returncode == 0 and state.stdout.strip() == "active"
-        if warm_busy and not active:
+        # A warm runner is deliberately ephemeral. During its cleanup and next
+        # registration no matching runner is online, so cover that gap with the
+        # existing socketless one-job standby as well as ordinary busy scale-out.
+        if (warm_busy or not warm_online) and not active:
             command(["systemctl", "start", item.unit])
 
 

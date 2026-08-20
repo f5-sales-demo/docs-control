@@ -357,7 +357,7 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertEqual({item.mode for item in MODULE.all_instances()}, {"serve"})
         self.assertEqual({item.mode for item in standby}, {"once"})
 
-    def test_standby_scaler_starts_stops_and_fails_closed(self):
+    def test_standby_scaler_covers_busy_or_unavailable_warm_capacity(self):
         standby = MODULE.Instance(
             "f5-sales-demo/fixture",
             "fixture",
@@ -405,9 +405,27 @@ class ProvisionRunnerTests(unittest.TestCase):
                 MODULE.standby_scale()
             return calls
 
-        warm = {"name": "gha-fixture-ubuntu-24.04-0-token", "busy": True}
-        self.assertIn(["systemctl", "start", standby.unit], run([warm], False))
-        self.assertNotIn(["systemctl", "start", standby.unit], run([warm], True))
+        warm_busy = {
+            "name": "gha-fixture-ubuntu-24.04-0-token",
+            "status": "online",
+            "busy": True,
+        }
+        warm_idle = {
+            "name": "gha-fixture-ubuntu-24.04-0-token",
+            "status": "online",
+            "busy": False,
+        }
+        warm_offline = {
+            "name": "gha-fixture-ubuntu-24.04-0-token",
+            "status": "offline",
+            "busy": False,
+        }
+        self.assertIn(["systemctl", "start", standby.unit], run([warm_busy], False))
+        self.assertNotIn(["systemctl", "start", standby.unit], run([warm_busy], True))
+        self.assertNotIn(["systemctl", "start", standby.unit], run([warm_idle], False))
+        self.assertIn(["systemctl", "start", standby.unit], run([warm_offline], False))
+        self.assertIn(["systemctl", "start", standby.unit], run([], False))
+        self.assertNotIn(["systemctl", "start", standby.unit], run([], True))
         self.assertNotIn(["systemctl", "stop", standby.unit], run([], True))
 
         calls = []
@@ -431,6 +449,35 @@ class ProvisionRunnerTests(unittest.TestCase):
                 side_effect=lambda argv, **_kwargs: calls.append(argv),
             ),
             self.assertRaisesRegex(RuntimeError, "rate limited"),
+        ):
+            MODULE.standby_scale()
+        self.assertEqual(calls, [])
+
+        malformed_github = SimpleNamespace(
+            runners=lambda _repository: [
+                {
+                    "name": "gha-fixture-ubuntu-24.04-0-token",
+                    "status": "unknown",
+                    "busy": False,
+                }
+            ]
+        )
+        controller = SimpleNamespace(
+            token_from_environment=lambda: "credential",
+            GitHubClient=lambda _token: malformed_github,
+        )
+        calls = []
+        with (
+            mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(MODULE, "load_controller", return_value=controller),
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
+            mock.patch.object(MODULE, "standby_instances", return_value=(standby,)),
+            mock.patch.object(
+                MODULE,
+                "command",
+                side_effect=lambda argv, **_kwargs: calls.append(argv),
+            ),
+            self.assertRaisesRegex(MODULE.ProvisionError, "inventory is malformed"),
         ):
             MODULE.standby_scale()
         self.assertEqual(calls, [])
