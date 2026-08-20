@@ -53,6 +53,8 @@ CAPACITY_UNIT = "f5-actions-runner-capacity.service"
 CAPACITY_TIMER = "f5-actions-runner-capacity.timer"
 STANDBY_UNIT = "f5-actions-runner-standby.service"
 STANDBY_TIMER = "f5-actions-runner-standby.timer"
+RETIRED_UNIT = "f5-actions-runner-retired.service"
+RETIRED_TIMER = "f5-actions-runner-retired.timer"
 STANDBY_INVENTORY_CACHE = STATE_ROOT / ".standby-runner-inventory.json"
 STANDBY_INVENTORY_CACHE_SECONDS = 120
 CAPACITY_MIN_FREE_BYTES = 50 * 1024 * 1024 * 1024
@@ -159,6 +161,103 @@ def standby_instances(policy=None):
 
 def all_standby_instances():
     return standby_instances(active_policy())
+
+
+@dataclass(frozen=True)
+class RetiredInstance:
+    """A previously installed runner definition absent from current policy."""
+
+    repository: str
+    repository_name: str
+    profile: str
+    slot: int
+    mode: str
+    definition: Path
+
+    @property
+    def identifier(self):
+        return f"{self.repository_name}--{self.profile}--{self.slot}"
+
+    @property
+    def unit(self):
+        return f"f5-actions-runner@{self.identifier}.service"
+
+    @property
+    def runner_prefix(self):
+        return f"gha-{self.repository_name}-{self.profile}-{self.slot}-"
+
+
+def valid_runner_component(value):
+    """Return whether a runner profile or repository component is safe."""
+    return bool(value) and all(
+        character.islower() or character.isdigit() or character in "-."
+        for character in value
+    )
+
+
+def configured_definition_names():
+    """Return the root-owned instance definitions required by current policy."""
+    return {
+        f"{item.identifier}.env"
+        for item in (*all_instances(), *all_standby_instances())
+    }
+
+
+def retired_instance(path):
+    """Parse one retired root-owned instance definition without trusting its name."""
+    try:
+        metadata = path.stat(follow_symlinks=False)
+    except OSError as exc:
+        raise ProvisionError(
+            f"cannot inspect retired runner definition {path}: {exc}"
+        ) from exc
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ProvisionError(f"retired runner definition is not a regular file: {path}")
+    values = {}
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        raise ProvisionError(
+            f"cannot read retired runner definition {path}: {exc}"
+        ) from exc
+    for line in lines:
+        key, separator, value = line.partition("=")
+        if not separator or not key or key in values:
+            raise ProvisionError(f"retired runner definition is malformed: {path}")
+        values[key] = value
+    expected = {"RUNNER_REPOSITORY", "RUNNER_PROFILE", "RUNNER_SLOT", "RUNNER_MODE"}
+    if set(values) != expected:
+        raise ProvisionError(f"retired runner definition is malformed: {path}")
+    repository = values["RUNNER_REPOSITORY"]
+    owner, separator, repository_name = repository.partition("/")
+    profile = values["RUNNER_PROFILE"]
+    slot_text = values["RUNNER_SLOT"]
+    mode = values["RUNNER_MODE"]
+    if (
+        owner != "f5-sales-demo"
+        or not separator
+        or "/" in repository_name
+        or not valid_runner_component(repository_name)
+        or not valid_runner_component(profile)
+        or not slot_text.isdecimal()
+        or mode not in {"serve", "once"}
+    ):
+        raise ProvisionError(f"retired runner definition is malformed: {path}")
+    slot = int(slot_text)
+    instance = RetiredInstance(repository, repository_name, profile, slot, mode, path)
+    if path.name != f"{instance.identifier}.env":
+        raise ProvisionError(f"retired runner definition identity mismatch: {path}")
+    return instance
+
+
+def retired_instances():
+    """Return definitions for runner slots that the current policy retired."""
+    expected = configured_definition_names()
+    return tuple(
+        retired_instance(path)
+        for path in sorted(INSTANCE_ROOT.glob("*.env"))
+        if path.name not in expected
+    )
 
 
 def require_root():
@@ -316,6 +415,44 @@ WantedBy=timers.target
 """
 
 
+def retired_reconciler_unit_text():
+    return f"""[Unit]
+Description=Retire orphaned F5 Actions runners
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=RUNNER_FLEET_GITHUB_TOKEN_FILE={TOKEN_PATH}
+ExecStartPre=/usr/bin/test -r {TOKEN_PATH}
+ExecStart=/usr/bin/python3 {INSTALL_ROOT}/provision-ephemeral-runners.py retire-orphans --apply
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths={CONFIG_ROOT}
+
+"""
+
+
+def retired_reconciler_timer_text():
+    return f"""[Unit]
+Description=Schedule retirement of orphaned F5 Actions runners
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=60s
+Persistent=true
+Unit={RETIRED_UNIT}
+
+[Install]
+WantedBy=timers.target
+"""
+
+
 def capacity_check():
     """Emit a systemd-visible alert before runner storage reaches exhaustion."""
     failed = False
@@ -379,6 +516,8 @@ def install_definition():
     safe_write(SYSTEMD_ROOT / CAPACITY_TIMER, capacity_timer_text())
     safe_write(SYSTEMD_ROOT / STANDBY_UNIT, standby_scaler_unit_text())
     safe_write(SYSTEMD_ROOT / STANDBY_TIMER, standby_scaler_timer_text())
+    safe_write(SYSTEMD_ROOT / RETIRED_UNIT, retired_reconciler_unit_text())
+    safe_write(SYSTEMD_ROOT / RETIRED_TIMER, retired_reconciler_timer_text())
     for item in (*instances(policy), *standby_instances(policy)):
         safe_write(
             INSTANCE_ROOT / f"{item.identifier}.env",
@@ -388,6 +527,7 @@ def install_definition():
     command(["systemctl", "daemon-reload"])
     command(["systemctl", "enable", "--now", STANDBY_TIMER])
     command(["systemctl", "enable", "--now", CAPACITY_TIMER])
+    command(["systemctl", "enable", "--now", RETIRED_TIMER])
 
 
 def install_credential():
@@ -493,14 +633,29 @@ def standby_scale():
             for record in warm
         ):
             raise ProvisionError("GitHub warm runner inventory is malformed")
+        standby_prefix = f"gha-{spec.name}-{item.profile}-{item.slot}-"
+        standby_runners = [
+            record
+            for record in inventories[item.repository]
+            if isinstance(record.get("name"), str)
+            and record["name"].startswith(standby_prefix)
+        ]
+        if any(
+            record.get("status") not in {"online", "offline"}
+            or not isinstance(record.get("busy"), bool)
+            for record in standby_runners
+        ):
+            raise ProvisionError("GitHub standby runner inventory is malformed")
         capacity.append(
             (
                 item,
+                spec,
                 any(record["busy"] for record in warm),
                 any(record["status"] == "online" for record in warm),
+                standby_runners,
             )
         )
-    for item, warm_busy, warm_online in capacity:
+    for item, spec, warm_busy, warm_online, standby_runners in capacity:
         state = command(
             ["systemctl", "is-active", item.unit], check=False, capture=True
         )
@@ -510,6 +665,55 @@ def standby_scale():
         # existing socketless one-job standby as well as ordinary busy scale-out.
         if (warm_busy or not warm_online) and not active:
             command(["systemctl", "start", item.unit])
+
+        elif (
+            active
+            and not warm_busy
+            and warm_online
+            and len(standby_runners) == 1
+            and standby_runners[0]["status"] == "online"
+            and standby_runners[0]["busy"] is False
+        ):
+            # An idle standby must not remain warm after primary capacity returns.
+            fresh_inventory = controller_module.GitHubClient(
+                controller_module.token_from_environment()
+            ).runners(item.repository)
+            if not isinstance(fresh_inventory, list) or any(
+                not isinstance(record, dict) for record in fresh_inventory
+            ):
+                raise ProvisionError("GitHub runner inventory is malformed")
+            warm_prefixes = tuple(
+                f"gha-{spec.name}-{item.profile}-{slot}-"
+                for slot in range(spec.replicas)
+            )
+            fresh_warm = [
+                record
+                for record in fresh_inventory
+                if isinstance(record.get("name"), str)
+                and record["name"].startswith(warm_prefixes)
+            ]
+            fresh_standby = [
+                record
+                for record in fresh_inventory
+                if isinstance(record.get("name"), str)
+                and record["name"].startswith(
+                    f"gha-{spec.name}-{item.profile}-{item.slot}-"
+                )
+            ]
+            if any(
+                record.get("status") not in {"online", "offline"}
+                or not isinstance(record.get("busy"), bool)
+                for record in (*fresh_warm, *fresh_standby)
+            ):
+                raise ProvisionError("GitHub runner inventory is malformed")
+            if (
+                not any(record["busy"] for record in fresh_warm)
+                and any(record["status"] == "online" for record in fresh_warm)
+                and len(fresh_standby) == 1
+                and fresh_standby[0]["status"] == "online"
+                and fresh_standby[0]["busy"] is False
+            ):
+                command(["systemctl", "stop", item.unit])
 
 
 def rotation_profile(policy, item):
@@ -600,6 +804,74 @@ def rotate_idle(*, apply=False):
     return 0
 
 
+def retirement_runner_record(item, inventory):
+    """Return the exact online, idle GitHub runner for one retired definition."""
+    matches = [
+        runner
+        for runner in inventory
+        if isinstance(runner, dict)
+        and isinstance(runner.get("name"), str)
+        and runner["name"].startswith(item.runner_prefix)
+    ]
+    if len(matches) != 1:
+        return None
+    runner = matches[0]
+    runner_id = runner.get("id")
+    if (
+        not isinstance(runner_id, int)
+        or runner_id <= 0
+        or runner.get("status") != "online"
+        or runner.get("busy") is not False
+    ):
+        return None
+    return runner
+
+
+def retire_orphans(*, apply=False):
+    """Retire only policy-orphaned runner services proven idle by GitHub."""
+    if apply:
+        require_root()
+    retired = retired_instances()
+    if not apply:
+        for item in retired:
+            print(f"[PLAN] {item.unit} definition=retired")
+        print(f"retirement retired=0 skipped={len(retired)} apply=false")
+        return 0
+    controller_module = load_controller()
+    github = controller_module.GitHubClient(controller_module.token_from_environment())
+    inventories = {}
+    retired_count = 0
+    skipped = 0
+    for item in retired:
+        inventory = inventories.get(item.repository)
+        if inventory is None:
+            inventory = github.runners(item.repository)
+            if not isinstance(inventory, list) or any(
+                not isinstance(record, dict) for record in inventory
+            ):
+                raise ProvisionError("GitHub runner inventory is malformed")
+            inventories[item.repository] = inventory
+        runner = retirement_runner_record(item, inventory)
+        if runner is None:
+            print(f"[SKIP] {item.unit} runner=not-verified-idle")
+            skipped += 1
+            continue
+        state = command(
+            ["systemctl", "is-active", item.unit], check=False, capture=True
+        )
+        if state.returncode != 0 or state.stdout.strip() != "active":
+            print(f"[SKIP] {item.unit} service=not-active")
+            skipped += 1
+            continue
+        github.delete_runner(item.repository, runner["id"])
+        command(["systemctl", "stop", item.unit])
+        item.definition.unlink()
+        print(f"[RETIRED] {item.unit} definition=removed")
+        retired_count += 1
+    print(f"retirement retired={retired_count} skipped={skipped} apply=true")
+    return 0
+
+
 def docker_host_errors(policy):
     errors = []
     service = command(
@@ -683,6 +955,8 @@ def main(argv=None):
     audit_parser.add_argument("repository", nargs="?")
     rotate_parser = subparsers.add_parser("rotate-idle")
     rotate_parser.add_argument("--apply", action="store_true")
+    retire_parser = subparsers.add_parser("retire-orphans")
+    retire_parser.add_argument("--apply", action="store_true")
     subparsers.add_parser("standby-scale")
     args = parser.parse_args(argv)
     try:
@@ -700,6 +974,8 @@ def main(argv=None):
             standby_scale()
         elif args.action == "rotate-idle":
             return rotate_idle(apply=args.apply)
+        elif args.action == "retire-orphans":
+            return retire_orphans(apply=args.apply)
         else:
             return audit(args.repository)
         return 0

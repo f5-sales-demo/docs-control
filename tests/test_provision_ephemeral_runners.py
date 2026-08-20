@@ -178,6 +178,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             MODULE.install_definition()
         self.assertIn(["systemctl", "enable", "--now", MODULE.CAPACITY_TIMER], calls)
         self.assertIn(["systemctl", "enable", "--now", MODULE.STANDBY_TIMER], calls)
+        self.assertIn(["systemctl", "enable", "--now", MODULE.RETIRED_TIMER], calls)
         self.assertIn(
             [
                 "install",
@@ -344,9 +345,25 @@ class ProvisionRunnerTests(unittest.TestCase):
             "status": "offline",
             "busy": False,
         }
+        standby_idle = {
+            "name": "gha-fixture-ubuntu-24.04-1-token",
+            "status": "online",
+            "busy": False,
+        }
+        standby_busy = {
+            "name": "gha-fixture-ubuntu-24.04-1-token",
+            "status": "online",
+            "busy": True,
+        }
         self.assertIn(["systemctl", "start", standby.unit], run([warm_busy], False))
         self.assertNotIn(["systemctl", "start", standby.unit], run([warm_busy], True))
         self.assertNotIn(["systemctl", "start", standby.unit], run([warm_idle], False))
+        self.assertIn(
+            ["systemctl", "stop", standby.unit], run([warm_idle, standby_idle], True)
+        )
+        self.assertNotIn(
+            ["systemctl", "stop", standby.unit], run([warm_idle, standby_busy], True)
+        )
         self.assertIn(["systemctl", "start", standby.unit], run([warm_offline], False))
         self.assertIn(["systemctl", "start", standby.unit], run([], False))
         self.assertNotIn(["systemctl", "start", standby.unit], run([], True))
@@ -410,9 +427,69 @@ class ProvisionRunnerTests(unittest.TestCase):
             MODULE.standby_scale()
         self.assertEqual(calls, [])
 
-    def test_standby_inventory_cache_bounds_github_refreshes(self):
-        policy = SimpleNamespace(governed=lambda: ("f5-sales-demo/fixture",))
+    def test_standby_scaler_refreshes_before_stopping_idle_capacity(self):
+        standby = MODULE.Instance(
+            "f5-sales-demo/fixture",
+            "fixture",
+            "ubuntu-24.04",
+            1,
+            False,
+            "4g",
+            "2",
+            512,
+            300,
+            "bridge",
+            "once",
+        )
+        profile = SimpleNamespace(name="ubuntu-24.04")
+        spec = SimpleNamespace(name="fixture", replicas=1, standby_profiles=(profile,))
+        policy = SimpleNamespace(
+            governed=lambda: ("f5-sales-demo/fixture",),
+            repository=lambda _repository: spec,
+        )
+        warm_idle = {
+            "name": "gha-fixture-ubuntu-24.04-0-token",
+            "status": "online",
+            "busy": False,
+        }
+        standby_idle = {
+            "name": "gha-fixture-ubuntu-24.04-1-token",
+            "status": "online",
+            "busy": False,
+        }
+        standby_busy = {**standby_idle, "busy": True}
         calls = []
+        github = SimpleNamespace(runners=lambda _repository: [warm_idle, standby_busy])
+        controller = SimpleNamespace(
+            token_from_environment=lambda: "credential",
+            GitHubClient=lambda _token: github,
+        )
+        with (
+            mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(MODULE, "load_controller", return_value=controller),
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
+            mock.patch.object(MODULE, "standby_instances", return_value=(standby,)),
+            mock.patch.object(
+                MODULE,
+                "standby_inventories",
+                return_value={"f5-sales-demo/fixture": [warm_idle, standby_idle]},
+            ),
+            mock.patch.object(
+                MODULE,
+                "command",
+                side_effect=lambda argv, **_kwargs: (
+                    calls.append(argv)
+                    or SimpleNamespace(returncode=0, stdout="active\n")
+                ),
+            ),
+        ):
+            MODULE.standby_scale()
+        self.assertNotIn(["systemctl", "stop", standby.unit], calls)
+
+    def test_standby_inventory_cache_bounds_github_refreshes(self):
+        calls = []
+
+        policy = SimpleNamespace(governed=lambda: ("f5-sales-demo/fixture",))
 
         def runners(repository):
             calls.append(repository)
@@ -644,6 +721,127 @@ class ProvisionRunnerTests(unittest.TestCase):
         ):
             self.assertEqual(MODULE.rotate_idle(), 0)
         command.assert_not_called()
+
+    def test_retire_orphans_removes_only_a_verified_idle_runner(self):
+        with tempfile.TemporaryDirectory() as directory:
+            instance_root = Path(directory)
+            retired = instance_root / "fixture--ubuntu-24.04--1.env"
+            retired.write_text(
+                "RUNNER_REPOSITORY=f5-sales-demo/fixture\n"
+                "RUNNER_PROFILE=ubuntu-24.04\n"
+                "RUNNER_SLOT=1\n"
+                "RUNNER_MODE=serve\n",
+                encoding="utf-8",
+            )
+            deleted, commands = [], []
+            github = SimpleNamespace(
+                runners=lambda _repository: [
+                    {
+                        "name": "gha-fixture-ubuntu-24.04-1-token",
+                        "id": 7,
+                        "status": "online",
+                        "busy": False,
+                    }
+                ],
+                delete_runner=lambda repository, runner_id: deleted.append(
+                    (repository, runner_id)
+                ),
+            )
+            controller_module = SimpleNamespace(
+                GitHubClient=lambda _token: github,
+                token_from_environment=lambda: "credential",
+            )
+
+            def run(argv, **_kwargs):
+                commands.append(argv)
+                if argv[:2] == ["systemctl", "is-active"]:
+                    return SimpleNamespace(returncode=0, stdout="active\n")
+                return SimpleNamespace(returncode=0, stdout="")
+
+            with (
+                mock.patch.object(MODULE, "require_root"),
+                mock.patch.object(MODULE, "INSTANCE_ROOT", instance_root),
+                mock.patch.object(MODULE, "all_instances", return_value=()),
+                mock.patch.object(MODULE, "all_standby_instances", return_value=()),
+                mock.patch.object(
+                    MODULE, "load_controller", return_value=controller_module
+                ),
+                mock.patch.object(MODULE, "command", side_effect=run),
+            ):
+                self.assertEqual(MODULE.retire_orphans(apply=True), 0)
+
+            self.assertEqual(deleted, [("f5-sales-demo/fixture", 7)])
+            expected_unit = MODULE.RetiredInstance(
+                "f5-sales-demo/fixture",
+                "fixture",
+                "ubuntu-24.04",
+                1,
+                "serve",
+                retired,
+            ).unit
+            self.assertEqual(
+                commands,
+                [
+                    [
+                        "systemctl",
+                        "is-active",
+                        expected_unit,
+                    ],
+                    [
+                        "systemctl",
+                        "stop",
+                        expected_unit,
+                    ],
+                ],
+            )
+            self.assertFalse(retired.exists())
+
+    def test_retire_orphans_keeps_a_busy_runner_and_definition(self):
+        with tempfile.TemporaryDirectory() as directory:
+            instance_root = Path(directory)
+            retired = instance_root / "fixture--ubuntu-24.04--1.env"
+            retired.write_text(
+                "RUNNER_REPOSITORY=f5-sales-demo/fixture\n"
+                "RUNNER_PROFILE=ubuntu-24.04\n"
+                "RUNNER_SLOT=1\n"
+                "RUNNER_MODE=serve\n",
+                encoding="utf-8",
+            )
+            deleted = []
+            github = SimpleNamespace(
+                runners=lambda _repository: [
+                    {
+                        "name": "gha-fixture-ubuntu-24.04-1-token",
+                        "id": 7,
+                        "status": "online",
+                        "busy": True,
+                    }
+                ],
+                delete_runner=lambda *_args: deleted.append(True),
+            )
+            controller_module = SimpleNamespace(
+                GitHubClient=lambda _token: github,
+                token_from_environment=lambda: "credential",
+            )
+            with (
+                mock.patch.object(MODULE, "require_root"),
+                mock.patch.object(MODULE, "INSTANCE_ROOT", instance_root),
+                mock.patch.object(MODULE, "all_instances", return_value=()),
+                mock.patch.object(MODULE, "all_standby_instances", return_value=()),
+                mock.patch.object(
+                    MODULE, "load_controller", return_value=controller_module
+                ),
+                mock.patch.object(
+                    MODULE,
+                    "command",
+                    return_value=SimpleNamespace(returncode=0, stdout="active\n"),
+                ) as command,
+            ):
+                self.assertEqual(MODULE.retire_orphans(apply=True), 0)
+
+            self.assertEqual(deleted, [])
+            command.assert_not_called()
+            self.assertTrue(retired.exists())
 
 
 if __name__ == "__main__":
