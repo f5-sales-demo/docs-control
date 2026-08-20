@@ -465,7 +465,7 @@ class EphemeralController:
         )
         self.stopping = False
 
-    def reload_policy(self):
+    def _reload_policy(self):
         """Validate and adopt the on-disk policy between runner cycles.
 
         A runner cycle captures ``self.policy`` before it creates a workspace or
@@ -1169,7 +1169,7 @@ class EphemeralController:
                 # Reload only after the preceding run_once call has completed.
                 # Do not move this into run_once: that can replace policy state
                 # while an ephemeral runner is registered and executing a job.
-                self.reload_policy()
+                self._reload_policy()
                 delay = self.registration_cooldown_delay(full_name, profile_name, slot)
                 if delay:
                     print(

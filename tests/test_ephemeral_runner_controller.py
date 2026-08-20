@@ -264,7 +264,7 @@ class EphemeralRunnerTests(unittest.TestCase):
                 controller.stopping = True
             return SimpleNamespace(returncode=0)
 
-        controller._run_outer = mock.Mock(side_effect=cycle)
+        setattr(controller, "_run_outer", mock.Mock(side_effect=cycle))
         with mock.patch.object(MODULE.signal, "signal"):
             self.assertEqual(
                 controller.serve("f5-sales-demo/fixture", "ubuntu-24.04", backoff=0),
