@@ -14,12 +14,32 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-SOURCE_ROOT = Path(__file__).resolve().parent.parent
-PROVISIONER_SOURCE = Path(__file__).resolve()
-CONTROLLER_SOURCE = SOURCE_ROOT / "scripts/ephemeral-runner-controller.py"
-ENTRYPOINT_SOURCE = SOURCE_ROOT / "scripts/runner-entrypoint.sh"
-POLICY_SOURCE = SOURCE_ROOT / ".github/config/self-hosted-runner-policy.json"
 INSTALL_ROOT = Path("/opt/f5-actions-runner")
+PROVISIONER_SOURCE = Path(__file__).resolve()
+
+
+def source_paths(provisioner):
+    """Return controller assets for either source or installed execution."""
+    provisioner = Path(provisioner).resolve()
+    if provisioner.parent == INSTALL_ROOT:
+        return (
+            INSTALL_ROOT,
+            INSTALL_ROOT / "ephemeral-runner-controller.py",
+            INSTALL_ROOT / "runner-entrypoint.sh",
+            INSTALL_ROOT / "self-hosted-runner-policy.json",
+        )
+    source_root = provisioner.parent.parent
+    return (
+        source_root,
+        source_root / "scripts/ephemeral-runner-controller.py",
+        source_root / "scripts/runner-entrypoint.sh",
+        source_root / ".github/config/self-hosted-runner-policy.json",
+    )
+
+
+SOURCE_ROOT, CONTROLLER_SOURCE, ENTRYPOINT_SOURCE, POLICY_SOURCE = source_paths(
+    PROVISIONER_SOURCE
+)
 CONFIG_ROOT = Path("/etc/f5-actions-runner")
 INSTANCE_ROOT = CONFIG_ROOT / "instances"
 SYSTEMD_ROOT = Path("/etc/systemd/system")
