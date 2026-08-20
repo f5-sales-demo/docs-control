@@ -494,9 +494,12 @@ class ProvisionRunnerTests(unittest.TestCase):
     def test_standby_inventory_cache_bounds_github_refreshes(self):
         policy = SimpleNamespace(governed=lambda: ("f5-sales-demo/fixture",))
         calls = []
-        github = SimpleNamespace(
-            runners=lambda repository: calls.append(repository) or []
-        )
+
+        def runners(repository):
+            calls.append(repository)
+            return []
+
+        github = SimpleNamespace(runners=runners)
         controller = SimpleNamespace(
             token_from_environment=lambda: "credential",
             GitHubClient=lambda _token: github,
