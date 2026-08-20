@@ -1,0 +1,38 @@
+name: Verify Runner Profiles
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  standard:
+    name: Verify standard runner boundary
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    permissions: {}
+    steps:
+      - name: Verify socketless standard profile
+        run: |
+          set -euo pipefail
+          cli=do"cker"
+          if command -v "$cli" >/dev/null 2>&1; then
+            echo "::error::standard runner unexpectedly includes the Docker CLI"
+            exit 1
+          fi
+          test ! -S "/run/${cli}.sock"
+          echo "standard runner is socketless"
+
+  container-build:
+    name: Verify trusted container-build profile
+    needs: standard
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", container-build]
+    permissions: {}
+    steps:
+      - name: Verify Docker-enabled build profile
+        run: |
+          set -euo pipefail
+          test -S /run/docker.sock
+          docker version --format "client={{.Client.Version}} server={{.Server.Version}}"
+          docker buildx version
+          docker compose version
+          echo "container-build runner has the trusted Docker route"
