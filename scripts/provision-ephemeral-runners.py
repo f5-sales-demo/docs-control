@@ -558,22 +558,32 @@ def rotate_idle(*, apply=False):
         if apply
         else None
     )
-    inventories = {}
+    inventories: dict[str, list[dict]] = {}
     rotated = 0
     skipped = 0
     for item in all_instances():
         spec, profile = rotation_profile(policy, item)
-        image = controller.outer_image(spec, profile, item.slot)
-        if image is None:
+        container_id = controller._exact_outer_id(  # noqa: SLF001
+            spec, profile, item.slot
+        )
+        if container_id is None:
             print(f"[SKIP] {item.unit} container=absent")
             skipped += 1
             continue
+        inspected = controller._inspect_container(container_id)  # noqa: SLF001
+        image = inspected["Config"].get("Image")
+        if not isinstance(image, str):
+            raise ProvisionError(
+                f"runner image metadata is malformed: {item.identifier}"
+            )
         if image == profile.image:
             print(f"[OK] {item.unit} image=policy")
             continue
         if not apply:
             print(f"[PLAN] {item.unit} image=mismatch")
             continue
+        if github is None:
+            raise ProvisionError("rotation client is unavailable")
         inventory = inventories.get(item.repository)
         if inventory is None:
             if inventories:

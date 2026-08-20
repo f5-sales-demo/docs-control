@@ -609,9 +609,10 @@ class ProvisionRunnerTests(unittest.TestCase):
         )
         controller = SimpleNamespace(
             container_name=lambda _spec, _profile, _slot: "gha-fixture-ubuntu-24.04-0",
-            outer_image=lambda _spec, _profile, _slot: (
-                "ghcr.io/f5-sales-demo/actions-runner@sha256:old"
-            ),
+            _exact_outer_id=lambda _spec, _profile, _slot: "a" * 64,
+            _inspect_container=lambda _container_id: {
+                "Config": {"Image": "ghcr.io/f5-sales-demo/actions-runner@sha256:old"}
+            },
         )
         controller_module = SimpleNamespace(
             EphemeralController=lambda _policy, _base_dir: controller,
@@ -673,7 +674,8 @@ class ProvisionRunnerTests(unittest.TestCase):
         )
         controller = SimpleNamespace(
             container_name=lambda _spec, _profile, _slot: "gha-fixture-ubuntu-24.04-0",
-            outer_image=lambda _spec, _profile, _slot: "old-image",
+            _exact_outer_id=lambda _spec, _profile, _slot: "a" * 64,
+            _inspect_container=lambda _container_id: {"Config": {"Image": "old-image"}},
         )
         controller_module = SimpleNamespace(
             EphemeralController=lambda _policy, _base_dir: controller,
@@ -712,7 +714,8 @@ class ProvisionRunnerTests(unittest.TestCase):
             repository=lambda _repository: SimpleNamespace(profiles=(profile,))
         )
         controller = SimpleNamespace(
-            outer_image=lambda _spec, _profile, _slot: "old-image",
+            _exact_outer_id=lambda _spec, _profile, _slot: "a" * 64,
+            _inspect_container=lambda _container_id: {"Config": {"Image": "old-image"}},
         )
         controller_module = SimpleNamespace(
             EphemeralController=lambda _policy, _base_dir: controller
