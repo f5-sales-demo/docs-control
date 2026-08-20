@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -230,6 +231,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             mock.patch.object(Path, "mkdir"),
             mock.patch.object(MODULE, "active_policy", return_value=object()),
             mock.patch.object(MODULE, "instances", return_value=()),
+            mock.patch.object(MODULE, "standby_instances", return_value=()),
             mock.patch.object(MODULE, "safe_write"),
             mock.patch.object(
                 MODULE,
@@ -239,6 +241,7 @@ class ProvisionRunnerTests(unittest.TestCase):
         ):
             MODULE.install_definition()
         self.assertIn(["systemctl", "enable", "--now", MODULE.CAPACITY_TIMER], calls)
+        self.assertIn(["systemctl", "enable", "--now", MODULE.STANDBY_TIMER], calls)
         self.assertIn(
             [
                 "install",
@@ -306,6 +309,111 @@ class ProvisionRunnerTests(unittest.TestCase):
             policy["profiles"]["ubuntu-24.04-secondary"],
             policy["profiles"]["ubuntu-24.04"],
         )
+
+    def test_socketless_standby_instances_and_scaler_are_fleet_wide(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(policy["defaults"]["standby_profiles"], ["ubuntu-24.04"])
+        standby = MODULE.standby_instances()
+        self.assertEqual(len(standby), 39)
+        self.assertTrue(
+            all(
+                item.profile == "ubuntu-24.04" and not item.docker_socket
+                for item in standby
+            )
+        )
+        unit = MODULE.standby_scaler_unit_text()
+        for expected in (
+            "RUNNER_FLEET_GITHUB_TOKEN_FILE=",
+            "standby-scale",
+            "NoNewPrivileges=true",
+            "ProtectSystem=strict",
+            "ProtectHome=true",
+        ):
+            self.assertIn(expected, unit)
+
+    def test_standby_scaler_starts_stops_and_fails_closed(self):
+        standby = MODULE.Instance(
+            "f5-sales-demo/fixture",
+            "fixture",
+            "ubuntu-24.04",
+            1,
+            False,
+            "4g",
+            "2",
+            512,
+            300,
+            "bridge",
+        )
+        profile = SimpleNamespace(name="ubuntu-24.04")
+        spec = SimpleNamespace(name="fixture", replicas=1, standby_profiles=(profile,))
+        policy = SimpleNamespace(
+            governed=lambda: ("f5-sales-demo/fixture",),
+            repository=lambda _repository: spec,
+        )
+
+        def run(records, active):
+            calls = []
+            github = SimpleNamespace(runners=lambda _repository: records)
+            controller = SimpleNamespace(
+                token_from_environment=lambda: "credential",
+                GitHubClient=lambda _token: github,
+            )
+
+            def command(argv, **_kwargs):
+                calls.append(argv)
+                if argv[1:2] == ["is-active"]:
+                    return SimpleNamespace(
+                        returncode=0 if active else 3,
+                        stdout="active\n" if active else "inactive\n",
+                    )
+                return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+            with (
+                mock.patch.object(MODULE, "require_root"),
+                mock.patch.object(MODULE, "load_controller", return_value=controller),
+                mock.patch.object(MODULE, "active_policy", return_value=policy),
+                mock.patch.object(MODULE, "standby_instances", return_value=(standby,)),
+                mock.patch.object(MODULE, "command", side_effect=command),
+            ):
+                MODULE.standby_scale()
+            return calls
+
+        warm = {"name": "gha-fixture-ubuntu-24.04-0-token", "busy": True}
+        standby_idle = {"name": "gha-fixture-ubuntu-24.04-1-token", "busy": False}
+        standby_busy = {"name": "gha-fixture-ubuntu-24.04-1-token", "busy": True}
+        self.assertIn(["systemctl", "start", standby.unit], run([warm], False))
+        self.assertNotIn(["systemctl", "start", standby.unit], run([warm], True))
+        self.assertIn(["systemctl", "stop", standby.unit], run([standby_idle], True))
+        self.assertNotIn(["systemctl", "stop", standby.unit], run([standby_busy], True))
+
+        calls = []
+        failed_github = SimpleNamespace(
+            runners=lambda _repository: (_ for _ in ()).throw(
+                RuntimeError("rate limited")
+            )
+        )
+        controller = SimpleNamespace(
+            token_from_environment=lambda: "credential",
+            GitHubClient=lambda _token: failed_github,
+        )
+        with (
+            mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(MODULE, "load_controller", return_value=controller),
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
+            mock.patch.object(MODULE, "standby_instances", return_value=(standby,)),
+            mock.patch.object(
+                MODULE,
+                "command",
+                side_effect=lambda argv, **_kwargs: calls.append(argv),
+            ),
+            self.assertRaisesRegex(RuntimeError, "rate limited"),
+        ):
+            MODULE.standby_scale()
+        self.assertEqual(calls, [])
 
     def test_enable_requires_shared_docker_service_before_runner(self):
         calls = []

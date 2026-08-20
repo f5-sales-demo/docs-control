@@ -72,7 +72,11 @@ class EphemeralRunnerTests(unittest.TestCase):
                 "minimum_version": "29.2.1",
                 "target_version": "29.7.2",
             },
-            "defaults": {"replicas": 1, "profile": "ubuntu-24.04"},
+            "defaults": {
+                "replicas": 1,
+                "profile": "ubuntu-24.04",
+                "standby_profiles": ["ubuntu-24.04"],
+            },
             "profiles": {
                 "ubuntu-24.04": {
                     "image": "ghcr.io/f5-sales-demo/runner@sha256:" + "a" * 64,
@@ -1226,6 +1230,14 @@ class EphemeralRunnerTests(unittest.TestCase):
         with self.assertRaises(MODULE.FleetError):
             controller.run_once("f5-sales-demo/fixture", "ubuntu-24.04")
         self.assertTrue(marker.is_file())
+
+    def test_socketed_profile_cannot_be_a_standby(self):
+        self.policy_data["defaults"]["standby_profiles"] = ["container-build"]
+        self.write_policy()
+        with self.assertRaisesRegex(
+            MODULE.FleetError, "standby profiles must be socketless"
+        ):
+            self.policy()
 
     def test_slot_and_profile_fail_closed(self):
         controller = MODULE.EphemeralController(
