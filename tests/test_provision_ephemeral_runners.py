@@ -377,8 +377,12 @@ class ProvisionRunnerTests(unittest.TestCase):
             governed=lambda: ("f5-sales-demo/fixture",),
             repository=lambda _repository: spec,
         )
+        cache_directory = tempfile.TemporaryDirectory()
+        self.addCleanup(cache_directory.cleanup)
+        cache_path = Path(cache_directory.name) / "standby-inventory.json"
 
         def run(records, active):
+            cache_path.unlink(missing_ok=True)
             calls = []
             github = SimpleNamespace(runners=lambda _repository: records)
             controller = SimpleNamespace(
@@ -400,6 +404,7 @@ class ProvisionRunnerTests(unittest.TestCase):
                 mock.patch.object(MODULE, "load_controller", return_value=controller),
                 mock.patch.object(MODULE, "active_policy", return_value=policy),
                 mock.patch.object(MODULE, "standby_instances", return_value=(standby,)),
+                mock.patch.object(MODULE, "STANDBY_INVENTORY_CACHE", cache_path),
                 mock.patch.object(MODULE, "command", side_effect=command),
             ):
                 MODULE.standby_scale()
@@ -428,6 +433,7 @@ class ProvisionRunnerTests(unittest.TestCase):
         self.assertNotIn(["systemctl", "start", standby.unit], run([], True))
         self.assertNotIn(["systemctl", "stop", standby.unit], run([], True))
 
+        cache_path.unlink(missing_ok=True)
         calls = []
         failed_github = SimpleNamespace(
             runners=lambda _repository: (_ for _ in ()).throw(
@@ -443,6 +449,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             mock.patch.object(MODULE, "load_controller", return_value=controller),
             mock.patch.object(MODULE, "active_policy", return_value=policy),
             mock.patch.object(MODULE, "standby_instances", return_value=(standby,)),
+            mock.patch.object(MODULE, "STANDBY_INVENTORY_CACHE", cache_path),
             mock.patch.object(
                 MODULE,
                 "command",
@@ -453,6 +460,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             MODULE.standby_scale()
         self.assertEqual(calls, [])
 
+        cache_path.unlink(missing_ok=True)
         malformed_github = SimpleNamespace(
             runners=lambda _repository: [
                 {
@@ -472,6 +480,7 @@ class ProvisionRunnerTests(unittest.TestCase):
             mock.patch.object(MODULE, "load_controller", return_value=controller),
             mock.patch.object(MODULE, "active_policy", return_value=policy),
             mock.patch.object(MODULE, "standby_instances", return_value=(standby,)),
+            mock.patch.object(MODULE, "STANDBY_INVENTORY_CACHE", cache_path),
             mock.patch.object(
                 MODULE,
                 "command",
@@ -481,6 +490,37 @@ class ProvisionRunnerTests(unittest.TestCase):
         ):
             MODULE.standby_scale()
         self.assertEqual(calls, [])
+
+    def test_standby_inventory_cache_bounds_github_refreshes(self):
+        policy = SimpleNamespace(governed=lambda: ("f5-sales-demo/fixture",))
+        calls = []
+        github = SimpleNamespace(
+            runners=lambda repository: calls.append(repository) or []
+        )
+        controller = SimpleNamespace(
+            token_from_environment=lambda: "credential",
+            GitHubClient=lambda _token: github,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            cache_path = Path(directory) / "standby-inventory.json"
+            with (
+                mock.patch.object(MODULE, "STANDBY_INVENTORY_CACHE", cache_path),
+                mock.patch.object(MODULE.time, "time", side_effect=[1000, 1001, 1121]),
+            ):
+                self.assertEqual(
+                    MODULE.standby_inventories(policy, controller),
+                    {"f5-sales-demo/fixture": []},
+                )
+                self.assertEqual(
+                    MODULE.standby_inventories(policy, controller),
+                    {"f5-sales-demo/fixture": []},
+                )
+                self.assertEqual(
+                    MODULE.standby_inventories(policy, controller),
+                    {"f5-sales-demo/fixture": []},
+                )
+
+        self.assertEqual(calls, ["f5-sales-demo/fixture", "f5-sales-demo/fixture"])
 
     def test_enable_requires_shared_docker_service_before_runner(self):
         calls = []
