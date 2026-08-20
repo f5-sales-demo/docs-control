@@ -512,7 +512,6 @@ def standby_scale():
             command(["systemctl", "start", item.unit])
 
 
-
 def rotation_profile(policy, item):
     spec = policy.repository(item.repository)
     profile = next(
@@ -597,6 +596,7 @@ def rotate_idle(*, apply=False):
         rotated += 1
     print(f"rotation rotated={rotated} skipped={skipped} apply={str(apply).lower()}")
     return 0
+
 
 def docker_host_errors(policy):
     errors = []

@@ -574,7 +574,6 @@ class ProvisionRunnerTests(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
             self.assertEqual(destination.read_text(), "x" * 40 + "\n")
 
-
     def test_rotate_idle_requires_a_verified_idle_runner_before_replacement(self):
         item = MODULE.Instance(
             "f5-sales-demo/fixture",
@@ -610,7 +609,9 @@ class ProvisionRunnerTests(unittest.TestCase):
         )
         controller = SimpleNamespace(
             container_name=lambda _spec, _profile, _slot: "gha-fixture-ubuntu-24.04-0",
-            outer_image=lambda _spec, _profile, _slot: "ghcr.io/f5-sales-demo/actions-runner@sha256:old",
+            outer_image=lambda _spec, _profile, _slot: (
+                "ghcr.io/f5-sales-demo/actions-runner@sha256:old"
+            ),
         )
         controller_module = SimpleNamespace(
             EphemeralController=lambda _policy, _base_dir: controller,
@@ -621,7 +622,9 @@ class ProvisionRunnerTests(unittest.TestCase):
             mock.patch.object(MODULE, "require_root"),
             mock.patch.object(MODULE, "active_policy", return_value=policy),
             mock.patch.object(MODULE, "all_instances", return_value=(item,)),
-            mock.patch.object(MODULE, "load_controller", return_value=controller_module),
+            mock.patch.object(
+                MODULE, "load_controller", return_value=controller_module
+            ),
             mock.patch.object(
                 MODULE,
                 "command",
@@ -681,13 +684,14 @@ class ProvisionRunnerTests(unittest.TestCase):
             mock.patch.object(MODULE, "require_root"),
             mock.patch.object(MODULE, "active_policy", return_value=policy),
             mock.patch.object(MODULE, "all_instances", return_value=(item,)),
-            mock.patch.object(MODULE, "load_controller", return_value=controller_module),
+            mock.patch.object(
+                MODULE, "load_controller", return_value=controller_module
+            ),
             mock.patch.object(MODULE, "command") as command,
         ):
             self.assertEqual(MODULE.rotate_idle(apply=True), 0)
         self.assertEqual(deleted, [])
         command.assert_not_called()
-
 
     def test_rotate_idle_plans_without_deregistering_or_stopping(self):
         item = MODULE.Instance(
@@ -716,7 +720,9 @@ class ProvisionRunnerTests(unittest.TestCase):
         with (
             mock.patch.object(MODULE, "active_policy", return_value=policy),
             mock.patch.object(MODULE, "all_instances", return_value=(item,)),
-            mock.patch.object(MODULE, "load_controller", return_value=controller_module),
+            mock.patch.object(
+                MODULE, "load_controller", return_value=controller_module
+            ),
             mock.patch.object(MODULE, "command") as command,
         ):
             self.assertEqual(MODULE.rotate_idle(), 0)

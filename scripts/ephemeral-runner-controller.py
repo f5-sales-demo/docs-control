@@ -780,7 +780,6 @@ class EphemeralController:
             )
         return image
 
-
     def _request_outer_stop(self, spec, profile, slot):
         name = self.container_name(spec, profile, slot)
         container_id = self._exact_outer_id(spec, profile, slot)
