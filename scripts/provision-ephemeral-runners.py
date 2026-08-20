@@ -6,11 +6,13 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import os
 import shutil
 import stat
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -51,6 +53,8 @@ CAPACITY_UNIT = "f5-actions-runner-capacity.service"
 CAPACITY_TIMER = "f5-actions-runner-capacity.timer"
 STANDBY_UNIT = "f5-actions-runner-standby.service"
 STANDBY_TIMER = "f5-actions-runner-standby.timer"
+STANDBY_INVENTORY_CACHE = STATE_ROOT / ".standby-runner-inventory.json"
+STANDBY_INVENTORY_CACHE_SECONDS = 120
 CAPACITY_MIN_FREE_BYTES = 50 * 1024 * 1024 * 1024
 CAPACITY_MIN_FREE_PERCENT = 10
 
@@ -414,32 +418,95 @@ def enable(repository, profile=None):
         command(["systemctl", "enable", "--now", item.unit])
 
 
-def standby_scale():
-    """Start an inactive one-job standby only after warm capacity is busy."""
-    require_root()
-    controller_module = load_controller()
-    policy = active_policy()
-    standby = standby_instances(policy)
+def standby_inventory_cache(policy, now):
+    """Return a fresh, complete cached runner inventory, if one is available."""
+    try:
+        cached = json.loads(STANDBY_INVENTORY_CACHE.read_text(encoding="utf-8"))
+    except (FileNotFoundError, OSError, ValueError):
+        return None
+    if not isinstance(cached, dict) or set(cached) != {"recorded_at", "inventories"}:
+        return None
+    recorded_at = cached["recorded_at"]
+    inventories = cached["inventories"]
+    cache_is_fresh = isinstance(recorded_at, int) and not isinstance(recorded_at, bool)
+    if cache_is_fresh:
+        cache_is_fresh = 0 <= now - recorded_at <= STANDBY_INVENTORY_CACHE_SECONDS
+    inventory_is_complete = isinstance(inventories, dict) and set(inventories) == set(
+        policy.governed()
+    )
+    inventory_records_are_lists = inventory_is_complete and all(
+        isinstance(records, list) for records in inventories.values()
+    )
+    if cache_is_fresh and inventory_records_are_lists:
+        return inventories
+    return None
+
+
+def standby_inventories(policy, controller_module):
+    """Fetch and cache the whole fleet inventory at a bounded core-API rate."""
+    now = int(time.time())
+    cached = standby_inventory_cache(policy, now)
+    if cached is not None:
+        return cached
     github = controller_module.GitHubClient(controller_module.token_from_environment())
     inventories = {
         repository: github.runners(repository) for repository in policy.governed()
     }
+    safe_write(
+        STANDBY_INVENTORY_CACHE,
+        json.dumps({"recorded_at": now, "inventories": inventories}, sort_keys=True),
+        0o600,
+    )
+    return inventories
+
+
+def standby_scale():
+    """Start an inactive socketless standby when warm capacity is unavailable."""
+    require_root()
+    controller_module = load_controller()
+    policy = active_policy()
+    standby = standby_instances(policy)
+    inventories = standby_inventories(policy, controller_module)
+    if any(
+        not isinstance(record, dict)
+        for inventory in inventories.values()
+        for record in inventory
+    ):
+        raise ProvisionError("GitHub runner inventory is malformed")
+    capacity = []
     for item in standby:
         spec = policy.repository(item.repository)
         warm_prefixes = tuple(
             f"gha-{spec.name}-{item.profile}-{slot}-" for slot in range(spec.replicas)
         )
-        warm_busy = any(
-            isinstance(record.get("name"), str)
-            and record["name"].startswith(warm_prefixes)
-            and record.get("busy") is True
+        warm = [
+            record
             for record in inventories[item.repository]
+            if isinstance(record.get("name"), str)
+            and record["name"].startswith(warm_prefixes)
+        ]
+        if any(
+            record.get("status") not in {"online", "offline"}
+            or not isinstance(record.get("busy"), bool)
+            for record in warm
+        ):
+            raise ProvisionError("GitHub warm runner inventory is malformed")
+        capacity.append(
+            (
+                item,
+                any(record["busy"] for record in warm),
+                any(record["status"] == "online" for record in warm),
+            )
         )
+    for item, warm_busy, warm_online in capacity:
         state = command(
             ["systemctl", "is-active", item.unit], check=False, capture=True
         )
         active = state.returncode == 0 and state.stdout.strip() == "active"
-        if warm_busy and not active:
+        # A warm runner is deliberately ephemeral. During its cleanup and next
+        # registration no matching runner is online, so cover that gap with the
+        # existing socketless one-job standby as well as ordinary busy scale-out.
+        if (warm_busy or not warm_online) and not active:
             command(["systemctl", "start", item.unit])
 
 
