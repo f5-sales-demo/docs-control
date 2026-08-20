@@ -25,6 +25,25 @@ SPEC.loader.exec_module(MODULE)
 
 
 class ProvisionRunnerTests(unittest.TestCase):
+    def test_installed_provisioner_resolves_installed_runner_assets(self):
+        installed = MODULE.INSTALL_ROOT / "provision-ephemeral-runners.py"
+        root, controller, entrypoint, policy = MODULE.source_paths(installed)
+        self.assertEqual(root, MODULE.INSTALL_ROOT)
+        self.assertEqual(
+            controller, MODULE.INSTALL_ROOT / "ephemeral-runner-controller.py"
+        )
+        self.assertEqual(entrypoint, MODULE.INSTALL_ROOT / "runner-entrypoint.sh")
+        self.assertEqual(policy, MODULE.INSTALL_ROOT / "self-hosted-runner-policy.json")
+        self.assertEqual(
+            MODULE.source_paths(MODULE.PROVISIONER_SOURCE),
+            (
+                MODULE.SOURCE_ROOT,
+                MODULE.CONTROLLER_SOURCE,
+                MODULE.ENTRYPOINT_SOURCE,
+                MODULE.POLICY_SOURCE,
+            ),
+        )
+
     def test_runner_images_include_pyyaml_and_separate_docker_target(self):
         content = (ROOT / "runner-images/Containerfile").read_text(encoding="utf-8")
         self.assertIn("python3-yaml", content)
