@@ -574,6 +574,160 @@ class ProvisionRunnerTests(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(destination.stat().st_mode), 0o600)
             self.assertEqual(destination.read_text(), "x" * 40 + "\n")
 
+    def test_rotate_idle_requires_a_verified_idle_runner_before_replacement(self):
+        item = MODULE.Instance(
+            "f5-sales-demo/fixture",
+            "fixture",
+            "ubuntu-24.04",
+            0,
+            False,
+            "4g",
+            "2",
+            512,
+            300,
+            "bridge",
+            "serve",
+        )
+        profile = SimpleNamespace(
+            name="ubuntu-24.04",
+            image="ghcr.io/f5-sales-demo/self-hosted-runner@sha256:new",
+        )
+        spec = SimpleNamespace(profiles=(profile,))
+        policy = SimpleNamespace(repository=lambda _repository: spec)
+        runner = {
+            "name": "gha-fixture-ubuntu-24.04-0-token",
+            "id": 7,
+            "status": "online",
+            "busy": False,
+        }
+        deleted, commands = [], []
+        github = SimpleNamespace(
+            runners=lambda _repository: [runner],
+            delete_runner=lambda repository, runner_id: deleted.append(
+                (repository, runner_id)
+            ),
+        )
+        controller = SimpleNamespace(
+            container_name=lambda _spec, _profile, _slot: "gha-fixture-ubuntu-24.04-0",
+            outer_image=lambda _spec, _profile, _slot: (
+                "ghcr.io/f5-sales-demo/actions-runner@sha256:old"
+            ),
+        )
+        controller_module = SimpleNamespace(
+            EphemeralController=lambda _policy, _base_dir: controller,
+            GitHubClient=lambda _token: github,
+            token_from_environment=lambda: "credential",
+        )
+        with (
+            mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
+            mock.patch.object(MODULE, "all_instances", return_value=(item,)),
+            mock.patch.object(
+                MODULE, "load_controller", return_value=controller_module
+            ),
+            mock.patch.object(
+                MODULE,
+                "command",
+                side_effect=lambda argv, **_kwargs: commands.append(argv),
+            ),
+        ):
+            self.assertEqual(MODULE.rotate_idle(apply=True), 0)
+        self.assertEqual(deleted, [("f5-sales-demo/fixture", 7)])
+        self.assertEqual(
+            commands,
+            [
+                ["systemctl", "stop", item.unit],
+                ["systemctl", "start", item.unit],
+            ],
+        )
+
+    def test_rotate_idle_never_replaces_a_busy_runner(self):
+        item = MODULE.Instance(
+            "f5-sales-demo/fixture",
+            "fixture",
+            "ubuntu-24.04",
+            0,
+            False,
+            "4g",
+            "2",
+            512,
+            300,
+            "bridge",
+            "serve",
+        )
+        profile = SimpleNamespace(name="ubuntu-24.04", image="new-image")
+        policy = SimpleNamespace(
+            repository=lambda _repository: SimpleNamespace(profiles=(profile,))
+        )
+        deleted = []
+        github = SimpleNamespace(
+            runners=lambda _repository: [
+                {
+                    "name": "gha-fixture-ubuntu-24.04-0-token",
+                    "id": 7,
+                    "status": "online",
+                    "busy": True,
+                }
+            ],
+            delete_runner=lambda *_args: deleted.append(True),
+        )
+        controller = SimpleNamespace(
+            container_name=lambda _spec, _profile, _slot: "gha-fixture-ubuntu-24.04-0",
+            outer_image=lambda _spec, _profile, _slot: "old-image",
+        )
+        controller_module = SimpleNamespace(
+            EphemeralController=lambda _policy, _base_dir: controller,
+            GitHubClient=lambda _token: github,
+            token_from_environment=lambda: "credential",
+        )
+        with (
+            mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
+            mock.patch.object(MODULE, "all_instances", return_value=(item,)),
+            mock.patch.object(
+                MODULE, "load_controller", return_value=controller_module
+            ),
+            mock.patch.object(MODULE, "command") as command,
+        ):
+            self.assertEqual(MODULE.rotate_idle(apply=True), 0)
+        self.assertEqual(deleted, [])
+        command.assert_not_called()
+
+    def test_rotate_idle_plans_without_deregistering_or_stopping(self):
+        item = MODULE.Instance(
+            "f5-sales-demo/fixture",
+            "fixture",
+            "ubuntu-24.04",
+            0,
+            False,
+            "4g",
+            "2",
+            512,
+            300,
+            "bridge",
+            "serve",
+        )
+        profile = SimpleNamespace(name="ubuntu-24.04", image="new-image")
+        policy = SimpleNamespace(
+            repository=lambda _repository: SimpleNamespace(profiles=(profile,))
+        )
+        controller = SimpleNamespace(
+            outer_image=lambda _spec, _profile, _slot: "old-image",
+        )
+        controller_module = SimpleNamespace(
+            EphemeralController=lambda _policy, _base_dir: controller
+        )
+        with (
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
+            mock.patch.object(MODULE, "all_instances", return_value=(item,)),
+            mock.patch.object(
+                MODULE, "load_controller", return_value=controller_module
+            ),
+            mock.patch.object(MODULE, "command") as command,
+        ):
+            self.assertEqual(MODULE.rotate_idle(), 0)
+        command.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

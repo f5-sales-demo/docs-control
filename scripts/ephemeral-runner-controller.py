@@ -443,7 +443,7 @@ class GitHubClient:
         self.request("DELETE", f"/repos/{full_name}/actions/runners/{runner_id}")
 
 
-class EphemeralController:
+class EphemeralController:  # pylint: disable=too-many-public-methods
     def __init__(
         self,
         policy,
@@ -767,6 +767,18 @@ class EphemeralController:
         ):
             raise FleetError(f"exact runner container identity mismatch: {name}")
         return container_id
+
+    def outer_image(self, spec, profile, slot):
+        # Return the exact managed container image for one runner slot.
+        container_id = self._exact_outer_id(spec, profile, slot)
+        if container_id is None:
+            return None
+        image = self._inspect_container(container_id)["Config"].get("Image")
+        if not isinstance(image, str):
+            raise FleetError(
+                f"runner image metadata is malformed: {self.container_name(spec, profile, slot)}"
+            )
+        return image
 
     def _request_outer_stop(self, spec, profile, slot):
         name = self.container_name(spec, profile, slot)

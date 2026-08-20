@@ -57,6 +57,7 @@ STANDBY_INVENTORY_CACHE = STATE_ROOT / ".standby-runner-inventory.json"
 STANDBY_INVENTORY_CACHE_SECONDS = 120
 CAPACITY_MIN_FREE_BYTES = 50 * 1024 * 1024 * 1024
 CAPACITY_MIN_FREE_PERCENT = 10
+ROTATION_REQUEST_INTERVAL_SECONDS = 1
 
 
 class ProvisionError(RuntimeError):
@@ -511,6 +512,94 @@ def standby_scale():
             command(["systemctl", "start", item.unit])
 
 
+def rotation_profile(policy, item):
+    spec = policy.repository(item.repository)
+    profile = next(
+        (candidate for candidate in spec.profiles if candidate.name == item.profile),
+        None,
+    )
+    if profile is None:
+        raise ProvisionError(f"runner profile is not governed: {item.identifier}")
+    return spec, profile
+
+
+def rotation_runner_record(controller, spec, profile, item, inventory):
+    prefix = controller.container_name(spec, profile, item.slot) + "-"
+    matches = [
+        runner
+        for runner in inventory
+        if isinstance(runner, dict)
+        and isinstance(runner.get("name"), str)
+        and runner["name"].startswith(prefix)
+    ]
+    if len(matches) != 1:
+        return None
+    runner = matches[0]
+    runner_id = runner.get("id")
+    if (
+        not isinstance(runner_id, int)
+        or runner_id <= 0
+        or runner.get("status") != "online"
+        or runner.get("busy") is not False
+    ):
+        return None
+    return runner
+
+
+def rotate_idle(*, apply=False):
+    # Replace only verified-idle warm runners whose image differs from policy.
+    if apply:
+        require_root()
+    policy = active_policy()
+    controller_module = load_controller()
+    controller = controller_module.EphemeralController(policy, None)
+    github = (
+        controller_module.GitHubClient(controller_module.token_from_environment())
+        if apply
+        else None
+    )
+    inventories: dict[str, list[dict]] = {}
+    rotated = 0
+    skipped = 0
+    for item in all_instances():
+        spec, profile = rotation_profile(policy, item)
+        image = controller.outer_image(spec, profile, item.slot)
+        if image is None:
+            print(f"[SKIP] {item.unit} container=absent")
+            skipped += 1
+            continue
+        if image == profile.image:
+            print(f"[OK] {item.unit} image=policy")
+            continue
+        if not apply:
+            print(f"[PLAN] {item.unit} image=mismatch")
+            continue
+        if github is None:
+            raise ProvisionError("rotation client is unavailable")
+        inventory = inventories.get(item.repository)
+        if inventory is None:
+            if inventories:
+                time.sleep(ROTATION_REQUEST_INTERVAL_SECONDS)
+            inventory = github.runners(item.repository)
+            if not isinstance(inventory, list) or any(
+                not isinstance(record, dict) for record in inventory
+            ):
+                raise ProvisionError("GitHub runner inventory is malformed")
+            inventories[item.repository] = inventory
+        runner = rotation_runner_record(controller, spec, profile, item, inventory)
+        if runner is None:
+            print(f"[SKIP] {item.unit} runner=not-verified-idle")
+            skipped += 1
+            continue
+        github.delete_runner(item.repository, runner["id"])
+        command(["systemctl", "stop", item.unit])
+        command(["systemctl", "start", item.unit])
+        print(f"[ROTATED] {item.unit} image=policy")
+        rotated += 1
+    print(f"rotation rotated={rotated} skipped={skipped} apply={str(apply).lower()}")
+    return 0
+
+
 def docker_host_errors(policy):
     errors = []
     service = command(
@@ -592,6 +681,8 @@ def main(argv=None):
     enable_parser.add_argument("--profile")
     audit_parser = subparsers.add_parser("audit")
     audit_parser.add_argument("repository", nargs="?")
+    rotate_parser = subparsers.add_parser("rotate-idle")
+    rotate_parser.add_argument("--apply", action="store_true")
     subparsers.add_parser("standby-scale")
     args = parser.parse_args(argv)
     try:
@@ -607,6 +698,8 @@ def main(argv=None):
             enable(args.repository, args.profile)
         elif args.action == "standby-scale":
             standby_scale()
+        elif args.action == "rotate-idle":
+            return rotate_idle(apply=args.apply)
         else:
             return audit(args.repository)
         return 0
