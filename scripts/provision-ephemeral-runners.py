@@ -422,25 +422,24 @@ def standby_inventory_cache(policy, now):
     """Return a fresh, complete cached runner inventory, if one is available."""
     try:
         cached = json.loads(STANDBY_INVENTORY_CACHE.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return None
-    except (OSError, ValueError):
+    except (FileNotFoundError, OSError, ValueError):
         return None
     if not isinstance(cached, dict) or set(cached) != {"recorded_at", "inventories"}:
         return None
     recorded_at = cached["recorded_at"]
     inventories = cached["inventories"]
-    if (
-        not isinstance(recorded_at, int)
-        or isinstance(recorded_at, bool)
-        or recorded_at > now
-        or now - recorded_at > STANDBY_INVENTORY_CACHE_SECONDS
-        or not isinstance(inventories, dict)
-        or set(inventories) != set(policy.governed())
-        or not all(isinstance(records, list) for records in inventories.values())
-    ):
-        return None
-    return inventories
+    cache_is_fresh = isinstance(recorded_at, int) and not isinstance(recorded_at, bool)
+    if cache_is_fresh:
+        cache_is_fresh = 0 <= now - recorded_at <= STANDBY_INVENTORY_CACHE_SECONDS
+    inventory_is_complete = isinstance(inventories, dict) and set(inventories) == set(
+        policy.governed()
+    )
+    inventory_records_are_lists = inventory_is_complete and all(
+        isinstance(records, list) for records in inventories.values()
+    )
+    if cache_is_fresh and inventory_records_are_lists:
+        return inventories
+    return None
 
 
 def standby_inventories(policy, controller_module):
