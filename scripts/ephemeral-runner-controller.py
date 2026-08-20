@@ -26,6 +26,9 @@ from typing import Any, cast
 
 DEFAULT_ORG = "f5-sales-demo"
 HOST_ENTRYPOINT = Path("/opt/f5-actions-runner/runner-entrypoint.sh")
+HOST_TOOL_CACHE_INITIALIZER = Path(
+    "/opt/f5-actions-runner/prepare-runner-tool-cache.sh"
+)
 DEFAULT_BASE_DIR = Path("/data/actions-runners/f5-sales-demo-ephemeral")
 DEFAULT_POLICY = (
     Path(__file__).resolve().parent.parent
@@ -1072,10 +1075,14 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
             f"{state}:{workspace}/_diag:rw",
             "--volume",
             f"{HOST_ENTRYPOINT}:/usr/local/bin/runner-entrypoint:ro",
+            "--volume",
+            f"{HOST_TOOL_CACHE_INITIALIZER}:/usr/local/libexec/prepare-runner-tool-cache:ro",
             "--env",
             f"HOME={workspace}/home",
             "--env",
             f"RUNNER_RUNTIME_DIR={workspace}",
+            "--env",
+            f"RUNNER_TOOL_CACHE={workspace}/_tool",
             "--env",
             "RUNNER_EPHEMERAL=1",
             "--env",
