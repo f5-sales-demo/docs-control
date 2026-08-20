@@ -5,6 +5,10 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: verify-runner-profiles-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   standard:
     name: Verify standard runner boundary
