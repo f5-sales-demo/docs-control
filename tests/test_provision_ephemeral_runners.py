@@ -44,100 +44,17 @@ class ProvisionRunnerTests(unittest.TestCase):
             ),
         )
 
-    def test_runner_images_include_pyyaml_and_separate_docker_target(self):
-        content = (ROOT / "runner-images/Containerfile").read_text(encoding="utf-8")
-        self.assertIn("python3-yaml", content)
-        for package in (
-            " make ",
-            " pipx ",
-            " apt-utils ",
-            " dpkg-dev ",
-            " dbus-x11 ",
-            " libsecret-1-0 ",
-            " gnome-keyring ",
-            " python3-keyring ",
-        ):
-            self.assertIn(package, content)
-        self.assertNotIn(" nodejs ", content)
-        self.assertNotIn(" npm ", content)
-        self.assertIn("node:22.22.2-bookworm-slim@sha256:", content)
-        self.assertIn(
-            "sha256:868499d55378719bffa87b0ed1f099591823c029b543043c09c2483468e93201",
-            content,
+    def test_runner_image_authority_is_external_and_digest_pinned(self):
+        self.assertFalse((ROOT / "runner-images/Containerfile").exists())
+        self.assertFalse(
+            (ROOT / ".github/workflows/publish-runner-images.yml").exists()
         )
-        self.assertIn("COPY --from=node-cli /usr/local/bin/node", content)
-        self.assertIn("COPY --from=node-cli /usr/local/lib/node_modules", content)
-        self.assertIn("ln -s ../lib/node_modules/npm/bin/npm-cli.js", content)
-        self.assertIn("ln -s ../lib/node_modules/npm/bin/npx-cli.js", content)
-        self.assertIn("ARG GH_VERSION=2.97.0", content)
-        self.assertIn(
-            "ARG GH_SHA256="
-            "a2c9b8497e1f85b1ad0dfcb78b5a622e098801b8e461e459e88e1ee12f018112",
-            content,
-        )
-        self.assertIn("gh_${GH_VERSION}_linux_amd64.tar.gz", content)
-        self.assertIn("/usr/local/bin/gh", content)
-        self.assertNotIn("git git-lfs gh jq", content)
-        self.assertLess(content.index("python3-yaml"), content.index("AS socketless"))
-        socketless = content.split("FROM runner-base AS socketless", 1)[1].split(
-            "FROM runner-base AS docker-capable", 1
-        )[0]
-        docker_capable = content.split("FROM runner-base AS docker-capable", 1)[1]
-        self.assertNotIn("/usr/local/bin/docker", socketless)
-        self.assertIn("/usr/local/bin/docker", docker_capable)
-        self.assertIn("docker-buildx", docker_capable)
-        self.assertIn("docker-compose", docker_capable)
-        self.assertNotIn(
-            "apt-get install --yes --no-install-recommends docker.io", content
-        )
-        self.assertNotIn(" podman", content)
-        digest = (
-            "sha256:e650b7a58d7f56be91d4f7be799196380a3bbc1bcbc41f1f4dff1b36ac309e1e"
-        )
-        self.assertIn(f"docker:29.7.2-cli@{digest}", content)
-
-    def test_runner_image_publish_uses_buildx_metadata_and_smoke_tests(self):
-        content = (ROOT / ".github/workflows/publish-runner-images.yml").read_text(
-            encoding="utf-8"
-        )
-        for required in (
-            'docker --config "$auth_dir" buildx build',
-            '--metadata-file "$metadata_file"',
-            "--push",
-            "containerimage.digest",
-            'docker --config "$auth_dir" buildx imagetools inspect --raw',
-            "sha256sum",
-            "cliPluginsExtraDirs",
-            'find "$auth_dir" -depth -delete',
-            "docker cp",
-            'runner_root="${RUNNER_RUNTIME_DIR:?}"',
-            'python3 -c "import keyring, yaml"',
-            "gh version 2.97.0",
-            'gh api --help | grep -q -- "--slurp"',
-            "node --version",
-            'grep -q "^v22\\."',
-            "npm --version",
-            "npx --version",
-            "dpkg-scanpackages --version",
-            "apt-ftparchive --version",
-            "make --version",
-            "dbus-run-session --version",
-            "gnome-keyring-daemon --version",
-            "docker buildx version",
-            "docker compose version",
-        ):
-            self.assertIn(required, content)
-        self.assertIn(
-            "e650b7a58d7f56be91d4f7be799196380a3bbc1bcbc41f1f4dff1b36ac309e1e",
-            content,
-        )
-        self.assertLess(
-            content.index('find "$auth_dir" -depth -delete'),
-            content.index('find "$tools_dir" -depth -delete'),
-        )
-        self.assertNotIn('rmdir "$plugins_dir"', content)
-        self.assertNotIn("podman", content)
-        self.assertEqual(content.count("pipx --version"), 2)
+        for profile in MODULE.active_policy().profiles.values():
+            self.assertTrue(
+                profile.image.startswith(
+                    "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
+                )
+            )
 
     def test_every_governed_repository_has_container_build_profile(self):
         by_repository: dict[str, set[str]] = {}
