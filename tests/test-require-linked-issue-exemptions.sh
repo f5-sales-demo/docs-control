@@ -76,6 +76,7 @@ assert_exempt "openapi-sync/2026-07-28" "spec sync"
 assert_exempt "plugin-sync/marketplace" "plugin sync"
 assert_exempt "deps/bump-node" "dependency branch"
 assert_exempt "sync/managed-files" "managed-file sync"
+assert_exempt "governance/sync-managed-files-source-123" "governance managed-file sync"
 assert_exempt "docs/update-terminology" "docs update branch"
 
 # Authored work must stay gated, and the patterns must stay anchored so a
@@ -85,6 +86,7 @@ assert_gated "fix/exempt-changeset-release-branches" "ordinary fix branch"
 assert_gated "feature/changeset-release/main" "exemption must be anchored at the start"
 assert_gated "changeset-release" "directory prefix without a base is not a release branch"
 assert_gated "docs/update" "docs/update-* needs the suffix"
+assert_gated "governance/sync-managed-files" "generated sync branch requires its unique suffix"
 assert_gated "main" "the default branch is not exempt"
 
 if [ "$FAIL" -eq 0 ]; then
