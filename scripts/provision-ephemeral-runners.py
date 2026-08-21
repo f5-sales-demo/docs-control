@@ -435,6 +435,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+TimeoutStartSec=55
 Environment=RUNNER_FLEET_GITHUB_TOKEN_FILE={TOKEN_PATH}
 ExecStartPre=/usr/bin/test -r {TOKEN_PATH}
 ExecStart=/usr/bin/python3 {INSTALL_ROOT}/provision-ephemeral-runners.py dispatch-queued-profiles
