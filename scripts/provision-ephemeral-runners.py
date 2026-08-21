@@ -800,7 +800,9 @@ def dispatch_queued_profiles():
                 "GET",
                 f"/repos/{repository}/actions/runs?status={status}&per_page=100",
             )
-            records = response.get("workflow_runs") if isinstance(response, dict) else None
+            records = (
+                response.get("workflow_runs") if isinstance(response, dict) else None
+            )
             if not isinstance(records, list) or any(
                 not isinstance(run, dict) or not isinstance(run.get("id"), int)
                 for run in records

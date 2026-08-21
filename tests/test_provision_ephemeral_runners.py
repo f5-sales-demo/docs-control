@@ -340,19 +340,32 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
 
         class GitHub:
             def request(self, _method, request_path):
-                if ("runs?status=queued&per_page=100" in request_path or "runs?status=in_progress&per_page=100" in request_path):
-                    return {"workflow_runs": [{"id": 1}]} if docs in request_path else {"workflow_runs": []}
-                return {"jobs": [
-                    {"name": "Trust Docker-capable job", "conclusion": "success"},
-                    {"status": "queued", "labels": standard},
-                    {"status": "queued", "labels": builder},
-                    {"status": "queued", "labels": automation},
-                ]}
+                if (
+                    "runs?status=queued&per_page=100" in request_path
+                    or "runs?status=in_progress&per_page=100" in request_path
+                ):
+                    return (
+                        {"workflow_runs": [{"id": 1}]}
+                        if docs in request_path
+                        else {"workflow_runs": []}
+                    )
+                return {
+                    "jobs": [
+                        {"name": "Trust Docker-capable job", "conclusion": "success"},
+                        {"status": "queued", "labels": standard},
+                        {"status": "queued", "labels": builder},
+                        {"status": "queued", "labels": automation},
+                    ]
+                }
 
         github = GitHub()
         controller = SimpleNamespace(
             expected_labels=lambda spec, profile: {
-                "self-hosted", "Linux", "X64", spec.name, *profile.labels
+                "self-hosted",
+                "Linux",
+                "X64",
+                spec.name,
+                *profile.labels,
             }
         )
         controller_module = SimpleNamespace(
@@ -371,13 +384,19 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         with (
             mock.patch.object(MODULE, "require_root"),
             mock.patch.object(MODULE, "active_policy", return_value=policy),
-            mock.patch.object(MODULE, "load_controller", return_value=controller_module),
+            mock.patch.object(
+                MODULE, "load_controller", return_value=controller_module
+            ),
             mock.patch.object(MODULE, "command", side_effect=command),
         ):
             MODULE.dispatch_queued_profiles()
         started = [call[-1] for call in calls if call[:2] == ["systemctl", "start"]]
-        self.assertIn("f5-actions-runner@docs-control--ubuntu-24.04--0.service", started)
-        self.assertIn("f5-actions-runner@docs-control--container-build--0.service", started)
+        self.assertIn(
+            "f5-actions-runner@docs-control--ubuntu-24.04--0.service", started
+        )
+        self.assertIn(
+            "f5-actions-runner@docs-control--container-build--0.service", started
+        )
         self.assertIn("f5-actions-runner@docs-control--automation--0.service", started)
         self.assertNotIn(
             "f5-actions-runner@docs-control--ubuntu-24.04-secondary--0.service",
@@ -391,13 +410,24 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
 
         class GitHub:
             def request(self, _method, request_path):
-                if ("runs?status=queued&per_page=100" in request_path or "runs?status=in_progress&per_page=100" in request_path):
-                    return {"workflow_runs": [{"id": 1}]} if docs in request_path else {"workflow_runs": []}
+                if (
+                    "runs?status=queued&per_page=100" in request_path
+                    or "runs?status=in_progress&per_page=100" in request_path
+                ):
+                    return (
+                        {"workflow_runs": [{"id": 1}]}
+                        if docs in request_path
+                        else {"workflow_runs": []}
+                    )
                 return {"jobs": [{"status": "queued", "labels": builder}]}
 
         controller = SimpleNamespace(
             expected_labels=lambda spec, profile: {
-                "self-hosted", "Linux", "X64", spec.name, *profile.labels
+                "self-hosted",
+                "Linux",
+                "X64",
+                spec.name,
+                *profile.labels,
             }
         )
         controller_module = SimpleNamespace(
@@ -409,11 +439,27 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         with (
             mock.patch.object(MODULE, "require_root"),
             mock.patch.object(MODULE, "active_policy", return_value=policy),
-            mock.patch.object(MODULE, "load_controller", return_value=controller_module),
-            mock.patch.object(MODULE, "command", side_effect=lambda argv, **_kwargs: calls.append(argv) or SimpleNamespace(returncode=3, stdout="inactive")),
+            mock.patch.object(
+                MODULE, "load_controller", return_value=controller_module
+            ),
+            mock.patch.object(
+                MODULE,
+                "command",
+                side_effect=lambda argv, **_kwargs: (
+                    calls.append(argv)
+                    or SimpleNamespace(returncode=3, stdout="inactive")
+                ),
+            ),
         ):
             MODULE.dispatch_queued_profiles()
-        self.assertNotIn(["systemctl", "start", "f5-actions-runner@docs-control--container-build--0.service"], calls)
+        self.assertNotIn(
+            [
+                "systemctl",
+                "start",
+                "f5-actions-runner@docs-control--container-build--0.service",
+            ],
+            calls,
+        )
 
     def test_standby_scaler_covers_busy_or_unavailable_warm_capacity(self):
         standby = MODULE.Instance(
