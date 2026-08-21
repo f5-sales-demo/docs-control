@@ -185,6 +185,9 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             MODULE.install_definition()
         self.assertIn(["systemctl", "enable", "--now", MODULE.CAPACITY_TIMER], calls)
         self.assertIn(["systemctl", "enable", "--now", MODULE.STANDBY_TIMER], calls)
+        self.assertIn(
+            ["systemctl", "enable", "--now", MODULE.PROFILE_DISPATCH_TIMER], calls
+        )
         self.assertIn(["systemctl", "enable", "--now", MODULE.RETIRED_TIMER], calls)
         self.assertIn(
             [
@@ -231,6 +234,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             MODULE.install_definition(enable_timers=False)
         for timer in (
             MODULE.STANDBY_TIMER,
+            MODULE.PROFILE_DISPATCH_TIMER,
             MODULE.CAPACITY_TIMER,
             MODULE.RETIRED_TIMER,
         ):
@@ -318,6 +322,94 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertIn("${RUNNER_MODE}", MODULE.runner_unit_text())
         self.assertEqual({item.mode for item in MODULE.all_instances()}, {"serve"})
         self.assertEqual({item.mode for item in standby}, {"once"})
+
+    def test_profile_dispatcher_has_a_persistent_calendar_timer(self):
+        unit = MODULE.profile_dispatcher_unit_text()
+        timer = MODULE.profile_dispatcher_timer_text()
+        self.assertIn("dispatch-queued-profiles", unit)
+        self.assertIn("OnCalendar=*:*:00", timer)
+        self.assertIn("Persistent=true", timer)
+        self.assertNotIn("OnUnitActiveSec=", timer)
+
+    def test_profile_dispatcher_routes_only_exact_labels_after_docker_trust(self):
+        policy = MODULE.active_policy()
+        docs = "f5-sales-demo/docs-control"
+        standard = ["self-hosted", "Linux", "X64", "docs-control", "ubuntu-24.04"]
+        builder = ["self-hosted", "Linux", "X64", "docs-control", "container-build"]
+        automation = ["self-hosted", "Linux", "X64", "docs-control", "automation"]
+
+        class GitHub:
+            def request(self, _method, request_path):
+                if request_path.endswith("runs?status=queued&per_page=100"):
+                    return {"workflow_runs": [{"id": 1}]} if docs in request_path else {"workflow_runs": []}
+                return {"jobs": [
+                    {"name": "Trust Docker-capable job", "conclusion": "success"},
+                    {"status": "queued", "labels": standard},
+                    {"status": "queued", "labels": builder},
+                    {"status": "queued", "labels": automation},
+                ]}
+
+        github = GitHub()
+        controller = SimpleNamespace(
+            expected_labels=lambda spec, profile: {
+                "self-hosted", "Linux", "X64", spec.name, *profile.labels
+            }
+        )
+        controller_module = SimpleNamespace(
+            GitHubClient=lambda _token: github,
+            token_from_environment=lambda: "credential",
+            EphemeralController=lambda _policy, _base: controller,
+        )
+        calls = []
+
+        def command(argv, **_kwargs):
+            calls.append(argv)
+            if argv[1:2] == ["is-active"]:
+                return SimpleNamespace(returncode=3, stdout="inactive\n")
+            return SimpleNamespace(returncode=0, stdout="")
+
+        with (
+            mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
+            mock.patch.object(MODULE, "load_controller", return_value=controller_module),
+            mock.patch.object(MODULE, "command", side_effect=command),
+        ):
+            MODULE.dispatch_queued_profiles()
+        started = [call[-1] for call in calls if call[:2] == ["systemctl", "start"]]
+        self.assertIn("f5-actions-runner@docs-control--ubuntu-24.04--0.service", started)
+        self.assertIn("f5-actions-runner@docs-control--container-build--0.service", started)
+        self.assertIn("f5-actions-runner@docs-control--automation--0.service", started)
+
+    def test_profile_dispatcher_refuses_untrusted_docker_job(self):
+        policy = MODULE.active_policy()
+        docs = "f5-sales-demo/docs-control"
+        builder = ["self-hosted", "Linux", "X64", "docs-control", "container-build"]
+
+        class GitHub:
+            def request(self, _method, request_path):
+                if request_path.endswith("runs?status=queued&per_page=100"):
+                    return {"workflow_runs": [{"id": 1}]} if docs in request_path else {"workflow_runs": []}
+                return {"jobs": [{"status": "queued", "labels": builder}]}
+
+        controller = SimpleNamespace(
+            expected_labels=lambda spec, profile: {
+                "self-hosted", "Linux", "X64", spec.name, *profile.labels
+            }
+        )
+        controller_module = SimpleNamespace(
+            GitHubClient=lambda _token: GitHub(),
+            token_from_environment=lambda: "credential",
+            EphemeralController=lambda _policy, _base: controller,
+        )
+        calls = []
+        with (
+            mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
+            mock.patch.object(MODULE, "load_controller", return_value=controller_module),
+            mock.patch.object(MODULE, "command", side_effect=lambda argv, **_kwargs: calls.append(argv) or SimpleNamespace(returncode=3, stdout="inactive")),
+        ):
+            MODULE.dispatch_queued_profiles()
+        self.assertNotIn(["systemctl", "start", "f5-actions-runner@docs-control--container-build--0.service"], calls)
 
     def test_standby_scaler_covers_busy_or_unavailable_warm_capacity(self):
         standby = MODULE.Instance(
