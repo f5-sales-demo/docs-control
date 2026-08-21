@@ -2180,6 +2180,10 @@ bootstrap_one() {
 }
 
 failures=0
+# Bootstrap can dispatch linked-issue status receipts for several repositories.
+# Keep that entire phase within one bounded window, including the final
+# protection-restoration pass below.
+linked_transition_deadline=$((SECONDS + linked_wait_seconds))
 source_superseded=false
 transition_pending=false
 while IFS= read -r name; do
