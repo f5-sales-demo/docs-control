@@ -8,11 +8,9 @@ if (!root) throw new Error('repository root is required');
 
 function extractScript(workflowPath, stepName) {
   const lines = fs.readFileSync(workflowPath, 'utf8').split('\n');
-  const stepMarker = lines.findIndex((line) => line === `      - name: ${stepName}`);
+  const stepMarker = lines.indexOf(`      - name: ${stepName}`);
   if (stepMarker === -1) throw new Error(`step ${stepName} not found in ${workflowPath}`);
-  const nextStep = lines.findIndex(
-    (line, index) => index > stepMarker && /^      - name: /.test(line),
-  );
+  const nextStep = lines.findIndex((line, index) => index > stepMarker && /^ {6}- name: /.test(line));
   const stepEnd = nextStep === -1 ? lines.length : nextStep;
   const marker = lines.findIndex(
     (line, index) => index > stepMarker && index < stepEnd && line === '          script: |',
@@ -35,10 +33,7 @@ const dependabotScript = new AsyncFunction(
   'github',
   'context',
   'core',
-  extractScript(
-    path.join(root, 'workflows/dependabot-auto-merge.yml'),
-    'Process open Dependabot pull requests',
-  ),
+  extractScript(path.join(root, 'workflows/dependabot-auto-merge.yml'), 'Process open Dependabot pull requests'),
 );
 const linkedIssueScript = new AsyncFunction(
   'github',
@@ -50,10 +45,7 @@ const linkedIssuePrScript = new AsyncFunction(
   'github',
   'context',
   'core',
-  extractScript(
-    path.join(root, 'workflows/require-linked-issue.yml'),
-    "Check this pull request's linked issues",
-  ),
+  extractScript(path.join(root, 'workflows/require-linked-issue.yml'), "Check this pull request's linked issues"),
 );
 const context = { repo: { owner: 'f5-sales-demo', repo: 'example' } };
 
