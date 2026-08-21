@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=consider-using-with
+# pylint: disable=consider-using-with,too-many-lines
 """Hermetic tests for ephemeral runner host provisioning."""
 
 import importlib.util
@@ -21,6 +21,12 @@ assert SPEC is not None
 assert SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE
+
+
+def runner_service(profile: str) -> str:
+    return "f5-actions-runner" + f"@docs-control--{profile}--0.service"
+
+
 SPEC.loader.exec_module(MODULE)
 
 
@@ -391,15 +397,11 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         ):
             MODULE.dispatch_queued_profiles()
         started = [call[-1] for call in calls if call[:2] == ["systemctl", "start"]]
-        self.assertIn(
-            "f5-actions-runner@docs-control--ubuntu-24.04--0.service", started
-        )
-        self.assertIn(
-            "f5-actions-runner@docs-control--container-build--0.service", started
-        )
-        self.assertIn("f5-actions-runner@docs-control--automation--0.service", started)
+        self.assertIn(runner_service("ubuntu-24.04"), started)
+        self.assertIn(runner_service("container-build"), started)
+        self.assertIn(runner_service("automation"), started)
         self.assertNotIn(
-            "f5-actions-runner@docs-control--ubuntu-24.04-secondary--0.service",
+            runner_service("ubuntu-24.04-secondary"),
             started,
         )
 
@@ -435,28 +437,26 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             token_from_environment=lambda: "credential",
             EphemeralController=lambda _policy, _base: controller,
         )
-        calls = []
+        calls: list[list[str]] = []
+
+        def command(argv, **_kwargs):
+            calls.append(argv)
+            return SimpleNamespace(returncode=3, stdout="inactive")
+
         with (
             mock.patch.object(MODULE, "require_root"),
             mock.patch.object(MODULE, "active_policy", return_value=policy),
             mock.patch.object(
                 MODULE, "load_controller", return_value=controller_module
             ),
-            mock.patch.object(
-                MODULE,
-                "command",
-                side_effect=lambda argv, **_kwargs: (
-                    calls.append(argv)
-                    or SimpleNamespace(returncode=3, stdout="inactive")
-                ),
-            ),
+            mock.patch.object(MODULE, "command", side_effect=command),
         ):
             MODULE.dispatch_queued_profiles()
         self.assertNotIn(
             [
                 "systemctl",
                 "start",
-                "f5-actions-runner@docs-control--container-build--0.service",
+                runner_service("container-build"),
             ],
             calls,
         )
