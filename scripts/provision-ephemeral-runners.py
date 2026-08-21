@@ -846,6 +846,10 @@ def dispatch_queued_profiles():
                     )
                     if state.returncode != 0 or state.stdout.strip() != "active":
                         command(["systemctl", "start", item.unit])
+                        print(
+                            f"[DISPATCH] repository={repository} profile={profile.name} "
+                            f"job={job.get('name', 'unnamed')} unit={item.unit}"
+                        )
 
 
 def rotation_profile(policy, item):
