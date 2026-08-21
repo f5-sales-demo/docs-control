@@ -887,10 +887,11 @@ dispatch_and_verify_linked_status() {
     return "$rc"
   fi
 
-  if [ "$linked_transition_deadline" -gt "$SECONDS" ]; then
+  now=$(date +%s)
+  if [ "$linked_transition_deadline" -gt "$now" ]; then
     deadline=$linked_transition_deadline
   else
-    deadline=$((SECONDS + linked_wait_seconds))
+    deadline=$((now + linked_wait_seconds))
   fi
   while true; do
     set +e
@@ -909,7 +910,7 @@ dispatch_and_verify_linked_status() {
         .creator.login == "github-actions[bot]" and .creator.type == "Bot" and
         (.id as $id | ($before[0] | index($id)) == null))
     ' "$after_file" >/dev/null; then
-      if [ "$SECONDS" -ge "$deadline" ]; then
+      if [ "$(date +%s)" -ge "$deadline" ]; then
         rm -f "$before_ids" "$after_file"
         return 76
       fi
@@ -1469,7 +1470,7 @@ if [ "$(git hash-object "$work/linked-caller.yml")" != "$expected_linked_blob" ]
   exit 1
 fi
 if [ "$callers_exact" = true ]; then
-  linked_transition_deadline=$((SECONDS + linked_wait_seconds))
+  linked_transition_deadline=$(($(date +%s) + linked_wait_seconds))
   finalization_pending=false
   while IFS= read -r name; do
     set +e
@@ -2183,7 +2184,7 @@ failures=0
 # Bootstrap can dispatch linked-issue status receipts for several repositories.
 # Keep that entire phase within one bounded window, including the final
 # protection-restoration pass below.
-linked_transition_deadline=$((SECONDS + linked_wait_seconds))
+linked_transition_deadline=$(($(date +%s) + linked_wait_seconds))
 source_superseded=false
 transition_pending=false
 while IFS= read -r name; do
@@ -2220,7 +2221,7 @@ if [ "$transition_pending" = true ]; then
   exit 83
 fi
 
-deadline=$((SECONDS + wait_seconds))
+deadline=$(($(date +%s) + wait_seconds))
 while true; do
   pending=0
   while IFS= read -r name; do
@@ -2329,7 +2330,7 @@ while true; do
     echo "[OK] Every downstream protected main contains all exact managed workflows"
     break
   fi
-  if [ "$SECONDS" -ge "$deadline" ]; then
+  if [ "$(date +%s)" -ge "$deadline" ]; then
     echo "[DEFER] ${pending} exact-caller blob(s) remain pending; scheduled dispatch will resume verification"
     exit 83
   fi
