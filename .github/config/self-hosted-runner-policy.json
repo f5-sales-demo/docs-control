@@ -181,10 +181,6 @@
         }
       },
       ".github/workflows/ci.yml": {
-        "check": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "CI validation uses the hosted Bun toolchain"
-        },
         "setup-zig": {
           "runs_on": "matrix",
           "reason": "Zig setup validates hosted Linux, macOS, and Windows"
@@ -192,42 +188,6 @@
         "native": {
           "runs_on": "matrix",
           "reason": "native builds require hosted platform-specific toolchains"
-        },
-        "test": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "test provisioning installs an ephemeral hosted toolchain"
-        },
-        "install_methods": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "installation tests require ephemeral package provisioning"
-        },
-        "invalidate-stale-release-prs": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "release PR maintenance uses the hosted GitHub environment"
-        },
-        "auto-release": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "release planning uses the hosted GitHub environment"
-        },
-        "build-release": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "release packaging uses the hosted Linux toolchain"
-        },
-        "create-release": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "release publication uses the hosted GitHub environment"
-        },
-        "update-homebrew": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "Homebrew formula updates use the hosted release environment"
-        },
-        "publish-npm": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "npm publication uses the hosted release environment"
-        },
-        "verify-npm-install": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "npm installation verification uses the hosted environment"
         },
         "build-sign-macos": {
           "runs_on": "matrix",
@@ -248,24 +208,6 @@
         "update-console-catalog": {
           "runs_on": "ubuntu-22.04",
           "reason": "catalog publishing uses the hosted GitHub environment"
-        }
-      },
-      ".github/workflows/container.yml": {
-        "container-build": {
-          "runs_on": "matrix",
-          "reason": "container builds require hosted native amd64 and arm64 runners"
-        },
-        "podman-uat-harness": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "Podman harness runs in an ephemeral hosted environment"
-        },
-        "container-test": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "container aggregation runs in the hosted test environment"
-        },
-        "publish-ghcr": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "container publication uses the hosted Docker environment"
         }
       },
       ".github/workflows/deploy-office-pane.yml": {
@@ -290,12 +232,6 @@
         "reconcile": {
           "runs_on": "ubuntu-22.04",
           "reason": "release reconciliation uses hosted registry access"
-        }
-      },
-      ".github/workflows/tag-on-version-bump.yml": {
-        "tag": {
-          "runs_on": "ubuntu-22.04",
-          "reason": "immutable release tagging uses hosted GitHub credentials"
         }
       },
       ".github/workflows/test-codesign.yml": {
@@ -956,7 +892,7 @@
     },
     "f5-sales-demo/xcsh": {
       "runner": {
-        "profiles": ["ubuntu-24.04", "ubuntu-22.04", "container-build"]
+        "profiles": ["ubuntu-24.04", "container-build"]
       }
     },
     "f5-sales-demo/xcsh-action": {
