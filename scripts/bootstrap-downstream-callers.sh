@@ -21,6 +21,7 @@ linked_context="Check linked issues"
 wait_seconds="${BOOTSTRAP_WAIT_SECONDS:-1800}"
 poll_seconds="${BOOTSTRAP_POLL_SECONDS:-30}"
 linked_wait_seconds="${BOOTSTRAP_LINKED_WAIT_SECONDS:-300}"
+linked_transition_deadline=0
 
 if ! printf '%s' "$source_sha" | grep -qE '^[0-9a-f]{40}$'; then
   echo "[ERROR] Source receipt must be a full lowercase commit SHA" >&2
@@ -886,7 +887,11 @@ dispatch_and_verify_linked_status() {
     return "$rc"
   fi
 
-  deadline=$((SECONDS + linked_wait_seconds))
+  if [ "$linked_transition_deadline" -gt "$SECONDS" ]; then
+    deadline=$linked_transition_deadline
+  else
+    deadline=$((SECONDS + linked_wait_seconds))
+  fi
   while true; do
     set +e
     gh api "repos/${slug}/commits/${head}/statuses" >"$after_file"
@@ -1464,6 +1469,7 @@ if [ "$(git hash-object "$work/linked-caller.yml")" != "$expected_linked_blob" ]
   exit 1
 fi
 if [ "$callers_exact" = true ]; then
+  linked_transition_deadline=$((SECONDS + linked_wait_seconds))
   finalization_pending=false
   while IFS= read -r name; do
     set +e
