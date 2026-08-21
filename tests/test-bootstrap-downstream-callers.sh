@@ -1038,6 +1038,20 @@ case "$1 $endpoint" in
 esac
 EOF
 chmod +x "$WORK/bin/gh"
+cat >"$WORK/bin/date" <<'EOF'
+#!/usr/bin/env bash
+if [ "$#" -eq 1 ] && [ "$1" = +%s ]; then
+  printf '1000\n'
+else
+  exec /usr/bin/date "$@"
+fi
+EOF
+chmod +x "$WORK/bin/date"
+cat >"$WORK/bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$WORK/bin/sleep"
 
 run_bootstrap() {
   local state="$1"
