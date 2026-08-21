@@ -850,6 +850,8 @@ def dispatch_queued_profiles():
                             f"[DISPATCH] repository={repository} profile={profile.name} "
                             f"job={job.get('name', 'unnamed')} unit={item.unit}"
                         )
+                    # Equivalent profiles may share labels; one listener supplies the job.
+                    break
 
 
 def rotation_profile(policy, item):

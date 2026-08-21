@@ -379,6 +379,10 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertIn("f5-actions-runner@docs-control--ubuntu-24.04--0.service", started)
         self.assertIn("f5-actions-runner@docs-control--container-build--0.service", started)
         self.assertIn("f5-actions-runner@docs-control--automation--0.service", started)
+        self.assertNotIn(
+            "f5-actions-runner@docs-control--ubuntu-24.04-secondary--0.service",
+            started,
+        )
 
     def test_profile_dispatcher_refuses_untrusted_docker_job(self):
         policy = MODULE.active_policy()
