@@ -41,7 +41,9 @@ jobs:
   dispatch:
     name: Dispatch downstream enforcement
     runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
-    timeout-minutes: 30
+    # Bootstrap can wait 30 minutes for exact receipts, then fan-out can consume
+    # its separate bounded budget. Leave room for both so deferred exit 83 returns.
+    timeout-minutes: 60
     environment: repository-settings
     # No conclusion guard needed: dispatch now fires only when the manifest has
     # already landed on main. A bad manifest fails the sync/manifest PR's checks
