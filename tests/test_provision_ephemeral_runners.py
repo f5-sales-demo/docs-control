@@ -144,8 +144,9 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         timer = MODULE.capacity_timer_text()
         self.assertIn("capacity-check", unit)
         self.assertIn("/opt/f5-actions-runner/provision-ephemeral-runners.py", unit)
-        self.assertIn("OnUnitActiveSec=15min", timer)
+        self.assertIn("OnCalendar=*:0/15", timer)
         self.assertIn("Persistent=true", timer)
+        self.assertNotIn("OnUnitActiveSec=", timer)
 
     def test_standby_scaler_uses_a_persistent_calendar_timer(self):
         timer = MODULE.standby_scaler_timer_text()
