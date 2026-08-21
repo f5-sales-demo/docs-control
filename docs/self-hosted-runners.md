@@ -168,3 +168,41 @@ If a runner or image may be compromised:
 4. Rebuild from newly verified base and runner digests.
 5. Replace the policy digest through a reviewed pull request.
 6. Re-enable the pilot and repeat one-job acceptance before broader rollout.
+
+## Fleet rollout batches
+
+Prepare and review audit-clean repositories in groups. A group may contain multiple repository
+issues, isolated worktrees, PRs, and smoke workflows at once. Each repository keeps its existing
+repository-scoped label; do not replace a repository label with an organization-wide runner group.
+
+The workstation fan and ventilation remediation allows approved runner groups to execute
+concurrently. Temperature is operational telemetry, not a scheduling throttle. Investigate a
+hardware alert or a failed job, but do not serialize a healthy rollout merely because several
+approved jobs are running.
+
+For every repository in a rollout group:
+
+1. Run the workflow/catalog audit and resolve floating versions, direct privileged installers, or
+   uncatalogued shared tools before onboarding.
+2. Create a linked issue and isolated worktree, then add the manual standard-profile smoke workflow.
+3. Validate actionlint, YAML syntax, runner-policy routing, diff hygiene, and changed-file PII
+   enforcement locally; open a linked PR and enable squash auto-merge.
+4. Start the profile demanded by each queued job. Use `ubuntu-24.04` for standard jobs and use
+   `container-build` only for trusted Docker/socket jobs. Do not start both profiles for the same
+   repository at the same time.
+5. After merge, dispatch the repository's manual smoke workflow, capture its successful run URL,
+   stop the exact temporary runner units, and clean the merged branch and worktree.
+
+A successful smoke proves the job-local writable tool cache is seeded from the immutable image,
+root and `/opt/hostedtoolcache` remain read-only, `actions/setup-python` resolves the catalogued
+Python version without downloading it, and the image-resident `uv` version is available.
+
+## PII scan scope
+
+Normal pull-request and pre-push PII enforcement scans changed files only. Before a commit the
+scanner uses the staged index; after a commit it uses the branch delta from its upstream merge base.
+This is the default behavior and is the required path for normal development and CI remediation.
+
+Use full-repository `--scope head` only for an explicitly approved repository-sweep exception.
+Use `--scope history` only for a separately authorized incident, forensic, or pre-rewrite history
+assessment. Neither broad scope replaces changed-file enforcement for the pull request itself.
