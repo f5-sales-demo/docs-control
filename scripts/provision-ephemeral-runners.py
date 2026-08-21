@@ -379,8 +379,7 @@ def capacity_timer_text():
 Description=Schedule F5 Actions runner capacity guard
 
 [Timer]
-OnBootSec=10min
-OnUnitActiveSec=15min
+OnCalendar=*:0/15
 Persistent=true
 Unit={CAPACITY_UNIT}
 
@@ -417,8 +416,7 @@ def standby_scaler_timer_text():
 Description=Schedule F5 Actions runner standby scaler
 
 [Timer]
-OnBootSec=1min
-OnUnitActiveSec=60s
+OnCalendar=*:*:00
 Persistent=true
 Unit={STANDBY_UNIT}
 
