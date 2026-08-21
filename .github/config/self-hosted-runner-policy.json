@@ -12,7 +12,7 @@
   },
   "profiles": {
     "ubuntu-24.04": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:e6b7d71212fa2691f56d4ccb201f6dfb1520cce0dcf61b34eb04c6e6cf73f8cd",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:0c2623d846842735efbcfe380bbf73fc87201e4c43bd55d307005eca10ea7f8e",
       "labels": ["ubuntu-24.04"],
       "memory": "8g",
       "cpus": "4",
@@ -22,7 +22,7 @@
       "docker_socket": false
     },
     "ubuntu-24.04-secondary": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:e6b7d71212fa2691f56d4ccb201f6dfb1520cce0dcf61b34eb04c6e6cf73f8cd",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:0c2623d846842735efbcfe380bbf73fc87201e4c43bd55d307005eca10ea7f8e",
       "labels": ["ubuntu-24.04"],
       "memory": "8g",
       "cpus": "4",
@@ -32,7 +32,7 @@
       "docker_socket": false
     },
     "automation": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:e6b7d71212fa2691f56d4ccb201f6dfb1520cce0dcf61b34eb04c6e6cf73f8cd",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:0c2623d846842735efbcfe380bbf73fc87201e4c43bd55d307005eca10ea7f8e",
       "labels": ["automation"],
       "memory": "8g",
       "cpus": "4",
