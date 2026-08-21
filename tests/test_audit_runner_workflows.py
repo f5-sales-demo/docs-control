@@ -427,16 +427,37 @@ jobs:
                 encoding="utf-8"
             )
         )
+        expected = {
+            "pr-check": {
+                "runs_on": "ubuntu-24.04",
+                "reason": "immediate read-only linked-issue pull request check",
+            }
+        }
+        self.assertEqual(set(policy["hosted_exceptions"]), set(policy["repositories"]))
+        for repository in policy["repositories"]:
+            self.assertEqual(
+                policy["hosted_exceptions"][repository][
+                    ".github/workflows/require-linked-issue.yml"
+                ],
+                expected,
+                repository,
+            )
         exception = policy["hosted_exceptions"]["f5-sales-demo/docs-control"]
         self.assertEqual(
             exception,
             {
+                ".github/workflows/require-linked-issue.yml": {
+                    "pr-check": {
+                        "runs_on": "ubuntu-24.04",
+                        "reason": "immediate read-only linked-issue pull request check",
+                    }
+                },
                 ".github/workflows/workflow-security-audit.yml": {
                     "workflow-security-audit": {
                         "runs_on": "ubuntu-latest",
                         "reason": "read-only pull request workflow security audit",
                     }
-                }
+                },
             },
         )
 
@@ -450,12 +471,18 @@ jobs:
         self.assertEqual(
             exception,
             {
+                ".github/workflows/require-linked-issue.yml": {
+                    "pr-check": {
+                        "runs_on": "ubuntu-24.04",
+                        "reason": "immediate read-only linked-issue pull request check",
+                    }
+                },
                 ".github/workflows/workflow-security-audit.yml": {
                     "workflow-security-audit": {
                         "runs_on": "ubuntu-latest",
                         "reason": "read-only pull request workflow security audit",
                     }
-                }
+                },
             },
         )
 
@@ -488,6 +515,12 @@ jobs:
         self.assertEqual(
             exception,
             {
+                ".github/workflows/require-linked-issue.yml": {
+                    "pr-check": {
+                        "runs_on": "ubuntu-24.04",
+                        "reason": "immediate read-only linked-issue pull request check",
+                    }
+                },
                 ".github/workflows/_build-test.yml": {
                     "build": {
                         "runs_on": "ubuntu-latest",

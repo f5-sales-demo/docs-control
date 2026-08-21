@@ -3,6 +3,8 @@ name: Require Linked Issue
 
 #checkov:skip=CKV_GHA_7:Targeted inputs are exact PR receipts validated before a status is written.
 on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
@@ -19,11 +21,42 @@ on:
 permissions: {}
 
 concurrency:
-  group: require-linked-issue
+  group: require-linked-issue-${{ github.event.pull_request.number || github.event_name }}
   cancel-in-progress: false
 
 jobs:
+  pr-check:
+    if: github.event_name == 'pull_request'
+    name: Check linked issues
+    runs-on: ubuntu-24.04
+    permissions:
+      pull-requests: read # query this event's exact PR and its closing issue references
+    steps:
+      - name: Check this pull request's linked issues
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const number = context.payload.pull_request.number;
+            const result = await github.graphql(
+              `query($owner: String!, $repo: String!, $number: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $number) {
+                    closingIssuesReferences(first: 1) { nodes { number } }
+                  }
+                }
+              }`,
+              { owner, repo, number },
+            );
+            const linked = result.repository.pullRequest.closingIssuesReferences.nodes;
+            if (linked.length === 0) {
+              core.setFailed("Pull request must link a GitHub issue. Add 'Closes #123' to the PR description or link an issue from the sidebar.");
+            } else {
+              core.info(`PR #${number} links issue #${linked[0].number}`);
+            }
+
   check:
+    if: github.event_name != 'pull_request'
     name: Check linked issues
     runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
     permissions:

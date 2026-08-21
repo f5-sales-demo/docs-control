@@ -6,13 +6,25 @@ import process from 'node:process';
 const root = process.argv[2];
 if (!root) throw new Error('repository root is required');
 
-function extractScript(workflowPath) {
+function extractScript(workflowPath, stepName) {
   const lines = fs.readFileSync(workflowPath, 'utf8').split('\n');
-  const marker = lines.findIndex((line) => /^\s+script: \|$/.test(line));
-  if (marker === -1) throw new Error(`github-script body not found in ${workflowPath}`);
+  const stepMarker = lines.indexOf(`      - name: ${stepName}`);
+  if (stepMarker === -1) throw new Error(`step ${stepName} not found in ${workflowPath}`);
+  const nextStep = lines.findIndex((line, index) => index > stepMarker && /^ {6}- name: /.test(line));
+  const stepEnd = nextStep === -1 ? lines.length : nextStep;
+  const marker = lines.findIndex(
+    (line, index) => index > stepMarker && index < stepEnd && line === '          script: |',
+  );
+  if (marker === -1) {
+    throw new Error(`github-script body not found for ${stepName} in ${workflowPath}`);
+  }
+  const bodyEnd = lines.findIndex(
+    (line, index) => index > marker && line.trim() !== '' && !line.startsWith('            '),
+  );
+  const end = bodyEnd === -1 ? lines.length : bodyEnd;
   return lines
-    .slice(marker + 1)
-    .map((line) => (line.startsWith('            ') ? line.slice(12) : line))
+    .slice(marker + 1, end)
+    .map((line) => (line === '' ? line : line.slice(12)))
     .join('\n');
 }
 
@@ -21,13 +33,19 @@ const dependabotScript = new AsyncFunction(
   'github',
   'context',
   'core',
-  extractScript(path.join(root, 'workflows/dependabot-auto-merge.yml')),
+  extractScript(path.join(root, 'workflows/dependabot-auto-merge.yml'), 'Process open Dependabot pull requests'),
 );
 const linkedIssueScript = new AsyncFunction(
   'github',
   'context',
   'core',
-  extractScript(path.join(root, 'workflows/require-linked-issue.yml')),
+  extractScript(path.join(root, 'workflows/require-linked-issue.yml'), 'Enforce linked issues'),
+);
+const linkedIssuePrScript = new AsyncFunction(
+  'github',
+  'context',
+  'core',
+  extractScript(path.join(root, 'workflows/require-linked-issue.yml'), "Check this pull request's linked issues"),
 );
 const context = { repo: { owner: 'f5-sales-demo', repo: 'example' } };
 
@@ -190,6 +208,65 @@ async function testLinkedIssueTargetedDispatch() {
   );
 }
 
+async function testPullRequestLinkedIssuePassesForExactPr() {
+  const graphqlCalls = [];
+  const failures = [];
+  const infos = [];
+  const github = {
+    graphql: async (_query, variables) => {
+      graphqlCalls.push(variables);
+      return {
+        repository: {
+          pullRequest: { closingIssuesReferences: { nodes: [{ number: 1674 }] } },
+        },
+      };
+    },
+  };
+  const prContext = {
+    ...context,
+    payload: { pull_request: { number: 77 } },
+  };
+  await linkedIssuePrScript(github, prContext, {
+    info: (message) => infos.push(message),
+    setFailed: (message) => failures.push(message),
+  });
+  assert.deepEqual(graphqlCalls, [{ owner: 'f5-sales-demo', repo: 'example', number: 77 }]);
+  assert.deepEqual(failures, []);
+  assert.match(infos[0], /#77 links issue #1674/);
+}
+
+async function testPullRequestWithoutLinkedIssueFailsWithGuidance() {
+  const failures = [];
+  const github = {
+    graphql: async () => ({
+      repository: { pullRequest: { closingIssuesReferences: { nodes: [] } } },
+    }),
+  };
+  await linkedIssuePrScript(
+    github,
+    { ...context, payload: { pull_request: { number: 78 } } },
+    { info: () => {}, setFailed: (message) => failures.push(message) },
+  );
+  assert.equal(failures.length, 1);
+  assert.match(failures[0], /Closes #123/);
+}
+
+async function testPullRequestApiFailureFailsClosed() {
+  const github = {
+    graphql: async () => {
+      throw new Error('GraphQL unavailable');
+    },
+  };
+  await assert.rejects(
+    linkedIssuePrScript(
+      github,
+      { ...context, payload: { pull_request: { number: 79 } } },
+      { info: () => {}, setFailed: () => {} },
+    ),
+    /GraphQL unavailable/,
+  );
+}
+
 async function testLinkedIssueTargetedDispatchRejectsHeadDrift() {
   const pull = { number: 31, state: 'closed', head: { ref: 'sync/exact-caller', sha: 'b'.repeat(40) } };
   const harness = linkedIssueHarness([pull]);
@@ -309,6 +386,9 @@ async function testTargetedLinkedIssueFailsOnExhaustedStatus() {
 
 await testDependabotSelection();
 await testDependabotIdempotence();
+await testPullRequestLinkedIssuePassesForExactPr();
+await testPullRequestWithoutLinkedIssueFailsWithGuidance();
+await testPullRequestApiFailureFailsClosed();
 await testLinkedIssueOutcomes();
 await testLinkedIssueApiFailure();
 await testScheduledLinkedIssueSkipsExhaustedHistoricalStatus();
