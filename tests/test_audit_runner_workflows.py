@@ -431,6 +431,12 @@ jobs:
         self.assertEqual(
             exception,
             {
+                ".github/workflows/require-linked-issue.yml": {
+                    "pr-check": {
+                        "runs_on": "ubuntu-24.04",
+                        "reason": "immediate read-only linked-issue pull request check",
+                    }
+                },
                 ".github/workflows/workflow-security-audit.yml": {
                     "workflow-security-audit": {
                         "runs_on": "ubuntu-latest",
@@ -450,6 +456,12 @@ jobs:
         self.assertEqual(
             exception,
             {
+                ".github/workflows/require-linked-issue.yml": {
+                    "pr-check": {
+                        "runs_on": "ubuntu-24.04",
+                        "reason": "immediate read-only linked-issue pull request check",
+                    }
+                },
                 ".github/workflows/workflow-security-audit.yml": {
                     "workflow-security-audit": {
                         "runs_on": "ubuntu-latest",
@@ -478,6 +490,28 @@ jobs:
             },
         )
 
+    def test_every_governed_repository_has_exact_linked_issue_exception(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        expected = {
+            "pr-check": {
+                "runs_on": "ubuntu-24.04",
+                "reason": "immediate read-only linked-issue pull request check",
+            }
+        }
+        self.assertEqual(set(policy["hosted_exceptions"]), set(policy["repositories"]))
+        for repository in policy["repositories"]:
+            self.assertEqual(
+                policy["hosted_exceptions"][repository][
+                    ".github/workflows/require-linked-issue.yml"
+                ],
+                expected,
+                repository,
+            )
+
     def test_terraform_hosted_reusable_workflow_exceptions_are_exact(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
@@ -488,6 +522,12 @@ jobs:
         self.assertEqual(
             exception,
             {
+                ".github/workflows/require-linked-issue.yml": {
+                    "pr-check": {
+                        "runs_on": "ubuntu-24.04",
+                        "reason": "immediate read-only linked-issue pull request check",
+                    }
+                },
                 ".github/workflows/_build-test.yml": {
                     "build": {
                         "runs_on": "ubuntu-latest",

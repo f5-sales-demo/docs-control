@@ -68,6 +68,15 @@ done
 for file in \
   "$REPO_ROOT/workflows/require-linked-issue.yml" \
   "$REPO_ROOT/.github/workflows/require-linked-issue.yml"; do
+  require_literal "$file" '  pull_request:' "${file#"$REPO_ROOT/"} checks pull requests immediately"
+  require_literal "$file" '    types: [opened, reopened, edited, synchronize]' "${file#"$REPO_ROOT/"} reruns for every linked-issue transition"
+  require_literal "$file" '  group: require-linked-issue-${{ github.event.pull_request.number || github.event_name }}' \
+    "${file#"$REPO_ROOT/"} isolates pull request concurrency by PR number"
+  require_literal "$file" "    if: github.event_name == 'pull_request'" "${file#"$REPO_ROOT/"} restricts the hosted job to PR events"
+  require_literal "$file" '    runs-on: ubuntu-24.04' "${file#"$REPO_ROOT/"} uses GitHub-hosted capacity for the immediate check"
+  require_literal "$file" '      pull-requests: read # query this event' "${file#"$REPO_ROOT/"} grants only documented PR read access"
+  require_literal "$file" "    if: github.event_name != 'pull_request'" "${file#"$REPO_ROOT/"} keeps the status publisher off PR events"
+  require_literal "$file" "Add 'Closes #123'" "${file#"$REPO_ROOT/"} gives actionable missing-link guidance"
   require_literal "$file" '#checkov:skip=CKV_GHA_7:Targeted inputs are exact PR receipts validated before a status is written.' \
     "${file#"$REPO_ROOT/"} carries its pristine-repository Checkov justification"
   published_context=$(sed -n 's/.*const STATUS_CONTEXT = "\([^"]*\)";.*/\1/p' "$file")
