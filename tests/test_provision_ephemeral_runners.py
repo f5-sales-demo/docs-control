@@ -147,6 +147,12 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertIn("OnUnitActiveSec=15min", timer)
         self.assertIn("Persistent=true", timer)
 
+    def test_standby_scaler_uses_a_persistent_calendar_timer(self):
+        timer = MODULE.standby_scaler_timer_text()
+        self.assertIn("OnCalendar=*:*:00", timer)
+        self.assertIn("Persistent=true", timer)
+        self.assertNotIn("OnUnitActiveSec=", timer)
+
     def test_capacity_guard_fails_closed_below_either_free_space_limit(self):
         healthy = type("Usage", (), {"total": 1000, "used": 800, "free": 200})()
         low_bytes = type("Usage", (), {"total": 1000, "used": 901, "free": 99})()
