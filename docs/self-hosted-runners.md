@@ -160,6 +160,19 @@ A failed guard is an operational alert: preserve the affected runner diagnostics
 then add storage or perform a reviewed, scope-limited cleanup. Do not remove active runner
 workspaces as a capacity response.
 
+### Automatic profile dispatch
+
+`install` also enables `f5-actions-runner-profile-dispatch.timer` every minute. It polls queued
+GitHub Actions jobs and starts only the repository/profile service whose complete label set matches
+the job. This supplies automatic capacity for `ubuntu-24.04`, `automation`, and `container-build`
+without treating a Docker-socket runner as general standby capacity.
+
+A `container-build` instance is started only when the same workflow run already contains a
+successful `Trust Docker-capable job`. Malformed GitHub API data, unmatched labels, duplicate
+labels, and missing trust evidence fail closed: no profile is started. Operators must not use a
+manual profile start as evidence that automatic profile capacity is healthy; prove it from the
+dispatcher's journal and the automatically claimed job instead.
+
 If a runner or image may be compromised:
 
 1. Disable the affected systemd runner instance without changing other repositories.
@@ -187,9 +200,10 @@ For every repository in a rollout group:
 2. Create a linked issue and isolated worktree, then add the manual standard-profile smoke workflow.
 3. Validate actionlint, YAML syntax, runner-policy routing, diff hygiene, and changed-file PII
    enforcement locally; open a linked PR and enable squash auto-merge.
-4. Start the profile demanded by each queued job. Use `ubuntu-24.04` for standard jobs and use
-   `container-build` only for trusted Docker/socket jobs. Do not start both profiles for the same
-   repository at the same time.
+4. Verify that the automatic profile dispatcher claims the queued job. It routes standard jobs to
+   `ubuntu-24.04`, Fleet Watcher jobs to `automation`, and Docker/socket jobs to `container-build`
+   only after their same-run trust gate passes. Manual profile starts are break-glass remediation,
+   never rollout acceptance evidence.
 5. After merge, dispatch the repository's manual smoke workflow, capture its successful run URL,
    stop the exact temporary runner units, and clean the merged branch and worktree.
 

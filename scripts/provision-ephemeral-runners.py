@@ -59,6 +59,8 @@ CAPACITY_UNIT = "f5-actions-runner-capacity.service"
 CAPACITY_TIMER = "f5-actions-runner-capacity.timer"
 STANDBY_UNIT = "f5-actions-runner-standby.service"
 STANDBY_TIMER = "f5-actions-runner-standby.timer"
+PROFILE_DISPATCH_UNIT = "f5-actions-runner-profile-dispatch.service"
+PROFILE_DISPATCH_TIMER = "f5-actions-runner-profile-dispatch.timer"
 RETIRED_UNIT = "f5-actions-runner-retired.service"
 RETIRED_TIMER = "f5-actions-runner-retired.timer"
 STANDBY_INVENTORY_CACHE = STATE_ROOT / ".standby-runner-inventory.json"
@@ -425,6 +427,43 @@ WantedBy=timers.target
 """
 
 
+def profile_dispatcher_unit_text():
+    return f"""[Unit]
+Description=F5 Actions queued runner-profile dispatcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=RUNNER_FLEET_GITHUB_TOKEN_FILE={TOKEN_PATH}
+ExecStartPre=/usr/bin/test -r {TOKEN_PATH}
+ExecStart=/usr/bin/python3 {INSTALL_ROOT}/provision-ephemeral-runners.py dispatch-queued-profiles
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths={DATA_ROOT}
+
+"""
+
+
+def profile_dispatcher_timer_text():
+    return f"""[Unit]
+Description=Schedule F5 Actions queued runner-profile dispatcher
+
+[Timer]
+OnCalendar=*:*:00
+Persistent=true
+Unit={PROFILE_DISPATCH_UNIT}
+
+[Install]
+WantedBy=timers.target
+"""
+
+
 def retired_reconciler_unit_text():
     return f"""[Unit]
 Description=Retire orphaned F5 Actions runners
@@ -530,6 +569,8 @@ def install_definition(enable_timers=True):
     safe_write(SYSTEMD_ROOT / CAPACITY_TIMER, capacity_timer_text())
     safe_write(SYSTEMD_ROOT / STANDBY_UNIT, standby_scaler_unit_text())
     safe_write(SYSTEMD_ROOT / STANDBY_TIMER, standby_scaler_timer_text())
+    safe_write(SYSTEMD_ROOT / PROFILE_DISPATCH_UNIT, profile_dispatcher_unit_text())
+    safe_write(SYSTEMD_ROOT / PROFILE_DISPATCH_TIMER, profile_dispatcher_timer_text())
     safe_write(SYSTEMD_ROOT / RETIRED_UNIT, retired_reconciler_unit_text())
     safe_write(SYSTEMD_ROOT / RETIRED_TIMER, retired_reconciler_timer_text())
     for item in (*instances(policy), *standby_instances(policy)):
@@ -541,6 +582,7 @@ def install_definition(enable_timers=True):
     command(["systemctl", "daemon-reload"])
     if enable_timers:
         command(["systemctl", "enable", "--now", STANDBY_TIMER])
+        command(["systemctl", "enable", "--now", PROFILE_DISPATCH_TIMER])
         command(["systemctl", "enable", "--now", CAPACITY_TIMER])
         command(["systemctl", "enable", "--now", RETIRED_TIMER])
 
@@ -734,6 +776,81 @@ def standby_scale():
                 and single_idle_runner(fresh_standby)
             ):
                 command(["systemctl", "stop", item.unit])
+
+
+def dispatch_queued_profiles():
+    """Start a profile only for an exact queued job-label match."""
+    require_root()
+    controller_module = load_controller()
+    policy = active_policy()
+    github = controller_module.GitHubClient(controller_module.token_from_environment())
+    controller = controller_module.EphemeralController(policy, None)
+    instances_by_profile = {
+        (item.repository, item.profile): item
+        for item in all_instances()
+        if item.slot == 0
+    }
+    for repository in policy.governed():
+        runs = []
+        for status in ("queued", "in_progress"):
+            response = github.request(
+                "GET",
+                f"/repos/{repository}/actions/runs?status={status}&per_page=100",
+            )
+            records = (
+                response.get("workflow_runs") if isinstance(response, dict) else None
+            )
+            if not isinstance(records, list) or any(
+                not isinstance(run, dict) or not isinstance(run.get("id"), int)
+                for run in records
+            ):
+                raise ProvisionError("GitHub queued workflow inventory is malformed")
+            runs.extend(records)
+        for run in runs:
+            response = github.request(
+                "GET", f"/repos/{repository}/actions/runs/{run['id']}/jobs?per_page=100"
+            )
+            jobs = response.get("jobs") if isinstance(response, dict) else None
+            if not isinstance(jobs, list) or any(
+                not isinstance(job, dict) for job in jobs
+            ):
+                raise ProvisionError("GitHub queued job inventory is malformed")
+            trusted = any(
+                job.get("name") == "Trust Docker-capable job"
+                and job.get("conclusion") == "success"
+                for job in jobs
+            )
+            spec = policy.repository(repository)
+            for job in jobs:
+                labels = job.get("labels")
+                if (
+                    job.get("status") != "queued"
+                    or not isinstance(labels, list)
+                    or not all(isinstance(label, str) for label in labels)
+                ):
+                    continue
+                requested = set(labels)
+                if len(requested) != len(labels):
+                    continue
+                for profile in spec.profiles:
+                    if requested != controller.expected_labels(spec, profile):
+                        continue
+                    if profile.docker_socket and not trusted:
+                        continue
+                    item = instances_by_profile[(repository, profile.name)]
+                    state = command(
+                        ["systemctl", "is-active", item.unit],
+                        check=False,
+                        capture=True,
+                    )
+                    if state.returncode != 0 or state.stdout.strip() != "active":
+                        command(["systemctl", "start", item.unit])
+                        print(
+                            f"[DISPATCH] repository={repository} profile={profile.name} "
+                            f"job={job.get('name', 'unnamed')} unit={item.unit}"
+                        )
+                    # Equivalent profiles may share labels; one listener supplies the job.
+                    break
 
 
 def rotation_profile(policy, item):
@@ -979,6 +1096,7 @@ def main(argv=None):
     retire_parser = subparsers.add_parser("retire-orphans")
     retire_parser.add_argument("--apply", action="store_true")
     subparsers.add_parser("standby-scale")
+    subparsers.add_parser("dispatch-queued-profiles")
     args = parser.parse_args(argv)
     try:
         if args.action == "plan":
@@ -993,6 +1111,8 @@ def main(argv=None):
             enable(args.repository, args.profile)
         elif args.action == "standby-scale":
             standby_scale()
+        elif args.action == "dispatch-queued-profiles":
+            dispatch_queued_profiles()
         elif args.action == "rotate-idle":
             return rotate_idle(apply=args.apply)
         elif args.action == "retire-orphans":
