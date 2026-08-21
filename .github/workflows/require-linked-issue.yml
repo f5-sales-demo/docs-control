@@ -3,6 +3,8 @@ name: Require Linked Issue
 
 #checkov:skip=CKV_GHA_7:Targeted inputs are exact PR receipts validated before a status is written.
 on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize]
   schedule:
     - cron: '*/5 * * * *'
   workflow_dispatch:
@@ -23,7 +25,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  pr-check:
+    if: github.event_name == 'pull_request'
+    name: Check linked issues
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Require a linked issue for this exact PR head
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const result = await github.graphql(`query($owner: String!, $repo: String!, $number: Int!) { repository(owner: $owner, name: $repo) { pullRequest(number: $number) { closingIssuesReferences(first: 1) { nodes { number } } } } }`, { owner: context.repo.owner, repo: context.repo.repo, number: context.payload.pull_request.number });
+            if (result.repository.pullRequest.closingIssuesReferences.nodes.length === 0) { core.setFailed("Pull request must link a GitHub issue."); }
+
   check:
+    if: github.event_name != 'pull_request'
     name: Check linked issues
     runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
     permissions:
