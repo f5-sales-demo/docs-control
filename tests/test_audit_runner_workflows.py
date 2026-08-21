@@ -427,6 +427,21 @@ jobs:
                 encoding="utf-8"
             )
         )
+        expected = {
+            "pr-check": {
+                "runs_on": "ubuntu-24.04",
+                "reason": "immediate read-only linked-issue pull request check",
+            }
+        }
+        self.assertEqual(set(policy["hosted_exceptions"]), set(policy["repositories"]))
+        for repository in policy["repositories"]:
+            self.assertEqual(
+                policy["hosted_exceptions"][repository][
+                    ".github/workflows/require-linked-issue.yml"
+                ],
+                expected,
+                repository,
+            )
         exception = policy["hosted_exceptions"]["f5-sales-demo/docs-control"]
         self.assertEqual(
             exception,
@@ -442,7 +457,7 @@ jobs:
                         "runs_on": "ubuntu-latest",
                         "reason": "read-only pull request workflow security audit",
                     }
-                }
+                },
             },
         )
 
@@ -467,7 +482,7 @@ jobs:
                         "runs_on": "ubuntu-latest",
                         "reason": "read-only pull request workflow security audit",
                     }
-                }
+                },
             },
         )
 
@@ -489,28 +504,6 @@ jobs:
                 }
             },
         )
-
-    def test_every_governed_repository_has_exact_linked_issue_exception(self):
-        policy = json.loads(
-            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        expected = {
-            "pr-check": {
-                "runs_on": "ubuntu-24.04",
-                "reason": "immediate read-only linked-issue pull request check",
-            }
-        }
-        self.assertEqual(set(policy["hosted_exceptions"]), set(policy["repositories"]))
-        for repository in policy["repositories"]:
-            self.assertEqual(
-                policy["hosted_exceptions"][repository][
-                    ".github/workflows/require-linked-issue.yml"
-                ],
-                expected,
-                repository,
-            )
 
     def test_terraform_hosted_reusable_workflow_exceptions_are_exact(self):
         policy = json.loads(
