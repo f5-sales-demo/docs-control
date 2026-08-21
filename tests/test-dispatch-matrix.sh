@@ -45,8 +45,8 @@ JOB_TIMEOUT_MINUTES=$(sed -nE 's/^[[:space:]]*timeout-minutes: ([0-9]+)$/\1/p' "
 DISPATCH_WAIT_BUDGET_SECONDS=$(sed -nE \
   's/^[[:space:]]*DISPATCH_WAIT_BUDGET_SECONDS: ([0-9]+)$/\1/p' "$WF")
 RUNNER_RESERVE_SECONDS=300
-check "job has a bounded 30-minute timeout" \
-  "[ '$JOB_TIMEOUT_MINUTES' -eq 30 ]"
+check "job has a bounded 60-minute timeout" \
+  "[ '$JOB_TIMEOUT_MINUTES' -eq 60 ]"
 check "one full secondary cooldown and deterministic pacing fit with five minutes reserved" \
   "[ '$((SCHEDULED_SLEEP_SECONDS + DISPATCH_WAIT_BUDGET_SECONDS))' -le '$((JOB_TIMEOUT_MINUTES * 60 - RUNNER_RESERVE_SECONDS))' ]"
 check "repository-secret inventory stays below 30 requests per minute" \
@@ -103,6 +103,8 @@ check "keeps manual workflow_dispatch fallback" \
   "grep -q 'workflow_dispatch:' '$WF'"
 check "queues transitions instead of cancelling a mutating bootstrap" \
   "grep -A5 '^concurrency:' '$WF' | grep -q 'cancel-in-progress: false'"
+check "allows bounded bootstrap deferral before the outer job timeout" \
+  "grep -q '^    timeout-minutes: 60$' '$WF'"
 
 # Receipt: every downstream workflow must receive the exact docs-control commit
 # that caused this dispatch. Without this field, callers resolve mutable main at
