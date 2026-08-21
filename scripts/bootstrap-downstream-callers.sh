@@ -1470,7 +1470,9 @@ if [ "$(git hash-object "$work/linked-caller.yml")" != "$expected_linked_blob" ]
   exit 1
 fi
 if [ "$callers_exact" = true ]; then
-  linked_transition_deadline=$(($(date +%s) + linked_wait_seconds))
+  if [ "$linked_transition_deadline" -eq 0 ]; then
+    linked_transition_deadline=$(($(date +%s) + linked_wait_seconds))
+  fi
   finalization_pending=false
   while IFS= read -r name; do
     set +e
