@@ -1,5 +1,5 @@
 {
-  "source_commit": "4dbc45a9d0dc859edd113e8718dd50272876ad90",
+  "source_commit": "774045a8b109804f1fc8c00f5a0b9ba5cb38b97c",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -81,8 +81,8 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "a9ef43c866de40cf92eab1022119f7ed6312adeb",
-      "size": 29199,
+      "sha": "704a812aae4358be533adc1baa7793953bfc5e05",
+      "size": 29210,
       "mode": "100644"
     },
     "CLAUDE.md": {
@@ -116,8 +116,8 @@
     "STYLE_GUIDE.md": {
       "src": "STYLE_GUIDE.md",
       "dest": "STYLE_GUIDE.md",
-      "sha": "f1aea6bed5146a0dd7c1113ac65b99b469ffc6b4",
-      "size": 20197,
+      "sha": "91a34e6bff0c3c05d4c9d58bfbdfef9dab6123ef",
+      "size": 20200,
       "mode": "100644"
     },
     ".editorconfig": {
@@ -305,8 +305,8 @@
     "scripts/agy-review.sh": {
       "src": "scripts/agy-review.sh",
       "dest": "scripts/agy-review.sh",
-      "sha": "d8b7057a3da35b18280acd81009f92b367f98d49",
-      "size": 18334,
+      "sha": "bf8cd03cc8fcd127be3e44848f5e04cb51fc6627",
+      "size": 18337,
       "mode": "100755"
     },
     "scripts/agy-review-output.schema.json": {
@@ -354,15 +354,15 @@
     "scripts/check_pii.py": {
       "src": "scripts/check_pii.py",
       "dest": "scripts/check_pii.py",
-      "sha": "04647004ea4949e039266a0f89a778cd686fdbd1",
-      "size": 97504,
+      "sha": "616214a7730cdd9d1908223578ba6a9d41d61444",
+      "size": 97518,
       "mode": "100644"
     },
     "scripts/check-pii.sh": {
       "src": "scripts/check-pii.sh",
       "dest": "scripts/check-pii.sh",
-      "sha": "f4e8e19c5fff73ae6c13549f2d5e4aed7c4338ef",
-      "size": 7692,
+      "sha": "1aa5dfecda8ce7d28e45a74b029f224810e8f751",
+      "size": 8687,
       "mode": "100755"
     },
     "scripts/lint-mdx-prose.sh": {
@@ -473,7 +473,7 @@
     ".github/config/self-hosted-runner-policy.json": {
       "src": ".github/config/self-hosted-runner-policy.json",
       "dest": ".github/config/self-hosted-runner-policy.json",
-      "sha": "86b794411319d2485f2c8c8cc6559334ad182ff8",
+      "sha": "d10d322b561e0334085bdf6a398ff89075f9492f",
       "size": 30025,
       "mode": "100644"
     },
