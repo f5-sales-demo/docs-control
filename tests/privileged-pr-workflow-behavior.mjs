@@ -110,10 +110,17 @@ async function testDependabotIdempotence() {
   assert.deepEqual(sideEffects, []);
 }
 
-function linkedIssueHarness(pulls, linkedByNumber = new Map(), errorsByNumber = new Map()) {
+function linkedIssueHarness(
+  pulls,
+  linkedByNumber = new Map(),
+  errorsByNumber = new Map(),
+  statusErrorsBySha = new Map(),
+) {
   const statuses = [];
+  const statusAttempts = [];
   const comments = [];
   const coreErrors = [];
+  const coreWarnings = [];
   const failures = [];
   const listPulls = async () => pulls;
   const getPull = async ({ pull_number }) => {
@@ -137,7 +144,11 @@ function linkedIssueHarness(pulls, linkedByNumber = new Map(), errorsByNumber = 
     rest: {
       pulls: { list: listPulls, get: getPull },
       repos: {
-        createCommitStatus: async (params) => statuses.push(params),
+        createCommitStatus: async (params) => {
+          statusAttempts.push(params);
+          if (statusErrorsBySha.has(params.sha)) throw statusErrorsBySha.get(params.sha);
+          statuses.push(params);
+        },
       },
       issues: {
         listComments,
@@ -148,9 +159,10 @@ function linkedIssueHarness(pulls, linkedByNumber = new Map(), errorsByNumber = 
   const core = {
     info: () => {},
     error: (message) => coreErrors.push(message),
+    warning: (message) => coreWarnings.push(message),
     setFailed: (message) => failures.push(message),
   };
-  return { github, core, statuses, comments, coreErrors, failures };
+  return { github, core, statuses, statusAttempts, comments, coreErrors, coreWarnings, failures };
 }
 
 async function testLinkedIssueTargetedDispatch() {
@@ -248,10 +260,59 @@ async function testLinkedIssueApiFailure() {
   assert.match(harness.failures[0], /20/);
 }
 
+async function testScheduledLinkedIssueSkipsExhaustedHistoricalStatus() {
+  const historical = { number: 40, head: { ref: 'feature/historical', sha: 'historical-head' } };
+  const current = { number: 41, head: { ref: 'feature/current', sha: 'current-head' } };
+  const exhausted = Object.assign(new Error('Validation Failed'), {
+    status: 422,
+    response: {
+      data: { errors: 'Validation failed: This SHA and context has reached the maximum number of statuses.' },
+    },
+  });
+  const harness = linkedIssueHarness(
+    [historical, current],
+    new Map([[41, [{ number: 1593 }]]]),
+    new Map(),
+    new Map([[historical.head.sha, exhausted]]),
+  );
+  await linkedIssueScript(harness.github, { ...context, eventName: 'schedule' }, harness.core);
+
+  assert.deepEqual(
+    harness.statusAttempts.filter((status) => status.sha === historical.head.sha).map((status) => status.state),
+    ['pending'],
+  );
+  assert.deepEqual(
+    harness.statuses.filter((status) => status.sha === current.head.sha).map((status) => status.state),
+    ['pending', 'success'],
+  );
+  assert.equal(harness.coreWarnings.length, 1);
+  assert.deepEqual(harness.coreErrors, []);
+  assert.deepEqual(harness.failures, []);
+}
+
+async function testTargetedLinkedIssueFailsOnExhaustedStatus() {
+  const pull = { number: 42, head: { ref: 'feature/current', sha: 'd'.repeat(40) } };
+  const exhausted = Object.assign(new Error('Validation Failed'), {
+    status: 422,
+    response: {
+      data: { errors: 'Validation failed: This SHA and context has reached the maximum number of statuses.' },
+    },
+  });
+  const harness = linkedIssueHarness([pull], new Map(), new Map(), new Map([[pull.head.sha, exhausted]]));
+  const dispatchContext = {
+    ...context,
+    eventName: 'workflow_dispatch',
+    payload: { inputs: { pull_request_number: '42', expected_head_sha: pull.head.sha } },
+  };
+  await assert.rejects(linkedIssueScript(harness.github, dispatchContext, harness.core), /Validation Failed/);
+}
+
 await testDependabotSelection();
 await testDependabotIdempotence();
 await testLinkedIssueOutcomes();
 await testLinkedIssueApiFailure();
+await testScheduledLinkedIssueSkipsExhaustedHistoricalStatus();
+await testTargetedLinkedIssueFailsOnExhaustedStatus();
 await testLinkedIssueTargetedDispatch();
 await testLinkedIssueTargetedDispatchRejectsHeadDrift();
 console.log('PASS: privileged PR workflow behavior is deterministic and idempotent');
