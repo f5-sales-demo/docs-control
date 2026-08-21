@@ -15,7 +15,7 @@ fi
 echo "[OK] bootstrap linked-status receipts share one bounded deadline"
 
 linked_status_function=$(sed -n '/^dispatch_and_verify_linked_status() {$/,/^}$/p' "$bootstrap_script")
-if ! grep -Fq 'if [ "$linked_transition_deadline" -le "$now" ]; then' <<<"$linked_status_function" ||
+if ! grep -Fq 'if [ "$linked_transition_deadline" -lt "$now" ]; then' <<<"$linked_status_function" ||
   ! grep -Fq 'deadline=$linked_transition_deadline' <<<"$linked_status_function" ||
   grep -Fq 'deadline=$((now + linked_wait_seconds))' <<<"$linked_status_function"; then
   echo "[FAIL] linked-status dispatch can reset the shared deadline"

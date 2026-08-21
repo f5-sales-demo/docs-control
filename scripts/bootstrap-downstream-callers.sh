@@ -888,7 +888,7 @@ dispatch_and_verify_linked_status() {
   fi
 
   now=$(date +%s)
-  if [ "$linked_transition_deadline" -le "$now" ]; then
+  if [ "$linked_transition_deadline" -lt "$now" ]; then
     rm -f "$before_ids" "$after_file"
     return 76
   fi
