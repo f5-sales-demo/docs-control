@@ -416,8 +416,7 @@ def standby_scaler_timer_text():
 Description=Schedule F5 Actions runner standby scaler
 
 [Timer]
-OnBootSec=1min
-OnUnitActiveSec=60s
+OnCalendar=*:*:00
 Persistent=true
 Unit={STANDBY_UNIT}
 
