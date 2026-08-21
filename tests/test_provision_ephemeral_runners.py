@@ -349,6 +349,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         unit = MODULE.profile_dispatcher_unit_text()
         timer = MODULE.profile_dispatcher_timer_text()
         self.assertIn("dispatch-queued-profiles", unit)
+        self.assertIn("TimeoutStartSec=55", unit)
         self.assertIn("OnCalendar=*:*:00", timer)
         self.assertIn("Persistent=true", timer)
         self.assertNotIn("OnUnitActiveSec=", timer)
