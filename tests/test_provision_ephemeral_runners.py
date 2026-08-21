@@ -144,8 +144,9 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         timer = MODULE.capacity_timer_text()
         self.assertIn("capacity-check", unit)
         self.assertIn("/opt/f5-actions-runner/provision-ephemeral-runners.py", unit)
-        self.assertIn("OnUnitActiveSec=15min", timer)
+        self.assertIn("OnCalendar=*:0/15", timer)
         self.assertIn("Persistent=true", timer)
+        self.assertNotIn("OnUnitActiveSec=", timer)
 
     def test_capacity_guard_fails_closed_below_either_free_space_limit(self):
         healthy = type("Usage", (), {"total": 1000, "used": 800, "free": 200})()
