@@ -68,6 +68,10 @@ if [ "$operation" = "list" ]; then
       echo 'gh: forbidden (HTTP 403)' >&2
       exit 1
       ;;
+    list-token-error)
+      printf 'gh: forbidden %s %s (HTTP 403)\n' "$EXPECTED_SETTINGS_TOKEN" "$EXPECTED_SYNC_TOKEN" >&2
+      exit 1
+      ;;
     list-rate)
       echo 'gh: API rate limit exceeded (HTTP 403)' >&2
       exit 1
@@ -157,6 +161,17 @@ if grep -Eq -- '--(org|env|visibility|repos)( |$)' "$WORK/gh.log"; then
 fi
 pass "secret values stay out of logs and only repository secrets are used"
 
+assert_safe_diagnostic() {
+  local output="$1" repository="$2" operation="$3" error_class="$4"
+  if ! printf '%s' "$output" |
+    grep -Fq "repository=${repository} operation=${operation} error_class=${error_class}"; then
+    fail "${operation} failure reports repository, operation, and sanitized error class"
+  fi
+  if printf '%s' "$output" | grep -Fq -e "$SETTINGS_TOKEN" -e "$SYNC_TOKEN"; then
+    fail "${operation} failure diagnostics never expose governance tokens"
+  fi
+}
+
 : >"$WORK/gh.log"
 run_provisioner >/dev/null 2>&1 || fail "idempotent rerun succeeds"
 if grep -q '^secret set ' "$WORK/gh.log"; then
@@ -200,30 +215,34 @@ set -e
 pass "missing source credentials fail closed"
 
 set +e
-PROVISION_FAKE_MODE=list-error run_provisioner >/dev/null 2>&1
+list_error_output=$(PROVISION_FAKE_MODE=list-token-error run_provisioner 2>&1)
 rc=$?
 set -e
 [ "$rc" -ne 0 ] || fail "inventory API failure fails closed"
+assert_safe_diagnostic "$list_error_output" f5-sales-demo/alpha list http-403
 
 set +e
-PROVISION_FAKE_MODE=list-rate run_provisioner >/dev/null 2>&1
+list_rate_output=$(PROVISION_FAKE_MODE=list-rate run_provisioner 2>&1)
 rc=$?
 set -e
 [ "$rc" -eq 84 ] || fail "inventory rate exhaustion returns 84"
+assert_safe_diagnostic "$list_rate_output" f5-sales-demo/alpha list http-403
 pass "inventory API failures fail closed and rate exhaustion returns 84"
 
 printf 'REPO_SETTINGS_TOKEN\n' >"$WORK/state/f5-sales-demo__beta"
 set +e
-PROVISION_FAKE_MODE=set-error run_provisioner >/dev/null 2>&1
+set_error_output=$(PROVISION_FAKE_MODE=set-error run_provisioner 2>&1)
 rc=$?
 set -e
 [ "$rc" -ne 0 ] || fail "secret write API failure fails closed"
+assert_safe_diagnostic "$set_error_output" f5-sales-demo/beta set http-403
 
 set +e
-PROVISION_FAKE_MODE=set-rate run_provisioner >/dev/null 2>&1
+set_rate_output=$(PROVISION_FAKE_MODE=set-rate run_provisioner 2>&1)
 rc=$?
 set -e
 [ "$rc" -eq 84 ] || fail "secret write rate exhaustion returns 84"
+assert_safe_diagnostic "$set_rate_output" f5-sales-demo/beta set http-403
 pass "secret write failures fail closed and rate exhaustion returns 84"
 
 set +e

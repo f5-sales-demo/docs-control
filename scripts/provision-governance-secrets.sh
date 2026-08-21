@@ -36,8 +36,21 @@ if ! jq -e '
   exit 1
 fi
 
+github_error_class() {
+  local err_file="$1" http_status
+  http_status=$(grep -Eo 'HTTP[[:space:]]+[0-9]{3}' "$err_file" | head -n 1 | awk '{print $2}' || true)
+  if [ -n "$http_status" ]; then
+    printf 'http-%s' "$http_status"
+  elif grep -qiE 'rate[[:space:]-]*limit|abuse[ -]?detection' "$err_file"; then
+    printf 'rate-limit'
+  else
+    printf 'github-cli-error'
+  fi
+}
+
 run_gh() {
-  local err_file rc
+  local operation="$1" slug="$2" err_file rc error_class
+  shift 2
   err_file=$(mktemp "$work/gh-err.XXXXXX")
   set +e
   GH_TOKEN="$REPO_SETTINGS_TOKEN" command gh "$@" 2>"$err_file"
@@ -47,20 +60,23 @@ run_gh() {
     rm -f "$err_file"
     return 0
   fi
+  error_class=$(github_error_class "$err_file")
   if grep -qiE 'rate[[:space:]-]*limit|HTTP 429|abuse[ -]?detection' "$err_file"; then
     rm -f "$err_file"
-    echo "[DEFER] GitHub API rate capacity was exhausted; scheduled recovery is active" >&2
+    printf '[DEFER] repository=%s operation=%s error_class=%s; GitHub API rate capacity was exhausted; scheduled recovery is active\n' \
+      "$slug" "$operation" "$error_class" >&2
     return 84
   fi
   rm -f "$err_file"
-  echo "[ERROR] GitHub repository-secret operation failed closed" >&2
+  printf '[ERROR] repository=%s operation=%s error_class=%s; GitHub repository-secret operation failed closed\n' \
+    "$slug" "$operation" "$error_class" >&2
   return 1
 }
 
 list_secret_inventory() {
   local slug="$1" inventory rc
   set +e
-  inventory=$(run_gh secret list --repo "$slug" --json name)
+  inventory=$(run_gh list "$slug" secret list --repo "$slug" --json name)
   rc=$?
   set -e
   if [ "$rc" -ne 0 ]; then
@@ -108,7 +124,7 @@ while IFS= read -r name; do
     esac
     set +e
     printf '%s' "$secret_value" |
-      run_gh secret set "$secret_name" --repo "$slug"
+      run_gh set "$slug" secret set "$secret_name" --repo "$slug"
     rc=$?
     set -e
     if [ "$rc" -ne 0 ]; then

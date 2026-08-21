@@ -16,7 +16,7 @@ The enforcement workflow at `.github/workflows/enforce-repo-settings.yml` is a r
 
 Enforcement is split into two reusable workflows that run as parallel jobs in the caller, each with its own least-privilege token:
 
-- **`enforce-repo-settings.yml`** uses `REPO_SETTINGS_TOKEN` (Administration R/W, Pages R/W, Contents Read, Metadata Read)
+- **`enforce-repo-settings.yml`** uses `REPO_SETTINGS_TOKEN` (Administration R/W, Pages R/W, Contents Read, Metadata Read, and repository Secrets: write for every enrolled repository; or an equivalent classic `repo`-scoped credential)
 - **`sync-managed-files.yml`** uses `REPO_SYNC_TOKEN` (Contents R/W, Issues R/W, Pull Requests R/W, Metadata Read)
 
 This page covers the settings enforcement workflow. See [File Synchronization](./file-sync/) for the managed files workflow.
