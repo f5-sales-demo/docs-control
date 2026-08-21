@@ -147,6 +147,15 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertIn("OnUnitActiveSec=15min", timer)
         self.assertIn("Persistent=true", timer)
 
+    def test_retired_reconciler_uses_a_persistent_calendar_timer(self):
+        unit = MODULE.retired_reconciler_unit_text()
+        timer = MODULE.retired_reconciler_timer_text()
+        self.assertIn("retire-orphans --apply", unit)
+        self.assertIn("OnCalendar=*:0/15", timer)
+        self.assertIn("Persistent=true", timer)
+        self.assertNotIn("OnBootSec=", timer)
+        self.assertNotIn("OnUnitActiveSec=", timer)
+
     def test_capacity_guard_fails_closed_below_either_free_space_limit(self):
         healthy = type("Usage", (), {"total": 1000, "used": 800, "free": 200})()
         low_bytes = type("Usage", (), {"total": 1000, "used": 901, "free": 99})()
