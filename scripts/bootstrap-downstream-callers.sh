@@ -888,11 +888,11 @@ dispatch_and_verify_linked_status() {
   fi
 
   now=$(date +%s)
-  if [ "$linked_transition_deadline" -gt "$now" ]; then
-    deadline=$linked_transition_deadline
-  else
-    deadline=$((now + linked_wait_seconds))
+  if [ "$linked_transition_deadline" -le "$now" ]; then
+    rm -f "$before_ids" "$after_file"
+    return 76
   fi
+  deadline=$linked_transition_deadline
   while true; do
     set +e
     gh api "repos/${slug}/commits/${head}/statuses" >"$after_file"
