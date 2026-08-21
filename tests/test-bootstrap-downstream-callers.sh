@@ -2,6 +2,18 @@
 # Hermetic acceptance tests for exact-caller bootstrap PR creation.
 set -euo pipefail
 
+bootstrap_script="$(cd "$(dirname "$0")/.." && pwd)/scripts/bootstrap-downstream-callers.sh"
+bootstrap_line=$(grep -n '^failures=0$' "$bootstrap_script" | cut -d: -f1)
+shared_deadline_line=$(grep -n '^linked_transition_deadline=' "$bootstrap_script" | tail -1 | cut -d: -f1)
+bootstrap_loop_line=$(grep -n '^while IFS= read -r name; do$' "$bootstrap_script" | tail -2 | head -1 | cut -d: -f1)
+if [ -z "$bootstrap_line" ] || [ -z "$shared_deadline_line" ] || [ -z "$bootstrap_loop_line" ] ||
+  [ "$shared_deadline_line" -le "$bootstrap_line" ] ||
+  [ "$shared_deadline_line" -ge "$bootstrap_loop_line" ]; then
+  echo "[FAIL] bootstrap linked-status receipts do not share one bounded deadline"
+  exit 1
+fi
+echo "[OK] bootstrap linked-status receipts share one bounded deadline"
+
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 SOURCE="$REPO_ROOT/scripts/bootstrap-downstream-callers.sh"
 WORK=$(mktemp -d)
