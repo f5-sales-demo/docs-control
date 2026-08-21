@@ -794,15 +794,19 @@ def dispatch_queued_profiles():
         if item.slot == 0
     }
     for repository in policy.governed():
-        response = github.request(
-            "GET", f"/repos/{repository}/actions/runs?status=queued&per_page=100"
-        )
-        runs = response.get("workflow_runs") if isinstance(response, dict) else None
-        if not isinstance(runs, list) or any(
-            not isinstance(run, dict) or not isinstance(run.get("id"), int)
-            for run in runs
-        ):
-            raise ProvisionError("GitHub queued workflow inventory is malformed")
+        runs = []
+        for status in ("queued", "in_progress"):
+            response = github.request(
+                "GET",
+                f"/repos/{repository}/actions/runs?status={status}&per_page=100",
+            )
+            records = response.get("workflow_runs") if isinstance(response, dict) else None
+            if not isinstance(records, list) or any(
+                not isinstance(run, dict) or not isinstance(run.get("id"), int)
+                for run in records
+            ):
+                raise ProvisionError("GitHub queued workflow inventory is malformed")
+            runs.extend(records)
         for run in runs:
             response = github.request(
                 "GET", f"/repos/{repository}/actions/runs/{run['id']}/jobs?per_page=100"

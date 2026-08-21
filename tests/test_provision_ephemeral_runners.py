@@ -340,7 +340,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
 
         class GitHub:
             def request(self, _method, request_path):
-                if request_path.endswith("runs?status=queued&per_page=100"):
+                if ("runs?status=queued&per_page=100" in request_path or "runs?status=in_progress&per_page=100" in request_path):
                     return {"workflow_runs": [{"id": 1}]} if docs in request_path else {"workflow_runs": []}
                 return {"jobs": [
                     {"name": "Trust Docker-capable job", "conclusion": "success"},
@@ -387,7 +387,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
 
         class GitHub:
             def request(self, _method, request_path):
-                if request_path.endswith("runs?status=queued&per_page=100"):
+                if ("runs?status=queued&per_page=100" in request_path or "runs?status=in_progress&per_page=100" in request_path):
                     return {"workflow_runs": [{"id": 1}]} if docs in request_path else {"workflow_runs": []}
                 return {"jobs": [{"status": "queued", "labels": builder}]}
 
