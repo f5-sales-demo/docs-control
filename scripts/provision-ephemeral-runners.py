@@ -453,8 +453,7 @@ def retired_reconciler_timer_text():
 Description=Schedule retirement of orphaned F5 Actions runners
 
 [Timer]
-OnBootSec=2min
-OnUnitActiveSec=60s
+OnCalendar=*:0/15
 Persistent=true
 Unit={RETIRED_UNIT}
 
