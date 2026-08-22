@@ -66,6 +66,10 @@ if ! jq -e '
   echo "[ERROR] Downstream inventory must be a non-empty array of unique repository names" >&2
   exit 1
 fi
+if jq -e 'index("docs-control") != null' "$downstream_config" >/dev/null; then
+  echo "[ERROR] docs-control is source maintenance only and cannot be a downstream linked-issue target" >&2
+  exit 1
+fi
 if ! jq -e '
   (.skip_files | type == "object") and
   all(.skip_files | to_entries[];
