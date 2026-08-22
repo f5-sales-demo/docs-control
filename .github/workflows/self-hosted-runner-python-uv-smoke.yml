@@ -1,0 +1,52 @@
+---
+name: Self-hosted Runner Python and uv Smoke
+
+on:
+  workflow_dispatch:
+
+# The smoke has no repository/API interaction: it proves only the immutable
+# runner image and its private, per-job tool cache.
+permissions: {}
+
+concurrency:
+  group: self-hosted-runner-python-uv-smoke-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  tool-cache-smoke:
+    name: Validate catalogued Python and uv
+    runs-on: [self-hosted, Linux, X64, docs-control, ubuntu-24.04]
+    timeout-minutes: 10
+    steps:
+      - name: Assert private cache and immutable image boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          runtime_dir="$(realpath -m -- "${RUNNER_RUNTIME_DIR:?RUNNER_RUNTIME_DIR must be set}")"
+          tool_cache="$(realpath -m -- "${RUNNER_TOOL_CACHE:?RUNNER_TOOL_CACHE must be set}")"
+          test "$tool_cache" = "$runtime_dir/_tool"
+          test -f "$tool_cache/Python/3.13.7/x64.complete"
+          test -f "$tool_cache/uv/0.8.24/x86_64.complete"
+          test -f /opt/hostedtoolcache/Python/3.13.7/x64.complete
+          test -f /opt/hostedtoolcache/uv/0.8.24/x86_64.complete
+          if touch /.self-hosted-runner-python-uv-smoke; then
+            rm -f /.self-hosted-runner-python-uv-smoke
+            echo "the runner root filesystem must be read-only" >&2
+            exit 1
+          fi
+          if touch /opt/hostedtoolcache/.self-hosted-runner-python-uv-smoke; then
+            rm -f /opt/hostedtoolcache/.self-hosted-runner-python-uv-smoke
+            echo "the image tool cache must be read-only" >&2
+            exit 1
+          fi
+
+      - name: Verify catalogued Python and uv from the private tool cache
+        shell: bash
+        run: |
+          set -euo pipefail
+          python_root="$RUNNER_TOOL_CACHE/Python/3.13.7/x64"
+          uv_root="$RUNNER_TOOL_CACHE/uv/0.8.24/x86_64"
+          test -x "$python_root/bin/python"
+          test -x "$uv_root/uv"
+          test "$("$python_root/bin/python" --version)" = "Python 3.13.7"
+          test "$("$uv_root/uv" --version)" = "uv 0.8.24"
