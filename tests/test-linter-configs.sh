@@ -1511,6 +1511,32 @@ else
     "the formatter pin is absent, duplicated, or mutable"
 fi
 
+if python3 - "$SUPER_LINTER_WORKFLOW" <<'PY'; then
+import sys
+import yaml
+
+workflow = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+steps = workflow["jobs"]["lint"]["steps"]
+biome = next(step for step in steps if step.get("name") == "Run Biome")
+
+assert biome["env"] == {"BASE_REF": "${{ github.base_ref || 'main' }}"}
+run = biome["run"]
+assert "biome ci ." not in run
+assert 'git diff --name-only -z --diff-filter=ACMR "origin/${BASE_REF}...HEAD"' in run
+assert "mapfile -d '' -t biome_files" in run
+assert 'biome ci -- "${biome_files[@]}"' in run
+assert "No changed biome-eligible files found — skipping" in run
+for extension in ("*.js", "*.jsx", "*.ts", "*.tsx", "*.json", "*.jsonc", "*.css", "*.vue"):
+    assert extension in run
+for excluded in ("node_modules/*", ".terraform/*", "dist/*", "build/*", "vendor/*"):
+    assert excluded in run
+PY
+  pass "14.1a Super-Linter scopes Biome to changed supported files"
+else
+  fail "14.1a Super-Linter scopes Biome to changed supported files" \
+    "Biome must receive only NUL-safe, changed, supported files from the PR diff"
+fi
+
 if grep -Fq 'group: reusable-super-linter-${{ github.workflow }}-' "$SUPER_LINTER_WORKFLOW"; then
   pass "14.2 reusable lint concurrency cannot collide with its caller"
 else
