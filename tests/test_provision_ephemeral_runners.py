@@ -79,7 +79,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
 
     def test_inventory_is_repository_and_profile_scoped(self):
         items = MODULE.all_instances()
-        self.assertEqual(len(items), 82)
+        self.assertEqual(len(items), 81)
         docs = [
             item for item in items if item.repository == "f5-sales-demo/docs-control"
         ]
@@ -354,6 +354,24 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertIn("Persistent=true", timer)
         self.assertNotIn("OnUnitActiveSec=", timer)
 
+    def test_docker_trust_gate_accepts_only_canonical_direct_or_reusable_names(self):
+        self.assertTrue(
+            MODULE.successful_docker_trust_gate(
+                {"name": "Trust Docker-capable job", "conclusion": "success"}
+            )
+        )
+        self.assertTrue(
+            MODULE.successful_docker_trust_gate(
+                {"name": "lint / Trust Docker-capable job", "conclusion": "success"}
+            )
+        )
+        for job in (
+            {"name": "release / Trust Docker-capable job", "conclusion": "success"},
+            {"name": "lint / Trust Docker-capable job", "conclusion": "failure"},
+            {"name": "Trust Docker-capable job", "conclusion": None},
+        ):
+            self.assertFalse(MODULE.successful_docker_trust_gate(job))
+
     def test_profile_dispatcher_routes_only_exact_labels_after_docker_trust(self):
         policy = MODULE.active_policy()
         docs = "f5-sales-demo/docs-control"
@@ -374,7 +392,10 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                     )
                 return {
                     "jobs": [
-                        {"name": "Trust Docker-capable job", "conclusion": "success"},
+                        {
+                            "name": "lint / Trust Docker-capable job",
+                            "conclusion": "success",
+                        },
                         {"status": "queued", "labels": standard},
                         {"status": "queued", "labels": builder},
                         {"status": "queued", "labels": automation},

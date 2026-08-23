@@ -70,6 +70,10 @@ CAPACITY_MIN_FREE_PERCENT = 10
 ROTATION_REQUEST_INTERVAL_SECONDS = 1
 
 
+TRUSTED_DOCKER_JOB_NAMES = frozenset(
+    ("Trust Docker-capable job", "lint / Trust Docker-capable job")
+)
+
 class ProvisionError(RuntimeError):
     """Fail-closed provisioning error."""
 
@@ -779,6 +783,14 @@ def standby_scale():
                 command(["systemctl", "stop", item.unit])
 
 
+def successful_docker_trust_gate(job):
+    """Recognize only canonical direct or reusable Docker trust gates."""
+    return (
+        job.get("name") in TRUSTED_DOCKER_JOB_NAMES
+        and job.get("conclusion") == "success"
+    )
+
+
 def dispatch_queued_profiles():
     """Start a profile only for an exact queued job-label match."""
     require_root()
@@ -816,11 +828,7 @@ def dispatch_queued_profiles():
                 not isinstance(job, dict) for job in jobs
             ):
                 raise ProvisionError("GitHub queued job inventory is malformed")
-            trusted = any(
-                job.get("name") == "Trust Docker-capable job"
-                and job.get("conclusion") == "success"
-                for job in jobs
-            )
+            trusted = any(successful_docker_trust_gate(job) for job in jobs)
             spec = policy.repository(repository)
             for job in jobs:
                 labels = job.get("labels")
