@@ -803,7 +803,12 @@ def dispatch_queued_profiles():
         for item in all_instances()
         if item.slot == 0
     }
+    standby_by_profile = {
+        (item.repository, item.profile): item
+        for item in all_standby_instances()
+    }
     for repository in policy.governed():
+        runner_inventory = None
         runs = []
         for status in ("queued", "in_progress"):
             response = github.request(
@@ -858,6 +863,51 @@ def dispatch_queued_profiles():
                             f"[DISPATCH] repository={repository} profile={profile.name} "
                             f"job={job.get('name', 'unnamed')} unit={item.unit}"
                         )
+                    else:
+                        standby = standby_by_profile.get(
+                            (repository, profile.name)
+                        )
+                        if standby is not None:
+                            if runner_inventory is None:
+                                runner_inventory = github.runners(repository)
+                                if (
+                                    not isinstance(runner_inventory, list)
+                                    or any(
+                                        not isinstance(record, dict)
+                                        for record in runner_inventory
+                                    )
+                                ):
+                                    raise ProvisionError(
+                                        "GitHub runner inventory is malformed"
+                                    )
+                            prefix = (
+                                f"gha-{spec.name}-{profile.name}-{item.slot}-"
+                            )
+                            primary_busy = any(
+                                record.get("name", "").startswith(prefix)
+                                and record.get("status") == "online"
+                                and record.get("busy") is True
+                                for record in runner_inventory
+                                if isinstance(record.get("name"), str)
+                            )
+                            standby_state = command(
+                                ["systemctl", "is-active", standby.unit],
+                                check=False,
+                                capture=True,
+                            )
+                            if (
+                                primary_busy
+                                and (
+                                    standby_state.returncode != 0
+                                    or standby_state.stdout.strip() != "active"
+                                )
+                            ):
+                                command(["systemctl", "start", standby.unit])
+                                print(
+                                    f"[DISPATCH] repository={repository} "
+                                    f"profile={profile.name} job={job.get('name', 'unnamed')} "
+                                    f"unit={standby.unit}"
+                                )
                     # Equivalent profiles may share labels; one listener supplies the job.
                     break
 

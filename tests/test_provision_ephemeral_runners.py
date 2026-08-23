@@ -443,6 +443,58 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             started,
         )
 
+    def test_profile_dispatcher_scales_only_for_an_exact_queued_job_when_primary_is_busy(self):
+        policy = MODULE.active_policy()
+        docs = "f5-sales-demo/docs-control"
+        standard = ["self-hosted", "Linux", "X64", "docs-control", "ubuntu-24.04"]
+
+        class GitHub:
+            def request(self, _method, request_path):
+                if "runs?status=" in request_path:
+                    return {"workflow_runs": [{"id": 1}]} if docs in request_path else {"workflow_runs": []}
+                return {"jobs": [{"name": "lint", "status": "queued", "labels": standard}]}
+
+            def runners(self, repository):
+                if repository != docs:
+                    raise AssertionError(f"unexpected repository: {repository}")
+                return [{"name": "gha-docs-control-ubuntu-24.04-0-active", "status": "online", "busy": True}]
+
+        github = GitHub()
+        controller = SimpleNamespace(
+            expected_labels=lambda spec, profile: {
+                "self-hosted", "Linux", "X64", spec.name, *profile.labels
+            }
+        )
+        controller_module = SimpleNamespace(
+            GitHubClient=lambda _token: github,
+            token_from_environment=lambda: "credential",
+            EphemeralController=lambda _policy, _base: controller,
+        )
+        calls = []
+
+        def command(argv, **_kwargs):
+            calls.append(argv)
+            if argv[:2] == ["systemctl", "is-active"]:
+                unit = argv[-1]
+                return SimpleNamespace(
+                    returncode=0 if unit.endswith("--0.service") else 3,
+                    stdout="active\n" if unit.endswith("--0.service") else "inactive\n",
+                )
+            return SimpleNamespace(returncode=0, stdout="")
+
+        with (
+            mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
+            mock.patch.object(MODULE, "load_controller", return_value=controller_module),
+            mock.patch.object(MODULE, "command", side_effect=command),
+        ):
+            MODULE.dispatch_queued_profiles()
+
+        self.assertIn(
+            ["systemctl", "start", "f5-actions-runner@docs-control--ubuntu-24.04--1.service"],
+            calls,
+        )
+
     def test_profile_dispatcher_refuses_untrusted_docker_job(self):
         policy = MODULE.active_policy()
         docs = "f5-sales-demo/docs-control"
