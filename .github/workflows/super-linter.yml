@@ -277,11 +277,28 @@ jobs:
           version: 2.5.6
 
       - name: Run Biome
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
         run: |
-          if find . -type f \( -name '*.js' -o -name '*.jsx' -o -name '*.ts' -o -name '*.tsx' -o -name '*.json' -o -name '*.jsonc' -o -name '*.css' -o -name '*.vue' \) -not -path './node_modules/*' -not -path './.terraform/*' -not -path './dist/*' -not -path './build/*' -not -path './vendor/*' | grep -q .; then
-            biome ci .
+          # Keep this gate scoped to the pull request: existing Biome findings
+          # outside a change must not fail unrelated work. NUL delimiters retain
+          # exact path names through Git, the filter, and Biome's argv.
+          mapfile -d '' -t biome_files < <(
+            git diff --name-only -z --diff-filter=ACMR "origin/${BASE_REF}...HEAD" |
+              while IFS= read -r -d '' path; do
+                case "$path" in
+                  node_modules/*|.terraform/*|dist/*|build/*|vendor/*)
+                    ;;
+                  *.js|*.jsx|*.ts|*.tsx|*.json|*.jsonc|*.css|*.vue)
+                    printf '%s\0' "$path"
+                    ;;
+                esac
+              done
+          )
+          if ((${#biome_files[@]})); then
+            biome ci -- "${biome_files[@]}"
           else
-            echo "No biome-eligible files found — skipping"
+            echo "No changed biome-eligible files found — skipping"
           fi
 
       # MDX prose runs OUTSIDE the Super-Linter container for the same reason
