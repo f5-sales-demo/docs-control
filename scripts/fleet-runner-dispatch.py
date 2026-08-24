@@ -140,8 +140,13 @@ def dispatch():
             for offset, repository in enumerate(ordered):
                 if requests >= policy.dispatcher.request_budget:
                     break
-                runs = valid_runs(get(github, f"/repos/{repository}/actions/runs?status=active&per_page=100"))
-                requests += 1
+                runs = []
+                for status in ("queued", "in_progress"):
+                    if requests >= policy.dispatcher.request_budget:
+                        break
+                    response = get(github, f"/repos/{repository}/actions/runs?status={status}&per_page=100")
+                    requests += 1
+                    runs.extend(valid_runs(response))
                 spec = policy.repository(repository)
                 for run in runs:
                     if requests >= policy.dispatcher.request_budget:
