@@ -1,0 +1,58 @@
+---
+name: Reconcile Fleet Content
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/config/managed-files-manifest.json'
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact canonical source commit; defaults to the manifest receipt.
+        required: false
+        type: string
+      mode:
+        description: Reconciliation mode.
+        required: false
+        default: dry-run
+        type: choice
+        options: [dry-run, pilot, full]
+      repositories:
+        description: Optional comma-separated downstream repository names.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fleet-content-reconciler
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    timeout-minutes: 60
+    env:
+      APP_ID: ${{ secrets.AUTOMATION_APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: app-token
+        if: env.APP_ID != '' && env.APP_PRIVATE_KEY != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ env.APP_ID }}
+          private-key: ${{ env.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+      - name: Reconcile managed content
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.REPO_SETTINGS_TOKEN }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RECONCILE_MODE: ${{ inputs.mode || 'full' }}
+          RECONCILE_KIND: content
+          REPOSITORIES: ${{ inputs.repositories }}
+        run: node scripts/fleet-reconciler.cjs
