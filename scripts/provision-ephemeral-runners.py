@@ -430,7 +430,7 @@ ProtectHome=true
 ProtectKernelTunables=false
 ProtectKernelModules=false
 ProtectControlGroups=false
-ReadWritePaths={ROOTLESS_DOCKER_DATA_ROOT} {ROOTLESS_RUNTIME_ROOT}
+ReadWritePaths={ROOTLESS_DOCKER_DATA_ROOT} {ROOTLESS_RUNTIME_ROOT} {STATE_ROOT}
 
 [Install]
 WantedBy=multi-user.target

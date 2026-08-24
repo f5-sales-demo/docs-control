@@ -52,6 +52,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertEqual(config["exec-opts"], ["native.cgroupdriver=cgroupfs"])
         self.assertIn("ProtectKernelTunables=false", unit)
         self.assertIn("ProtectKernelModules=false", unit)
+        self.assertIn(str(MODULE.STATE_ROOT), unit)
 
     def test_xcsh_dispatcher_is_separate_and_not_installed_enabled(self):
         unit = MODULE.xcsh_dispatcher_unit_text()
