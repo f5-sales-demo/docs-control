@@ -171,7 +171,7 @@ def instances(policy):
                         profile.pids_limit,
                         profile.stop_timeout,
                         profile.network,
-                        "serve",
+                        "once",
                     )
                 )
     return tuple(result)
@@ -281,7 +281,7 @@ def retired_instance(path):
             repository_is_valid,
             valid_runner_component(profile),
             slot_text.isdecimal(),
-            mode in {"serve", "once"},
+            mode == "once",
         )
     )
     if not definition_is_valid:

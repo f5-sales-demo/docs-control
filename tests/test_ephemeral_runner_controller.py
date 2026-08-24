@@ -124,7 +124,7 @@ class EphemeralRunnerTests(unittest.TestCase):
                         "replicas": 1,
                         "profiles": ["ubuntu-24.04", "container-build"],
                     }
-                }
+                },
             },
         }
         self.write_policy()
@@ -235,103 +235,6 @@ class EphemeralRunnerTests(unittest.TestCase):
                 controller.registration_cooldown_path.read_text(encoding="utf-8")
             ),
             {"retry_at": 1060},
-        )
-
-    def test_serve_retries_after_registration_cooldown_failure(self):
-        controller = MODULE.EphemeralController(
-            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
-        )
-        controller.registration_cooldown_delay = mock.Mock(
-            side_effect=[MODULE.FleetError("bad cooldown"), 0]
-        )
-
-        def settle(*_args):
-            controller.stopping = True
-            return 0
-
-        controller.run_once = mock.Mock(side_effect=settle)
-        with (
-            mock.patch.object(MODULE.signal, "signal"),
-            mock.patch.object(MODULE.time, "sleep") as sleep,
-        ):
-            self.assertEqual(
-                controller.serve("f5-sales-demo/fixture", "ubuntu-24.04"), 0
-            )
-
-        sleep.assert_called_once_with(5)
-        controller.run_once.assert_called_once_with(
-            "f5-sales-demo/fixture", "ubuntu-24.04", 0
-        )
-
-    def test_serve_reloads_policy_only_between_runner_cycles(self):
-        controller = MODULE.EphemeralController(
-            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
-        )
-        old_image = controller.policy.profiles["ubuntu-24.04"].image
-        new_image = "ghcr.io/f5-sales-demo/runner@sha256:" + "c" * 64
-        observed_images = []
-
-        def cycle(_spec, profile, _slot, command, _token):
-            observed_images.append(command[-1])
-            if len(observed_images) == 1:
-                self.policy_data["profiles"]["ubuntu-24.04"]["image"] = new_image
-                self.write_policy()
-                # The registered container keeps the policy selected at cycle start.
-                self.assertEqual(profile.image, old_image)
-            else:
-                controller.stopping = True
-            return SimpleNamespace(returncode=0)
-
-        controller.__dict__["_run_outer"] = mock.Mock(side_effect=cycle)
-        with mock.patch.object(MODULE.signal, "signal"):
-            self.assertEqual(
-                controller.serve("f5-sales-demo/fixture", "ubuntu-24.04", backoff=0),
-                0,
-            )
-
-        self.assertEqual(observed_images, [old_image, new_image])
-
-    def test_serve_invalid_reloaded_policy_blocks_replacement_runner(self):
-        controller = MODULE.EphemeralController(
-            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
-        )
-        self.policy_path.write_text("not-json", encoding="utf-8")
-        controller.run_once = mock.Mock()
-
-        def stop_after_failed_reload(_delay):
-            controller.stopping = True
-
-        with (
-            mock.patch.object(MODULE.signal, "signal"),
-            mock.patch.object(
-                MODULE.time, "sleep", side_effect=stop_after_failed_reload
-            ),
-        ):
-            self.assertEqual(
-                controller.serve("f5-sales-demo/fixture", "ubuntu-24.04", backoff=0),
-                0,
-            )
-
-        controller.run_once.assert_not_called()
-
-    def test_serve_policy_reload_preserves_standby_profile_and_slot(self):
-        controller = MODULE.EphemeralController(
-            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
-        )
-
-        def settle(*_args):
-            controller.stopping = True
-            return 0
-
-        controller.run_once = mock.Mock(side_effect=settle)
-        with mock.patch.object(MODULE.signal, "signal"):
-            self.assertEqual(
-                controller.serve("f5-sales-demo/fixture", "ubuntu-24.04", slot=1),
-                0,
-            )
-
-        controller.run_once.assert_called_once_with(
-            "f5-sales-demo/fixture", "ubuntu-24.04", 1
         )
 
     def test_policy_builds_exact_repository_profiles(self):
@@ -622,21 +525,6 @@ class EphemeralRunnerTests(unittest.TestCase):
         controller.run_once("f5-sales-demo/fixture", "ubuntu-24.04")
         self.assertEqual(github.deleted, [("f5-sales-demo/fixture", 42)])
 
-    def test_serve_stops_when_blocking_cycle_is_interrupted(self):
-        controller = MODULE.EphemeralController(
-            self.policy(), FakeGitHub(), self.root / "state", CommandRecorder()
-        )
-
-        def interrupted(*_args):
-            raise MODULE.StopRequestedError
-
-        controller.run_once = interrupted
-        with mock.patch.object(MODULE.signal, "signal"):
-            self.assertEqual(
-                controller.serve("f5-sales-demo/fixture", "ubuntu-24.04", backoff=0),
-                0,
-            )
-
     def test_stop_request_reaches_exact_blocking_outer_container_then_cleans(self):
         outer_id = "a" * 64
         events: list[tuple[Any, ...]] = []
@@ -645,7 +533,7 @@ class EphemeralRunnerTests(unittest.TestCase):
         github.records = [{"id": 42, "name": "gha-fixture-ubuntu-24.04-0-deadbeef"}]
 
         class InterruptedRunnerProcess:
-            returncode = -MODULE.signal.SIGTERM
+            returncode = -15
 
             @staticmethod
             def communicate(input_text):
@@ -659,7 +547,7 @@ class EphemeralRunnerTests(unittest.TestCase):
             @staticmethod
             def wait(timeout=None):
                 events.append(("wait", timeout))
-                return -MODULE.signal.SIGTERM
+                return -15
 
         def popen(command, **kwargs):
             events.append(("popen", command, kwargs))

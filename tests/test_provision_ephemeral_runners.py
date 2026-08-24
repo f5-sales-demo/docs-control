@@ -595,7 +595,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 "RUNNER_REPOSITORY=f5-sales-demo/fixture\n"
                 "RUNNER_PROFILE=ubuntu-24.04\n"
                 "RUNNER_SLOT=1\n"
-                "RUNNER_MODE=serve\n",
+                "RUNNER_MODE=once\n",
                 encoding="utf-8",
             )
             deleted, commands = [], []
@@ -641,7 +641,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 "fixture",
                 "ubuntu-24.04",
                 1,
-                "serve",
+                "once",
                 retired,
             ).unit
             self.assertEqual(
@@ -669,7 +669,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 "RUNNER_REPOSITORY=f5-sales-demo/fixture\n"
                 "RUNNER_PROFILE=ubuntu-24.04\n"
                 "RUNNER_SLOT=1\n"
-                "RUNNER_MODE=serve\n",
+                "RUNNER_MODE=once\n",
                 encoding="utf-8",
             )
             deleted = []
