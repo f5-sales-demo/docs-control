@@ -670,7 +670,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             MODULE.dispatch_queued_profiles()
 
         self.assertIn(
-            ["systemctl", "start", "f5-actions-runner@docs-control--ubuntu-24.04--1.service"],
+            ["systemctl", "start", runner_service("ubuntu-24.04").replace("--0", "--1")],
             calls,
         )
 
