@@ -64,6 +64,15 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertIn("MemoryMax=48G", slice_unit)
         self.assertIn("CPUQuota=1800%", slice_unit)
 
+    def test_common_fleet_parent_enforces_the_aggregate_capacity_limit(self):
+        slice_unit = MODULE.fleet_slice_text()
+        self.assertEqual(MODULE.FLEET_SLICE_UNIT, "f5-actions.slice")
+        self.assertIn("MemoryHigh=44G", slice_unit)
+        self.assertIn("MemoryMax=48G", slice_unit)
+        self.assertIn("CPUQuota=1800%", slice_unit)
+        self.assertTrue(MODULE.RUNNER_SLICE_UNIT.startswith("f5-actions-"))
+        self.assertTrue(MODULE.CONTAINER_BUILD_SLICE_UNIT.startswith("f5-actions-"))
+
     def test_fleet_admission_caps_three_socketless_runners_at_48g_and_18_cpus(self):
         policy = MODULE.active_policy()
         xcsh = "f5-sales-demo/xcsh"
