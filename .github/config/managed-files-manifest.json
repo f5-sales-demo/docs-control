@@ -1,5 +1,5 @@
 {
-  "source_commit": "e5bd7584f4c72dc8f387a54d56f8f00ee318b2a7",
+  "source_commit": "c51c8e93ef9dabaa1af3678078cc2edf4a61253f",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -249,8 +249,8 @@
     "trivy.yaml": {
       "src": "trivy.yaml",
       "dest": "trivy.yaml",
-      "sha": "7316f196adc301669db7bdb130b9db4ddb6ae594",
-      "size": 709,
+      "sha": "8b2cde2e28b2940ea9bf47d244e1d1148c79d5b7",
+      "size": 753,
       "mode": "100644"
     },
     ".ruff.toml": {
@@ -347,8 +347,8 @@
     "scripts/check_pii.py": {
       "src": "scripts/check_pii.py",
       "dest": "scripts/check_pii.py",
-      "sha": "d361db02b7cf828dea64c0d426db5552edf05108",
-      "size": 98167,
+      "sha": "74d67b18f4c23cd2d7ebafc02e7aa64a7045d2db",
+      "size": 98142,
       "mode": "100644"
     },
     "scripts/check-pii.sh": {
