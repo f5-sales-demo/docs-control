@@ -1,5 +1,5 @@
 {
-  "source_commit": "6c29305554ae8bb1b08829b3aa0159d0bb82bcef",
+  "source_commit": "506e2142850abab01b8dd04efdd5dbe2f5e0b0d3",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -319,8 +319,8 @@
     "scripts/github-api-resilience.cjs": {
       "src": "scripts/github-api-resilience.cjs",
       "dest": "scripts/github-api-resilience.cjs",
-      "sha": "d2d6fddb0ebab9af4dfab8d027ce7d805b7e4af1",
-      "size": 16105,
+      "sha": "93eb7259397fe335424ef12166aedc20df21a7e7",
+      "size": 16107,
       "mode": "100644"
     },
     "scripts/translation-release-policy.sh": {
