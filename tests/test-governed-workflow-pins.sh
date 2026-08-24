@@ -72,6 +72,10 @@ check "managed reconciliation branches skip the downstream heavy lint caller" \
   grep -Fq "!startsWith(github.event.pull_request.head.ref, 'governance/reconcile-')" \
   "$REPO_ROOT/workflows/super-linter.yml"
 
+check "managed reconciliation branches skip the redundant linked-issue caller" \
+  grep -Fq "!startsWith(github.event.pull_request.head.ref, 'governance/reconcile-')" \
+  "$REPO_ROOT/workflows/require-linked-issue.yml"
+
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
