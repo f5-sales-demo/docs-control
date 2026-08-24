@@ -60,6 +60,10 @@ jobs:
                 core.setFailed("The dispatched linked-issue receipt does not match the current same-repository pull request.");
                 return;
               }
+              if (pull.data.head.ref === "sync/manifest") {
+                core.info(`PR #${number} is the exact synthetic manifest publication; linked-issue policy is satisfied by its verified publisher receipt.`);
+                return;
+              }
             }
             const result = await github.graphql(
               `query($owner: String!, $repo: String!, $number: Int!) {

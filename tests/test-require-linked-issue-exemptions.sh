@@ -20,5 +20,7 @@ grep -Fqx '      contents: read' "$workflow"
 grep -Fq 'expected_base_sha:' "$workflow"
 grep -Fq 'expected_head_sha:' "$workflow"
 grep -Fq 'dispatched linked-issue receipt does not match' "$workflow"
+grep -Fq 'pull.data.head.ref === "sync/manifest"' "$workflow"
+grep -Fq 'exact synthetic manifest publication' "$workflow"
 grep -Fq 'closingIssuesReferences(first: 1)' "$workflow"
 printf 'PASS: linked-issue gate is same-repository, exact-receipt, and read-only\n'
