@@ -10,8 +10,6 @@ on:
       - '.github/workflows/reconcile-fleet-settings.yml'
       - 'scripts/fleet-reconciler.cjs'
       - 'scripts/github-api-resilience.cjs'
-  schedule:
-    - cron: '17 */6 * * *'
   workflow_dispatch:
     inputs:
       mode:
