@@ -13,7 +13,6 @@ import os
 import re
 import secrets
 import shutil
-import signal
 import stat
 import subprocess
 import sys
@@ -282,9 +281,23 @@ class FleetPolicy:
                 f"dispatcher fields must equal {sorted(cls.DISPATCHER_FIELDS)}"
             )
         repositories = value["repositories"]
-        if not isinstance(repositories, list) or not repositories or not all(isinstance(repository, str) and repository for repository in repositories) or repositories != sorted(set(repositories)):
+        if (
+            not isinstance(repositories, list)
+            or not repositories
+            or not all(
+                isinstance(repository, str) and repository
+                for repository in repositories
+            )
+            or repositories != sorted(set(repositories))
+        ):
             raise FleetError("dispatcher repositories must be sorted unique names")
-        if value["memory"] != "48g" or value["cpus"] != "18" or value["standard_runners"] != 3 or value["container_build_runners"] != 1 or value["request_budget"] != 80:
+        if (
+            value["memory"] != "48g"
+            or value["cpus"] != "18"
+            or value["standard_runners"] != 3
+            or value["container_build_runners"] != 1
+            or value["request_budget"] != 80
+        ):
             raise FleetError("dispatcher capacity contract is invalid")
         return DispatcherPolicy(
             repositories=tuple(repositories),
@@ -466,9 +479,7 @@ class GitHubClient:
             )
         return None
 
-    def request(
-        self, method, path, payload=None, headers=None, include_headers=False
-    ):
+    def request(self, method, path, payload=None, headers=None, include_headers=False):
         body = None if payload is None else json.dumps(payload).encode()
         request_headers = {
             "Accept": "application/vnd.github+json",
@@ -542,19 +553,6 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
             else None
         )
         self.stopping = False
-
-    def _reload_policy(self):
-        """Validate and adopt the on-disk policy between runner cycles.
-
-        A runner cycle captures ``self.policy`` before it creates a workspace or
-        obtains a registration token. Replacing it only from ``serve`` before
-        the following cycle means a policy installation can converge idle
-        services without interrupting a registered runner. Construct the
-        replacement before assigning it so an incomplete or invalid policy
-        fails closed and leaves the last known-good policy intact in memory.
-        """
-        replacement = FleetPolicy(self.policy.path)
-        self.policy = replacement
 
     @property
     def registration_cooldown_path(self):
@@ -1270,57 +1268,6 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
             self.reset_workspace(spec, profile, slot)
             self.remove_registration(spec, profile, slot)
 
-    def serve(self, full_name, profile_name, slot=0, backoff=5):
-        def stop(_signum, _frame):
-            self.stopping = True
-            raise StopRequestedError
-
-        signal.signal(signal.SIGTERM, stop)
-        signal.signal(signal.SIGINT, stop)
-        while not self.stopping:
-            try:
-                # Reload only after the preceding run_once call has completed.
-                # Do not move this into run_once: that can replace policy state
-                # while an ephemeral runner is registered and executing a job.
-                self._reload_policy()
-                delay = self.registration_cooldown_delay(full_name, profile_name, slot)
-                if delay:
-                    print(
-                        f"runner registration cooldown: sleeping {delay}s",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                    time.sleep(delay)
-                    continue
-                code = self.run_once(full_name, profile_name, slot)
-            except GitHubRateLimitError as exc:
-                try:
-                    self.record_registration_cooldown(exc.retry_at)
-                except (
-                    FleetError,
-                    OSError,
-                    subprocess.SubprocessError,
-                ) as cooldown_error:
-                    print(
-                        f"runner cooldown update failed: {cooldown_error}",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-                    code = 1
-                else:
-                    print(
-                        f"runner cycle rate limited: {exc}", file=sys.stderr, flush=True
-                    )
-                    continue
-            except (FleetError, OSError, subprocess.SubprocessError) as exc:
-                print(f"runner cycle failed: {exc}", file=sys.stderr, flush=True)
-                code = 1
-            except StopRequestedError:
-                break
-            if code != 0:
-                time.sleep(backoff)
-        return 0
-
     def audit_containers(self, full_name):  # pylint: disable=too-many-locals
         spec = self.policy.repository(full_name)
         errors = []
@@ -1479,7 +1426,7 @@ def main(argv=None):
     parser.add_argument("--policy", type=Path, default=DEFAULT_POLICY)
     parser.add_argument("--base-dir", type=Path, default=DEFAULT_BASE_DIR)
     subparsers = parser.add_subparsers(dest="action", required=True)
-    for action in ("once", "serve"):
+    for action in ("once",):
         sub = subparsers.add_parser(action)
         sub.add_argument("repository")
         sub.add_argument("--profile", default="ubuntu-24.04")
@@ -1493,8 +1440,6 @@ def main(argv=None):
         controller = EphemeralController(policy, github, args.base_dir)
         if args.action == "once":
             return controller.run_once(args.repository, args.profile, args.slot)
-        if args.action == "serve":
-            return controller.serve(args.repository, args.profile, args.slot)
         repositories = [args.repository] if args.repository else policy.governed()
         failed = False
         for repository in repositories:
