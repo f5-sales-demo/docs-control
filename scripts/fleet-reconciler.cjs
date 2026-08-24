@@ -299,6 +299,7 @@ function desiredProtection(config, repo) {
     // contexts; real workflow checks remain Actions-bound.
     app_id: ATTESTED_CONTEXTS.includes(context) ? -1 : GITHUB_ACTIONS_APP_ID,
   }));
+  checks.sort((a, b) => a.context.localeCompare(b.context) || a.app_id - b.app_id);
   return {
     enforce_admins: base.enforce_admins,
     required_status_checks: { ...requiredStatusChecks, contexts: [], checks },
