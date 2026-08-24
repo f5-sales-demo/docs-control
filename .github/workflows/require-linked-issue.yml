@@ -47,6 +47,11 @@ jobs:
               core.setFailed("Pull request number must be a positive integer.");
               return;
             }
+            if (process.env.EVENT_NAME === "pull_request" &&
+                context.payload.pull_request.head.ref === "sync/manifest") {
+              core.info(`PR #${number} is the trusted synthetic manifest publication branch.`);
+              return;
+            }
             if (process.env.EVENT_NAME === "workflow_dispatch") {
               if (!/^[0-9a-f]{40}$/.test(process.env.EXPECTED_BASE_SHA) ||
                   !/^[0-9a-f]{40}$/.test(process.env.EXPECTED_HEAD_SHA)) {
