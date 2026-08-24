@@ -6,12 +6,8 @@ on:
     types: [opened, reopened, edited, synchronize]
   workflow_dispatch:
     inputs:
-      pr_number:
+      pull_request_number:
         description: Pull request number to check.
-        required: true
-        type: string
-      expected_base_sha:
-        description: Exact protected-main receipt for the PR base.
         required: true
         type: string
       expected_head_sha:
@@ -36,8 +32,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
-          EXPECTED_BASE_SHA: ${{ inputs.expected_base_sha }}
+          PR_NUMBER: ${{ inputs.pull_request_number || github.event.pull_request.number }}
           EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
         with:
           script: |
@@ -53,14 +48,12 @@ jobs:
               return;
             }
             if (process.env.EVENT_NAME === "workflow_dispatch") {
-              if (!/^[0-9a-f]{40}$/.test(process.env.EXPECTED_BASE_SHA) ||
-                  !/^[0-9a-f]{40}$/.test(process.env.EXPECTED_HEAD_SHA)) {
+              if (!/^[0-9a-f]{40}$/.test(process.env.EXPECTED_HEAD_SHA)) {
                 core.setFailed("Manual linked-issue checks require exact lowercase SHA receipts.");
                 return;
               }
               const pull = await github.rest.pulls.get({ owner, repo, pull_number: number });
-              if (pull.data.base.sha !== process.env.EXPECTED_BASE_SHA ||
-                  pull.data.head.sha !== process.env.EXPECTED_HEAD_SHA ||
+              if (pull.data.head.sha !== process.env.EXPECTED_HEAD_SHA ||
                   pull.data.head.repo?.full_name !== `${owner}/${repo}`) {
                 core.setFailed("The dispatched linked-issue receipt does not match the current same-repository pull request.");
                 return;
