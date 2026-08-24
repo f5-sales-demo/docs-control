@@ -56,6 +56,14 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertIn("ProtectKernelModules=false", unit)
         self.assertIn(str(MODULE.STATE_ROOT), unit)
 
+    def test_socketless_runners_share_a_hard_bounded_fleet_slice(self):
+        unit = MODULE.runner_unit_text()
+        slice_unit = MODULE.runner_slice_text()
+        self.assertIn("Slice=f5-actions-runner.slice", unit)
+        self.assertIn("MemoryHigh=44G", slice_unit)
+        self.assertIn("MemoryMax=48G", slice_unit)
+        self.assertIn("CPUQuota=1800%", slice_unit)
+
     def test_fleet_admission_caps_three_socketless_runners_at_48g_and_18_cpus(self):
         policy = MODULE.active_policy()
         xcsh = "f5-sales-demo/xcsh"
