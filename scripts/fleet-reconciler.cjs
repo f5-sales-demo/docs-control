@@ -135,6 +135,18 @@ async function attestManagedCommit(api, { owner, repo, sha, sourceSha }) {
   }
 }
 
+async function enableManagedAutoMerge(api, repo, pullRequestId) {
+  await api.request('graphql', {
+    method: 'POST',
+    body: {
+      query:
+        'mutation($id:ID!){enablePullRequestAutoMerge(input:{pullRequestId:$id,mergeMethod:SQUASH}){pullRequest{number}}}',
+      variables: { id: pullRequestId },
+    },
+    operationName: `enable reconciliation auto-merge for ${repo}`,
+  });
+}
+
 function assertAttestableRecovery({ pr, note, changes, files, headTree, desired }) {
   if (pr.base?.ref !== 'main' || !pr.body?.includes(note) || !/^Closes #[1-9][0-9]*$/m.test(pr.body))
     fail('recovered reconciliation PR metadata is invalid');
@@ -165,6 +177,7 @@ async function createContentPr(
       operationName: `verify recovered PR tree for ${repo}`,
     });
     assertAttestableRecovery({ pr: recovered, note, changes, files, headTree, desired });
+    await enableManagedAutoMerge(api, repo, recovered.node_id);
     await attestManagedCommit(api, { owner, repo, sha: recovered.head.sha, sourceSha });
     return { status: 'recovered', pr: recovered.number };
   }
@@ -215,16 +228,8 @@ async function createContentPr(
     body: { title: issueTitle(sourceSha), head: branch, base: 'main', body: `${note}\n\nCloses #${issue.number}` },
     operationName: `create reconciliation PR for ${repo}`,
   });
+  await enableManagedAutoMerge(api, repo, pr.node_id);
   await attestManagedCommit(api, { owner, repo, sha: commit.sha, sourceSha });
-  await api.request('graphql', {
-    method: 'POST',
-    body: {
-      query:
-        'mutation($id:ID!){enablePullRequestAutoMerge(input:{pullRequestId:$id,mergeMethod:SQUASH}){pullRequest{number}}}',
-      variables: { id: pr.node_id },
-    },
-    operationName: `enable reconciliation auto-merge for ${repo}`,
-  });
   return { status: 'created', pr: pr.number, changes: changes.length };
 }
 
