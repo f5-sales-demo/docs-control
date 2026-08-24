@@ -344,8 +344,11 @@ class FleetRunnerDispatchTests(unittest.TestCase):
         started, primary = [], SimpleNamespace(unit="fixture-primary")
         standby = SimpleNamespace(unit="fixture-standby")
 
+        authorizations = []
+
         def command(argv, **_kwargs):
             if argv[:2] == ["systemctl", "start"]:
+                self.assertEqual(authorizations[-1], argv[-1])
                 started.append(argv)
             return SimpleNamespace(returncode=0, stdout="", stderr="")
 
@@ -369,6 +372,11 @@ class FleetRunnerDispatchTests(unittest.TestCase):
             ),
             mock.patch.object(MODULE, "primary_busy", return_value=busy),
             mock.patch.object(MODULE.PROVISION, "admission_allows", return_value=True),
+            mock.patch.object(
+                MODULE.PROVISION,
+                "authorize_runner_start",
+                side_effect=lambda candidate: authorizations.append(candidate.unit),
+            ),
             mock.patch.object(
                 MODULE.PROVISION, "successful_docker_trust_gate", return_value=trusted
             ),
