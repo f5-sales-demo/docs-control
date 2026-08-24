@@ -110,6 +110,20 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
+# Trivy runtime config contract
+if python3 - "$REPO_ROOT/trivy.yaml" <<'PY'; then
+import sys, yaml
+config = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+skip_dirs = config.get("skip-dirs", [])
+assert skip_dirs.count("target") == 1
+PY
+  pass "2.5 Trivy skips the generated Rust target tree"
+else
+  fail "2.5 Trivy skips the generated Rust target tree" \
+    "target must appear exactly once in skip-dirs to avoid concurrent Clippy artifact races"
+fi
+
+# ═════════════════════════════════════════════════════════════════
 # SECTION 3: TOML Parse Validity (Python lint configs)
 # ════════════════════════════════════════════════════════════════════
 echo ""
