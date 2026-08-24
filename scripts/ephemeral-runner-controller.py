@@ -155,6 +155,7 @@ class DispatcherPolicy:
     cpus: str
     standard_runners: int
     container_build_runners: int
+    request_budget: int
 
 
 @dataclass(frozen=True)
@@ -195,6 +196,7 @@ class FleetPolicy:
         "cpus",
         "standard_runners",
         "container_build_runners",
+        "request_budget",
     }
     PROFILE_FIELDS = {
         "image",
@@ -279,21 +281,18 @@ class FleetPolicy:
             raise FleetError(
                 f"dispatcher fields must equal {sorted(cls.DISPATCHER_FIELDS)}"
             )
-        expected = {
-            "repositories": ["f5-sales-demo/xcsh"],
-            "memory": "32g",
-            "cpus": "14",
-            "standard_runners": 2,
-            "container_build_runners": 1,
-        }
-        if value != expected:
-            raise FleetError(f"dispatcher policy must equal {expected!r}")
+        repositories = value["repositories"]
+        if not isinstance(repositories, list) or not repositories or not all(isinstance(repository, str) and repository for repository in repositories) or repositories != sorted(set(repositories)):
+            raise FleetError("dispatcher repositories must be sorted unique names")
+        if value["memory"] != "48g" or value["cpus"] != "18" or value["standard_runners"] != 3 or value["container_build_runners"] != 1 or value["request_budget"] != 80:
+            raise FleetError("dispatcher capacity contract is invalid")
         return DispatcherPolicy(
-            repositories=tuple(value["repositories"]),
+            repositories=tuple(repositories),
             memory=value["memory"],
             cpus=value["cpus"],
             standard_runners=value["standard_runners"],
             container_build_runners=value["container_build_runners"],
+            request_budget=value["request_budget"],
         )
 
     @classmethod

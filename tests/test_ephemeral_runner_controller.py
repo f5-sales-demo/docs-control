@@ -78,10 +78,11 @@ class EphemeralRunnerTests(unittest.TestCase):
             },
             "dispatcher": {
                 "repositories": ["f5-sales-demo/xcsh"],
-                "memory": "32g",
-                "cpus": "14",
-                "standard_runners": 2,
+                "memory": "48g",
+                "cpus": "18",
+                "standard_runners": 3,
                 "container_build_runners": 1,
+                "request_budget": 80,
             },
             "defaults": {
                 "replicas": 1,

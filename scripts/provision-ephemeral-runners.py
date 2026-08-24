@@ -52,6 +52,7 @@ def source_paths(provisioner):
     ROOTLESS_DOCKER_WRAPPER_SOURCE,
     POLICY_SOURCE,
 ) = source_paths(PROVISIONER_SOURCE)
+FLEET_DISPATCHER_SOURCE = INSTALL_ROOT / "fleet-runner-dispatch.py" if PROVISIONER_SOURCE.parent == INSTALL_ROOT else SOURCE_ROOT / "scripts/fleet-runner-dispatch.py"
 CONFIG_ROOT = Path("/etc/f5-actions-runner")
 INSTANCE_ROOT = CONFIG_ROOT / "instances"
 SYSTEMD_ROOT = Path("/etc/systemd/system")
@@ -67,6 +68,8 @@ PROFILE_DISPATCH_UNIT = "f5-actions-runner-profile-dispatch.service"
 PROFILE_DISPATCH_TIMER = "f5-actions-runner-profile-dispatch.timer"
 XCSH_DISPATCH_UNIT = "f5-actions-runner-xcsh-dispatch.service"
 XCSH_DISPATCH_TIMER = "f5-actions-runner-xcsh-dispatch.timer"
+FLEET_DISPATCH_UNIT = "f5-actions-runner-fleet-dispatch.service"
+FLEET_DISPATCH_TIMER = "f5-actions-runner-fleet-dispatch.timer"
 ROOTLESS_DOCKER_UNIT = "f5-actions-container-build-docker.service"
 CONTAINER_BUILD_SLICE_UNIT = "f5-actions-container-build.slice"
 ROOTLESS_DOCKER_CONFIG = CONFIG_ROOT / "container-build-daemon.json"
@@ -74,6 +77,7 @@ ROOTLESS_DOCKER_DATA_ROOT = DATA_ROOT / "container-build-docker"
 ROOTLESS_RUNTIME_ROOT = Path("/run/f5-actions-runner/container-build")
 XCSH_DISPATCH_ROOT = STATE_ROOT / "xcsh-dispatch"
 XCSH_DISPATCH_COOLDOWN = XCSH_DISPATCH_ROOT / "rate-limit.json"
+FLEET_DISPATCH_ROOT = STATE_ROOT / "fleet-dispatch"
 SUBORDINATE_START = 231072
 SUBORDINATE_COUNT = 65536
 RETIRED_UNIT = "f5-actions-runner-retired.service"
@@ -476,6 +480,45 @@ WantedBy=timers.target
 """
 
 
+def fleet_dispatcher_unit_text():
+    return f"""[Unit]
+Description=F5 Actions bounded fleet runner dispatcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+TimeoutStartSec=115
+Environment=RUNNER_FLEET_GITHUB_TOKEN_FILE={TOKEN_PATH}
+ExecStartPre=/usr/bin/test -r {TOKEN_PATH}
+ExecStart=/usr/bin/python3 {INSTALL_ROOT}/fleet-runner-dispatch.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths={FLEET_DISPATCH_ROOT} {DATA_ROOT}
+
+"""
+
+
+def fleet_dispatcher_timer_text():
+    return f"""[Unit]
+Description=Schedule F5 Actions bounded fleet runner dispatcher
+
+[Timer]
+OnCalendar=*:0/2
+AccuracySec=1s
+Persistent=true
+Unit={FLEET_DISPATCH_UNIT}
+
+[Install]
+WantedBy=timers.target
+"""
+
+
 def capacity_paths():
     """Return distinct host filesystems that hold runner state or containers."""
     paths = []
@@ -746,6 +789,7 @@ def install_definition(enable_timers=True):
         INSTANCE_ROOT,
         INSTALL_ROOT,
         XCSH_DISPATCH_ROOT,
+        FLEET_DISPATCH_ROOT,
     ):
         path.mkdir(parents=True, exist_ok=True)
     command(
@@ -768,6 +812,7 @@ def install_definition(enable_timers=True):
         ENTRYPOINT_SOURCE,
         TOOL_CACHE_INITIALIZER_SOURCE,
         ROOTLESS_DOCKER_WRAPPER_SOURCE,
+        FLEET_DISPATCHER_SOURCE,
     ):
         command(
             [
@@ -809,6 +854,8 @@ def install_definition(enable_timers=True):
     safe_write(SYSTEMD_ROOT / PROFILE_DISPATCH_TIMER, profile_dispatcher_timer_text())
     safe_write(SYSTEMD_ROOT / XCSH_DISPATCH_UNIT, xcsh_dispatcher_unit_text())
     safe_write(SYSTEMD_ROOT / XCSH_DISPATCH_TIMER, xcsh_dispatcher_timer_text())
+    safe_write(SYSTEMD_ROOT / FLEET_DISPATCH_UNIT, fleet_dispatcher_unit_text())
+    safe_write(SYSTEMD_ROOT / FLEET_DISPATCH_TIMER, fleet_dispatcher_timer_text())
     safe_write(SYSTEMD_ROOT / RETIRED_UNIT, retired_reconciler_unit_text())
     safe_write(SYSTEMD_ROOT / RETIRED_TIMER, retired_reconciler_timer_text())
     for item in (*instances(policy), *standby_instances(policy)):
@@ -820,9 +867,11 @@ def install_definition(enable_timers=True):
     command(["systemctl", "daemon-reload"])
     command(["systemctl", "disable", "--now", STANDBY_TIMER])
     command(["systemctl", "disable", "--now", PROFILE_DISPATCH_TIMER])
+    command(["systemctl", "disable", "--now", XCSH_DISPATCH_TIMER])
+    command(["systemctl", "disable", "--now", CAPACITY_TIMER])
+    command(["systemctl", "disable", "--now", RETIRED_TIMER])
     if enable_timers:
-        command(["systemctl", "enable", "--now", CAPACITY_TIMER])
-        command(["systemctl", "enable", "--now", RETIRED_TIMER])
+        command(["systemctl", "enable", "--now", FLEET_DISPATCH_TIMER])
 
 
 def install_credential():
