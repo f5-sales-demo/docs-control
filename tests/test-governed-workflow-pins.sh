@@ -68,6 +68,10 @@ if not refs or set(refs) != {expected}:
     raise SystemExit(f"configured={expected}; callers={sorted(set(refs))}")
 PY
 
+check "managed reconciliation branches skip the downstream heavy lint caller" \
+  grep -Fq "!startsWith(github.event.pull_request.head.ref, 'governance/reconcile-')" \
+  "$REPO_ROOT/workflows/super-linter.yml"
+
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 

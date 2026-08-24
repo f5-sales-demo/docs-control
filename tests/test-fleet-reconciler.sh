@@ -3,7 +3,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 node - "$root/scripts/fleet-reconciler.cjs" <<'NODE'
 const assert = require('node:assert/strict');
-const {ACTIVE_PR_LIMIT, ApiQueue, contentDiff, currentProtection, desiredEntries, desiredProtection, parseSelection, reconcileContent, requireSha, settingsDelta} = require(process.argv[2]);
+const {ACTIVE_PR_LIMIT, ATTESTED_CONTEXTS, ApiQueue, assertAttestableRecovery, contentDiff, currentProtection, desiredEntries, desiredProtection, parseSelection, reconcileContent, requireSha, settingsDelta} = require(process.argv[2]);
 (async () => {
 const sha = 'a'.repeat(40);
 assert.equal(requireSha(sha), sha);
@@ -22,6 +22,11 @@ assert.equal(currentProtection({enforce_admins:{enabled:true},required_status_ch
 assert.equal(currentProtection({enforce_admins:{enabled:true},required_status_checks:null,required_pull_request_reviews:null,restrictions:{users:[],teams:[],apps:[]}}).restrictions, null);
 assert.deepEqual(currentProtection({enforce_admins:{enabled:true},required_status_checks:null,required_pull_request_reviews:null,restrictions:{users:[{login:'alice'}],teams:[],apps:[]}}).restrictions, {users:['alice'],teams:[],apps:[]});
 assert.equal(ACTIVE_PR_LIMIT, 2);
+assert.deepEqual(ATTESTED_CONTEXTS, ['lint / Lint Code Base', 'lint / Shell Unit Tests']);
+const recovery = {pr:{base:{ref:'main'},body:'marker'},note:'marker',changes:[{path:'a'}],files:[{filename:'a'}],headTree:{tree:[{path:'a',type:'blob',sha,mode:'100644'}]},desired:{files:[{path:'a',sha,mode:'100644'}],deletes:[]}};
+assert.doesNotThrow(() => assertAttestableRecovery(recovery));
+assert.throws(() => assertAttestableRecovery({...recovery,files:[{filename:'a'},{filename:'unmanaged'}]}), /unexpected paths/);
+assert.throws(() => assertAttestableRecovery({...recovery,headTree:{tree:[]}}), /desired managed tree/);
 const calls=[]; const headers=[]; let now=0; const api = new ApiQueue({token:'x', now:()=>now, sleep:async(ms)=>{calls.push(ms); now += ms;}, fetch:async(_url, request)=>{headers.push(request.headers); return new Response('{}',{status:200,headers:{etag:'"fleet"'}});}});
 await api.request('one',{method:'POST'}); now=10; await api.request('two',{method:'PATCH'}); assert.deepEqual(calls,[990]);
 await api.request('read'); await api.request('read'); assert.equal(headers.at(-1)['if-none-match'], '"fleet"');
@@ -44,6 +49,7 @@ const admission = await reconcileContent({api:fleetApi, owner:'f5', sourceSha:sh
 assert.equal(admission.repositories.filter((entry) => entry.status === 'created').length, 2);
 assert.equal(admission.repositories.find((entry) => entry.repo === 'three').status, 'deferred-capacity');
 assert.equal(writes.filter((route) => route.endsWith('/pulls')).length, 2);
+assert.equal(writes.filter((route) => route.includes('/statuses/')).length, 4);
 console.log('[OK] fleet reconciler contracts');
 })().catch((error) => { console.error(error); process.exit(1); });
 NODE

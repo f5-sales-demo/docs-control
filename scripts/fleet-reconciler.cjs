@@ -11,6 +11,7 @@ const SHA = /^[0-9a-f]{40}$/;
 const MODES = new Set(['dry-run', 'pilot', 'full']);
 const ACTIVE_PR_LIMIT = 2;
 const WRITE_GAP_MS = 1000;
+const ATTESTED_CONTEXTS = ['lint / Lint Code Base', 'lint / Shell Unit Tests'];
 
 function fail(message) {
   throw new Error(message);
@@ -118,14 +119,53 @@ async function activeGovernancePrs(api, owner, inventory) {
   return active;
 }
 
-async function createContentPr(api, { owner, repo, sourceSha, desiredTree, baseSha, changes, sourceRoot, mode }) {
+async function attestManagedCommit(api, { owner, repo, sha, sourceSha }) {
+  for (const context of ATTESTED_CONTEXTS) {
+    await api.request(`repos/${owner}/${repo}/statuses/${sha}`, {
+      method: 'POST',
+      body: {
+        state: 'success',
+        context,
+        description: `Canonical managed tree verified @ ${sourceSha.slice(0, 12)}`,
+        target_url: `https://github.com/${owner}/docs-control/commit/${sourceSha}`,
+      },
+      operationName: `attest ${context} for ${repo}`,
+    });
+  }
+}
+
+function assertAttestableRecovery({ pr, note, changes, files, headTree, desired }) {
+  if (pr.base?.ref !== 'main' || !pr.body?.includes(note)) fail('recovered reconciliation PR metadata is invalid');
+  const expectedPaths = changes.map((change) => change.path).sort();
+  const actualPaths = files.map((file) => file.filename).sort();
+  if (JSON.stringify(actualPaths) !== JSON.stringify(expectedPaths))
+    fail('recovered reconciliation PR contains unexpected paths');
+  if (contentDiff(headTree, desired).length)
+    fail('recovered reconciliation PR does not contain the desired managed tree');
+}
+
+async function createContentPr(
+  api,
+  { owner, repo, sourceSha, desiredTree, desired, baseSha, changes, sourceRoot, mode },
+) {
   const branch = branchName(sourceSha, repo);
   const note = marker(sourceSha, desiredTree);
   const open = await api.request(
     `repos/${owner}/${repo}/pulls?state=open&head=${owner}:${encodeURIComponent(branch)}&per_page=10`,
     { operationName: `find recovered PR for ${repo}` },
   );
-  if (open.length) return { status: 'recovered', pr: open[0].number };
+  if (open.length) {
+    const recovered = open[0];
+    const files = await api.request(`repos/${owner}/${repo}/pulls/${recovered.number}/files?per_page=100`, {
+      operationName: `verify recovered PR paths for ${repo}`,
+    });
+    const headTree = await api.request(`repos/${owner}/${repo}/git/trees/${recovered.head.sha}?recursive=1`, {
+      operationName: `verify recovered PR tree for ${repo}`,
+    });
+    assertAttestableRecovery({ pr: recovered, note, changes, files, headTree, desired });
+    await attestManagedCommit(api, { owner, repo, sha: recovered.head.sha, sourceSha });
+    return { status: 'recovered', pr: recovered.number };
+  }
   if (mode === 'dry-run') return { status: 'would-create', changes: changes.length };
   const baseTree = await api.request(`repos/${owner}/${repo}/git/commits/${baseSha}`, {
     operationName: `read base tree for ${repo}`,
@@ -173,6 +213,7 @@ async function createContentPr(api, { owner, repo, sourceSha, desiredTree, baseS
     body: { title: issueTitle(sourceSha), head: branch, base: 'main', body: `${note}\n\nCloses #${issue.number}` },
     operationName: `create reconciliation PR for ${repo}`,
   });
+  await attestManagedCommit(api, { owner, repo, sha: commit.sha, sourceSha });
   await api.request('graphql', {
     method: 'POST',
     body: {
@@ -216,6 +257,7 @@ async function reconcileContent(options) {
       repo,
       sourceSha,
       desiredTree,
+      desired,
       baseSha: main.sha,
       changes,
       sourceRoot,
@@ -415,7 +457,9 @@ if (require.main === module)
 
 module.exports = {
   ACTIVE_PR_LIMIT,
+  ATTESTED_CONTEXTS,
   ApiQueue,
+  assertAttestableRecovery,
   contentDiff,
   currentProtection,
   desiredEntries,
