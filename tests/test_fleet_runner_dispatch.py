@@ -80,6 +80,32 @@ class FleetRunnerDispatchTests(unittest.TestCase):
             self.assertEqual(MODULE.dispatch(), 0)
         controller.assert_not_called()
 
+    def test_idle_reap_rate_limit_persists_the_cooldown(self):
+        class RateLimitError(Exception):
+            kind = "primary"
+            retry_at = 1200
+
+        policy = self.policy(("f5-sales-demo/docs",), 80)
+        controller = SimpleNamespace(
+            GitHubClient=lambda _token: mock.sentinel.github,
+            token_from_environment=lambda: "credential",
+            EphemeralController=lambda *_args: mock.sentinel.controller,
+            GitHubRateLimitError=RateLimitError,
+        )
+        with (
+            mock.patch.object(MODULE.PROVISION, "require_root"),
+            mock.patch.object(MODULE.PROVISION, "active_policy", return_value=policy),
+            mock.patch.object(
+                MODULE.PROVISION, "load_controller", return_value=controller
+            ),
+            mock.patch.object(MODULE, "reap_idle", side_effect=RateLimitError()),
+        ):
+            self.assertEqual(MODULE.dispatch(), 0)
+        self.assertEqual(
+            MODULE.state(policy.dispatcher.repositories),
+            {"cursor": 0, "cooldowns": {"primary": 1200, "secondary": 0}},
+        )
+
     def test_request_budget_resumes_from_the_durable_round_robin_cursor(self):
         repositories = ("f5-sales-demo/alpha", "f5-sales-demo/bravo")
         policy = self.policy(repositories, 1)
@@ -120,6 +146,148 @@ class FleetRunnerDispatchTests(unittest.TestCase):
 
         self.assertEqual(started, [])
 
+    def test_reaps_only_the_exact_verified_idle_runner(self):
+        repository = "f5-sales-demo/docs"
+        profile = SimpleNamespace(name="ubuntu-24.04", docker_socket=False)
+        spec = SimpleNamespace(name="docs")
+        item = SimpleNamespace(
+            repository=repository,
+            profile=profile.name,
+            slot=0,
+            unit="fixture",
+        )
+        path = f"/repos/{repository}/actions/runners?per_page=100"
+        github = GitHub(
+            {
+                path: (
+                    {
+                        "runners": [
+                            {
+                                "name": "gha-unrelated-ubuntu-24.04-0-other",
+                                "status": "online",
+                                "busy": False,
+                            },
+                            {
+                                "name": "gha-docs-ubuntu-24.04-0-retired",
+                                "status": "offline",
+                                "busy": False,
+                            },
+                            {
+                                "name": "gha-docs-ubuntu-24.04-0-current",
+                                "status": "online",
+                                "busy": False,
+                            },
+                        ]
+                    },
+                    {},
+                )
+            }
+        )
+        stopped = []
+
+        def command(argv, **_kwargs):
+            stopped.append(argv)
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        policy = SimpleNamespace(repository=lambda _repository: spec)
+        with (
+            mock.patch.object(
+                MODULE.PROVISION, "active_fleet_instances", return_value=(item,)
+            ),
+            mock.patch.object(
+                MODULE.PROVISION, "instance_profile", return_value=profile
+            ),
+            mock.patch.object(MODULE.PROVISION, "command", side_effect=command),
+        ):
+            self.assertEqual(MODULE.reap_idle(github, policy, 80), 1)
+        self.assertEqual(
+            stopped,
+            [["systemctl", "stop", "--no-block", item.unit]],
+        )
+
+    def test_idle_reaping_preserves_busy_offline_and_unrelated_runners(self):
+        repository = "f5-sales-demo/docs"
+        profile = SimpleNamespace(name="ubuntu-24.04", docker_socket=False)
+        spec = SimpleNamespace(name="docs")
+        item = SimpleNamespace(
+            repository=repository,
+            profile=profile.name,
+            slot=0,
+            unit="fixture",
+        )
+        path = f"/repos/{repository}/actions/runners?per_page=100"
+        for runner in (
+            {"name": "gha-docs-ubuntu-24.04-0-busy", "status": "online", "busy": True},
+            {
+                "name": "gha-docs-ubuntu-24.04-0-offline",
+                "status": "offline",
+                "busy": False,
+            },
+            {
+                "name": "gha-other-ubuntu-24.04-0-idle",
+                "status": "online",
+                "busy": False,
+            },
+        ):
+            with self.subTest(runner=runner):
+                github = GitHub({path: ({"runners": [runner]}, {})})
+                command = mock.Mock(
+                    return_value=SimpleNamespace(returncode=0, stdout="", stderr="")
+                )
+                policy = SimpleNamespace(repository=lambda _repository: spec)
+                with (
+                    mock.patch.object(
+                        MODULE.PROVISION,
+                        "active_fleet_instances",
+                        return_value=(item,),
+                    ),
+                    mock.patch.object(
+                        MODULE.PROVISION, "instance_profile", return_value=profile
+                    ),
+                    mock.patch.object(MODULE.PROVISION, "command", command),
+                ):
+                    self.assertEqual(MODULE.reap_idle(github, policy, 80), 1)
+                command.assert_not_called()
+
+    def test_idle_reaping_is_counted_in_the_request_budget(self):
+        profile = SimpleNamespace(name="ubuntu-24.04", docker_socket=False)
+        alpha = SimpleNamespace(
+            repository="f5-sales-demo/alpha",
+            profile=profile.name,
+            slot=0,
+            unit="alpha.service",
+        )
+        bravo = SimpleNamespace(
+            repository="f5-sales-demo/bravo",
+            profile=profile.name,
+            slot=0,
+            unit="bravo.service",
+        )
+        github = GitHub(
+            {
+                "/repos/f5-sales-demo/alpha/actions/runners?per_page=100": (
+                    {"runners": []},
+                    {},
+                )
+            }
+        )
+        policy = SimpleNamespace(
+            repository=lambda _repository: SimpleNamespace(name="x")
+        )
+        with (
+            mock.patch.object(
+                MODULE.PROVISION,
+                "active_fleet_instances",
+                return_value=(alpha, bravo),
+            ),
+            mock.patch.object(
+                MODULE.PROVISION, "instance_profile", return_value=profile
+            ),
+        ):
+            self.assertEqual(MODULE.reap_idle(github, policy, 1), 1)
+        self.assertEqual(len(github.calls), 1)
+        self.assertIn("/alpha/", github.calls[0][1])
+
     @staticmethod
     def policy(repositories, budget, profile=None):
         profile = profile or SimpleNamespace(name="socketless", docker_socket=False)
@@ -148,6 +316,9 @@ class FleetRunnerDispatchTests(unittest.TestCase):
             mock.patch.object(MODULE.PROVISION, "active_policy", return_value=policy),
             mock.patch.object(
                 MODULE.PROVISION, "load_controller", return_value=controller
+            ),
+            mock.patch.object(
+                MODULE.PROVISION, "active_fleet_instances", return_value=()
             ),
         ):
             self.assertEqual(MODULE.dispatch(), 0)
@@ -202,6 +373,9 @@ class FleetRunnerDispatchTests(unittest.TestCase):
                 MODULE.PROVISION, "successful_docker_trust_gate", return_value=trusted
             ),
             mock.patch.object(MODULE.PROVISION, "command", side_effect=command),
+            mock.patch.object(
+                MODULE.PROVISION, "active_fleet_instances", return_value=()
+            ),
         ):
             self.assertEqual(MODULE.dispatch(), 0)
         return started
