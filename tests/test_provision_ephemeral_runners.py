@@ -384,8 +384,8 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             ["systemctl", "disable", "--now", MODULE.PROFILE_DISPATCH_TIMER], calls
         )
         self.assertIn(["systemctl", "disable", "--now", MODULE.XCSH_DISPATCH_TIMER], calls)
-        self.assertIn(["systemctl", "disable", "--now", MODULE.CAPACITY_TIMER], calls)
-        self.assertIn(["systemctl", "disable", "--now", MODULE.RETIRED_TIMER], calls)
+        self.assertIn(["systemctl", "enable", "--now", MODULE.CAPACITY_TIMER], calls)
+        self.assertIn(["systemctl", "enable", "--now", MODULE.RETIRED_TIMER], calls)
         self.assertIn(
             [
                 "install",

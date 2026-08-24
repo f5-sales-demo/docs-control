@@ -868,10 +868,10 @@ def install_definition(enable_timers=True):
     command(["systemctl", "disable", "--now", STANDBY_TIMER])
     command(["systemctl", "disable", "--now", PROFILE_DISPATCH_TIMER])
     command(["systemctl", "disable", "--now", XCSH_DISPATCH_TIMER])
-    command(["systemctl", "disable", "--now", CAPACITY_TIMER])
-    command(["systemctl", "disable", "--now", RETIRED_TIMER])
     if enable_timers:
         command(["systemctl", "enable", "--now", FLEET_DISPATCH_TIMER])
+        command(["systemctl", "enable", "--now", CAPACITY_TIMER])
+        command(["systemctl", "enable", "--now", RETIRED_TIMER])
 
 
 def install_credential():

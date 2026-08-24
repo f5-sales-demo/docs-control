@@ -93,13 +93,30 @@ def valid_runs(response):
 
 
 def candidate_for(policy, repository, profile):
-    return next((item for item in PROVISION.instances(policy) if item.repository == repository and item.profile == profile.name and item.slot == 0), None)
+    primary = next((item for item in PROVISION.instances(policy) if item.repository == repository and item.profile == profile.name and item.slot == 0), None)
+    standby = next((item for item in PROVISION.standby_instances(policy) if item.repository == repository and item.profile == profile.name), None)
+    return primary, standby
 
 
 def active(item):
     result = PROVISION.command(["systemctl", "is-active", item.unit], check=False, capture=True)
     return result.returncode == 0 and result.stdout.strip() == "active"
 
+
+
+def primary_busy(github, repository, spec, profile, primary):
+    response = get(github, f"/repos/{repository}/actions/runners?per_page=100")
+    runners = response.get("runners")
+    if not isinstance(runners, list) or any(not isinstance(runner, dict) for runner in runners):
+        raise PROVISION.ProvisionError("GitHub fleet runner inventory is malformed")
+    prefix = f"gha-{spec.name}-{profile.name}-{primary.slot}-"
+    return any(
+        isinstance(runner.get("name"), str)
+        and runner["name"].startswith(prefix)
+        and runner.get("status") == "online"
+        and runner.get("busy") is True
+        for runner in runners
+    )
 
 def dispatch():
     """Make at most 80 inventory requests, resuming fairly from a durable cursor."""
@@ -123,7 +140,7 @@ def dispatch():
             for offset, repository in enumerate(ordered):
                 if requests >= policy.dispatcher.request_budget:
                     break
-                runs = valid_runs(get(github, f"/repos/{repository}/actions/runs?per_page=100"))
+                runs = valid_runs(get(github, f"/repos/{repository}/actions/runs?status=active&per_page=100"))
                 requests += 1
                 spec = policy.repository(repository)
                 for run in runs:
@@ -142,9 +159,17 @@ def dispatch():
                         for profile in spec.profiles:
                             if set(labels) != controller.expected_labels(spec, profile) or (profile.docker_socket and not trusted):
                                 continue
-                            candidate = candidate_for(policy, repository, profile)
-                            if candidate is None or active(candidate):
+                            primary, standby = candidate_for(policy, repository, profile)
+                            if primary is None:
                                 break
+                            candidate = primary
+                            if active(primary):
+                                if standby is None or active(standby) or requests >= policy.dispatcher.request_budget:
+                                    break
+                                if not primary_busy(github, repository, spec, profile, primary):
+                                    break
+                                requests += 1
+                                candidate = standby
                             if not PROVISION.admission_allows(policy, candidate):
                                 print(f"[REFUSE] repository={repository} profile={profile.name} admission=exceeded")
                                 break
