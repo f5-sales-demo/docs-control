@@ -1,5 +1,5 @@
 {
-  "source_commit": "3b7d6c90320a250148c14fa1760bfe8cbed1804a",
+  "source_commit": "5c0df9d080a83cac6d7a9cad4c6c3452fca08bc3",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -11,8 +11,8 @@
     ".github/workflows/require-linked-issue.yml": {
       "src": "workflows/require-linked-issue.yml",
       "dest": ".github/workflows/require-linked-issue.yml",
-      "sha": "8c218ad57ddbbf802442d45aa1c15a6425d264c6",
-      "size": 1484,
+      "sha": "d17f669561a5be0f1fd2c8abaad0472f8dc6a93a",
+      "size": 1735,
       "mode": "100644"
     },
     ".github/workflows/super-linter.yml": {
