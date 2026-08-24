@@ -6,6 +6,8 @@ on:
     branches: [main]
     paths:
       - '.github/config/managed-files-manifest.json'
+      - 'scripts/fleet-reconciler.cjs'
+      - 'scripts/github-api-resilience.cjs'
   workflow_dispatch:
     inputs:
       source_sha:

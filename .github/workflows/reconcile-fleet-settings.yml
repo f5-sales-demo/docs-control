@@ -8,6 +8,8 @@ on:
       - '.github/config/repo-settings.json'
       - '.github/config/downstream-repos.json'
       - '.github/workflows/reconcile-fleet-settings.yml'
+      - 'scripts/fleet-reconciler.cjs'
+      - 'scripts/github-api-resilience.cjs'
   schedule:
     - cron: '17 */6 * * *'
   workflow_dispatch:

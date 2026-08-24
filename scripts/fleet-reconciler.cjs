@@ -366,6 +366,20 @@ function currentProtection(protection) {
     allow_fork_syncing: enabled(protection.allow_fork_syncing),
   };
 }
+function aggregateProtection(protection) {
+  if (!protection) return protection;
+  const status = protection.required_status_checks;
+  return {
+    ...protection,
+    required_status_checks:
+      status === null
+        ? null
+        : {
+            strict: status.strict,
+            contexts: (status.checks || []).map((check) => check.context).sort(),
+          },
+  };
+}
 async function reconcileSettings(options) {
   const { api, owner, inventory, config, selection, mode } = options;
   const repos = parseSelection(selection, inventory);
@@ -412,14 +426,35 @@ async function reconcileSettings(options) {
       operationName: `read branch protection for ${repo}`,
     });
     const wantedProtection = desiredProtection(config, repo);
-    const protectionDelta =
-      JSON.stringify(currentProtection(protection)) === JSON.stringify(wantedProtection) ? null : wantedProtection;
-    if (protectionDelta) {
+    const normalizedProtection = currentProtection(protection);
+    const aggregateDelta =
+      JSON.stringify(aggregateProtection(normalizedProtection)) ===
+      JSON.stringify(aggregateProtection(wantedProtection))
+        ? null
+        : aggregateProtection(wantedProtection);
+    const statusChecksDelta =
+      JSON.stringify(normalizedProtection.required_status_checks) ===
+      JSON.stringify(wantedProtection.required_status_checks)
+        ? null
+        : wantedProtection.required_status_checks;
+    if (aggregateDelta) {
       await api.request(`repos/${owner}/${repo}/branches/main/protection`, {
         method: 'PUT',
-        body: protectionDelta,
+        body: aggregateDelta,
         operationName: `repair branch protection for ${repo}`,
       });
+    }
+    if (statusChecksDelta || aggregateDelta) {
+      await api.request(`repos/${owner}/${repo}/branches/main/protection/required_status_checks`, {
+        method: 'PATCH',
+        body: wantedProtection.required_status_checks,
+        operationName: `repair required check bindings for ${repo}`,
+      });
+      const verified = await api.request(`repos/${owner}/${repo}/branches/main/protection`, {
+        operationName: `verify branch protection for ${repo}`,
+      });
+      if (JSON.stringify(currentProtection(verified)) !== JSON.stringify(wantedProtection))
+        fail(`branch protection verification failed for ${repo}`);
     }
     result.push({
       repo,
@@ -427,7 +462,8 @@ async function reconcileSettings(options) {
         Object.keys(delta).length ||
         Object.keys(actionsDelta).length ||
         Object.keys(forkDelta).length ||
-        protectionDelta
+        aggregateDelta ||
+        statusChecksDelta
           ? 'updated'
           : 'noop',
       delta,
@@ -476,6 +512,7 @@ module.exports = {
   ACTIVE_PR_LIMIT,
   ATTESTED_CONTEXTS,
   ApiQueue,
+  aggregateProtection,
   assertAttestableRecovery,
   contentDiff,
   currentProtection,
