@@ -81,6 +81,7 @@ RETIRED_LEGACY_DISPATCH_UNIT_FILES = (
 FLEET_DISPATCH_UNIT = "f5-actions-runner-fleet-dispatch.service"
 FLEET_DISPATCH_TIMER = "f5-actions-runner-fleet-dispatch.timer"
 ROOTLESS_DOCKER_UNIT = "f5-actions-container-build-docker.service"
+RUNNER_SLICE_UNIT = "f5-actions-runner.slice"
 CONTAINER_BUILD_SLICE_UNIT = "f5-actions-container-build.slice"
 ROOTLESS_DOCKER_CONFIG = CONFIG_ROOT / "container-build-daemon.json"
 ROOTLESS_DOCKER_DATA_ROOT = DATA_ROOT / "container-build-docker"
@@ -347,6 +348,7 @@ Requires=docker.service
 
 [Service]
 Type=simple
+Slice={RUNNER_SLICE_UNIT}
 Environment=RUNNER_FLEET_GITHUB_TOKEN_FILE={TOKEN_PATH}
 EnvironmentFile={INSTANCE_ROOT}/%i.env
 ExecStartPre=/usr/bin/test -r {TOKEN_PATH}
@@ -379,6 +381,17 @@ MemoryHigh=14G
 MemoryMax=16G
 MemorySwapMax=0
 CPUQuota=600%
+"""
+
+
+def runner_slice_text():
+    return """[Unit]
+Description=Bounded cgroup for F5 Actions socketless runners
+
+[Slice]
+MemoryHigh=44G
+MemoryMax=48G
+CPUQuota=1800%
 """
 
 
@@ -759,6 +772,7 @@ def install_definition(enable_timers=True):
         ]
     )
     safe_write(ROOTLESS_DOCKER_CONFIG, rootless_docker_config_text(policy))
+    safe_write(SYSTEMD_ROOT / RUNNER_SLICE_UNIT, runner_slice_text())
     safe_write(SYSTEMD_ROOT / CONTAINER_BUILD_SLICE_UNIT, container_build_slice_text())
     safe_write(SYSTEMD_ROOT / ROOTLESS_DOCKER_UNIT, rootless_docker_unit_text())
     safe_write(SYSTEMD_ROOT / RUNNER_UNIT, runner_unit_text())
