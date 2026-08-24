@@ -80,6 +80,32 @@ class FleetRunnerDispatchTests(unittest.TestCase):
             self.assertEqual(MODULE.dispatch(), 0)
         controller.assert_not_called()
 
+    def test_idle_reap_rate_limit_persists_the_cooldown(self):
+        class RateLimitError(Exception):
+            kind = "primary"
+            retry_at = 1200
+
+        policy = self.policy(("f5-sales-demo/docs",), 80)
+        controller = SimpleNamespace(
+            GitHubClient=lambda _token: mock.sentinel.github,
+            token_from_environment=lambda: "credential",
+            EphemeralController=lambda *_args: mock.sentinel.controller,
+            GitHubRateLimitError=RateLimitError,
+        )
+        with (
+            mock.patch.object(MODULE.PROVISION, "require_root"),
+            mock.patch.object(MODULE.PROVISION, "active_policy", return_value=policy),
+            mock.patch.object(
+                MODULE.PROVISION, "load_controller", return_value=controller
+            ),
+            mock.patch.object(MODULE, "reap_idle", side_effect=RateLimitError()),
+        ):
+            self.assertEqual(MODULE.dispatch(), 0)
+        self.assertEqual(
+            MODULE.state(policy.dispatcher.repositories),
+            {"cursor": 0, "cooldowns": {"primary": 1200, "secondary": 0}},
+        )
+
     def test_request_budget_resumes_from_the_durable_round_robin_cursor(self):
         repositories = ("f5-sales-demo/alpha", "f5-sales-demo/bravo")
         policy = self.policy(repositories, 1)

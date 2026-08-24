@@ -238,10 +238,10 @@ def dispatch():
             controller_module.token_from_environment()
         )
         controller = controller_module.EphemeralController(policy, None)
-        requests = reap_idle(github, policy, policy.dispatcher.request_budget)
         cursor = current["cursor"]
         ordered = repositories[cursor:] + repositories[:cursor]
         try:
+            requests = reap_idle(github, policy, policy.dispatcher.request_budget)
             for offset, repository in enumerate(ordered):
                 if requests >= policy.dispatcher.request_budget:
                     break
