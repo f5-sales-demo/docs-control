@@ -3,6 +3,8 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 node - "$root/scripts/fleet-reconciler.cjs" <<'NODE'
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const {ACTIVE_PR_LIMIT, ATTESTED_CONTEXTS, ApiQueue, aggregateProtection, assertAttestableRecovery, attestationContexts, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, parseSelection, reconcileContent, requireSha, settingsDelta} = require(process.argv[2]);
 (async () => {
 const sha = 'a'.repeat(40);
@@ -22,6 +24,11 @@ assert.deepEqual(protection.required_status_checks.contexts, []);
 assert.deepEqual(protection.required_status_checks.checks, [{context:'Extra',app_id:-1},{context:'lint / Lint',app_id:-1}]);
 const attestedProtection = desiredProtection({branch_protection:[{branch:'main',enforce_admins:true,required_status_checks:{strict:true,contexts:['Check linked issues','lint / Lint Code Base','lint / Shell Unit Tests']},required_pull_request_reviews:null,restrictions:null}]}, 'one');
 assert.deepEqual(attestedProtection.required_status_checks.checks, [{context:'Check linked issues',app_id:-1},{context:'lint / Lint Code Base',app_id:-1},{context:'lint / Shell Unit Tests',app_id:-1}]);
+const canonicalSettings = JSON.parse(fs.readFileSync(path.join(path.dirname(process.argv[2]), '..', '.github/config/repo-settings.json'), 'utf8'));
+const xcshProtection = desiredProtection(canonicalSettings, 'xcsh');
+assert.deepEqual(xcshProtection.required_status_checks.checks, [
+  {context:'Check linked issues',app_id:-1}, {context:'lint / Lint Code Base',app_id:-1}, {context:'lint / Shell Unit Tests',app_id:-1},
+]);
 const mixedCaseProtection = desiredProtection({branch_protection:[{branch:'main',required_status_checks:{strict:true,contexts:['Python test suite','lint / Lint Code Base']}}]}, 'one');
 assert.deepEqual(mixedCaseProtection.required_status_checks.checks.map(x => x.context), ['lint / Lint Code Base','Python test suite']);
 assert.deepEqual(attestationContexts({branch_protection:[{branch:'main',required_status_checks:{strict:true,contexts:['Check linked issues']}}],repo_overrides:{one:{additional_contexts:['Python test suite']}}}, 'one'), ['Check linked issues','Python test suite']);
