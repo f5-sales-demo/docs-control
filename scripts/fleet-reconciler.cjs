@@ -281,14 +281,15 @@ function currentProtection(protection) {
             apps: identities(review?.bypass_pull_request_allowances?.apps),
           },
         };
+  const normalizedRestrictions = {
+    users: identities(protection.restrictions?.users),
+    teams: identities(protection.restrictions?.teams),
+    apps: identities(protection.restrictions?.apps),
+  };
   const restrictions =
-    protection.restrictions === null
+    protection.restrictions === null || Object.values(normalizedRestrictions).every((items) => items.length === 0)
       ? null
-      : {
-          users: identities(protection.restrictions?.users),
-          teams: identities(protection.restrictions?.teams),
-          apps: identities(protection.restrictions?.apps),
-        };
+      : normalizedRestrictions;
   return {
     enforce_admins: enabled(protection.enforce_admins),
     required_status_checks: protection.required_status_checks && {
