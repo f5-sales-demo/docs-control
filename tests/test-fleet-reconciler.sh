@@ -3,10 +3,11 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 node - "$root/scripts/fleet-reconciler.cjs" <<'NODE'
 const assert = require('node:assert/strict');
-const {ACTIVE_PR_LIMIT, ATTESTED_CONTEXTS, ApiQueue, aggregateProtection, assertAttestableRecovery, attestationContexts, contentDiff, currentProtection, desiredEntries, desiredProtection, parseSelection, reconcileContent, requireSha, settingsDelta} = require(process.argv[2]);
+const {ACTIVE_PR_LIMIT, ATTESTED_CONTEXTS, ApiQueue, aggregateProtection, assertAttestableRecovery, attestationContexts, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, parseSelection, reconcileContent, requireSha, settingsDelta} = require(process.argv[2]);
 (async () => {
 const sha = 'a'.repeat(40);
 assert.equal(requireSha(sha), sha);
+assert.equal(managedCommitMessage(sha), `chore: reconcile governed files @ ${sha.slice(0,12)} [skip ci]`);
 assert.throws(() => requireSha('short'));
 assert.deepEqual(parseSelection('one,two', ['one', 'two']), ['one', 'two']);
 assert.throws(() => parseSelection('missing', ['one']));
