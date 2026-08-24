@@ -383,17 +383,18 @@ else
 fi
 
 XCSH_CONTEXTS=$(jq -c '.repo_overrides.xcsh.additional_contexts // []' "$REPO_SETTINGS")
-if echo "$XCSH_CONTEXTS" | jq -e 'index("pii-guard") != null' >/dev/null; then
-  pass "7c.2 xcsh requires the pii-guard check"
+if echo "$XCSH_CONTEXTS" | jq -e 'index("pii-guard") == null' >/dev/null; then
+  pass "7c.2 xcsh does not retain the legacy pii-guard requirement"
 else
-  fail "7c.2 xcsh requires the pii-guard check" "pii-guard is not in xcsh additional_contexts"
+  fail "7c.2 xcsh does not retain the legacy pii-guard requirement" \
+    "pii-guard remains in xcsh additional_contexts"
 fi
 
-if echo "$XCSH_CONTEXTS" | jq -e 'index("container-test") != null' >/dev/null; then
-  pass "7c.3 xcsh requires the container-test check"
+if echo "$XCSH_CONTEXTS" | jq -e 'index("container-test") == null' >/dev/null; then
+  pass "7c.3 xcsh does not retain the legacy container-test requirement"
 else
-  fail "7c.3 xcsh requires the container-test check" \
-    "container-test is not in xcsh additional_contexts"
+  fail "7c.3 xcsh does not retain the legacy container-test requirement" \
+    "container-test remains in xcsh additional_contexts"
 fi
 
 API_SPECS_CONTEXTS=$(jq -c '.repo_overrides["api-specs"].additional_contexts // []' "$REPO_SETTINGS")
@@ -1524,7 +1525,8 @@ run = biome["run"]
 assert "biome ci ." not in run
 assert 'git diff --name-only -z --diff-filter=ACMR "origin/${BASE_REF}...HEAD"' in run
 assert "mapfile -d '' -t biome_files" in run
-assert 'biome ci -- "${biome_files[@]}"' in run
+assert 'biome ci --no-errors-on-unmatched -- "${biome_files[@]}"' in run
+assert 'biome ci -- "${biome_files[@]}"' not in run
 assert "No changed biome-eligible files found — skipping" in run
 for extension in ("*.js", "*.jsx", "*.ts", "*.tsx", "*.json", "*.jsonc", "*.css", "*.vue"):
     assert extension in run

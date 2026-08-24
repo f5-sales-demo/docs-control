@@ -296,7 +296,10 @@ jobs:
               done
           )
           if ((${#biome_files[@]})); then
-            biome ci -- "${biome_files[@]}"
+            # A repository's native Biome configuration may intentionally ignore
+            # every changed candidate. That is a valid scoped result, not a lint
+            # failure; non-ignored candidates are still checked normally.
+            biome ci --no-errors-on-unmatched -- "${biome_files[@]}"
           else
             echo "No changed biome-eligible files found — skipping"
           fi
