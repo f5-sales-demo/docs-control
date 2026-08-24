@@ -58,6 +58,7 @@ assert.equal(admission.repositories.filter((entry) => entry.status === 'created'
 assert.equal(admission.repositories.find((entry) => entry.repo === 'three').status, 'deferred-capacity');
 assert.equal(writes.filter((route) => route.endsWith('/pulls')).length, 2);
 assert.equal(writes.filter((route) => route.includes('/statuses/')).length, 6);
+assert.ok(writes.findIndex((route) => route.endsWith('/graphql')) < writes.findIndex((route) => route.includes('/statuses/')));
 console.log('[OK] fleet reconciler contracts');
 })().catch((error) => { console.error(error); process.exit(1); });
 NODE
