@@ -241,7 +241,7 @@ async function requestGitHubApi(endpoint, options = {}) {
     });
     const raw = await response.text();
     if (typeof options.onResponse === 'function') {
-      options.onResponse({url, status: response.status, headers: response.headers});
+      options.onResponse({ url, status: response.status, headers: response.headers });
     }
     let data;
     try {
