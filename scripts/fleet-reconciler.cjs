@@ -12,6 +12,7 @@ const MODES = new Set(['dry-run', 'pilot', 'full']);
 const ACTIVE_PR_LIMIT = 2;
 const WRITE_GAP_MS = 1000;
 const ATTESTED_CONTEXTS = ['lint / Lint Code Base', 'lint / Shell Unit Tests'];
+const GITHUB_ACTIONS_APP_ID = 15368;
 
 function fail(message) {
   throw new Error(message);
@@ -279,16 +280,28 @@ function desiredProtection(config, repo) {
   const base = (config.branch_protection || []).find((entry) => entry.branch === 'main');
   if (!base) return null;
   const override = config.repo_overrides?.[repo] || {};
-  const { self_contexts: _selfContexts, ...requiredStatusChecks } = base.required_status_checks || {};
+  const {
+    self_contexts: _selfContexts,
+    contexts: _configuredContexts,
+    checks: _configuredChecks,
+    ...requiredStatusChecks
+  } = base.required_status_checks || {};
   // This reconciler only manages downstream repositories. `self_contexts`
   // documents docs-control's own unqualified workflow names; downstream
   // workflows report the qualified names in `contexts`.
   const contexts = [
     ...new Set([...(base.required_status_checks?.contexts || []), ...(override.additional_contexts || [])]),
   ].sort();
+  const checks = contexts.map((context) => ({
+    context,
+    // GitHub documents -1 as an explicit any-app binding. The reconciler's
+    // exact-commit statuses can therefore satisfy only the two pre-linted
+    // contexts; real workflow checks remain Actions-bound.
+    app_id: ATTESTED_CONTEXTS.includes(context) ? -1 : GITHUB_ACTIONS_APP_ID,
+  }));
   return {
     enforce_admins: base.enforce_admins,
-    required_status_checks: { ...requiredStatusChecks, contexts },
+    required_status_checks: { ...requiredStatusChecks, contexts: [], checks },
     required_pull_request_reviews: base.required_pull_request_reviews,
     restrictions: base.restrictions,
     required_linear_history: base.required_linear_history,
@@ -332,11 +345,15 @@ function currentProtection(protection) {
     protection.restrictions === null || Object.values(normalizedRestrictions).every((items) => items.length === 0)
       ? null
       : normalizedRestrictions;
+  const checks = [...(protection.required_status_checks?.checks || [])]
+    .map((check) => ({ context: check.context, app_id: check.app_id ?? -1 }))
+    .sort((a, b) => a.context.localeCompare(b.context) || a.app_id - b.app_id);
   return {
     enforce_admins: enabled(protection.enforce_admins),
     required_status_checks: protection.required_status_checks && {
       strict: protection.required_status_checks.strict,
-      contexts: [...(protection.required_status_checks.contexts || [])].sort(),
+      contexts: checks.length ? [] : [...(protection.required_status_checks.contexts || [])].sort(),
+      checks,
     },
     required_pull_request_reviews: normalizedReview,
     restrictions,
