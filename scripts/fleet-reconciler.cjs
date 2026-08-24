@@ -159,7 +159,7 @@ function assertAttestableRecovery({ pr, note, changes, files, headTree, desired 
 
 async function createContentPr(
   api,
-  { owner, repo, sourceSha, desiredTree, desired, contexts, baseSha, changes, sourceRoot, mode },
+  { owner, repo, sourceSha, desiredTree, desired, contexts, baseSha, changes, sourceRoot, mode, capacityAvailable },
 ) {
   const branch = branchName(sourceSha, repo);
   const note = marker(sourceSha, desiredTree);
@@ -181,6 +181,7 @@ async function createContentPr(
     return { status: 'recovered', pr: recovered.number };
   }
   if (mode === 'dry-run') return { status: 'would-create', changes: changes.length };
+  if (!capacityAvailable) return { status: 'deferred-capacity' };
   const baseTree = await api.request(`repos/${owner}/${repo}/git/commits/${baseSha}`, {
     operationName: `read base tree for ${repo}`,
   });
@@ -253,11 +254,6 @@ async function reconcileContent(options) {
       result.repositories.push({ repo, status: 'noop' });
       continue;
     }
-    if (active >= ACTIVE_PR_LIMIT && mode !== 'dry-run') {
-      result.repositories.push({ repo, status: 'deferred-capacity' });
-      result.deferred = true;
-      continue;
-    }
     const outcome = await createContentPr(api, {
       owner,
       repo,
@@ -269,8 +265,10 @@ async function reconcileContent(options) {
       changes,
       sourceRoot,
       mode,
+      capacityAvailable: active < ACTIVE_PR_LIMIT,
     });
     if (outcome.status === 'created') active += 1;
+    if (outcome.status === 'deferred-capacity') result.deferred = true;
     result.repositories.push({ repo, ...outcome });
   }
   return result;
