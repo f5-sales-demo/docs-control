@@ -60,6 +60,29 @@ assert.equal(admission.repositories.find((entry) => entry.repo === 'three').stat
 assert.equal(writes.filter((route) => route.endsWith('/pulls')).length, 2);
 assert.equal(writes.filter((route) => route.includes('/statuses/')).length, 7);
 assert.ok(writes.findIndex((route) => route.endsWith('/graphql')) < writes.findIndex((route) => route.includes('/statuses/')));
+const recoveryWrites=[];
+const recoveryDesired={files:[{path:'README',sha,mode:'100644',src:'README.md'}],deletes:[]};
+const recoveryTree=require('node:crypto').createHash('sha256').update(JSON.stringify(recoveryDesired)).digest('hex');
+const recoveryNote=`<!-- governance-reconciler source=${sha} desired-tree=${recoveryTree} -->`;
+const recoveryApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.MAX_SAFE_INTEGER, fetch:async(url, request) => {
+  const route=String(url); const method=request.method; if (method !== 'GET') recoveryWrites.push(route);
+  let data={};
+  if (route.includes('/pulls?state=open&per_page=100')) {
+    const repo=route.match(/repos\/f5\/([^/]+)/)[1];
+    data=['one','two'].includes(repo) ? [{head:{ref:`governance/reconcile-${sha.slice(0,12)}-${repo}`}}] : [];
+  } else if (route.includes('/pulls?state=open&head=')) {
+    const repo=route.match(/repos\/f5\/([^/]+)/)[1];
+    data=['one','two'].includes(repo) ? [{number:1,node_id:'P',base:{ref:'main'},body:`${recoveryNote}\n\nCloses #1`,head:{sha}}] : [];
+  } else if (route.includes('/pulls/1/files')) data=[{filename:'README'}];
+  else if (route.includes('/commits/main')) data={sha:'c'.repeat(40)};
+  else if (route.includes(`/git/trees/${sha}`)) data={tree:[{path:'README',type:'blob',sha,mode:'100644'}]};
+  else if (route.includes('/git/trees/')) data={tree:[]};
+  return new Response(JSON.stringify(data),{status:200});
+}});
+const recovered = await reconcileContent({api:recoveryApi, owner:'f5', sourceSha:sha, mode:'full', inventory:['one','two','three'], selection:'', sourceRoot:process.cwd(), manifest:{files:{README:{src:'README.md',sha,mode:'100644'}}}, config:{managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}}}});
+assert.deepEqual(recovered.repositories.map(x => x.status), ['recovered','recovered','deferred-capacity']);
+assert.equal(recoveryWrites.filter(route => route.includes('/statuses/')).length, 6);
+assert.equal(recoveryWrites.filter(route => route.endsWith('/pulls')).length, 0);
 console.log('[OK] fleet reconciler contracts');
 })().catch((error) => { console.error(error); process.exit(1); });
 NODE
