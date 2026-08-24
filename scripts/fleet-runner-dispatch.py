@@ -7,6 +7,7 @@ import fcntl
 import hashlib
 import importlib.util
 import json
+import subprocess
 import sys
 import time
 from contextlib import contextmanager
@@ -312,7 +313,14 @@ def dispatch():
                                     f"[REFUSE] repository={repository} profile={profile.name} admission=exceeded"
                                 )
                                 break
-                            PROVISION.command(["systemctl", "start", candidate.unit])
+                            PROVISION.authorize_runner_start(candidate)
+                            try:
+                                PROVISION.command(
+                                    ["systemctl", "start", candidate.unit]
+                                )
+                            except (OSError, subprocess.SubprocessError):
+                                PROVISION.revoke_runner_start(candidate)
+                                raise
                             print(
                                 f"[DISPATCH] repository={repository} profile={profile.name} unit={candidate.unit}"
                             )
