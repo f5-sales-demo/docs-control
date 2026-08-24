@@ -170,8 +170,8 @@ class FleetRunnerDispatchTests(unittest.TestCase):
                 ),
             }
         )
-        started, primary = [], SimpleNamespace(unit="f5-actions-runner@fixture.service")
-        standby = SimpleNamespace(unit="f5-actions-runner@fixture-standby.service")
+        started, primary = [], SimpleNamespace(unit="fixture-primary")
+        standby = SimpleNamespace(unit="fixture-standby")
 
         def command(argv, **_kwargs):
             if argv[:2] == ["systemctl", "start"]:
