@@ -11,7 +11,7 @@ const SHA = /^[0-9a-f]{40}$/;
 const MODES = new Set(['dry-run', 'pilot', 'full']);
 const ACTIVE_PR_LIMIT = 2;
 const WRITE_GAP_MS = 1000;
-const ATTESTED_CONTEXTS = ['lint / Lint Code Base', 'lint / Shell Unit Tests'];
+const ATTESTED_CONTEXTS = ['Check linked issues', 'lint / Lint Code Base', 'lint / Shell Unit Tests'];
 const GITHUB_ACTIONS_APP_ID = 15368;
 
 function fail(message) {
@@ -136,7 +136,8 @@ async function attestManagedCommit(api, { owner, repo, sha, sourceSha }) {
 }
 
 function assertAttestableRecovery({ pr, note, changes, files, headTree, desired }) {
-  if (pr.base?.ref !== 'main' || !pr.body?.includes(note)) fail('recovered reconciliation PR metadata is invalid');
+  if (pr.base?.ref !== 'main' || !pr.body?.includes(note) || !/^Closes #[1-9][0-9]*$/m.test(pr.body))
+    fail('recovered reconciliation PR metadata is invalid');
   const expectedPaths = changes.map((change) => change.path).sort();
   const actualPaths = files.map((file) => file.filename).sort();
   if (JSON.stringify(actualPaths) !== JSON.stringify(expectedPaths))
