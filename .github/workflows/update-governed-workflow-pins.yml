@@ -9,11 +9,9 @@ on:
       - '.github/workflows/antigravity-translate.yml'
       - '.github/workflows/auto-merge.yml'
       - '.github/workflows/dependabot-auto-merge.yml'
-      - '.github/workflows/enforce-repo-settings.yml'
       - '.github/workflows/github-pages-deploy.yml'
       - '.github/workflows/require-linked-issue.yml'
       - '.github/workflows/super-linter.yml'
-      - '.github/workflows/sync-managed-files.yml'
       - '.github/workflows/translation-audit.yml'
   workflow_dispatch:
     inputs:

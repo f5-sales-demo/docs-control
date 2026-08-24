@@ -1,5 +1,5 @@
 {
-  "_comment": "Central repo-settings config \u2014 enforced by enforce-repo-settings.yml",
+  "_comment": "Central repo-settings config \u2014 enforced by reconcile-fleet-settings.yml",
   "_last_verified": "2026-02-16",
   "repository": {
     "private": false,
@@ -140,7 +140,8 @@
       "scripts/parse-translation-trigger.sh",
       "tests/test-antigravity-translate-staged.sh",
       ".github/workflows/antigravity-translate.yml",
-      ".agents/skills/i18n-translate/SKILL.md"
+      ".agents/skills/i18n-translate/SKILL.md",
+      ".github/workflows/enforce-repo-settings.yml"
     ],
     "skip_files": {
       "xcsh": [
@@ -171,10 +172,6 @@
       {
         "src": "workflows/github-pages-deploy.yml",
         "dest": ".github/workflows/github-pages-deploy.yml"
-      },
-      {
-        "src": "workflows/enforce-repo-settings.yml",
-        "dest": ".github/workflows/enforce-repo-settings.yml"
       },
       {
         "src": "workflows/require-linked-issue.yml",
