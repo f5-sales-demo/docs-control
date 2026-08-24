@@ -76,11 +76,22 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             "if": "github.event_name != 'pull_request'",
         }
         self.policy = {
-            "schema_version": 3,
+            "schema_version": 4,
             "docker": {
-                "socket": "/run/docker.sock",
+                "host_socket": "/run/f5-actions-runner/container-build/docker.sock",
+                "runner_socket": "/run/docker.sock",
+                "data_root": "/data/actions-runners/container-build-docker",
+                "cache_max": "20g",
+                "cgroup_parent": "f5-actions-container-build.slice",
                 "minimum_version": "29.2.1",
                 "target_version": "29.7.2",
+            },
+            "dispatcher": {
+                "repositories": ["f5-sales-demo/xcsh"],
+                "memory": "32g",
+                "cpus": "14",
+                "standard_runners": 2,
+                "container_build_runners": 1,
             },
             "defaults": {"profile": "ubuntu-24.04"},
             "profiles": {"ubuntu-24.04": {}, "container-build": {}},

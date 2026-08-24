@@ -28,7 +28,7 @@ class WorkflowAuditTests(unittest.TestCase):
         (self.root / ".github/workflows").mkdir(parents=True)
         self.policy = self.root / "policy.json"
         self.data: dict[str, Any] = {
-            "schema_version": 3,
+            "schema_version": 4,
             "docker": {
                 "socket": "/run/docker.sock",
                 "minimum_version": "29.2.1",

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -29,6 +30,7 @@ def source_paths(provisioner):
             INSTALL_ROOT / "ephemeral-runner-controller.py",
             INSTALL_ROOT / "runner-entrypoint.sh",
             INSTALL_ROOT / "prepare-runner-tool-cache.sh",
+            INSTALL_ROOT / "rootless-dockerd-wrapper.sh",
             INSTALL_ROOT / "self-hosted-runner-policy.json",
         )
     source_root = provisioner.parent.parent
@@ -37,6 +39,7 @@ def source_paths(provisioner):
         source_root / "scripts/ephemeral-runner-controller.py",
         source_root / "scripts/runner-entrypoint.sh",
         source_root / "scripts/prepare-runner-tool-cache.sh",
+        source_root / "scripts/rootless-dockerd-wrapper.sh",
         source_root / ".github/config/self-hosted-runner-policy.json",
     )
 
@@ -46,6 +49,7 @@ def source_paths(provisioner):
     CONTROLLER_SOURCE,
     ENTRYPOINT_SOURCE,
     TOOL_CACHE_INITIALIZER_SOURCE,
+    ROOTLESS_DOCKER_WRAPPER_SOURCE,
     POLICY_SOURCE,
 ) = source_paths(PROVISIONER_SOURCE)
 CONFIG_ROOT = Path("/etc/f5-actions-runner")
@@ -61,6 +65,17 @@ STANDBY_UNIT = "f5-actions-runner-standby.service"
 STANDBY_TIMER = "f5-actions-runner-standby.timer"
 PROFILE_DISPATCH_UNIT = "f5-actions-runner-profile-dispatch.service"
 PROFILE_DISPATCH_TIMER = "f5-actions-runner-profile-dispatch.timer"
+XCSH_DISPATCH_UNIT = "f5-actions-runner-xcsh-dispatch.service"
+XCSH_DISPATCH_TIMER = "f5-actions-runner-xcsh-dispatch.timer"
+ROOTLESS_DOCKER_UNIT = "f5-actions-container-build-docker.service"
+CONTAINER_BUILD_SLICE_UNIT = "f5-actions-container-build.slice"
+ROOTLESS_DOCKER_CONFIG = CONFIG_ROOT / "container-build-daemon.json"
+ROOTLESS_DOCKER_DATA_ROOT = DATA_ROOT / "container-build-docker"
+ROOTLESS_RUNTIME_ROOT = Path("/run/f5-actions-runner/container-build")
+XCSH_DISPATCH_ROOT = STATE_ROOT / "xcsh-dispatch"
+XCSH_DISPATCH_COOLDOWN = XCSH_DISPATCH_ROOT / "rate-limit.json"
+SUBORDINATE_START = 231072
+SUBORDINATE_COUNT = 65536
 RETIRED_UNIT = "f5-actions-runner-retired.service"
 RETIRED_TIMER = "f5-actions-runner-retired.timer"
 STANDBY_INVENTORY_CACHE = STATE_ROOT / ".standby-runner-inventory.json"
@@ -318,7 +333,7 @@ def runner_unit_text():
     return f"""[Unit]
 Description=Ephemeral GitHub Actions runner (%i)
 After=network-online.target
-After=docker.service
+After=docker.service {ROOTLESS_DOCKER_UNIT}
 Wants=network-online.target
 Requires=docker.service
 
@@ -339,10 +354,125 @@ ProtectHome=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
-ReadWritePaths={DATA_ROOT} /run/docker.sock
+ReadWritePaths={DATA_ROOT} /run/docker.sock {ROOTLESS_RUNTIME_ROOT}
 
 [Install]
 WantedBy=multi-user.target
+"""
+
+
+def container_build_slice_text():
+    return """[Unit]
+Description=Bounded cgroup for F5 Actions container builds
+
+[Slice]
+MemoryHigh=14G
+MemoryMax=16G
+MemorySwapMax=0
+CPUQuota=600%
+"""
+
+
+def rootless_docker_config_text(policy):
+    return json.dumps(
+        {
+            "builder": {
+                "gc": {
+                    "enabled": True,
+                    "defaultKeepStorage": policy.docker.cache_max,
+                }
+            },
+            "data-root": policy.docker.data_root,
+            "exec-opts": ["native.cgroupdriver=cgroupfs"],
+            "features": {"buildkit": True},
+            "hosts": [f"unix://{policy.docker.host_socket}"],
+            "log-driver": "local",
+        },
+        indent=2,
+        sort_keys=True,
+    ) + "\n"
+
+
+def rootless_docker_unit_text():
+    return f"""[Unit]
+Description=Rootless Docker daemon for F5 Actions container builds
+After=network-online.target local-fs.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gha-ephemeral
+Group=gha-ephemeral
+Slice={CONTAINER_BUILD_SLICE_UNIT}
+Delegate=yes
+RuntimeDirectory=f5-actions-runner/container-build
+RuntimeDirectoryMode=0770
+RuntimeDirectoryPreserve=yes
+Environment=HOME={ROOTLESS_DOCKER_DATA_ROOT}/home
+Environment=XDG_RUNTIME_DIR={ROOTLESS_RUNTIME_ROOT}
+Environment=DOCKERD={INSTALL_ROOT}/rootless-dockerd-wrapper.sh
+Environment=DOCKERD_ROOTLESS_ROOTLESSKIT_NET=slirp4netns
+ExecStart=/usr/bin/dockerd-rootless.sh --config-file={ROOTLESS_DOCKER_CONFIG}
+ExecStartPost=/usr/bin/timeout 60 /bin/sh -c 'until test -S {ROOTLESS_RUNTIME_ROOT}/docker.sock; do sleep 1; done'
+ExecStartPost=/bin/chgrp gha-ephemeral {ROOTLESS_RUNTIME_ROOT}/docker.sock
+ExecStartPost=/bin/chmod 0660 {ROOTLESS_RUNTIME_ROOT}/docker.sock
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=2min
+TimeoutStopSec=2min
+UMask=0007
+PrivateTmp=true
+PrivateMounts=true
+# newuidmap/newgidmap are setuid helpers required to enter the bounded user namespace.
+NoNewPrivileges=false
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=false
+ProtectKernelModules=false
+ProtectControlGroups=false
+ReadWritePaths={ROOTLESS_DOCKER_DATA_ROOT} {ROOTLESS_RUNTIME_ROOT}
+
+[Install]
+WantedBy=multi-user.target
+"""
+
+
+def xcsh_dispatcher_unit_text():
+    return f"""[Unit]
+Description=F5 Actions xcsh-only runner dispatcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+TimeoutStartSec=55
+Environment=RUNNER_FLEET_GITHUB_TOKEN_FILE={TOKEN_PATH}
+ExecStartPre=/usr/bin/test -r {TOKEN_PATH}
+ExecStart=/usr/bin/python3 {INSTALL_ROOT}/provision-ephemeral-runners.py dispatch-xcsh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ReadWritePaths={XCSH_DISPATCH_ROOT}
+
+"""
+
+
+def xcsh_dispatcher_timer_text():
+    return f"""[Unit]
+Description=Schedule F5 Actions xcsh-only runner dispatcher
+
+[Timer]
+OnCalendar=*:*:00
+AccuracySec=1s
+Persistent=true
+Unit={XCSH_DISPATCH_UNIT}
+
+[Install]
+WantedBy=timers.target
 """
 
 
@@ -526,8 +656,88 @@ def capacity_check():
     return 1 if failed else 0
 
 
+def subordinate_ranges(path):
+    ranges = []
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        name, start, count = line.split(":")
+        ranges.append((name, int(start), int(count)))
+    return ranges
+
+
+def ensure_subordinate_ranges():
+    """Assign the one preselected unused range without changing userns policy."""
+    require_root()
+    for path, flag in ((Path("/etc/subuid"), "--add-subuids"), (Path("/etc/subgid"), "--add-subgids")):
+        ranges = subordinate_ranges(path)
+        expected = ("gha-ephemeral", SUBORDINATE_START, SUBORDINATE_COUNT)
+        if expected in ranges:
+            continue
+        wanted_end = SUBORDINATE_START + SUBORDINATE_COUNT
+        for name, start, count in ranges:
+            if max(start, SUBORDINATE_START) < min(start + count, wanted_end):
+                raise ProvisionError(
+                    f"subordinate range overlaps {name} in {path}"
+                )
+        command(
+            [
+                "usermod",
+                flag,
+                f"{SUBORDINATE_START}-{wanted_end - 1}",
+                "gha-ephemeral",
+            ]
+        )
+
+
+def rootless_prerequisite_errors():
+    errors = []
+    try:
+        account = command(
+            ["id", "-u", "gha-ephemeral"], check=False, capture=True
+        )
+        if account.returncode != 0 or account.stdout.strip() != "1001":
+            errors.append("gha-ephemeral must exist with UID 1001")
+    except OSError as exc:
+        errors.append(f"cannot inspect gha-ephemeral: {exc}")
+    for executable in (
+        "/usr/bin/dockerd-rootless.sh",
+        "/usr/bin/rootlesskit",
+        "/usr/bin/slirp4netns",
+        "/usr/bin/newuidmap",
+        "/usr/bin/newgidmap",
+    ):
+        if not Path(executable).is_file():
+            errors.append(f"rootless prerequisite is missing: {executable}")
+    for path in (Path("/etc/subuid"), Path("/etc/subgid")):
+        try:
+            expected = ("gha-ephemeral", SUBORDINATE_START, SUBORDINATE_COUNT)
+            if expected not in subordinate_ranges(path):
+                errors.append(f"dedicated subordinate range is missing from {path}")
+        except (OSError, ValueError) as exc:
+            errors.append(f"cannot validate {path}: {exc}")
+    controls = {
+        Path("/proc/sys/kernel/unprivileged_userns_clone"): "1",
+        Path("/proc/sys/kernel/apparmor_restrict_unprivileged_userns"): "1",
+    }
+    for path, expected in controls.items():
+        try:
+            if path.read_text(encoding="utf-8").strip() != expected:
+                errors.append(f"rootless prerequisite must remain {path}={expected}")
+        except OSError as exc:
+            errors.append(f"cannot validate {path}: {exc}")
+    try:
+        if Path("/sys/fs/cgroup/cgroup.controllers").read_text(encoding="utf-8").find("memory") < 0:
+            errors.append("unified cgroup v2 memory controller is unavailable")
+    except OSError as exc:
+        errors.append(f"cannot validate cgroup v2: {exc}")
+    return errors
+
+
 def install_definition(enable_timers=True):
     require_root()
+    ensure_subordinate_ranges()
+    errors = rootless_prerequisite_errors()
+    if errors:
+        raise ProvisionError("; ".join(errors))
     policy = active_policy()
     for path in (
         DATA_ROOT,
@@ -535,13 +745,29 @@ def install_definition(enable_timers=True):
         CONFIG_ROOT,
         INSTANCE_ROOT,
         INSTALL_ROOT,
+        XCSH_DISPATCH_ROOT,
     ):
         path.mkdir(parents=True, exist_ok=True)
+    command(
+        [
+            "install",
+            "-d",
+            "-o",
+            "gha-ephemeral",
+            "-g",
+            "gha-ephemeral",
+            "-m",
+            "0700",
+            str(ROOTLESS_DOCKER_DATA_ROOT),
+            str(ROOTLESS_DOCKER_DATA_ROOT / "home"),
+        ]
+    )
     for source in (
         PROVISIONER_SOURCE,
         CONTROLLER_SOURCE,
         ENTRYPOINT_SOURCE,
         TOOL_CACHE_INITIALIZER_SOURCE,
+        ROOTLESS_DOCKER_WRAPPER_SOURCE,
     ):
         command(
             [
@@ -569,6 +795,11 @@ def install_definition(enable_timers=True):
             str(INSTALL_ROOT / POLICY_SOURCE.name),
         ]
     )
+    safe_write(ROOTLESS_DOCKER_CONFIG, rootless_docker_config_text(policy))
+    safe_write(
+        SYSTEMD_ROOT / CONTAINER_BUILD_SLICE_UNIT, container_build_slice_text()
+    )
+    safe_write(SYSTEMD_ROOT / ROOTLESS_DOCKER_UNIT, rootless_docker_unit_text())
     safe_write(SYSTEMD_ROOT / RUNNER_UNIT, runner_unit_text())
     safe_write(SYSTEMD_ROOT / CAPACITY_UNIT, capacity_unit_text())
     safe_write(SYSTEMD_ROOT / CAPACITY_TIMER, capacity_timer_text())
@@ -576,6 +807,8 @@ def install_definition(enable_timers=True):
     safe_write(SYSTEMD_ROOT / STANDBY_TIMER, standby_scaler_timer_text())
     safe_write(SYSTEMD_ROOT / PROFILE_DISPATCH_UNIT, profile_dispatcher_unit_text())
     safe_write(SYSTEMD_ROOT / PROFILE_DISPATCH_TIMER, profile_dispatcher_timer_text())
+    safe_write(SYSTEMD_ROOT / XCSH_DISPATCH_UNIT, xcsh_dispatcher_unit_text())
+    safe_write(SYSTEMD_ROOT / XCSH_DISPATCH_TIMER, xcsh_dispatcher_timer_text())
     safe_write(SYSTEMD_ROOT / RETIRED_UNIT, retired_reconciler_unit_text())
     safe_write(SYSTEMD_ROOT / RETIRED_TIMER, retired_reconciler_timer_text())
     for item in (*instances(policy), *standby_instances(policy)):
@@ -585,9 +818,9 @@ def install_definition(enable_timers=True):
             0o600,
         )
     command(["systemctl", "daemon-reload"])
+    command(["systemctl", "disable", "--now", STANDBY_TIMER])
+    command(["systemctl", "disable", "--now", PROFILE_DISPATCH_TIMER])
     if enable_timers:
-        command(["systemctl", "enable", "--now", STANDBY_TIMER])
-        command(["systemctl", "enable", "--now", PROFILE_DISPATCH_TIMER])
         command(["systemctl", "enable", "--now", CAPACITY_TIMER])
         command(["systemctl", "enable", "--now", RETIRED_TIMER])
 
@@ -618,7 +851,10 @@ def enable(repository, profile=None):
     if not TOKEN_PATH.is_file():
         raise ProvisionError(f"credential is not installed at {TOKEN_PATH}")
     command(["systemctl", "start", "docker.service"])
-    for item in select(repository, profile):
+    selected = select(repository, profile)
+    if any(item.docker_socket for item in selected):
+        command(["systemctl", "enable", "--now", ROOTLESS_DOCKER_UNIT])
+    for item in selected:
         command(["systemctl", "enable", "--now", item.unit])
 
 
@@ -781,6 +1017,240 @@ def standby_scale():
                 and single_idle_runner(fresh_standby)
             ):
                 command(["systemctl", "stop", item.unit])
+
+
+def xcsh_dispatch_cooldown(now):
+    try:
+        payload = json.loads(XCSH_DISPATCH_COOLDOWN.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return 0
+    except (OSError, ValueError) as exc:
+        raise ProvisionError(f"cannot read xcsh dispatcher cooldown: {exc}") from exc
+    if (
+        not isinstance(payload, dict)
+        or set(payload) != {"kind", "retry_at"}
+        or payload["kind"] not in {"primary", "secondary"}
+        or not isinstance(payload["retry_at"], int)
+    ):
+        raise ProvisionError("xcsh dispatcher cooldown is malformed")
+    return payload["retry_at"] if payload["retry_at"] > now else 0
+
+
+def record_xcsh_dispatch_cooldown(kind, retry_at):
+    XCSH_DISPATCH_ROOT.mkdir(parents=True, exist_ok=True)
+    current = 0
+    if XCSH_DISPATCH_COOLDOWN.exists():
+        current = xcsh_dispatch_cooldown(0)
+    safe_write(
+        XCSH_DISPATCH_COOLDOWN,
+        json.dumps({"kind": kind, "retry_at": max(current, retry_at)}, sort_keys=True),
+        0o600,
+    )
+
+
+def xcsh_cache_path(request_path):
+    digest = hashlib.sha256(request_path.encode("utf-8")).hexdigest()
+    return XCSH_DISPATCH_ROOT / f"etag-{digest}.json"
+
+
+def cached_github_get(github, request_path):
+    """Use one atomic body/ETag record so 304 responses remain complete."""
+    cache_path = xcsh_cache_path(request_path)
+    cached = None
+    try:
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        pass
+    except (OSError, ValueError) as exc:
+        raise ProvisionError(f"cannot read xcsh dispatcher cache: {exc}") from exc
+    valid_cache = (
+        isinstance(cached, dict)
+        and set(cached) == {"path", "etag", "body"}
+        and cached["path"] == request_path
+        and isinstance(cached["etag"], str)
+        and cached["etag"]
+    )
+    headers = {"If-None-Match": cached["etag"]} if valid_cache else {}
+    body, response_headers = github.request(
+        "GET", request_path, headers=headers, include_headers=True
+    )
+    if body is None:
+        if not valid_cache:
+            raise ProvisionError("GitHub returned 304 without a valid cache")
+        return cached["body"]
+    if not isinstance(body, dict):
+        raise ProvisionError("GitHub xcsh response is malformed")
+    etag = next(
+        (
+            value
+            for key, value in response_headers.items()
+            if key.lower() == "etag" and isinstance(value, str) and value
+        ),
+        None,
+    )
+    if etag:
+        XCSH_DISPATCH_ROOT.mkdir(parents=True, exist_ok=True)
+        safe_write(
+            cache_path,
+            json.dumps(
+                {"path": request_path, "etag": etag, "body": body},
+                sort_keys=True,
+            ),
+            0o600,
+        )
+    return body
+
+
+def instance_profile(policy, item):
+    spec = policy.repository(item.repository)
+    return next(profile for profile in spec.profiles if profile.name == item.profile)
+
+
+def active_fleet_instances(policy):
+    active = []
+    for item in (*instances(policy), *standby_instances(policy)):
+        state = command(
+            ["systemctl", "is-active", item.unit], check=False, capture=True
+        )
+        if state.returncode == 0 and state.stdout.strip() == "active":
+            active.append(item)
+    return active
+
+
+def admission_allows(policy, candidate):
+    active = active_fleet_instances(policy)
+    if candidate not in active:
+        active.append(candidate)
+    profiles = [instance_profile(policy, item) for item in active]
+    standard = sum(not profile.docker_socket for profile in profiles)
+    builders = sum(profile.docker_socket for profile in profiles)
+    memory = sum(load_controller().memory_bytes(profile.memory) for profile in profiles)
+    cpus = sum(float(profile.cpus) for profile in profiles)
+    return all(
+        (
+            standard <= policy.dispatcher.standard_runners,
+            builders <= policy.dispatcher.container_build_runners,
+            memory <= load_controller().memory_bytes(policy.dispatcher.memory),
+            cpus <= float(policy.dispatcher.cpus),
+        )
+    )
+
+
+def dispatch_xcsh():
+    """Dispatch only xcsh jobs, with persistent caching and rate-limit backoff."""
+    require_root()
+    now = int(time.time())
+    retry_at = xcsh_dispatch_cooldown(now)
+    if retry_at:
+        print(f"[COOLDOWN] xcsh dispatcher retry_at={retry_at}")
+        return 0
+    controller_module = load_controller()
+    policy = active_policy()
+    github = controller_module.GitHubClient(controller_module.token_from_environment())
+    controller = controller_module.EphemeralController(policy, None)
+    primary = {
+        (item.repository, item.profile): item
+        for item in instances(policy)
+        if item.slot == 0 and item.repository in policy.dispatcher.repositories
+    }
+    standby = {
+        (item.repository, item.profile): item
+        for item in standby_instances(policy)
+        if item.repository in policy.dispatcher.repositories
+    }
+    try:
+        for repository in policy.dispatcher.repositories:
+            runs = []
+            for status in ("queued", "in_progress"):
+                response = cached_github_get(
+                    github,
+                    f"/repos/{repository}/actions/runs?status={status}&per_page=100",
+                )
+                records = response.get("workflow_runs")
+                if not isinstance(records, list) or any(
+                    not isinstance(run, dict) or not isinstance(run.get("id"), int)
+                    for run in records
+                ):
+                    raise ProvisionError("GitHub xcsh workflow inventory is malformed")
+                runs.extend(records)
+            inventory = None
+            spec = policy.repository(repository)
+            for run in runs:
+                response = cached_github_get(
+                    github,
+                    f"/repos/{repository}/actions/runs/{run['id']}/jobs?per_page=100",
+                )
+                jobs = response.get("jobs")
+                if not isinstance(jobs, list) or any(
+                    not isinstance(job, dict) for job in jobs
+                ):
+                    raise ProvisionError("GitHub xcsh job inventory is malformed")
+                trusted = any(successful_docker_trust_gate(job) for job in jobs)
+                for job in jobs:
+                    labels = job.get("labels")
+                    if (
+                        job.get("status") != "queued"
+                        or not isinstance(labels, list)
+                        or not all(isinstance(label, str) for label in labels)
+                        or len(labels) != len(set(labels))
+                    ):
+                        continue
+                    requested = set(labels)
+                    for profile in spec.profiles:
+                        if requested != controller.expected_labels(spec, profile):
+                            continue
+                        if profile.docker_socket and not trusted:
+                            continue
+                        item = primary[(repository, profile.name)]
+                        state = command(
+                            ["systemctl", "is-active", item.unit],
+                            check=False,
+                            capture=True,
+                        )
+                        active = state.returncode == 0 and state.stdout.strip() == "active"
+                        candidate = item
+                        if active and not profile.docker_socket:
+                            if inventory is None:
+                                runner_response = cached_github_get(
+                                    github,
+                                    f"/repos/{repository}/actions/runners?per_page=100",
+                                )
+                                inventory = runner_response.get("runners")
+                                if not isinstance(inventory, list) or any(
+                                    not isinstance(record, dict)
+                                    for record in inventory
+                                ):
+                                    raise ProvisionError(
+                                        "GitHub xcsh runner inventory is malformed"
+                                    )
+                            prefix = f"gha-{spec.name}-{profile.name}-{item.slot}-"
+                            busy = any(
+                                isinstance(record, dict)
+                                and isinstance(record.get("name"), str)
+                                and record["name"].startswith(prefix)
+                                and record.get("status") == "online"
+                                and record.get("busy") is True
+                                for record in inventory
+                            )
+                            candidate = standby.get((repository, profile.name)) if busy else None
+                        elif active:
+                            candidate = None
+                        if candidate is not None:
+                            if not admission_allows(policy, candidate):
+                                print(
+                                    f"[REFUSE] repository={repository} profile={profile.name} admission=exceeded"
+                                )
+                            else:
+                                command(["systemctl", "start", candidate.unit])
+                                print(
+                                    f"[DISPATCH] repository={repository} profile={profile.name} unit={candidate.unit}"
+                                )
+                        break
+    except controller_module.GitHubRateLimitError as exc:
+        record_xcsh_dispatch_cooldown(exc.kind, exc.retry_at)
+        print(f"[COOLDOWN] xcsh dispatcher {exc.kind} retry_at={exc.retry_at}")
+        return 0
+    return 0
 
 
 def successful_docker_trust_gate(job):
@@ -1075,21 +1545,39 @@ def docker_host_errors(policy):
     )
     if service.returncode != 0 or service.stdout.strip() != "active":
         errors.append("docker.service is not active")
-    try:
-        metadata = Path(policy.docker.socket).stat(follow_symlinks=False)
-        if not stat.S_ISSOCK(metadata.st_mode):
-            errors.append(f"Docker socket is not a socket: {policy.docker.socket}")
-        if metadata.st_uid != 0 or stat.S_IMODE(metadata.st_mode) != 0o660:
-            errors.append("Docker socket must be root-owned with mode 0660")
-    except OSError as exc:
-        errors.append(f"cannot inspect Docker socket: {exc}")
+    rootless = command(
+        ["systemctl", "is-active", ROOTLESS_DOCKER_UNIT], check=False, capture=True
+    )
+    if rootless.returncode != 0 or rootless.stdout.strip() != "active":
+        errors.append(f"{ROOTLESS_DOCKER_UNIT} is not active")
+    for socket, uid, description in (
+        (Path("/run/docker.sock"), 0, "host"),
+        (Path(policy.docker.host_socket), 1001, "dedicated"),
+    ):
+        try:
+            metadata = socket.stat(follow_symlinks=False)
+            if not stat.S_ISSOCK(metadata.st_mode):
+                errors.append(f"{description} Docker socket is not a socket: {socket}")
+            if metadata.st_uid != uid or stat.S_IMODE(metadata.st_mode) != 0o660:
+                errors.append(
+                    f"{description} Docker socket ownership or mode is invalid"
+                )
+        except OSError as exc:
+            errors.append(f"cannot inspect {description} Docker socket: {exc}")
     version = command(
-        ["docker", "version", "--format", "{{.Server.Version}}"],
+        [
+            "docker",
+            "--host",
+            f"unix://{policy.docker.host_socket}",
+            "version",
+            "--format",
+            "{{.Server.Version}}",
+        ],
         check=False,
         capture=True,
     )
     if version.returncode != 0:
-        errors.append("cannot query Docker Engine version")
+        errors.append("cannot query dedicated Docker Engine version")
     else:
         try:
             actual = load_controller().version_tuple(version.stdout.strip())
@@ -1100,6 +1588,20 @@ def docker_host_errors(policy):
                 )
         except (RuntimeError, ValueError) as exc:
             errors.append(str(exc))
+    security = command(
+        [
+            "docker",
+            "--host",
+            f"unix://{policy.docker.host_socket}",
+            "info",
+            "--format",
+            "{{json .SecurityOptions}}",
+        ],
+        check=False,
+        capture=True,
+    )
+    if security.returncode != 0 or "rootless" not in security.stdout:
+        errors.append("dedicated Docker Engine does not report rootless mode")
     return errors
 
 
@@ -1137,7 +1639,7 @@ def plan():
         print(f"{item.unit}\t{socket}")
 
 
-def main(argv=None):
+def main(argv=None):  # noqa: PLR0911
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="action", required=True)
     subparsers.add_parser("plan")
@@ -1156,6 +1658,7 @@ def main(argv=None):
     retire_parser.add_argument("--apply", action="store_true")
     subparsers.add_parser("standby-scale")
     subparsers.add_parser("dispatch-queued-profiles")
+    subparsers.add_parser("dispatch-xcsh")
     args = parser.parse_args(argv)
     try:
         if args.action == "plan":
@@ -1172,6 +1675,8 @@ def main(argv=None):
             standby_scale()
         elif args.action == "dispatch-queued-profiles":
             dispatch_queued_profiles()
+        elif args.action == "dispatch-xcsh":
+            return dispatch_xcsh()
         elif args.action == "rotate-idle":
             return rotate_idle(apply=args.apply)
         elif args.action == "retire-orphans":

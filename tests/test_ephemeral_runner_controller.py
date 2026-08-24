@@ -51,7 +51,7 @@ class CommandRecorder:
 
     def __call__(self, command, **kwargs):
         self.calls.append((command, kwargs))
-        if command[:3] == ["docker", "version", "--format"]:
+        if command[:1] == ["docker"] and "version" in command:
             return SimpleNamespace(returncode=0, stdout="29.2.1\n", stderr="")
         return SimpleNamespace(returncode=0, stdout="", stderr="")
 
@@ -66,11 +66,22 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.owner_change.start()
         self.policy_path = self.root / "policy.json"
         self.policy_data: dict = {
-            "schema_version": 3,
+            "schema_version": 4,
             "docker": {
-                "socket": "/run/docker.sock",
+                "host_socket": "/run/f5-actions-runner/container-build/docker.sock",
+                "runner_socket": "/run/docker.sock",
+                "data_root": "/data/actions-runners/container-build-docker",
+                "cache_max": "20g",
+                "cgroup_parent": "f5-actions-container-build.slice",
                 "minimum_version": "29.2.1",
                 "target_version": "29.7.2",
+            },
+            "dispatcher": {
+                "repositories": ["f5-sales-demo/xcsh"],
+                "memory": "32g",
+                "cpus": "14",
+                "standard_runners": 2,
+                "container_build_runners": 1,
             },
             "defaults": {
                 "replicas": 1,
@@ -101,6 +112,12 @@ class EphemeralRunnerTests(unittest.TestCase):
             },
             "hosted_exceptions": {},
             "repositories": {
+                "f5-sales-demo/xcsh": {
+                    "runner": {
+                        "replicas": 1,
+                        "profiles": ["ubuntu-24.04", "container-build"],
+                    }
+                },
                 "f5-sales-demo/fixture": {
                     "runner": {
                         "replicas": 1,
@@ -323,10 +340,10 @@ class EphemeralRunnerTests(unittest.TestCase):
         )
         self.assertEqual(spec.replicas, 1)
 
-    def test_policy_requires_exact_schema_v3_docker_contract(self):
+    def test_policy_requires_exact_schema_v4_docker_contract(self):
         for mutation in (
-            {"schema_version": 2},
-            {"docker": {"socket": "/var/run/docker.sock"}},
+            {"schema_version": 3},
+            {"docker": {"host_socket": "/var/run/docker.sock"}},
             {"docker": {"minimum_version": "29.2.0"}},
             {"docker": {"target_version": "29.7.1"}},
         ):
@@ -746,8 +763,26 @@ class EphemeralRunnerTests(unittest.TestCase):
             call[0] for call in recorder.calls if call[0][:2] == ["docker", "run"]
         )
         rendered = " ".join(command)
-        self.assertIn("/run/docker.sock:/run/docker.sock:rw", rendered)
+        self.assertIn(
+            "/run/f5-actions-runner/container-build/docker.sock:/run/docker.sock:rw",
+            rendered,
+        )
+        self.assertEqual(
+            command[command.index("--cgroup-parent") + 1],
+            "f5-actions-container-build.slice",
+        )
         self.assertIn("DOCKER_HOST=unix:///run/docker.sock", command)
+        self.assertTrue(
+            any(
+                call[0][:3]
+                == [
+                    "docker",
+                    "--host",
+                    "unix:///run/f5-actions-runner/container-build/docker.sock",
+                ]
+                for call in recorder.calls
+            )
+        )
         self.assertIn("997", command)
         runtime_root = (
             self.root / "state" / "workspaces" / "fixture" / "container-build" / "0"
@@ -1375,13 +1410,14 @@ class EphemeralRunnerTests(unittest.TestCase):
                 "PidsLimit": 1024,
                 "NetworkMode": "bridge",
                 "ReadonlyRootfs": True,
+                "CgroupParent": "f5-actions-container-build.slice",
                 "CapDrop": ["ALL"],
                 "SecurityOpt": ["no-new-privileges=true"],
             },
             "Mounts": [
                 {
                     "Type": "bind",
-                    "Source": "/run/docker.sock",
+                    "Source": "/run/f5-actions-runner/container-build/docker.sock",
                     "Destination": "/run/docker.sock",
                 }
             ],

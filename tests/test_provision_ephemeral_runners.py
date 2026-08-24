@@ -31,9 +31,173 @@ SPEC.loader.exec_module(MODULE)
 
 
 class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-public-methods
+    def test_rootless_daemon_and_slice_are_hard_bounded(self):
+        unit = MODULE.rootless_docker_unit_text()
+        slice_unit = MODULE.container_build_slice_text()
+        config = json.loads(MODULE.rootless_docker_config_text(MODULE.active_policy()))
+        self.assertIn("User=gha-ephemeral", unit)
+        self.assertIn("PrivateMounts=true", unit)
+        self.assertIn(
+            "DOCKERD=/opt/f5-actions-runner/rootless-dockerd-wrapper.sh", unit
+        )
+        self.assertNotIn("BindPaths=", unit)
+        self.assertIn("Slice=f5-actions-container-build.slice", unit)
+        self.assertIn("MemoryHigh=14G", slice_unit)
+        self.assertIn("MemoryMax=16G", slice_unit)
+        self.assertIn("MemorySwapMax=0", slice_unit)
+        self.assertIn("CPUQuota=600%", slice_unit)
+        self.assertEqual(config["data-root"], "/data/actions-runners/container-build-docker")
+        self.assertEqual(config["builder"]["gc"]["defaultKeepStorage"], "20g")
+        self.assertNotIn("cgroup-parent", config)
+        self.assertEqual(config["exec-opts"], ["native.cgroupdriver=cgroupfs"])
+        self.assertIn("ProtectKernelTunables=false", unit)
+        self.assertIn("ProtectKernelModules=false", unit)
+
+    def test_xcsh_dispatcher_is_separate_and_not_installed_enabled(self):
+        unit = MODULE.xcsh_dispatcher_unit_text()
+        timer = MODULE.xcsh_dispatcher_timer_text()
+        self.assertIn("dispatch-xcsh", unit)
+        self.assertIn("OnCalendar=*:*:00", timer)
+        self.assertIn("Persistent=true", timer)
+        self.assertNotIn("dispatch-queued-profiles", unit)
+
+    def test_xcsh_etag_cache_reuses_atomic_response_body(self):
+        class GitHub:
+            def __init__(self):
+                self.calls = []
+
+            def request(self, method, path, headers=None, include_headers=False):
+                self.calls.append((method, path, headers, include_headers))
+                if len(self.calls) == 1:
+                    return {"workflow_runs": []}, {"ETag": '"fixture"'}
+                return None, {}
+
+        github = GitHub()
+        with tempfile.TemporaryDirectory() as temporary, mock.patch.object(
+            MODULE, "XCSH_DISPATCH_ROOT", Path(temporary)
+        ):
+            first = MODULE.cached_github_get(github, "/repos/f5-sales-demo/xcsh/actions/runs")
+            second = MODULE.cached_github_get(github, "/repos/f5-sales-demo/xcsh/actions/runs")
+        self.assertEqual(first, second)
+        self.assertEqual(github.calls[1][2], {"If-None-Match": '"fixture"'})
+
+    def test_xcsh_cooldown_persists_and_suppresses_api_traffic(self):
+        with tempfile.TemporaryDirectory() as temporary:  # noqa: SIM117
+            with (
+                mock.patch.object(MODULE, "XCSH_DISPATCH_ROOT", Path(temporary)),
+                mock.patch.object(
+                    MODULE,
+                    "XCSH_DISPATCH_COOLDOWN",
+                    Path(temporary) / "cooldown.json",
+                ),
+            ):
+                MODULE.record_xcsh_dispatch_cooldown("secondary", 2000)
+                with (
+                    mock.patch.object(MODULE, "require_root"),
+                    mock.patch.object(MODULE.time, "time", return_value=1000),
+                    mock.patch.object(MODULE, "load_controller") as load,
+                ):
+                    self.assertEqual(MODULE.dispatch_xcsh(), 0)
+                    load.assert_not_called()
+
+    def test_xcsh_dispatcher_persists_rate_limit_and_exits_successfully(self):
+        controller_module = MODULE.load_controller()
+        fake_module = SimpleNamespace(
+            GitHubClient=lambda _token: object(),
+            token_from_environment=lambda: "credential",
+            EphemeralController=lambda *_args: object(),
+            GitHubRateLimitError=controller_module.GitHubRateLimitError,
+        )
+        with tempfile.TemporaryDirectory() as temporary:  # noqa: SIM117
+            with (
+                mock.patch.object(MODULE, "require_root"),
+                mock.patch.object(MODULE, "XCSH_DISPATCH_ROOT", Path(temporary)),
+                mock.patch.object(
+                    MODULE,
+                    "XCSH_DISPATCH_COOLDOWN",
+                    Path(temporary) / "cooldown.json",
+                ),
+                mock.patch.object(MODULE, "xcsh_dispatch_cooldown", return_value=0),
+                mock.patch.object(MODULE, "load_controller", return_value=fake_module),
+                mock.patch.object(
+                    MODULE,
+                    "cached_github_get",
+                    side_effect=controller_module.GitHubRateLimitError("primary", 3000),
+                ),
+            ):
+                self.assertEqual(MODULE.dispatch_xcsh(), 0)
+                payload = json.loads(MODULE.XCSH_DISPATCH_COOLDOWN.read_text())
+        self.assertEqual(payload, {"kind": "primary", "retry_at": 3000})
+
+    def test_xcsh_dispatcher_queries_only_its_allowlist(self):
+        policy = MODULE.active_policy()
+        paths = []
+        controller_module = SimpleNamespace(
+            GitHubClient=lambda _token: object(),
+            token_from_environment=lambda: "credential",
+            EphemeralController=lambda *_args: object(),
+            GitHubRateLimitError=RuntimeError,
+        )
+
+        def cached(_github, path):
+            paths.append(path)
+            return {"workflow_runs": []}
+
+        with (
+            mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(MODULE, "xcsh_dispatch_cooldown", return_value=0),
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
+            mock.patch.object(MODULE, "load_controller", return_value=controller_module),
+            mock.patch.object(MODULE, "cached_github_get", side_effect=cached),
+        ):
+            self.assertEqual(MODULE.dispatch_xcsh(), 0)
+        self.assertTrue(paths)
+        self.assertTrue(
+            all(path.startswith("/repos/f5-sales-demo/xcsh/") for path in paths)
+        )
+
+    def test_fleet_admission_caps_three_runners_at_32g_and_14_cpus(self):
+        policy = MODULE.active_policy()
+        xcsh = "f5-sales-demo/xcsh"
+        primary = next(
+            item for item in MODULE.instances(policy)
+            if item.repository == xcsh and item.profile == "ubuntu-24.04"
+        )
+        builder = next(
+            item for item in MODULE.instances(policy)
+            if item.repository == xcsh and item.profile == "container-build"
+        )
+        standby = next(
+            item for item in MODULE.standby_instances(policy)
+            if item.repository == xcsh
+        )
+        with mock.patch.object(
+            MODULE, "active_fleet_instances", return_value=[primary, builder]
+        ):
+            self.assertTrue(MODULE.admission_allows(policy, standby))
+        extra = MODULE.Instance(
+            xcsh,
+            "xcsh",
+            "ubuntu-24.04",
+            2,
+            False,
+            "8g",
+            "4",
+            4096,
+            300,
+            "bridge",
+            "once",
+        )
+        with mock.patch.object(
+            MODULE,
+            "active_fleet_instances",
+            return_value=[primary, builder, standby],
+        ):
+            self.assertFalse(MODULE.admission_allows(policy, extra))
+
     def test_installed_provisioner_resolves_installed_runner_assets(self):
         installed = MODULE.INSTALL_ROOT / "provision-ephemeral-runners.py"
-        root, controller, entrypoint, initializer, policy = MODULE.source_paths(
+        root, controller, entrypoint, initializer, wrapper, policy = MODULE.source_paths(
             installed
         )
         self.assertEqual(root, MODULE.INSTALL_ROOT)
@@ -44,6 +208,9 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertEqual(
             initializer, MODULE.INSTALL_ROOT / "prepare-runner-tool-cache.sh"
         )
+        self.assertEqual(
+            wrapper, MODULE.INSTALL_ROOT / "rootless-dockerd-wrapper.sh"
+        )
         self.assertEqual(policy, MODULE.INSTALL_ROOT / "self-hosted-runner-policy.json")
         self.assertEqual(
             MODULE.source_paths(MODULE.PROVISIONER_SOURCE),
@@ -52,6 +219,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 MODULE.CONTROLLER_SOURCE,
                 MODULE.ENTRYPOINT_SOURCE,
                 MODULE.TOOL_CACHE_INITIALIZER_SOURCE,
+                MODULE.ROOTLESS_DOCKER_WRAPPER_SOURCE,
                 MODULE.POLICY_SOURCE,
             ),
         )
@@ -193,8 +361,11 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         calls = []
         with (
             mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(MODULE, "ensure_subordinate_ranges"),
+            mock.patch.object(MODULE, "rootless_prerequisite_errors", return_value=[]),
             mock.patch.object(Path, "mkdir"),
             mock.patch.object(MODULE, "active_policy", return_value=object()),
+            mock.patch.object(MODULE, "rootless_docker_config_text", return_value="{}\n"),
             mock.patch.object(MODULE, "instances", return_value=()),
             mock.patch.object(MODULE, "standby_instances", return_value=()),
             mock.patch.object(MODULE, "safe_write"),
@@ -206,9 +377,12 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         ):
             MODULE.install_definition()
         self.assertIn(["systemctl", "enable", "--now", MODULE.CAPACITY_TIMER], calls)
-        self.assertIn(["systemctl", "enable", "--now", MODULE.STANDBY_TIMER], calls)
+        self.assertIn(["systemctl", "disable", "--now", MODULE.STANDBY_TIMER], calls)
         self.assertIn(
-            ["systemctl", "enable", "--now", MODULE.PROFILE_DISPATCH_TIMER], calls
+            ["systemctl", "disable", "--now", MODULE.PROFILE_DISPATCH_TIMER], calls
+        )
+        self.assertNotIn(
+            ["systemctl", "enable", "--now", MODULE.XCSH_DISPATCH_TIMER], calls
         )
         self.assertIn(["systemctl", "enable", "--now", MODULE.RETIRED_TIMER], calls)
         self.assertIn(
@@ -242,8 +416,11 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         calls = []
         with (
             mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(MODULE, "ensure_subordinate_ranges"),
+            mock.patch.object(MODULE, "rootless_prerequisite_errors", return_value=[]),
             mock.patch.object(Path, "mkdir"),
             mock.patch.object(MODULE, "active_policy", return_value=object()),
+            mock.patch.object(MODULE, "rootless_docker_config_text", return_value="{}\n"),
             mock.patch.object(MODULE, "instances", return_value=()),
             mock.patch.object(MODULE, "standby_instances", return_value=()),
             mock.patch.object(MODULE, "safe_write"),
@@ -456,7 +633,8 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
 
             def runners(self, repository):
                 if repository != docs:
-                    raise AssertionError(f"unexpected repository: {repository}")
+                    message = f"unexpected repository: {repository}"
+                    raise AssertionError(message)
                 return [{"name": "gha-docs-control-ubuntu-24.04-0-active", "status": "online", "busy": True}]
 
         github = GitHub()
@@ -811,6 +989,30 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             MODULE.enable("f5-sales-demo/docs-control")
         self.assertEqual(calls[0], ["systemctl", "start", "docker.service"])
         self.assertEqual(calls[1][0:3], ["systemctl", "enable", "--now"])
+
+    def test_enable_persists_rootless_daemon_for_container_build(self):
+        calls = []
+        builder = next(
+            item
+            for item in MODULE.all_instances()
+            if item.repository == "f5-sales-demo/xcsh"
+            and item.profile == "container-build"
+        )
+        with (
+            mock.patch.object(MODULE, "require_root"),
+            mock.patch.object(MODULE, "TOKEN_PATH") as token_path,
+            mock.patch.object(MODULE, "select", return_value=[builder]),
+            mock.patch.object(
+                MODULE,
+                "command",
+                side_effect=lambda argv, **_kwargs: calls.append(argv),
+            ),
+        ):
+            token_path.is_file.return_value = True
+            MODULE.enable("f5-sales-demo/xcsh", "container-build")
+        self.assertIn(
+            ["systemctl", "enable", "--now", MODULE.ROOTLESS_DOCKER_UNIT], calls
+        )
 
     def test_safe_write_is_atomic_and_rejects_symlink(self):
         with tempfile.TemporaryDirectory() as directory:
