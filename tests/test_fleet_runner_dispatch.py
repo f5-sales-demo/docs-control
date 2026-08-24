@@ -128,7 +128,7 @@ class FleetRunnerDispatchTests(unittest.TestCase):
             repository=repository,
             profile=profile.name,
             slot=0,
-            unit="f5-actions-runner@docs--ubuntu-24.04--0.service",
+            unit="fixture",
         )
         path = f"/repos/{repository}/actions/runners?per_page=100"
         github = GitHub(
@@ -187,7 +187,7 @@ class FleetRunnerDispatchTests(unittest.TestCase):
             repository=repository,
             profile=profile.name,
             slot=0,
-            unit="f5-actions-runner@docs--ubuntu-24.04--0.service",
+            unit="fixture",
         )
         path = f"/repos/{repository}/actions/runners?per_page=100"
         for runner in (
