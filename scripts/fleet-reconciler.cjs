@@ -66,6 +66,9 @@ function marker(sourceSha, desiredTree) {
 function issueTitle(sourceSha) {
   return `Governance reconciliation @ ${sourceSha.slice(0, 12)}`;
 }
+function managedCommitMessage(sourceSha) {
+  return `chore: reconcile governed files @ ${sourceSha.slice(0, 12)} [skip ci]`;
+}
 
 class ApiQueue {
   constructor({
@@ -198,7 +201,7 @@ async function createContentPr(
   const commit = await api.request(`repos/${owner}/${repo}/git/commits`, {
     method: 'POST',
     body: {
-      message: `chore: reconcile governed files @ ${sourceSha.slice(0, 12)}`,
+      message: managedCommitMessage(sourceSha),
       tree: createdTree.sha,
       parents: [baseSha],
     },
@@ -531,6 +534,7 @@ module.exports = {
   currentProtection,
   desiredEntries,
   desiredProtection,
+  managedCommitMessage,
   parseSelection,
   reconcileContent,
   reconcileSettings,
