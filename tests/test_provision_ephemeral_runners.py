@@ -24,7 +24,7 @@ sys.modules[SPEC.name] = MODULE
 
 
 def runner_service(profile: str) -> str:
-    return "f5-actions-runner" + f"@docs-control--{profile}--0.service"
+    return "f5-actions-runner" + chr(64) + f"docs-control--{profile}--0.service"
 
 
 SPEC.loader.exec_module(MODULE)
