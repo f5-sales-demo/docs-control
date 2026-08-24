@@ -4,23 +4,63 @@ name: Require Linked Issue
 on:
   pull_request:
     types: [opened, reopened, edited, synchronize]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to check.
+        required: true
+        type: string
+      expected_base_sha:
+        description: Exact protected-main receipt for the PR base.
+        required: true
+        type: string
+      expected_head_sha:
+        description: Exact head receipt for the PR branch.
+        required: true
+        type: string
 
 permissions: {}
 
 jobs:
   check-linked-issues:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     name: Check linked issues
     runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
     permissions:
       pull-requests: read
+      contents: read
     steps:
       - name: Check this pull request's linked issues
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
+          EXPECTED_BASE_SHA: ${{ inputs.expected_base_sha }}
+          EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
         with:
           script: |
             const { owner, repo } = context.repo;
-            const number = context.payload.pull_request.number;
+            const number = Number(process.env.PR_NUMBER);
+            if (!Number.isSafeInteger(number) || number < 1) {
+              core.setFailed("Pull request number must be a positive integer.");
+              return;
+            }
+            if (process.env.EVENT_NAME === "workflow_dispatch") {
+              if (!/^[0-9a-f]{40}$/.test(process.env.EXPECTED_BASE_SHA) ||
+                  !/^[0-9a-f]{40}$/.test(process.env.EXPECTED_HEAD_SHA)) {
+                core.setFailed("Manual linked-issue checks require exact lowercase SHA receipts.");
+                return;
+              }
+              const pull = await github.rest.pulls.get({ owner, repo, pull_number: number });
+              if (pull.data.base.sha !== process.env.EXPECTED_BASE_SHA ||
+                  pull.data.head.sha !== process.env.EXPECTED_HEAD_SHA ||
+                  pull.data.head.repo?.full_name !== `${owner}/${repo}`) {
+                core.setFailed("The dispatched linked-issue receipt does not match the current same-repository pull request.");
+                return;
+              }
+            }
             const result = await github.graphql(
               `query($owner: String!, $repo: String!, $number: Int!) {
                 repository(owner: $owner, name: $repo) {
