@@ -1,5 +1,5 @@
 {
-  "source_commit": "506e2142850abab01b8dd04efdd5dbe2f5e0b0d3",
+  "source_commit": "6c2f1a083c51e63f9f40538aacbef464381e52ec",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -347,8 +347,8 @@
     "scripts/check_pii.py": {
       "src": "scripts/check_pii.py",
       "dest": "scripts/check_pii.py",
-      "sha": "95e247ba7e56fd4a2adef80b1e3972fcbd50d7f0",
-      "size": 98094,
+      "sha": "d361db02b7cf828dea64c0d426db5552edf05108",
+      "size": 98167,
       "mode": "100644"
     },
     "scripts/check-pii.sh": {
