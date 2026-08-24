@@ -41,7 +41,11 @@ MEMORY_RE = re.compile(r"[1-9][0-9]*[KMGTPEkmgtpe]")
 CPU_RE = re.compile(r"[1-9][0-9]*(?:\.[0-9]+)?")
 VERSION_RE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 CONTAINER_ID_RE = re.compile(r"[0-9a-f]{64}")
-DOCKER_SOCKET = "/run/docker.sock"
+HOST_DOCKER_SOCKET = "/run/f5-actions-runner/container-build/docker.sock"
+RUNNER_DOCKER_SOCKET = "/run/docker.sock"
+ROOTLESS_DOCKER_DATA_ROOT = "/data/actions-runners/container-build-docker"
+ROOTLESS_DOCKER_CACHE_MAX = "20g"
+CONTAINER_BUILD_SLICE = "f5-actions-container-build.slice"
 MINIMUM_DOCKER_VERSION = "29.2.1"
 TARGET_DOCKER_VERSION = "29.7.2"
 TRANSIENT_INSPECT_ATTEMPTS = 8
@@ -135,9 +139,22 @@ class Profile:
 
 @dataclass(frozen=True)
 class DockerPolicy:
-    socket: str
+    host_socket: str
+    runner_socket: str
+    data_root: str
+    cache_max: str
+    cgroup_parent: str
     minimum_version: str
     target_version: str
+
+
+@dataclass(frozen=True)
+class DispatcherPolicy:
+    repositories: tuple[str, ...]
+    memory: str
+    cpus: str
+    standard_runners: int
+    container_build_runners: int
 
 
 @dataclass(frozen=True)
@@ -151,18 +168,34 @@ class RepositorySpec:
 
 
 class FleetPolicy:
-    """Strict schema-v3 fleet policy consumed by runtime and workflow audits."""
+    """Strict schema-v4 fleet policy consumed by runtime and workflow audits."""
 
     TOP_LEVEL = {
         "schema_version",
         "docker",
+        "dispatcher",
         "defaults",
         "profiles",
         "hosted_exceptions",
         "repositories",
     }
     DEFAULT_FIELDS = {"replicas", "profile", "standby_profiles"}
-    DOCKER_FIELDS = {"socket", "minimum_version", "target_version"}
+    DOCKER_FIELDS = {
+        "host_socket",
+        "runner_socket",
+        "data_root",
+        "cache_max",
+        "cgroup_parent",
+        "minimum_version",
+        "target_version",
+    }
+    DISPATCHER_FIELDS = {
+        "repositories",
+        "memory",
+        "cpus",
+        "standard_runners",
+        "container_build_runners",
+    }
     PROFILE_FIELDS = {
         "image",
         "labels",
@@ -185,10 +218,11 @@ class FleetPolicy:
             raise FleetError(
                 f"policy top-level fields must equal {sorted(self.TOP_LEVEL)}"
             )
-        if raw["schema_version"] != 3:
-            raise FleetError("runner fleet requires policy schema_version 3")
+        if raw["schema_version"] != 4:
+            raise FleetError("runner fleet requires policy schema_version 4")
         self.raw = raw
         self.docker = self._docker(raw["docker"])
+        self.dispatcher = self._dispatcher(raw["dispatcher"])
         self.defaults = self._defaults(raw["defaults"])
         self.profiles = self._profiles(raw["profiles"])
         default_profile = self.profiles.get(self.defaults["profile"])
@@ -216,19 +250,51 @@ class FleetPolicy:
                 raise FleetError(
                     f"container-build is required for governed repository {repository}"
                 )
+        if any(
+            repository not in raw["repositories"]
+            for repository in self.dispatcher.repositories
+        ):
+            raise FleetError("dispatcher repositories must be governed")
 
     @classmethod
     def _docker(cls, value):
         if not isinstance(value, dict) or set(value) != cls.DOCKER_FIELDS:
             raise FleetError(f"docker fields must equal {sorted(cls.DOCKER_FIELDS)}")
         expected = {
-            "socket": DOCKER_SOCKET,
+            "host_socket": HOST_DOCKER_SOCKET,
+            "runner_socket": RUNNER_DOCKER_SOCKET,
+            "data_root": ROOTLESS_DOCKER_DATA_ROOT,
+            "cache_max": ROOTLESS_DOCKER_CACHE_MAX,
+            "cgroup_parent": CONTAINER_BUILD_SLICE,
             "minimum_version": MINIMUM_DOCKER_VERSION,
             "target_version": TARGET_DOCKER_VERSION,
         }
         if value != expected:
             raise FleetError(f"docker policy must equal {expected!r}")
         return DockerPolicy(**value)
+
+    @classmethod
+    def _dispatcher(cls, value):
+        if not isinstance(value, dict) or set(value) != cls.DISPATCHER_FIELDS:
+            raise FleetError(
+                f"dispatcher fields must equal {sorted(cls.DISPATCHER_FIELDS)}"
+            )
+        expected = {
+            "repositories": ["f5-sales-demo/xcsh"],
+            "memory": "32g",
+            "cpus": "14",
+            "standard_runners": 2,
+            "container_build_runners": 1,
+        }
+        if value != expected:
+            raise FleetError(f"dispatcher policy must equal {expected!r}")
+        return DispatcherPolicy(
+            repositories=tuple(value["repositories"]),
+            memory=value["memory"],
+            cpus=value["cpus"],
+            standard_runners=value["standard_runners"],
+            container_build_runners=value["container_build_runners"],
+        )
 
     @classmethod
     def _defaults(cls, value):
@@ -401,24 +467,34 @@ class GitHubClient:
             )
         return None
 
-    def request(self, method, path, payload=None):
+    def request(
+        self, method, path, payload=None, headers=None, include_headers=False
+    ):
         body = None if payload is None else json.dumps(payload).encode()
+        request_headers = {
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {self.token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "f5-sales-demo-ephemeral-runner-controller",
+        }
+        if headers:
+            request_headers.update(headers)
         request = urllib.request.Request(
             self.api_url + path,
             data=body,
             method=method,
-            headers={
-                "Accept": "application/vnd.github+json",
-                "Authorization": f"Bearer {self.token}",
-                "X-GitHub-Api-Version": "2022-11-28",
-                "User-Agent": "f5-sales-demo-ephemeral-runner-controller",
-            },
+            headers=request_headers,
         )
         try:
             with self.opener(request, timeout=30) as response:
                 response_body = response.read()
-                return json.loads(response_body) if response_body else {}
+                parsed = json.loads(response_body) if response_body else {}
+                if include_headers:
+                    return parsed, dict(response.headers.items())
+                return parsed
         except urllib.error.HTTPError as exc:
+            if exc.code == 304 and include_headers:
+                return None, dict((exc.headers or {}).items())
             rate_limit = self.rate_limit_error(exc)
             if rate_limit is not None:
                 raise rate_limit from exc
@@ -631,12 +707,19 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
     def expected_labels(spec, profile):
         return {"self-hosted", "Linux", "X64", spec.name, *profile.labels}
 
-    def verify_engine(self):
+    def docker_cli(self, dedicated=False):
+        if dedicated:
+            return ["docker", "--host", f"unix://{self.policy.docker.host_socket}"]
+        return ["docker"]
+
+    def verify_engine(self, dedicated=False):
         result = self.command(
-            ["docker", "version", "--format", "{{.Server.Version}}"], check=False
+            [*self.docker_cli(dedicated), "version", "--format", "{{.Server.Version}}"],
+            check=False,
         )
         if result.returncode != 0:
-            raise FleetError("cannot query the shared Docker Engine")
+            engine = "dedicated rootless" if dedicated else "host"
+            raise FleetError(f"cannot query the {engine} Docker Engine")
         actual = version_tuple(result.stdout.strip())
         if actual < version_tuple(self.policy.docker.minimum_version):
             raise FleetError(
@@ -646,15 +729,15 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
         return result.stdout.strip()
 
     def docker_socket_group(self):
-        path = self.policy.docker.socket
+        path = self.policy.docker.host_socket
         try:
             metadata = Path(path).stat(follow_symlinks=False)
         except OSError as exc:
             raise FleetError(f"cannot inspect Docker socket {path}: {exc}") from exc
         if not stat.S_ISSOCK(metadata.st_mode):
             raise FleetError(f"Docker socket is not a Unix socket: {path}")
-        if metadata.st_uid != 0 or stat.S_IMODE(metadata.st_mode) != 0o660:
-            raise FleetError("Docker socket must be root-owned with mode 0660")
+        if metadata.st_uid != 1001 or stat.S_IMODE(metadata.st_mode) != 0o660:
+            raise FleetError("dedicated Docker socket must be UID 1001 with mode 0660")
         return metadata.st_gid
 
     @staticmethod
@@ -666,11 +749,14 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
             raise FleetError(f"duplicate Docker {context} inventory")
         return ids
 
-    def _inspect_container(self, container_id, *, allow_disappeared=False):
+    def _inspect_container(
+        self, container_id, *, allow_disappeared=False, dedicated=False
+    ):
         attempts = TRANSIENT_INSPECT_ATTEMPTS if allow_disappeared else 1
+        docker = self.docker_cli(dedicated)
         for attempt in range(attempts):
             result = self.command(
-                ["docker", "container", "inspect", container_id], check=False
+                [*docker, "container", "inspect", container_id], check=False
             )
             if result.returncode == 0:
                 break
@@ -678,7 +764,7 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
                 raise FleetError(f"cannot inspect Docker container {container_id}")
             inventory = self.command(
                 [
-                    "docker",
+                    *docker,
                     "container",
                     "ls",
                     "--all",
@@ -815,7 +901,7 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
             raise FleetError(f"cannot remove exact runner container {name}")
 
     def _remove_nested_containers(self, spec, profile, slot):
-        """Remove nested Docker containers scoped to this runner workspace."""
+        """Remove builder children through its dedicated rootless daemon."""
         with self.nested_container_inventory_lock():
             self._remove_nested_containers_locked(spec, profile, slot)
 
@@ -827,14 +913,18 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
             return
         except OSError as exc:
             raise FleetError(f"cannot resolve exact runner workspace: {exc}") from exc
+        dedicated = profile.docker_socket
+        docker = self.docker_cli(dedicated=dedicated)
         result = self.command(
-            ["docker", "container", "ls", "--all", "--quiet", "--no-trunc"],
+            [*docker, "container", "ls", "--all", "--quiet", "--no-trunc"],
             check=False,
         )
         if result.returncode != 0:
             raise FleetError("cannot inventory nested Docker containers")
         for container_id in self._container_ids(result.stdout, "nested container"):
-            inspected = self._inspect_container(container_id, allow_disappeared=True)
+            inspected = self._inspect_container(
+                container_id, allow_disappeared=True, dedicated=dedicated
+            )
             if inspected is None:
                 continue
             beneath = []
@@ -884,7 +974,7 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
                     f"nested Docker container has a bind outside its workspace: {container_id}"
                 )
             removed = self.command(
-                ["docker", "container", "rm", "--force", container_id], check=False
+                [*docker, "container", "rm", "--force", container_id], check=False
             )
             if removed.returncode != 0:
                 raise FleetError(
@@ -1103,15 +1193,18 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
             f"f5.runner.slot={slot}",
         ]
         if profile.docker_socket:
-            socket = self.policy.docker.socket
+            host_socket = self.policy.docker.host_socket
+            runner_socket = self.policy.docker.runner_socket
             command.extend(
                 [
+                    "--cgroup-parent",
+                    self.policy.docker.cgroup_parent,
                     "--volume",
-                    f"{socket}:{socket}:rw",
+                    f"{host_socket}:{runner_socket}:rw",
                     "--group-add",
                     str(self.docker_socket_group()),
                     "--env",
-                    f"DOCKER_HOST=unix://{socket}",
+                    f"DOCKER_HOST=unix://{runner_socket}",
                     "--env",
                     "RUNNER_CONTAINER_TOOLS=1",
                 ]
@@ -1157,6 +1250,8 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
         if not 0 <= slot < maximum_slots:
             raise FleetError(f"slot is invalid for profile {profile_name!r}")
         self.verify_engine()
+        if profile.docker_socket:
+            self.verify_engine(dedicated=True)
         self.cleanup(spec, profile, slot)
         self.prepare_workspace(spec, profile, slot)
         self.reset_workspace(spec, profile, slot)
@@ -1310,11 +1405,16 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
                 mount
                 for mount in inspected["Mounts"]
                 if isinstance(mount, dict)
-                and mount.get("Source") == self.policy.docker.socket
-                and mount.get("Destination") == self.policy.docker.socket
+                and mount.get("Source") == self.policy.docker.host_socket
+                and mount.get("Destination") == self.policy.docker.runner_socket
             ]
             if bool(socket_mounts) != profile.docker_socket:
                 errors.append(f"managed Docker socket isolation mismatch: {name}")
+            expected_parent = (
+                self.policy.docker.cgroup_parent if profile.docker_socket else ""
+            )
+            if host.get("CgroupParent", "") != expected_parent:
+                errors.append(f"managed Docker cgroup parent mismatch: {name}")
         return errors
 
     def audit(self, full_name):

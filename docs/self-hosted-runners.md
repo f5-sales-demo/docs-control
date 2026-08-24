@@ -30,11 +30,15 @@ The default profile has:
 - No host container socket.
 
 The explicit profile label prevents a default job from matching a more privileged builder.
-The `container-build` profile mounts the exact shared `/run/docker.sock`. Docker daemon control is
-host-root-equivalent, so the profile is limited to same-repository pull requests and trusted manual
-dispatches behind a socketless trust gate. Fork pull requests fail that gate explicitly. The
-controller stops the exact labeled outer runner before workspace deletion and removes nested
-containers only when every validated bind mount is beneath that runner's exact workspace.
+The `container-build` profile receives `/run/docker.sock` from the dedicated rootless daemon socket
+at `/run/f5-actions-runner/container-build/docker.sock`; it never receives the host daemon socket.
+The daemon's private mount namespace maps its own socket onto `/run/docker.sock`, so a GitHub
+container action that asks Docker to remount that conventional path can reach only the rootless
+daemon. The daemon, outer builder runner, and child containers stay under
+`f5-actions-container-build.slice`, capped at 16 GiB, no swap, and 6 CPUs. The profile remains
+limited to same-repository pull requests and trusted manual dispatches behind a socketless trust
+gate. Fork pull requests fail that gate explicitly. Nested discovery and cleanup always address
+the dedicated daemon and accept only bind mounts beneath the exact runner workspace.
 
 The docs-control `automation` profile is a separate socketless runner for its scheduled fleet
 watcher. It keeps long-running fleet collection and optional triage from occupying the
@@ -102,9 +106,10 @@ sudo systemctl stop "f5-actions-runner@$(systemd-escape 'docs-control--container
 sudo python3 scripts/provision-ephemeral-runners.py install
 printf '%s\n' '<RUNNER_FLEET_GITHUB_TOKEN>' |
   sudo python3 scripts/provision-ephemeral-runners.py install-credential
+sudo systemctl start f5-actions-container-build-docker.service
 sudo python3 scripts/provision-ephemeral-runners.py enable \
-  f5-sales-demo/docs-control --profile ubuntu-24.04
-python3 scripts/provision-ephemeral-runners.py audit f5-sales-demo/docs-control
+  f5-sales-demo/xcsh --profile container-build
+python3 scripts/provision-ephemeral-runners.py audit f5-sales-demo/xcsh
 ```
 
 The credential is read only from standard input, stored root-only, and never passed in a process
@@ -116,7 +121,9 @@ Podman is not part of the runner fleet. Runner services are Docker-backed epheme
 
 ## Docker Engine maintenance
 
-Schema v3 accepts Docker Engine 29.2.1 as the migration canary and records 29.7.2 as the target.
+Schema v4 separates the host and runner-visible sockets, reserves 20 GB of BuildKit cache, permits
+only `f5-sales-demo/xcsh` in the repository dispatcher, and caps admitted runner capacity at 32 GiB
+and 14 CPUs. It accepts Docker Engine 29.2.1 as the migration canary and records 29.7.2 as the target.
 Before the Engine change, capture exact container/image/mount/network/port/restart-policy,
 package-version, daemon-configuration, storage-driver, and runner-unit inventories. Cache the exact
 29.2.1 packages, quiesce runner units, and stop only the previously recorded running container set.
@@ -162,16 +169,26 @@ workspaces as a capacity response.
 
 ### Automatic profile dispatch
 
-`install` also enables `f5-actions-runner-profile-dispatch.timer` every minute. It polls queued
-GitHub Actions jobs and starts only the repository/profile service whose complete label set matches
-the job. This supplies automatic capacity for `ubuntu-24.04`, `automation`, and `container-build`
-without treating a Docker-socket runner as general standby capacity.
+Installation explicitly disables the global profile dispatcher and fleet-wide standby timers.
+`f5-actions-runner-xcsh-dispatch.timer` is a separate opt-in 60-second dispatcher. It calls only
+`f5-sales-demo/xcsh`, stores ETags and complete response bodies atomically, and persists primary or
+secondary GitHub rate-limit deadlines. While a deadline is active it exits successfully without an
+API request.
 
-A `container-build` instance is started only when the same workflow run already contains a
-successful `Trust Docker-capable job`. Malformed GitHub API data, unmatched labels, duplicate
-labels, and missing trust evidence fail closed: no profile is started. Operators must not use a
-manual profile start as evidence that automatic profile capacity is healthy; prove it from the
-dispatcher's journal and the automatically claimed job instead.
+The dispatcher admits no more than two 8 GiB / 4 CPU standard runners and one 16 GiB / 6 CPU
+container-build runner, enforcing the 32 GiB / 14 CPU fleet budget before every start. A
+`container-build` instance is started only when the same workflow run already contains a successful
+`Trust Docker-capable job`. Malformed GitHub API data, unmatched labels, duplicate labels, missing
+trust evidence, and any repository outside the allowlist fail closed. Enable the timer only after
+three successful canaries:
+
+```bash
+sudo systemctl enable --now f5-actions-runner-xcsh-dispatch.timer
+```
+
+Rollback disables that timer, stops the dedicated builder runner, restores the preceding policy
+revision and original `xcsh` runner, and retains `/data/actions-runners/container-build-docker`
+until the rollback is verified.
 
 If a runner or image may be compromised:
 
