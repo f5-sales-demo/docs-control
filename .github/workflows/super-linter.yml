@@ -571,6 +571,7 @@ jobs:
           python3 -m unittest \
             tests/test_audit_runner_workflows.py \
             tests/test_ephemeral_runner_controller.py \
+            tests/test_fleet_runner_dispatch.py \
             tests/test_provision_ephemeral_runners.py \
             tests/test_workflow_security_validator.py
 

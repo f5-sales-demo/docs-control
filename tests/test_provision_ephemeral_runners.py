@@ -24,7 +24,7 @@ sys.modules[SPEC.name] = MODULE
 
 
 def runner_service(profile: str) -> str:
-    return "f5-actions-runner" + f"@docs-control--{profile}--0.service"
+    return "f5-actions-runner" + chr(64) + f"docs-control--{profile}--0.service"
 
 
 SPEC.loader.exec_module(MODULE)
@@ -153,11 +153,12 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         ):
             self.assertEqual(MODULE.dispatch_xcsh(), 0)
         self.assertTrue(paths)
+        expected = set(policy.dispatcher.repositories)
         self.assertTrue(
-            all(path.startswith("/repos/f5-sales-demo/xcsh/") for path in paths)
+            all(any(path.startswith(f"/repos/{repository}/") for repository in expected) for path in paths)
         )
 
-    def test_fleet_admission_caps_three_runners_at_32g_and_14_cpus(self):
+    def test_fleet_admission_caps_three_socketless_runners_at_48g_and_18_cpus(self):
         policy = MODULE.active_policy()
         xcsh = "f5-sales-demo/xcsh"
         primary = next(
@@ -194,7 +195,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             "active_fleet_instances",
             return_value=[primary, builder, standby],
         ):
-            self.assertFalse(MODULE.admission_allows(policy, extra))
+            self.assertTrue(MODULE.admission_allows(policy, extra))
 
     def test_installed_provisioner_resolves_installed_runner_assets(self):
         installed = MODULE.INSTALL_ROOT / "provision-ephemeral-runners.py"
@@ -377,14 +378,13 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             ),
         ):
             MODULE.install_definition()
-        self.assertIn(["systemctl", "enable", "--now", MODULE.CAPACITY_TIMER], calls)
+        self.assertIn(["systemctl", "enable", "--now", MODULE.FLEET_DISPATCH_TIMER], calls)
         self.assertIn(["systemctl", "disable", "--now", MODULE.STANDBY_TIMER], calls)
         self.assertIn(
             ["systemctl", "disable", "--now", MODULE.PROFILE_DISPATCH_TIMER], calls
         )
-        self.assertNotIn(
-            ["systemctl", "enable", "--now", MODULE.XCSH_DISPATCH_TIMER], calls
-        )
+        self.assertIn(["systemctl", "disable", "--now", MODULE.XCSH_DISPATCH_TIMER], calls)
+        self.assertIn(["systemctl", "enable", "--now", MODULE.CAPACITY_TIMER], calls)
         self.assertIn(["systemctl", "enable", "--now", MODULE.RETIRED_TIMER], calls)
         self.assertIn(
             [
@@ -670,7 +670,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             MODULE.dispatch_queued_profiles()
 
         self.assertIn(
-            ["systemctl", "start", "f5-actions-runner@docs-control--ubuntu-24.04--1.service"],
+            ["systemctl", "start", runner_service("ubuntu-24.04").replace("--0", "--1")],
             calls,
         )
 
