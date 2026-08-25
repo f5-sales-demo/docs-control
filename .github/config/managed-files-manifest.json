@@ -1,24 +1,24 @@
 {
-  "source_commit": "0e2eb6aebc988bf3b54b6183c043eac870a71f96",
+  "source_commit": "8c04366951a8ad055ba9a44397eca0a99624a164",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
       "dest": ".github/workflows/github-pages-deploy.yml",
-      "sha": "8d57f02fc001e1823398b7e496702e2f0de0fb0c",
+      "sha": "e611b8a01fc47f32a9451d95bb213b56bfe0f4bf",
       "size": 855,
       "mode": "100644"
     },
     ".github/workflows/require-linked-issue.yml": {
       "src": "workflows/require-linked-issue.yml",
       "dest": ".github/workflows/require-linked-issue.yml",
-      "sha": "d17f669561a5be0f1fd2c8abaad0472f8dc6a93a",
-      "size": 1735,
+      "sha": "b1564948096da7ea1f9c757a4398d50a59a46c4d",
+      "size": 1787,
       "mode": "100644"
     },
     ".github/workflows/super-linter.yml": {
       "src": "workflows/super-linter.yml",
       "dest": ".github/workflows/super-linter.yml",
-      "sha": "b7ec066c9151398f8f4f6528b78ed93a822f1be5",
+      "sha": "ee39e9e8f76e5d30f713e56bf04100f578695c0f",
       "size": 1294,
       "mode": "100644"
     },
@@ -32,7 +32,7 @@
     ".github/workflows/antigravity-review.yml": {
       "src": "workflows/antigravity-review.yml",
       "dest": ".github/workflows/antigravity-review.yml",
-      "sha": "b66985c38cc25724ff2c30db5f316b419d0f7d88",
+      "sha": "9ac96237e82ea7a18f97f5554f28bd88560eb8e0",
       "size": 1309,
       "mode": "100644"
     },
@@ -165,7 +165,7 @@
     ".github/workflows/auto-merge.yml": {
       "src": "workflows/auto-merge.yml",
       "dest": ".github/workflows/auto-merge.yml",
-      "sha": "501e4f1edc916ca13145c88507d687568bb5db45",
+      "sha": "21a0a724b8602d283d52d8cc3b41175e1258b3b3",
       "size": 3158,
       "mode": "100644"
     },
@@ -417,8 +417,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "e86b3626bdd79a7a90c81a5db390fca563d1b564",
-      "size": 6609,
+      "sha": "752671f034a3f3d1902318fad009cd6234c8eafd",
+      "size": 6847,
       "mode": "100644"
     },
     ".claude/settings.json": {
@@ -438,8 +438,8 @@
     ".github/actionlint.yaml": {
       "src": ".github/actionlint.yaml",
       "dest": ".github/actionlint.yaml",
-      "sha": "3bda736e0e0df7dc5948034fd10c83754cfdb7d6",
-      "size": 1328,
+      "sha": "f3aca19d806302530b2d58460a89b2049b00f4d5",
+      "size": 1398,
       "mode": "100644"
     },
     ".github/workflows/workflow-security-audit.yml": {
@@ -452,22 +452,22 @@
     "scripts/workflow-security-validator.py": {
       "src": "scripts/workflow-security-validator.py",
       "dest": "scripts/workflow-security-validator.py",
-      "sha": "f2cad7285cf07383b23c2650c0ed5f39e981deb2",
-      "size": 26293,
+      "sha": "06d9a95913d29c4ea5ad3077c6ef937223ee4023",
+      "size": 30636,
       "mode": "100755"
     },
     "scripts/audit-runner-workflows.py": {
       "src": "scripts/audit-runner-workflows.py",
       "dest": "scripts/audit-runner-workflows.py",
-      "sha": "fa0187a413523c6b7145a4c73d947d41ea3b044e",
-      "size": 13348,
+      "sha": "1bf1b889d1c9cb8657265dd7b5a7f75e5a8c034d",
+      "size": 16677,
       "mode": "100755"
     },
     ".github/config/self-hosted-runner-policy.json": {
       "src": ".github/config/self-hosted-runner-policy.json",
       "dest": ".github/config/self-hosted-runner-policy.json",
-      "sha": "987fb21ad4471888f201627e618849ffe97f5351",
-      "size": 37428,
+      "sha": "10d59ef9a8bb56c4274f7cdbaabc5ac02aee1700",
+      "size": 37628,
       "mode": "100644"
     },
     ".github/workflows/semgrep.yml": {
