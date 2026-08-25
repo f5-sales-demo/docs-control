@@ -169,6 +169,7 @@ def governed_repositories(path):
     return {f"f5-sales-demo/{name}" for name in repos}
 
 
+# pylint: disable-next=too-many-locals
 def repository_runner_routes(workflows, profiles, default_profile, repository):
     """Return one strict route-to-profile model for legacy or ARC runners."""
     runner = workflows.get("runner", {})
@@ -182,7 +183,7 @@ def repository_runner_routes(workflows, profiles, default_profile, repository):
             )
         if not isinstance(scale_sets, dict) or not scale_sets:
             raise PolicyError("repository ARC scale sets must be a non-empty object")
-        profiles_by_route = {}
+        profiles_by_label = {}
         for name, spec in scale_sets.items():
             if not isinstance(name, str) or not re.fullmatch(
                 r"[a-z0-9][a-z0-9.-]*", name
@@ -198,9 +199,9 @@ def repository_runner_routes(workflows, profiles, default_profile, repository):
                 raise PolicyError("ARC scale set label must be a safe string")
             if not isinstance(profile, str) or profile not in profiles:
                 raise PolicyError("ARC scale set profile must be defined")
-            if label in profiles_by_route:
+            if label in profiles_by_label:
                 raise PolicyError(f"duplicate ARC scale set label: {label}")
-            profiles_by_route[label] = profile
+            profiles_by_label[label] = profile
         if repository == "f5-sales-demo/xcsh":
             expected = {
                 "socketless": {
@@ -214,7 +215,7 @@ def repository_runner_routes(workflows, profiles, default_profile, repository):
             }
             if scale_sets != expected:
                 raise PolicyError("xcsh ARC scale set contract is invalid")
-        return {"kind": "arc", "profiles_by_route": profiles_by_route}
+        return {"kind": "arc", "profiles_by_route": profiles_by_label}
 
     allowed = runner.get("profiles", [default_profile])
     valid_profiles = isinstance(allowed, list) and bool(allowed)
@@ -232,8 +233,8 @@ def repository_runner_routes(workflows, profiles, default_profile, repository):
             "that includes the default and container-build"
         )
     basename = repository.split("/", 1)[1]
-    profiles_by_route = {}
-    specs_by_route = {}
+    profiles_by_route: dict[tuple, str] = {}
+    specs_by_route: dict[tuple, object] = {}
     for profile in allowed:
         spec = profiles[profile]
         labels = (
@@ -274,6 +275,7 @@ def permissions_within_ceiling(permissions, context):
             )
 
 
+# pylint: disable-next=too-many-locals
 def load_policy(path, governance_path, repository):
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -544,6 +546,7 @@ def secret_references(text):
     return names
 
 
+# pylint: disable-next=too-many-locals
 def validate_job(repository, workflow, job, spec, default_profile, routes):
     errors = []
     basename = repository.split("/", 1)[1]
@@ -618,6 +621,7 @@ def validate_job(repository, workflow, job, spec, default_profile, routes):
     return errors
 
 
+# pylint: disable-next=too-many-locals
 def inventory(root, repository, policy, default_profile, routes):
     actual = {}
     paths = (

@@ -257,7 +257,7 @@ def step_has_privileged_package_install(step):
     )
 
 
-# pylint: disable-next=too-many-locals
+# pylint: disable-next=too-many-arguments,too-many-locals
 def audit_job(  # noqa: PLR0917
     repository,
     relative,

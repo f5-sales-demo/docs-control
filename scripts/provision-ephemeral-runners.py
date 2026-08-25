@@ -670,8 +670,8 @@ def rootless_prerequisite_errors():
             errors.append(f"rootless prerequisite is missing: {executable}")
     for path in (Path("/etc/subuid"), Path("/etc/subgid")):
         try:
-            expected = ("gha-ephemeral", SUBORDINATE_START, SUBORDINATE_COUNT)
-            if expected not in subordinate_ranges(path):
+            expected_range = ("gha-ephemeral", SUBORDINATE_START, SUBORDINATE_COUNT)
+            if expected_range not in subordinate_ranges(path):
                 errors.append(f"dedicated subordinate range is missing from {path}")
         except (OSError, ValueError) as exc:
             errors.append(f"cannot validate {path}: {exc}")
@@ -679,10 +679,12 @@ def rootless_prerequisite_errors():
         Path("/proc/sys/kernel/unprivileged_userns_clone"): "1",
         Path("/proc/sys/kernel/apparmor_restrict_unprivileged_userns"): "1",
     }
-    for path, expected in controls.items():
+    for path, expected_value in controls.items():
         try:
-            if path.read_text(encoding="utf-8").strip() != expected:
-                errors.append(f"rootless prerequisite must remain {path}={expected}")
+            if path.read_text(encoding="utf-8").strip() != expected_value:
+                errors.append(
+                    f"rootless prerequisite must remain {path}={expected_value}"
+                )
         except OSError as exc:
             errors.append(f"cannot validate {path}: {exc}")
     try:
