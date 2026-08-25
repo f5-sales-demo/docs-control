@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=consider-using-with
 # ruff: noqa: PT009, PT018
 """Hermetic tests for the bounded fleet runner dispatcher."""
 
@@ -86,8 +87,20 @@ class FleetRunnerDispatchTests(unittest.TestCase):
             retry_at = 1200
 
         policy = self.policy(("f5-sales-demo/docs",), 80)
+        github = GitHub(
+            {
+                "/repos/f5-sales-demo/docs/actions/runs?status=queued&per_page=100": (
+                    {"workflow_runs": []},
+                    {},
+                ),
+                "/repos/f5-sales-demo/docs/actions/runs?status=in_progress&per_page=100": (
+                    {"workflow_runs": []},
+                    {},
+                ),
+            }
+        )
         controller = SimpleNamespace(
-            GitHubClient=lambda _token: mock.sentinel.github,
+            GitHubClient=lambda _token: github,
             token_from_environment=lambda: "credential",
             EphemeralController=lambda *_args: mock.sentinel.controller,
             GitHubRateLimitError=RateLimitError,
@@ -199,10 +212,10 @@ class FleetRunnerDispatchTests(unittest.TestCase):
             ),
             mock.patch.object(MODULE.PROVISION, "command", side_effect=command),
         ):
-            self.assertEqual(MODULE.reap_idle(github, policy, 80), 1)
+            self.assertEqual(MODULE.reap_idle(github, policy, 80, set()), 1)
         self.assertEqual(
             stopped,
-            [["systemctl", "stop", "--no-block", item.unit]],
+            [["systemctl", "stop", item.unit]],
         )
 
     def test_idle_reaping_preserves_busy_offline_and_unrelated_runners(self):
@@ -246,8 +259,61 @@ class FleetRunnerDispatchTests(unittest.TestCase):
                     ),
                     mock.patch.object(MODULE.PROVISION, "command", command),
                 ):
-                    self.assertEqual(MODULE.reap_idle(github, policy, 80), 1)
+                    self.assertEqual(MODULE.reap_idle(github, policy, 80, set()), 1)
                 command.assert_not_called()
+
+    def test_idle_reaping_skips_repositories_with_queued_or_active_work(self):
+        repository = "f5-sales-demo/docs"
+        item = SimpleNamespace(
+            repository=repository,
+            profile="ubuntu-24.04",
+            slot=0,
+            unit="fixture",
+        )
+        github = GitHub({})
+        with (
+            mock.patch.object(
+                MODULE.PROVISION, "active_fleet_instances", return_value=(item,)
+            ),
+            mock.patch.object(MODULE.PROVISION, "command") as command,
+        ):
+            self.assertEqual(
+                MODULE.reap_idle(github, mock.sentinel.policy, 80, {repository}), 0
+            )
+
+        self.assertEqual(github.calls, [])
+        command.assert_not_called()
+
+    def test_dispatch_protects_queued_repository_before_idle_reap(self):
+        repository = "f5-sales-demo/docs"
+        base = f"/repos/{repository}/actions/runs"
+        github = GitHub(
+            {
+                f"{base}?status=queued&per_page=100": (
+                    {"workflow_runs": [{"id": 11, "status": "queued"}]},
+                    {},
+                ),
+                f"{base}?status=in_progress&per_page=100": (
+                    {"workflow_runs": []},
+                    {},
+                ),
+                f"{base}/11/jobs?per_page=100": ({"jobs": []}, {}),
+            }
+        )
+        policy = self.policy((repository,), 80)
+        with (
+            mock.patch.object(MODULE.PROVISION, "require_root"),
+            mock.patch.object(MODULE.PROVISION, "active_policy", return_value=policy),
+            mock.patch.object(
+                MODULE.PROVISION,
+                "load_controller",
+                return_value=self.controller(github),
+            ),
+            mock.patch.object(MODULE, "reap_idle", return_value=0) as reap_idle,
+        ):
+            self.assertEqual(MODULE.dispatch(), 0)
+
+        self.assertEqual(reap_idle.call_args.args[3], {repository})
 
     def test_idle_reaping_is_counted_in_the_request_budget(self):
         profile = SimpleNamespace(name="ubuntu-24.04", docker_socket=False)
@@ -284,7 +350,7 @@ class FleetRunnerDispatchTests(unittest.TestCase):
                 MODULE.PROVISION, "instance_profile", return_value=profile
             ),
         ):
-            self.assertEqual(MODULE.reap_idle(github, policy, 1), 1)
+            self.assertEqual(MODULE.reap_idle(github, policy, 1, set()), 1)
         self.assertEqual(len(github.calls), 1)
         self.assertIn("/alpha/", github.calls[0][1])
 
@@ -344,7 +410,7 @@ class FleetRunnerDispatchTests(unittest.TestCase):
         started, primary = [], SimpleNamespace(unit="fixture-primary")
         standby = SimpleNamespace(unit="fixture-standby")
 
-        authorizations = []
+        authorizations: list[str] = []
 
         def command(argv, **_kwargs):
             if argv[:2] == ["systemctl", "start"]:

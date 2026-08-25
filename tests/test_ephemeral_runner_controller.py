@@ -6,6 +6,7 @@ import importlib.util
 import io
 import json
 import os
+import signal
 import stat
 import sys
 import tempfile
@@ -605,6 +606,62 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.assertLess(events.index(stop_event), events.index(("wait", 5)))
         self.assertNotIn(("terminate",), events)
         self.assertEqual(github.deleted, [("f5-sales-demo/fixture", 42)])
+
+    def test_main_routes_sigterm_through_transactional_runner_cleanup(self):
+        handlers = {}
+
+        def install_handler(signum, handler):
+            handlers[signum] = handler
+            return signal.SIG_DFL
+
+        def interrupted_run_once(*_args):
+            handlers[signal.SIGTERM](signal.SIGTERM, None)
+
+        with (
+            mock.patch.object(MODULE.signal, "signal", side_effect=install_handler),
+            mock.patch.object(MODULE, "FleetPolicy", return_value=self.policy()),
+            mock.patch.object(MODULE, "GitHubClient", return_value=FakeGitHub()),
+            mock.patch.object(MODULE, "token_from_environment", return_value="token"),
+            mock.patch.object(
+                MODULE.EphemeralController,
+                "run_once",
+                side_effect=interrupted_run_once,
+            ),
+        ):
+            result = MODULE.main(
+                [
+                    "--policy",
+                    str(self.policy_path),
+                    "--base-dir",
+                    str(self.root / "state"),
+                    "once",
+                    "f5-sales-demo/fixture",
+                ]
+            )
+
+        self.assertEqual(result, 0)
+        self.assertIn(signal.SIGTERM, handlers)
+
+    def test_stop_during_startup_still_finishes_exact_slot_cleanup(self):
+        github = FakeGitHub()
+        controller = MODULE.EphemeralController(
+            self.policy(), github, self.root / "state", CommandRecorder()
+        )
+        with (
+            mock.patch.object(
+                controller,
+                "cleanup",
+                side_effect=[MODULE.StopRequestedError, None],
+            ) as cleanup,
+            mock.patch.object(controller, "reset_workspace") as reset_workspace,
+            mock.patch.object(controller, "remove_registration") as remove_registration,
+            self.assertRaises(MODULE.StopRequestedError),
+        ):
+            controller.run_once("f5-sales-demo/fixture", "ubuntu-24.04")
+
+        self.assertEqual(cleanup.call_count, 2)
+        reset_workspace.assert_called_once()
+        remove_registration.assert_called_once()
 
     def test_completed_outer_process_does_not_request_an_extra_stop(self):
         events: list[tuple[Any, ...]] = []

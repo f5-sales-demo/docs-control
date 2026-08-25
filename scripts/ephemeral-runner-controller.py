@@ -13,6 +13,7 @@ import os
 import re
 import secrets
 import shutil
+import signal
 import stat
 import subprocess
 import sys
@@ -553,6 +554,13 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
             else None
         )
         self.stopping = False
+
+    def request_stop(self, _signum, _frame):
+        """Interrupt the blocking outer runner once so cleanup can finish."""
+        if self.stopping:
+            return
+        self.stopping = True
+        raise StopRequestedError
 
     @property
     def registration_cooldown_path(self):
@@ -1249,11 +1257,12 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
         self.verify_engine()
         if profile.docker_socket:
             self.verify_engine(dedicated=True)
-        self.cleanup(spec, profile, slot)
-        self.prepare_workspace(spec, profile, slot)
-        self.reset_workspace(spec, profile, slot)
-        token = self.github.registration_token(full_name)
+        token = ""
         try:
+            self.cleanup(spec, profile, slot)
+            self.prepare_workspace(spec, profile, slot)
+            self.reset_workspace(spec, profile, slot)
+            token = self.github.registration_token(full_name)
             result = self._run_outer(
                 spec,
                 profile,
@@ -1439,7 +1448,13 @@ def main(argv=None):
         github = GitHubClient(token_from_environment())
         controller = EphemeralController(policy, github, args.base_dir)
         if args.action == "once":
-            return controller.run_once(args.repository, args.profile, args.slot)
+            previous_handler = signal.signal(signal.SIGTERM, controller.request_stop)
+            try:
+                return controller.run_once(args.repository, args.profile, args.slot)
+            except StopRequestedError:
+                return 0
+            finally:
+                signal.signal(signal.SIGTERM, previous_handler)
         repositories = [args.repository] if args.repository else policy.governed()
         failed = False
         for repository in repositories:
