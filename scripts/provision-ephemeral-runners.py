@@ -155,7 +155,7 @@ class Instance:  # pylint: disable=too-many-instance-attributes
 
 def instances(policy):
     result = []
-    for repository in policy.governed():
+    for repository in policy.dispatcher.repositories:
         spec = policy.repository(repository)
         for profile in spec.profiles:
             for slot in range(spec.replicas):
@@ -180,7 +180,7 @@ def instances(policy):
 def standby_instances(policy=None):
     policy = active_policy() if policy is None else policy
     result = []
-    for repository in policy.governed():
+    for repository in policy.dispatcher.repositories:
         spec = policy.repository(repository)
         for profile in spec.standby_profiles:
             result.append(
