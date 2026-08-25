@@ -443,6 +443,8 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         )
         self.assertIn("Restart=on-failure", unit)
         self.assertNotIn("Restart=always", unit)
+        self.assertIn("TimeoutStopSec=6min", unit)
+        self.assertIn("KillMode=mixed", unit)
         self.assertNotIn("github.token serve", unit)
         self.assertNotIn("RuntimeDirectory=", unit)
         self.assertIn("/run/docker.sock", unit)

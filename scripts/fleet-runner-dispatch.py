@@ -197,13 +197,15 @@ def runner_is_idle(response, spec, profile, item):
     )
 
 
-def reap_idle(github, policy, request_budget):
-    """Asynchronously stop only verified-idle active runner services."""
+def reap_idle(github, policy, request_budget, protected_repositories):
+    """Synchronously stop only verified-idle active runner services."""
     inventories = {}
     requests = 0
     for item in PROVISION.active_fleet_instances(policy):
         if requests >= request_budget:
             break
+        if item.repository in protected_repositories:
+            continue
         response = inventories.get(item.repository)
         if response is None:
             response = get(
@@ -214,7 +216,7 @@ def reap_idle(github, policy, request_budget):
         spec = policy.repository(item.repository)
         profile = PROVISION.instance_profile(policy, item)
         if runner_is_idle(response, spec, profile, item):
-            PROVISION.command(["systemctl", "stop", "--no-block", item.unit])
+            PROVISION.command(["systemctl", "stop", item.unit])
             print(
                 f"[REAP] repository={item.repository} profile={profile.name} "
                 f"unit={item.unit} runner=verified-idle"
@@ -242,7 +244,8 @@ def dispatch():
         cursor = current["cursor"]
         ordered = repositories[cursor:] + repositories[:cursor]
         try:
-            requests = reap_idle(github, policy, policy.dispatcher.request_budget)
+            requests = 0
+            protected_repositories = set()
             for offset, repository in enumerate(ordered):
                 if requests >= policy.dispatcher.request_budget:
                     break
@@ -256,6 +259,8 @@ def dispatch():
                     )
                     requests += 1
                     runs.extend(valid_runs(response))
+                if runs:
+                    protected_repositories.add(repository)
                 spec = policy.repository(repository)
                 for run in runs:
                     if requests >= policy.dispatcher.request_budget:
@@ -327,6 +332,12 @@ def dispatch():
                             break
                 current["cursor"] = (cursor + offset + 1) % len(repositories)
                 save(current)
+            requests += reap_idle(
+                github,
+                policy,
+                policy.dispatcher.request_budget - requests,
+                protected_repositories,
+            )
         except controller_module.GitHubRateLimitError as exc:
             current["cooldowns"][exc.kind] = max(
                 current["cooldowns"][exc.kind], exc.retry_at
