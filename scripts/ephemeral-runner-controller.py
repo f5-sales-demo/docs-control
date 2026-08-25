@@ -208,7 +208,8 @@ class FleetPolicy:
         "network",
         "docker_socket",
     }
-    REPOSITORY_RUNTIME_FIELDS = {"replicas", "profiles"}
+    REPOSITORY_RUNTIME_FIELDS = {"replicas", "profiles", "arc_scale_sets"}
+    ARC_SCALE_SET_FIELDS = {"label", "profile"}
 
     def __init__(self, path):
         self.path = Path(path)
@@ -246,7 +247,16 @@ class FleetPolicy:
             raise FleetError("hosted_exceptions must be an object")
         if not isinstance(raw["repositories"], dict) or not raw["repositories"]:
             raise FleetError("repositories must be a non-empty object")
+        self.arc_scale_sets = {}
         for repository in raw["repositories"]:
+            arc_scale_sets = self._repository_arc_scale_sets(repository)
+            if arc_scale_sets is not None:
+                self.arc_scale_sets[repository] = arc_scale_sets
+                if repository in self.dispatcher.repositories:
+                    raise FleetError(
+                        f"ARC repository cannot use legacy dispatcher: {repository}"
+                    )
+                continue
             enabled = {profile.name for profile in self.repository(repository).profiles}
             if "container-build" not in enabled:
                 raise FleetError(
@@ -389,6 +399,69 @@ class FleetPolicy:
             )
         return profiles
 
+    def _repository_arc_scale_sets(self, full_name):
+        repository_name(full_name)
+        try:
+            repository_policy = self.raw["repositories"][full_name]
+        except KeyError as exc:
+            raise FleetError(f"repository is not governed: {full_name}") from exc
+        if not isinstance(repository_policy, dict):
+            raise FleetError(f"repository policy must be an object: {full_name}")
+        runtime = repository_policy.get("runner", {})
+        if (
+            not isinstance(runtime, dict)
+            or set(runtime) - self.REPOSITORY_RUNTIME_FIELDS
+        ):
+            raise FleetError(f"invalid runner override for {full_name}")
+        scale_sets = runtime.get("arc_scale_sets")
+        if scale_sets is None:
+            return None
+        if "replicas" in runtime or "profiles" in runtime:
+            raise FleetError(
+                f"ARC runner override cannot include legacy fields for {full_name}"
+            )
+        if not isinstance(scale_sets, dict) or not scale_sets:
+            raise FleetError(
+                f"ARC scale sets must be a non-empty object for {full_name}"
+            )
+        parsed = {}
+        labels = set()
+        for name, spec in scale_sets.items():
+            validate_name(name, PROFILE_RE, "ARC scale-set route")
+            if not isinstance(spec, dict) or set(spec) != self.ARC_SCALE_SET_FIELDS:
+                raise FleetError(
+                    f"ARC scale set {name!r} fields must equal "
+                    f"{sorted(self.ARC_SCALE_SET_FIELDS)}"
+                )
+            label = validate_name(spec["label"], PROFILE_RE, "ARC scale-set label")
+            profile_name = validate_name(
+                spec["profile"], PROFILE_RE, "ARC scale-set profile"
+            )
+            if label in labels:
+                raise FleetError(
+                    f"duplicate ARC scale-set label for {full_name}: {label}"
+                )
+            if profile_name not in self.profiles:
+                raise FleetError(
+                    f"unknown ARC scale-set profile for {full_name}: {profile_name}"
+                )
+            labels.add(label)
+            parsed[name] = {"label": label, "profile": profile_name}
+        if full_name == "f5-sales-demo/xcsh":
+            expected = {
+                "socketless": {
+                    "label": "xcsh-socketless",
+                    "profile": "ubuntu-24.04",
+                },
+                "container-build": {
+                    "label": "xcsh-container-build",
+                    "profile": "container-build",
+                },
+            }
+            if parsed != expected:
+                raise FleetError("xcsh ARC scale-set contract is invalid")
+        return parsed
+
     def repository(self, full_name, org=DEFAULT_ORG):
         name = repository_name(full_name, org)
         try:
@@ -403,6 +476,11 @@ class FleetPolicy:
             or set(runtime) - self.REPOSITORY_RUNTIME_FIELDS
         ):
             raise FleetError(f"invalid runner override for {full_name}")
+        if "arc_scale_sets" in runtime:
+            self._repository_arc_scale_sets(full_name)
+            raise FleetError(
+                f"repository is managed by ARC, not the legacy fleet: {full_name}"
+            )
         replicas = runtime.get("replicas", self.defaults["replicas"])
         if not isinstance(replicas, int) or not 1 <= replicas <= 8:
             raise FleetError(f"invalid replica count for {full_name}")

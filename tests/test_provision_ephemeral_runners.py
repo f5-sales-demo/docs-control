@@ -75,27 +75,29 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
 
     def test_fleet_admission_caps_three_socketless_runners_at_48g_and_18_cpus(self):
         policy = MODULE.active_policy()
-        xcsh = "f5-sales-demo/xcsh"
+        repository = "f5-sales-demo/administration"
         primary = next(
             item
             for item in MODULE.instances(policy)
-            if item.repository == xcsh and item.profile == "ubuntu-24.04"
+            if item.repository == repository and item.profile == "ubuntu-24.04"
         )
         builder = next(
             item
             for item in MODULE.instances(policy)
-            if item.repository == xcsh and item.profile == "container-build"
+            if item.repository == repository and item.profile == "container-build"
         )
         standby = next(
-            item for item in MODULE.standby_instances(policy) if item.repository == xcsh
+            item
+            for item in MODULE.standby_instances(policy)
+            if item.repository == repository
         )
         with mock.patch.object(
             MODULE, "active_fleet_instances", return_value=[primary, builder]
         ):
             self.assertTrue(MODULE.admission_allows(policy, standby))
         extra = MODULE.Instance(
-            xcsh,
-            "xcsh",
+            repository,
+            "administration",
             "ubuntu-24.04",
             2,
             False,
@@ -134,6 +136,21 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             },
         )
 
+    def test_arc_repository_is_excluded_from_legacy_instance_inventory(self):
+        policy = MODULE.active_policy()
+        repository = "f5-sales-demo/xcsh"
+        self.assertIn(repository, policy.arc_scale_sets)
+        self.assertNotIn(repository, policy.dispatcher.repositories)
+        self.assertTrue(
+            all(item.repository != repository for item in MODULE.instances(policy))
+        )
+        self.assertTrue(
+            all(
+                item.repository != repository
+                for item in MODULE.standby_instances(policy)
+            )
+        )
+
     def test_admission_check_requires_an_exact_enabled_policy_instance(self):
         policy = MODULE.active_policy()
         with (
@@ -141,13 +158,13 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             mock.patch.object(MODULE, "reserved_fleet_instances") as reservations,
             self.assertRaisesRegex(MODULE.ProvisionError, "exact enabled"),
         ):
-            MODULE.admission_check("f5-sales-demo/xcsh", "ubuntu-24.04", 999)
+            MODULE.admission_check("f5-sales-demo/administration", "ubuntu-24.04", 999)
         reservations.assert_not_called()
         self.assertEqual(
             MODULE.configured_fleet_instance(
-                policy, "f5-sales-demo/xcsh", "container-build", 0
+                policy, "f5-sales-demo/administration", "container-build", 0
             ).repository,
-            "f5-sales-demo/xcsh",
+            "f5-sales-demo/administration",
         )
 
     def test_reserved_fleet_instances_counts_active_and_activating_units(self):
@@ -369,18 +386,20 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 )
             )
 
-    def test_every_governed_repository_has_container_build_profile(self):
+    def test_every_legacy_dispatch_repository_has_container_build_profile(self):
+        policy = MODULE.active_policy()
         by_repository: dict[str, set[str]] = {}
         for item in MODULE.all_instances():
             by_repository.setdefault(item.repository, set()).add(item.profile)
-        self.assertEqual(len(by_repository), 39)
+        self.assertEqual(set(by_repository), set(policy.dispatcher.repositories))
+        self.assertNotIn("f5-sales-demo/xcsh", by_repository)
         self.assertTrue(
             all("container-build" in profiles for profiles in by_repository.values())
         )
 
     def test_inventory_is_repository_and_profile_scoped(self):
         items = MODULE.all_instances()
-        self.assertEqual(len(items), 81)
+        self.assertEqual(len(items), 79)
         docs = [
             item for item in items if item.repository == "f5-sales-demo/docs-control"
         ]

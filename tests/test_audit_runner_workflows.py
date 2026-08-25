@@ -10,6 +10,8 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 ROOT = Path(__file__).resolve().parent.parent
 SPEC = importlib.util.spec_from_file_location(
     "audit_runner_workflows", ROOT / "scripts/audit-runner-workflows.py"
@@ -21,6 +23,7 @@ sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
 
 
+# pylint: disable-next=too-many-public-methods
 class WorkflowAuditTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -71,8 +74,129 @@ class WorkflowAuditTests(unittest.TestCase):
     def write_workflow(self, text):
         (self.root / ".github/workflows/ci.yml").write_text(text, encoding="utf-8")
 
-    def audit(self):
-        return MODULE.audit_repository(self.root, "f5-sales-demo/fixture", self.policy)
+    def audit(self, repository="f5-sales-demo/fixture"):
+        return MODULE.audit_repository(self.root, repository, self.policy)
+
+    def use_xcsh_arc_routes(self):
+        self.data["repositories"] = {
+            "f5-sales-demo/xcsh": {
+                "runner": {
+                    "arc_scale_sets": {
+                        "socketless": {
+                            "label": "xcsh-socketless",
+                            "profile": "ubuntu-24.04",
+                        },
+                        "container-build": {
+                            "label": "xcsh-container-build",
+                            "profile": "container-build",
+                        },
+                    }
+                }
+            }
+        }
+        self.write_policy()
+
+    def test_arc_routes_accept_only_scalar_contract_labels(self):
+        self.use_xcsh_arc_routes()
+        for label in ("xcsh-socketless", "xcsh-container-build"):
+            self.write_workflow(
+                f"""name: ARC
+on: [workflow_dispatch]
+jobs:
+  test:
+    runs-on: {label}
+    steps:
+      - run: true
+"""
+            )
+            with self.subTest(label=label):
+                self.assertEqual(self.audit("f5-sales-demo/xcsh"), [])
+
+        for route in (
+            "xcsh-unknown",
+            ["self-hosted", "Linux", "X64", "xcsh", "ubuntu-24.04"],
+            ["self-hosted", "Linux", "X64", "xcsh", "container-build"],
+        ):
+            workflow = {
+                "name": "ARC",
+                "on": ["workflow_dispatch"],
+                "jobs": {"test": {"runs-on": route, "steps": [{"run": True}]}},
+            }
+            self.write_workflow(yaml.safe_dump(workflow, sort_keys=False))
+            with self.subTest(route=route):
+                errors = self.audit("f5-sales-demo/xcsh")
+                self.assertTrue(
+                    any("canonical repository route" in item for item in errors)
+                )
+
+    def test_arc_docker_route_requires_container_pool_and_socketless_trust_gate(self):
+        self.use_xcsh_arc_routes()
+        self.write_workflow(
+            """name: ARC Docker
+on:
+  pull_request:
+jobs:
+  trust-gate:
+    runs-on: xcsh-socketless
+    steps:
+      - run: true
+  build:
+    needs: trust-gate
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: xcsh-container-build
+    steps:
+      - run: docker version
+"""
+        )
+        self.assertEqual(self.audit("f5-sales-demo/xcsh"), [])
+
+        workflow_path = self.root / ".github/workflows/ci.yml"
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        workflow["jobs"]["build"]["runs-on"] = "xcsh-socketless"
+        workflow_path.write_text(
+            yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8"
+        )
+        errors = self.audit("f5-sales-demo/xcsh")
+        self.assertTrue(
+            any("requires a Docker socket profile" in item for item in errors)
+        )
+
+        workflow["jobs"]["build"]["runs-on"] = "xcsh-container-build"
+        workflow["jobs"]["trust-gate"]["runs-on"] = "xcsh-container-build"
+        workflow_path.write_text(
+            yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8"
+        )
+        errors = self.audit("f5-sales-demo/xcsh")
+        self.assertTrue(any("socketless trust-gate job" in item for item in errors))
+
+    def test_arc_policy_rejects_malformed_and_duplicate_routes(self):
+        self.use_xcsh_arc_routes()
+        base = self.data["repositories"]["f5-sales-demo/xcsh"]["runner"]
+        mutations = []
+
+        combined = json.loads(json.dumps(base))
+        combined["profiles"] = ["ubuntu-24.04", "container-build"]
+        mutations.append(combined)
+
+        duplicate = json.loads(json.dumps(base))
+        duplicate["arc_scale_sets"]["container-build"]["label"] = "xcsh-socketless"
+        mutations.append(duplicate)
+
+        unknown = json.loads(json.dumps(base))
+        unknown["arc_scale_sets"]["socketless"]["profile"] = "missing"
+        mutations.append(unknown)
+
+        malformed = json.loads(json.dumps(base))
+        malformed["arc_scale_sets"]["socketless"]["extra"] = True
+        mutations.append(malformed)
+
+        for runner in mutations:
+            policy = {
+                "profiles": self.data["profiles"],
+                "repositories": {"f5-sales-demo/xcsh": {"runner": runner}},
+            }
+            with self.subTest(runner=runner), self.assertRaises(MODULE.AuditError):
+                MODULE.repository_routes(policy, "f5-sales-demo/xcsh")
 
     def test_canonical_route_and_sha_pin_pass(self):
         self.write_workflow(
