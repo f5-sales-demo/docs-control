@@ -63,6 +63,9 @@ expected = sorted([
     "fixture",
     "automation",
     "ubuntu-24.04-arm",
+    "macos-15-intel",
+    "xcsh-container-build",
+    "xcsh-socketless",
 ])
 assert config.get("self-hosted-runner", {}).get("labels") == expected
 workflow_ignores = config["paths"][".github/workflows/**/*.{yml,yaml}"]["ignore"]

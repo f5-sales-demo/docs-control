@@ -245,6 +245,80 @@ class EphemeralRunnerTests(unittest.TestCase):
         )
         self.assertEqual(spec.replicas, 1)
 
+    def test_arc_repository_is_parsed_without_a_legacy_profile_allocation(self):
+        self.policy_data["dispatcher"]["repositories"] = ["f5-sales-demo/fixture"]
+        self.policy_data["repositories"]["f5-sales-demo/xcsh"]["runner"] = {
+            "arc_scale_sets": {
+                "socketless": {
+                    "label": "xcsh-socketless",
+                    "profile": "ubuntu-24.04",
+                },
+                "container-build": {
+                    "label": "xcsh-container-build",
+                    "profile": "container-build",
+                },
+            }
+        }
+        self.write_policy()
+        policy = self.policy()
+        self.assertEqual(
+            {
+                "socketless": {
+                    "label": "xcsh-socketless",
+                    "profile": "ubuntu-24.04",
+                },
+                "container-build": {
+                    "label": "xcsh-container-build",
+                    "profile": "container-build",
+                },
+            },
+            policy.arc_scale_sets["f5-sales-demo/xcsh"],
+        )
+        with self.assertRaisesRegex(MODULE.FleetError, "managed by ARC"):
+            policy.repository("f5-sales-demo/xcsh")
+        self.assertEqual("fixture", policy.repository("f5-sales-demo/fixture").name)
+
+    def test_arc_repository_policy_fails_closed(self):
+        self.policy_data["dispatcher"]["repositories"] = ["f5-sales-demo/fixture"]
+        valid = {
+            "arc_scale_sets": {
+                "socketless": {
+                    "label": "xcsh-socketless",
+                    "profile": "ubuntu-24.04",
+                },
+                "container-build": {
+                    "label": "xcsh-container-build",
+                    "profile": "container-build",
+                },
+            }
+        }
+        mutations = []
+
+        combined = json.loads(json.dumps(valid))
+        combined["profiles"] = ["ubuntu-24.04", "container-build"]
+        mutations.append(combined)
+
+        duplicate = json.loads(json.dumps(valid))
+        duplicate["arc_scale_sets"]["container-build"]["label"] = "xcsh-socketless"
+        mutations.append(duplicate)
+
+        unknown = json.loads(json.dumps(valid))
+        unknown["arc_scale_sets"]["socketless"]["profile"] = "missing"
+        mutations.append(unknown)
+
+        malformed = json.loads(json.dumps(valid))
+        malformed["arc_scale_sets"]["socketless"]["extra"] = True
+        mutations.append(malformed)
+
+        for runner in mutations:
+            with self.subTest(runner=runner):
+                self.policy_data["repositories"]["f5-sales-demo/xcsh"]["runner"] = (
+                    runner
+                )
+                self.write_policy()
+                with self.assertRaises(MODULE.FleetError):
+                    self.policy()
+
     def test_policy_requires_exact_schema_v4_docker_contract(self):
         for mutation in (
             {"schema_version": 3},

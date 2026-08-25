@@ -139,6 +139,121 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             json.dumps(governance or self.governance), encoding="utf-8"
         )
 
+    @staticmethod
+    def xcsh_arc_runner():
+        return {
+            "arc_scale_sets": {
+                "socketless": {
+                    "label": "xcsh-socketless",
+                    "profile": "ubuntu-24.04",
+                },
+                "container-build": {
+                    "label": "xcsh-container-build",
+                    "profile": "container-build",
+                },
+            }
+        }
+
+    def test_arc_route_model_accepts_only_exact_scalar_labels(self):
+        routes = validator.repository_runner_routes(
+            {"runner": self.xcsh_arc_runner()},
+            self.policy["profiles"],
+            "ubuntu-24.04",
+            "f5-sales-demo/xcsh",
+        )
+        self.assertEqual("arc", routes["kind"])
+        self.assertEqual(
+            "ubuntu-24.04", validator.resolve_route("xcsh-socketless", routes)
+        )
+        self.assertEqual(
+            "container-build",
+            validator.resolve_route("xcsh-container-build", routes),
+        )
+        self.assertIsNone(validator.resolve_route("xcsh-unknown", routes))
+        self.assertIsNone(
+            validator.resolve_route(
+                ["self-hosted", "Linux", "X64", "xcsh", "ubuntu-24.04"],
+                routes,
+            )
+        )
+
+    def test_arc_route_model_rejects_malformed_and_duplicate_labels(self):
+        base = self.xcsh_arc_runner()
+        mutations = []
+
+        combined = copy.deepcopy(base)
+        combined["profiles"] = ["ubuntu-24.04", "container-build"]
+        mutations.append(combined)
+
+        duplicate = copy.deepcopy(base)
+        duplicate["arc_scale_sets"]["container-build"]["label"] = "xcsh-socketless"
+        mutations.append(duplicate)
+
+        unknown = copy.deepcopy(base)
+        unknown["arc_scale_sets"]["socketless"]["profile"] = "missing"
+        mutations.append(unknown)
+
+        malformed = copy.deepcopy(base)
+        malformed["arc_scale_sets"]["socketless"]["extra"] = True
+        mutations.append(malformed)
+
+        for runner in mutations:
+            with self.subTest(runner=runner), self.assertRaises(validator.PolicyError):
+                validator.repository_runner_routes(
+                    {"runner": runner},
+                    self.policy["profiles"],
+                    "ubuntu-24.04",
+                    "f5-sales-demo/xcsh",
+                )
+
+    def test_arc_inventory_accepts_socketless_and_rejects_retired_routes(self):
+        repository = "f5-sales-demo/xcsh"
+        workflow = {
+            "name": "ARC",
+            "on": {"push": {"branches": ["main"]}},
+            "permissions": {},
+            "jobs": {
+                self.job_id: {
+                    "runs-on": "xcsh-socketless",
+                    "steps": [{"run": "true"}],
+                }
+            },
+        }
+        path = self.root / self.workflow_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+        routes = validator.repository_runner_routes(
+            {"runner": self.xcsh_arc_runner()},
+            self.policy["profiles"],
+            "ubuntu-24.04",
+            repository,
+        )
+        spec = {
+            "runs_on": "xcsh-socketless",
+            "environment": None,
+            "permissions": {},
+            "allowed_secrets": [],
+            "triggers": {"push": {"branches": ["main"]}},
+            "if": None,
+        }
+        policy = {(self.workflow_path, self.job_id): spec}
+        self.assertEqual(
+            {(self.workflow_path, self.job_id)},
+            validator.inventory(self.root, repository, policy, "ubuntu-24.04", routes),
+        )
+
+        for rejected in (
+            "xcsh-unknown",
+            ["self-hosted", "Linux", "X64", "xcsh", "ubuntu-24.04"],
+            ["self-hosted", "Linux", "X64", "xcsh", "container-build"],
+        ):
+            workflow["jobs"][self.job_id]["runs-on"] = rejected
+            path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+            with self.subTest(route=rejected), self.assertRaises(validator.PolicyError):
+                validator.inventory(
+                    self.root, repository, policy, "ubuntu-24.04", routes
+                )
+
     def validate(self, findings=None, repository=None, policy_path=None):
         self.write_fixture()
         return validator.validate(

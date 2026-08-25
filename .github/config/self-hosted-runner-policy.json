@@ -47,7 +47,6 @@
       "f5-sales-demo/waf",
       "f5-sales-demo/was",
       "f5-sales-demo/webapp-api-protection",
-      "f5-sales-demo/xcsh",
       "f5-sales-demo/xcsh-action",
       "f5-sales-demo/xcsh-chrome-extension"
     ],
@@ -64,7 +63,7 @@
   },
   "profiles": {
     "ubuntu-24.04": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:c6f0bb40e207a0c43ee84bb738b3c868fb79b152da0cdb57beae8ca7ba05d2f7",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:06e611456779e3bb5b458400a202190d009fb472fa1235bf833f5f04d4a94d7f",
       "labels": ["ubuntu-24.04"],
       "memory": "8g",
       "cpus": "4",
@@ -74,7 +73,7 @@
       "docker_socket": false
     },
     "ubuntu-24.04-secondary": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:c6f0bb40e207a0c43ee84bb738b3c868fb79b152da0cdb57beae8ca7ba05d2f7",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:06e611456779e3bb5b458400a202190d009fb472fa1235bf833f5f04d4a94d7f",
       "labels": ["ubuntu-24.04"],
       "memory": "8g",
       "cpus": "4",
@@ -84,7 +83,7 @@
       "docker_socket": false
     },
     "automation": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:c6f0bb40e207a0c43ee84bb738b3c868fb79b152da0cdb57beae8ca7ba05d2f7",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:06e611456779e3bb5b458400a202190d009fb472fa1235bf833f5f04d4a94d7f",
       "labels": ["automation"],
       "memory": "8g",
       "cpus": "4",
@@ -104,7 +103,7 @@
       "docker_socket": false
     },
     "container-build": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:708f957ed1d7963c67a10db01433a88cfd3b6fd1fde7c0fa6a49cfae5e143fd3",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:a56e9b3bbde71c7c493bf82fe69848d95fac16772fff48a302be7b08241f440e",
       "labels": ["container-build"],
       "memory": "16g",
       "cpus": "6",
@@ -944,7 +943,16 @@
     },
     "f5-sales-demo/xcsh": {
       "runner": {
-        "profiles": ["ubuntu-24.04", "container-build"]
+        "arc_scale_sets": {
+          "socketless": {
+            "label": "xcsh-socketless",
+            "profile": "ubuntu-24.04"
+          },
+          "container-build": {
+            "label": "xcsh-container-build",
+            "profile": "container-build"
+          }
+        }
       }
     },
     "f5-sales-demo/xcsh-action": {
