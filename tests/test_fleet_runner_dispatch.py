@@ -121,14 +121,15 @@ class FleetRunnerDispatchTests(unittest.TestCase):
 
     def test_request_budget_resumes_from_the_durable_round_robin_cursor(self):
         repositories = ("f5-sales-demo/alpha", "f5-sales-demo/bravo")
-        policy = self.policy(repositories, 1)
+        policy = self.policy(repositories, 3)
         github = GitHub(
             {
-                f"/repos/{repo}/actions/runs?status=queued&per_page=100": (
+                f"/repos/{repo}/actions/runs?status={status}&per_page=100": (
                     {"workflow_runs": []},
                     {},
                 )
                 for repo in repositories
+                for status in ("queued", "in_progress")
             }
         )
         controller = self.controller(github)
@@ -136,8 +137,68 @@ class FleetRunnerDispatchTests(unittest.TestCase):
         self.assertIn("/alpha/", github.calls[0][1])
         self.assertEqual(MODULE.state(repositories)["cursor"], 1)
         self.run_dispatch(policy, controller)
-        self.assertEqual(len(github.calls), 2)
-        self.assertIn("/bravo/", github.calls[1][1])
+        self.assertEqual(len(github.calls), 4)
+        self.assertIn("/bravo/", github.calls[2][1])
+
+    def test_request_budget_does_not_starve_repository_job_inventory(self):
+        repositories = tuple(
+            f"f5-sales-demo/repository-{index:02d}" for index in range(39)
+        )
+        target = repositories[-1]
+        responses: dict[str, tuple[dict[str, list[dict[str, object]]], dict]] = {}
+        for index, repository in enumerate(repositories):
+            base = f"/repos/{repository}/actions/runs"
+            runs = [{"id": index + 1, "status": "queued"}] if index < 2 else []
+            if repository == target:
+                runs = [{"id": 100, "status": "queued"}]
+            responses[f"{base}?status=queued&per_page=100"] = (
+                {"workflow_runs": runs},
+                {},
+            )
+            responses[f"{base}?status=in_progress&per_page=100"] = (
+                {"workflow_runs": []},
+                {},
+            )
+            for run in runs:
+                responses[f"{base}/{run['id']}/jobs?per_page=100"] = (
+                    {
+                        "jobs": []
+                        if repository != target
+                        else [
+                            {
+                                "status": "queued",
+                                "labels": ["socketless"],
+                            }
+                        ]
+                    },
+                    {},
+                )
+
+        github = GitHub(responses)
+        controller = self.controller(github)
+        started = []
+        primary = SimpleNamespace(unit="target.service")
+        with (
+            mock.patch.object(MODULE, "candidate_for", return_value=(primary, None)),
+            mock.patch.object(MODULE, "active", return_value=False),
+            mock.patch.object(MODULE.PROVISION, "admission_allows", return_value=True),
+            mock.patch.object(MODULE.PROVISION, "authorize_runner_start"),
+            mock.patch.object(
+                MODULE.PROVISION,
+                "command",
+                side_effect=lambda argv, **_kwargs: started.append(argv),
+            ),
+        ):
+            self.run_dispatch(self.policy(repositories, 80), controller)
+            self.assertEqual(MODULE.state(repositories)["cursor"], 38)
+            self.assertNotIn(
+                f"/repos/{target}/actions/runs/100/jobs?per_page=100",
+                [call[1] for call in github.calls],
+            )
+
+            self.run_dispatch(self.policy(repositories, 80), controller)
+
+        self.assertEqual(started, [["systemctl", "start", primary.unit]])
 
     def test_exact_labels_and_docker_trust_gate_prevent_starts(self):
         socketless = SimpleNamespace(name="socketless", docker_socket=False)
