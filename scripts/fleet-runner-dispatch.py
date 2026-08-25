@@ -33,6 +33,7 @@ SPEC.loader.exec_module(PROVISION)
 DISPATCH_ROOT = PROVISION.STATE_ROOT / "fleet-dispatch"
 STATE_PATH = DISPATCH_ROOT / "state.json"
 LOCK_PATH = DISPATCH_ROOT / "dispatch.lock"
+MINIMUM_REPOSITORY_REQUESTS = 3
 
 
 @dataclass(frozen=True)
@@ -388,7 +389,10 @@ def dispatch() -> int:
             requests = 0
             protected_repositories = set()
             for offset, repository in enumerate(ordered):
-                if requests >= policy.dispatcher.request_budget:
+                if (
+                    policy.dispatcher.request_budget - requests
+                    < MINIMUM_REPOSITORY_REQUESTS
+                ):
                     break
                 context = RepositoryContext(
                     github,
