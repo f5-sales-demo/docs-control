@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=consider-using-with
 # ruff: noqa: PT009, PT018
 """Hermetic tests for the bounded fleet runner dispatcher."""
 
@@ -409,7 +410,7 @@ class FleetRunnerDispatchTests(unittest.TestCase):
         started, primary = [], SimpleNamespace(unit="fixture-primary")
         standby = SimpleNamespace(unit="fixture-standby")
 
-        authorizations = []
+        authorizations: list[str] = []
 
         def command(argv, **_kwargs):
             if argv[:2] == ["systemctl", "start"]:
