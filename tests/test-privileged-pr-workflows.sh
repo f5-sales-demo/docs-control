@@ -54,11 +54,12 @@ require_literal "$central" "  group: require-linked-issue-\${{ github.event_name
   'central implementation separates live PR and exact-receipt concurrency identities'
 require_literal "$central" '  cancel-in-progress: true' \
   'central implementation cancels only superseded matching checks'
-if jq -e '.hosted_exceptions["f5-sales-demo/docs-control"][".github/workflows/require-linked-issue.yml"]' \
+if jq -e '[.hosted_exceptions | to_entries[] |
+  select(.value[".github/workflows/require-linked-issue.yml"] != null)] | length == 0' \
   "$REPO_ROOT/.github/config/self-hosted-runner-policy.json" >/dev/null; then
-  fail 'docs-control runner policy excludes the retired linked-issue hosted exception'
+  pass 'fleet runner policy excludes every retired linked-issue hosted exception'
 else
-  pass 'docs-control runner policy excludes the retired linked-issue hosted exception'
+  fail 'fleet runner policy excludes every retired linked-issue hosted exception'
 fi
 pass 'central and downstream linked-issue workflows have intentionally separate contracts'
 

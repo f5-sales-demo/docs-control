@@ -545,27 +545,17 @@ jobs:
         self.write_policy()
         self.assertEqual(self.audit(), [])
 
-    def test_docs_control_hosted_audit_exception_is_exact(self):
+    def test_linked_issue_has_no_retired_hosted_exception(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
                 encoding="utf-8"
             )
         )
-        expected = {
-            "pr-check": {
-                "runs_on": "ubuntu-24.04",
-                "reason": "immediate read-only linked-issue pull request check",
-            }
-        }
         self.assertEqual(set(policy["hosted_exceptions"]), set(policy["repositories"]))
         for repository in policy["repositories"]:
-            if repository == "f5-sales-demo/docs-control":
-                continue
-            self.assertEqual(
-                policy["hosted_exceptions"][repository][
-                    ".github/workflows/require-linked-issue.yml"
-                ],
-                expected,
+            self.assertNotIn(
+                ".github/workflows/require-linked-issue.yml",
+                policy["hosted_exceptions"][repository],
                 repository,
             )
         exception = policy["hosted_exceptions"]["f5-sales-demo/docs-control"]
@@ -591,12 +581,6 @@ jobs:
         self.assertEqual(
             exception,
             {
-                ".github/workflows/require-linked-issue.yml": {
-                    "pr-check": {
-                        "runs_on": "ubuntu-24.04",
-                        "reason": "immediate read-only linked-issue pull request check",
-                    }
-                },
                 ".github/workflows/workflow-security-audit.yml": {
                     "workflow-security-audit": {
                         "runs_on": "ubuntu-latest",
@@ -635,12 +619,6 @@ jobs:
         self.assertEqual(
             exception,
             {
-                ".github/workflows/require-linked-issue.yml": {
-                    "pr-check": {
-                        "runs_on": "ubuntu-24.04",
-                        "reason": "immediate read-only linked-issue pull request check",
-                    }
-                },
                 ".github/workflows/_build-test.yml": {
                     "build": {
                         "runs_on": "ubuntu-latest",
