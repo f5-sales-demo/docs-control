@@ -26,6 +26,16 @@ on:
         required: false
         default: 'https://f5-sales-demo.github.io'
         type: string
+      socketless_runner_label:
+        description: 'Policy-approved repository-scoped ARC socketless label'
+        required: false
+        default: ''
+        type: string
+      container_build_runner_label:
+        description: 'Policy-approved repository-scoped ARC container-build label'
+        required: false
+        default: ''
+        type: string
 permissions: {}
 
 concurrency:
@@ -38,11 +48,22 @@ concurrency:
 jobs:
   trust-gate:
     name: Verify trusted Pages invocation
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    runs-on: ${{ inputs.socketless_runner_label || fromJSON(format('["self-hosted","Linux","X64","{0}","ubuntu-24.04"]', github.event.repository.name)) }}
     steps:
       - name: Reject untrusted invocations
         run: |
           set -euo pipefail
+          if [[ -z "$SOCKETLESS_RUNNER_LABEL" && -z "$CONTAINER_BUILD_RUNNER_LABEL" ]]; then
+            : # Legacy caller: retain the canonical five-label routes.
+          elif [[ -z "$SOCKETLESS_RUNNER_LABEL" || -z "$CONTAINER_BUILD_RUNNER_LABEL" ]]; then
+            echo "::error::socketless_runner_label and container_build_runner_label must be supplied together"
+            exit 1
+          elif [[ ! "$SOCKETLESS_RUNNER_LABEL" =~ ^[a-z0-9][a-z0-9.-]*$ ]] ||
+            [[ ! "$CONTAINER_BUILD_RUNNER_LABEL" =~ ^[a-z0-9][a-z0-9.-]*$ ]] ||
+            [[ "$SOCKETLESS_RUNNER_LABEL" == "$CONTAINER_BUILD_RUNNER_LABEL" ]]; then
+            echo "::error::ARC runner labels must be distinct safe scalar labels"
+            exit 1
+          fi
           if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then exit 0; fi
           if [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == "refs/heads/$DEFAULT_BRANCH" ]]; then exit 0; fi
           if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
@@ -56,14 +77,16 @@ jobs:
           exit 1
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CONTAINER_BUILD_RUNNER_LABEL: ${{ inputs.container_build_runner_label }}
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
           REPOSITORY: ${{ github.repository }}
+          SOCKETLESS_RUNNER_LABEL: ${{ inputs.socketless_runner_label }}
 
   build:
     name: Build Documentation
     needs: trust-gate
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)) || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", container-build]
+    runs-on: ${{ inputs.container_build_runner_label || fromJSON(format('["self-hosted","Linux","X64","{0}","container-build"]', github.event.repository.name)) }}
     permissions:
       contents: read # checkout the documentation source
       packages: read # authenticate and resolve the latest builder image from GHCR
@@ -189,7 +212,7 @@ jobs:
           [ -z "$DOCS_TITLE" ] || TITLE_ARGS=(-e "DOCS_TITLE=$DOCS_TITLE")
 
           # shellcheck disable=SC2153
-          docker run --rm --pull always \
+          docker run --rm --pull=never \
             --name docs-builder \
             -v "$WORKSPACE/$CONTENT_PATH:/content/docs:ro" \
             "${MOUNTS[@]}" \
@@ -274,7 +297,7 @@ jobs:
   deploy:
     name: Deploy Documentation
     needs: build
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    runs-on: ${{ inputs.socketless_runner_label || fromJSON(format('["self-hosted","Linux","X64","{0}","ubuntu-24.04"]', github.event.repository.name)) }}
     if: success()
     permissions:
       pages: write # publish the verified Pages artifact
