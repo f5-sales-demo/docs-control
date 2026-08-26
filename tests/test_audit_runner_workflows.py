@@ -559,7 +559,7 @@ jobs:
         }
         self.assertEqual(set(policy["hosted_exceptions"]), set(policy["repositories"]))
         for repository in policy["repositories"]:
-            if repository == "f5-sales-demo/docs-control":
+            if repository in {"f5-sales-demo/docs-control", "f5-sales-demo/xcsh"}:
                 continue
             self.assertEqual(
                 policy["hosted_exceptions"][repository][
@@ -579,6 +579,10 @@ jobs:
                     }
                 },
             },
+        )
+        self.assertNotIn(
+            ".github/workflows/require-linked-issue.yml",
+            policy["hosted_exceptions"]["f5-sales-demo/xcsh"],
         )
 
     def test_api_specs_enriched_hosted_audit_exception_is_exact(self):
