@@ -454,11 +454,35 @@ jobs:
         errors = self.audit()
         self.assertTrue(any("same-repository guard" in item for item in errors))
 
-    def test_callable_docker_profile_allows_protected_default_branch_guard(self):
+    def test_callable_docker_profile_allows_protected_branch_and_tag_guard(self):
         self.write_workflow(
             """name: Docs
 on:
   workflow_call:
+jobs:
+  prepare:
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
+    steps:
+      - run: true
+  trust-gate:
+    runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
+    steps:
+      - run: true
+  build:
+    needs: [prepare, trust-gate]
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/v'))) || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: [self-hosted, Linux, X64, fixture, container-build]
+    steps:
+      - run: docker version
+"""
+        )
+        self.assertEqual(self.audit(), [])
+
+    def test_default_branch_docker_guard_requires_protected_tag_clause(self):
+        self.write_workflow(
+            """name: Docker
+on:
+  push:
 jobs:
   trust-gate:
     runs-on: [self-hosted, Linux, X64, fixture, ubuntu-24.04]
@@ -472,7 +496,8 @@ jobs:
       - run: docker version
 """
         )
-        self.assertEqual(self.audit(), [])
+        errors = self.audit()
+        self.assertTrue(any("same-repository guard" in item for item in errors))
 
     def test_docker_steps_and_privileged_package_installs_are_detected(self):
         self.write_workflow(
@@ -569,6 +594,10 @@ jobs:
                     }
                 },
             },
+        )
+        self.assertNotIn(
+            ".github/workflows/require-linked-issue.yml",
+            policy["hosted_exceptions"]["f5-sales-demo/xcsh"],
         )
 
     def test_api_specs_enriched_hosted_audit_exception_is_exact(self):
