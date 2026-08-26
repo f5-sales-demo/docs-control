@@ -206,6 +206,112 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                     "f5-sales-demo/xcsh",
                 )
 
+    def test_arc_reusable_call_requires_exact_approved_label_pair(self):
+        repository = "f5-sales-demo/xcsh"
+        workflow = {
+            "name": "Reusable",
+            "on": {"workflow_dispatch": {}},
+            "permissions": {},
+            "jobs": {
+                "lint": {
+                    "uses": (
+                        "f5-sales-demo/docs-control/.github/workflows/"
+                        "super-linter.yml@" + "a" * 40
+                    ),
+                    "with": {
+                        "socketless_runner_label": "xcsh-socketless",
+                        "container_build_runner_label": "xcsh-container-build",
+                    },
+                }
+            },
+        }
+        policy = copy.deepcopy(self.policy)
+        policy["repositories"] = {repository: {"runner": self.xcsh_arc_runner()}}
+        governance = {"repo_classes": {"repos": {"xcsh": "developer"}}}
+        self.write_fixture(workflow, policy, governance)
+        self.assertEqual(
+            validator.validate(
+                [], self.root, repository, self.policy_path, self.governance_path
+            ),
+            [],
+        )
+
+        mutations = (
+            {"socketless_runner_label": "xcsh-socketless"},
+            {
+                "socketless_runner_label": "xcsh-container-build",
+                "container_build_runner_label": "xcsh-socketless",
+            },
+            {
+                "socketless_runner_label": "xcsh-unknown",
+                "container_build_runner_label": "xcsh-container-build",
+            },
+            {
+                "socketless_runner_label": "${{ matrix.runner }}",
+                "container_build_runner_label": "xcsh-container-build",
+            },
+        )
+        for inputs in mutations:
+            workflow["jobs"]["lint"]["with"] = inputs
+            self.write_fixture(workflow, policy, governance)
+            with self.subTest(inputs=inputs), self.assertRaises(validator.PolicyError):
+                validator.validate(
+                    [], self.root, repository, self.policy_path, self.governance_path
+                )
+
+        workflow["jobs"]["lint"].pop("with")
+        self.write_fixture(workflow, policy, governance)
+        with self.assertRaises(validator.PolicyError):
+            validator.validate(
+                [], self.root, repository, self.policy_path, self.governance_path
+            )
+
+    def test_legacy_reusable_call_without_overrides_is_unchanged(self):
+        workflow = {
+            "name": "Reusable",
+            "on": {"workflow_dispatch": {}},
+            "permissions": {},
+            "jobs": {
+                "pages": {
+                    "uses": (
+                        "f5-sales-demo/docs-control/.github/workflows/"
+                        "github-pages-deploy.yml@" + "a" * 40
+                    ),
+                    "with": {"content-ref": "a" * 40},
+                }
+            },
+        }
+        policy = copy.deepcopy(self.policy)
+        policy["repositories"][self.repository] = {
+            "runner": {"profiles": ["ubuntu-24.04", "container-build"]}
+        }
+        self.write_fixture(workflow, policy, self.governance)
+        self.assertEqual(
+            validator.validate(
+                [],
+                self.root,
+                self.repository,
+                self.policy_path,
+                self.governance_path,
+            ),
+            [],
+        )
+        workflow["jobs"]["pages"]["with"].update(
+            {
+                "socketless_runner_label": "xcsh-socketless",
+                "container_build_runner_label": "xcsh-container-build",
+            }
+        )
+        self.write_fixture(workflow, policy, self.governance)
+        with self.assertRaises(validator.PolicyError):
+            validator.validate(
+                [],
+                self.root,
+                self.repository,
+                self.policy_path,
+                self.governance_path,
+            )
+
     def test_arc_inventory_accepts_socketless_and_rejects_retired_routes(self):
         repository = "f5-sales-demo/xcsh"
         workflow = {

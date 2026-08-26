@@ -129,6 +129,121 @@ jobs:
                     any("canonical repository route" in item for item in errors)
                 )
 
+    def test_arc_reusable_call_requires_exact_approved_label_pair(self):
+        self.use_xcsh_arc_routes()
+        workflow = {
+            "name": "Reusable",
+            "on": ["workflow_dispatch"],
+            "jobs": {
+                "lint": {
+                    "uses": (
+                        "f5-sales-demo/docs-control/.github/workflows/"
+                        "super-linter.yml@" + "a" * 40
+                    ),
+                    "with": {
+                        "socketless_runner_label": "xcsh-socketless",
+                        "container_build_runner_label": "xcsh-container-build",
+                    },
+                }
+            },
+        }
+        self.write_workflow(yaml.safe_dump(workflow, sort_keys=False))
+        self.assertEqual(self.audit("f5-sales-demo/xcsh"), [])
+
+        mutations = (
+            {"socketless_runner_label": "xcsh-socketless"},
+            {
+                "socketless_runner_label": "xcsh-container-build",
+                "container_build_runner_label": "xcsh-socketless",
+            },
+            {
+                "socketless_runner_label": "xcsh-unknown",
+                "container_build_runner_label": "xcsh-container-build",
+            },
+            {
+                "socketless_runner_label": "${{ matrix.runner }}",
+                "container_build_runner_label": "xcsh-container-build",
+            },
+        )
+        for inputs in mutations:
+            workflow["jobs"]["lint"]["with"] = inputs
+            self.write_workflow(yaml.safe_dump(workflow, sort_keys=False))
+            with self.subTest(inputs=inputs):
+                self.assertTrue(self.audit("f5-sales-demo/xcsh"))
+
+        workflow["jobs"]["lint"].pop("with")
+        self.write_workflow(yaml.safe_dump(workflow, sort_keys=False))
+        self.assertTrue(self.audit("f5-sales-demo/xcsh"))
+
+    def test_legacy_reusable_call_keeps_canonical_fallback(self):
+        self.write_workflow(
+            """name: Reusable
+on: [workflow_dispatch]
+jobs:
+  pages:
+    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    with:
+      content-ref: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+"""
+        )
+        self.assertEqual(self.audit(), [])
+
+        path = self.root / ".github/workflows/ci.yml"
+        workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
+        workflow["jobs"]["pages"]["with"].update(
+            {
+                "socketless_runner_label": "xcsh-socketless",
+                "container_build_runner_label": "xcsh-container-build",
+            }
+        )
+        path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+        self.assertTrue(self.audit())
+
+    def test_reusable_definitions_preserve_legacy_fallbacks(self):
+        expectations = {
+            ".github/workflows/github-pages-deploy.yml": {
+                "trust-gate": MODULE.SOCKETLESS_ROUTE_EXPRESSION,
+                "build": MODULE.CONTAINER_ROUTE_EXPRESSION,
+                "deploy": MODULE.SOCKETLESS_ROUTE_EXPRESSION,
+            },
+            ".github/workflows/super-linter.yml": {
+                "trust-gate": MODULE.SOCKETLESS_ROUTE_EXPRESSION,
+                "lint": MODULE.CONTAINER_ROUTE_EXPRESSION,
+                "shell-unit-tests": MODULE.SOCKETLESS_ROUTE_EXPRESSION,
+            },
+        }
+        for relative, jobs in expectations.items():
+            workflow = yaml.safe_load((ROOT / relative).read_text(encoding="utf-8"))
+            inputs = workflow.get("on", workflow.get(True))["workflow_call"]["inputs"]
+            self.assertEqual("", inputs["socketless_runner_label"]["default"])
+            self.assertEqual("", inputs["container_build_runner_label"]["default"])
+            for job_id, expected in jobs.items():
+                self.assertEqual(expected, workflow["jobs"][job_id]["runs-on"])
+        pages = (ROOT / ".github/workflows/github-pages-deploy.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("docker run --rm --pull=never", pages)
+        self.assertNotIn("docker run --rm --pull always", pages)
+
+    def test_reusable_definition_routes_are_exact(self):
+        self.assertEqual(
+            MODULE.reusable_definition_profile(
+                "f5-sales-demo/docs-control",
+                ".github/workflows/super-linter.yml",
+                "lint",
+                MODULE.CONTAINER_ROUTE_EXPRESSION,
+            ),
+            "container-build",
+        )
+        self.assertIsNone(
+            MODULE.reusable_definition_profile(
+                "f5-sales-demo/docs-control",
+                ".github/workflows/super-linter.yml",
+                "lint",
+                MODULE.SOCKETLESS_ROUTE_EXPRESSION,
+            )
+        )
+
     def test_arc_docker_route_requires_container_pool_and_socketless_trust_gate(self):
         self.use_xcsh_arc_routes()
         self.write_workflow(
