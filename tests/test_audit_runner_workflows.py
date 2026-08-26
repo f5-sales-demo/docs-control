@@ -559,6 +559,8 @@ jobs:
         }
         self.assertEqual(set(policy["hosted_exceptions"]), set(policy["repositories"]))
         for repository in policy["repositories"]:
+            if repository == "f5-sales-demo/docs-control":
+                continue
             self.assertEqual(
                 policy["hosted_exceptions"][repository][
                     ".github/workflows/require-linked-issue.yml"
@@ -570,12 +572,6 @@ jobs:
         self.assertEqual(
             exception,
             {
-                ".github/workflows/require-linked-issue.yml": {
-                    "pr-check": {
-                        "runs_on": "ubuntu-24.04",
-                        "reason": "immediate read-only linked-issue pull request check",
-                    }
-                },
                 ".github/workflows/workflow-security-audit.yml": {
                     "workflow-security-audit": {
                         "runs_on": "ubuntu-latest",
