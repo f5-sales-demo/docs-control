@@ -254,6 +254,35 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                     self.root, repository, policy, "ubuntu-24.04", routes
                 )
 
+    def _assert_arc_route_contract_authorizes_ordinary_job_without_exception(self):
+        repository = "f5-sales-demo/xcsh"
+        workflow = {
+            "name": "ARC",
+            "on": {"push": {"branches": ["main"]}},
+            "permissions": {},
+            "jobs": {
+                "ordinary": {
+                    "runs-on": "xcsh-socketless",
+                    "steps": [{"run": "true"}],
+                }
+            },
+        }
+        policy = copy.deepcopy(self.policy)
+        policy["repositories"] = {repository: {"runner": self.xcsh_arc_runner()}}
+        governance = {"repo_classes": {"repos": {"xcsh": "developer"}}}
+        self.write_fixture(workflow, policy, governance)
+
+        self.assertEqual(
+            validator.validate(
+                [],
+                self.root,
+                repository,
+                self.policy_path,
+                self.governance_path,
+            ),
+            [(self.workflow_path, "ordinary", ["jobs", "ordinary", "runs-on"])],
+        )
+
     def validate(self, findings=None, repository=None, policy_path=None):
         self.write_fixture()
         return validator.validate(
@@ -273,6 +302,56 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                 self.findings if findings is None else findings,
                 self.root,
                 repository or self.repository,
+                self.policy_path,
+                self.governance_path,
+            )
+
+    def test_arc_routes_are_internally_validated_without_zizmor_findings(self):
+        self._assert_arc_route_contract_authorizes_ordinary_job_without_exception()
+        repository = "f5-sales-demo/xcsh"
+        workflow = copy.deepcopy(self.workflow)
+        workflow["jobs"][self.job_id]["runs-on"] = "xcsh-socketless"
+        spec = copy.deepcopy(self.spec)
+        spec["runs_on"] = "xcsh-socketless"
+        policy = copy.deepcopy(self.policy)
+        policy["repositories"] = {
+            repository: {
+                "runner": self.xcsh_arc_runner(),
+                self.workflow_path: {self.job_id: spec},
+            }
+        }
+        governance = {"repo_classes": {"repos": {"xcsh": "developer"}}}
+        self.write_fixture(workflow, policy, governance)
+
+        self.assertEqual(
+            validator.validate(
+                [],
+                self.root,
+                repository,
+                self.policy_path,
+                self.governance_path,
+            ),
+            [(self.workflow_path, self.job_id, ["jobs", self.job_id, "runs-on"])],
+        )
+
+        workflow["jobs"][self.job_id]["runs-on"] = "xcsh-unknown"
+        self.write_fixture(workflow, policy, governance)
+        with self.assertRaises(validator.PolicyError):
+            validator.validate(
+                [],
+                self.root,
+                repository,
+                self.policy_path,
+                self.governance_path,
+            )
+
+        workflow["jobs"][self.job_id]["runs-on"] = "xcsh-socketless"
+        self.write_fixture(workflow, policy, governance)
+        with self.assertRaisesRegex(validator.PolicyError, "unexpected Zizmor finding"):
+            validator.validate(
+                [self.finding()],
+                self.root,
+                repository,
                 self.policy_path,
                 self.governance_path,
             )

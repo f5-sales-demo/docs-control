@@ -13,15 +13,15 @@ TMP=$(mktemp -d /tmp/workflow-security-integration-XXXXXX)
 trap 'find "$TMP" -depth -delete' EXIT
 
 run_zizmor() {
-  local root=$1 findings=$2 diagnostics=$3 expected=$4
+  local root=$1 findings=$2 diagnostics=$3 expected=$4 expected_exit=$5
   local rc=0
   (
     cd "$root"
     uvx --from 'zizmor==1.29.0' zizmor --no-config --no-ignores \
       --persona=auditor --format=json .github/workflows/
   ) >"$findings" 2>"$diagnostics" || rc=$?
-  [[ $rc -eq 13 ]] || {
-    echo "expected Zizmor exit 13, got $rc" >&2
+  [[ $rc -eq $expected_exit ]] || {
+    echo "expected Zizmor exit $expected_exit, got $rc" >&2
     return 1
   }
   python3 - "$findings" "$expected" <<'PY'
@@ -49,7 +49,7 @@ validate_fixture() {
 validate_fixture "$FIXTURE/zizmor-1.29-findings.json"
 
 # Running the pinned binary makes this a required end-to-end check in every checkout.
-run_zizmor "$FIXTURE" "$TMP/fixture-findings.json" "$TMP/fixture-diagnostics.log" 2
+run_zizmor "$FIXTURE" "$TMP/fixture-findings.json" "$TMP/fixture-diagnostics.log" 2 13
 validate_fixture "$TMP/fixture-findings.json"
 
 mkdir -p "$TMP/mutated/.github"
@@ -61,17 +61,71 @@ cat >>"$TMP/mutated/.github/workflows/audit.yml" <<'YAML'
     steps:
       - run: echo mutation
 YAML
-run_zizmor "$TMP/mutated" "$TMP/mutated-findings.json" "$TMP/mutated-diagnostics.log" 3
+run_zizmor "$TMP/mutated" "$TMP/mutated-findings.json" "$TMP/mutated-diagnostics.log" 3 13
 if validate_fixture "$TMP/mutated-findings.json" "$TMP/mutated"; then
   echo "mutation unexpectedly passed validator" >&2
   exit 1
 fi
 
+# Zizmor 1.29 does not emit self-hosted-runner findings for scalar ARC labels.
+# The validator must therefore authorize them from its own strict policy inventory.
+cp -R "$FIXTURE" "$TMP/arc"
+python3 - "$TMP/arc" <<'PY'
+import json
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+workflow_path = root / ".github/workflows/audit.yml"
+workflow_path.write_text(
+    workflow_path.read_text(encoding="utf-8").replace(
+        "[self-hosted, Linux, X64, fixture, ubuntu-24.04]", "xcsh-socketless"
+    ),
+    encoding="utf-8",
+)
+
+policy_path = root / "policy.json"
+policy = json.loads(policy_path.read_text(encoding="utf-8"))
+repository = policy["repositories"].pop("f5-sales-demo/fixture")
+repository["runner"] = {
+    "arc_scale_sets": {
+        "socketless": {
+            "label": "xcsh-socketless",
+            "profile": "ubuntu-24.04",
+        },
+        "container-build": {
+            "label": "xcsh-container-build",
+            "profile": "container-build",
+        },
+    }
+}
+for workflow in (value for key, value in repository.items() if key != "runner"):
+    for spec in workflow.values():
+        spec["runs_on"] = "xcsh-socketless"
+policy["repositories"]["f5-sales-demo/xcsh"] = repository
+policy_path.write_text(json.dumps(policy), encoding="utf-8")
+
+governance_path = root / "governance.json"
+governance = json.loads(governance_path.read_text(encoding="utf-8"))
+governance["repo_classes"]["repos"] = {"xcsh": "developer"}
+governance_path.write_text(json.dumps(governance), encoding="utf-8")
+PY
+run_zizmor "$TMP/arc" "$TMP/arc-findings.json" "$TMP/arc-diagnostics.log" 0 0
+(
+  cd "$TMP/arc"
+  uv run --with 'PyYAML==6.0.2' --no-project python "$VALIDATOR" \
+    --repository f5-sales-demo/xcsh \
+    --policy policy.json \
+    --governance governance.json \
+    --zizmor-exit 0 \
+    "$TMP/arc-findings.json"
+)
+
 if [[ $# -eq 1 ]]; then
   PROVIDER_ROOT=$(cd "$1" && pwd)
   POLICY="$DOCS_ROOT/.github/config/self-hosted-runner-policy.json"
   GOVERNANCE="$DOCS_ROOT/.claude/governance.json"
-  run_zizmor "$PROVIDER_ROOT" "$TMP/provider-findings.json" "$TMP/provider-diagnostics.log" 3
+  run_zizmor "$PROVIDER_ROOT" "$TMP/provider-findings.json" "$TMP/provider-diagnostics.log" 3 13
   (
     cd "$PROVIDER_ROOT"
     uv run --with 'PyYAML==6.0.2' --no-project python "$VALIDATOR" \
