@@ -328,6 +328,7 @@ def transitive_dependencies(workflow, job_id):
     return reachable, cycle
 
 
+# pylint: disable-next=too-many-arguments,too-many-locals
 def audit_docker_route(  # noqa: PLR0917
     workflow, relative, job_id, job, profiles, routes, repository, profile
 ):

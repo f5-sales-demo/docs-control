@@ -131,7 +131,7 @@ jobs:
 
     def test_arc_reusable_call_requires_exact_approved_label_pair(self):
         self.use_xcsh_arc_routes()
-        workflow = {
+        workflow: dict[str, Any] = {
             "name": "Reusable",
             "on": ["workflow_dispatch"],
             "jobs": {
