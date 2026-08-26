@@ -91,7 +91,8 @@ check "governed Super-Linter pin references Docker-routed trusted implementation
           test "$(git -C "$3" rev-parse FETCH_HEAD)" = "$revision" &&
           implementation=$(git -C "$3" show "FETCH_HEAD:.github/workflows/super-linter.yml")
       fi &&
-      grep -Fq '\''runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", container-build]'\'' <<<"$implementation" &&
+      grep -Fq '\''inputs.container_build_runner_label || fromJSON(format'\'' <<<"$implementation" &&
+      grep -Fq '\''["self-hosted","Linux","X64","{0}","container-build"]'\'' <<<"$implementation" &&
       grep -Fq '\''github.event.pull_request.head.repo.full_name == github.repository'\'' <<<"$implementation" &&
       grep -Fq '\''Docker-capable lint is forbidden for fork pull requests.'\'' <<<"$implementation"
   ' _ "$REPO_ROOT" "$PIN_CONFIG" "$WORK/pinned-revision"
