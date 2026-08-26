@@ -177,7 +177,10 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 self.assertEqual(expected, policy.arc_scale_sets[repository])
                 self.assertNotIn(repository, policy.dispatcher.repositories)
                 self.assertTrue(
-                    all(item.repository != repository for item in MODULE.instances(policy))
+                    all(
+                        item.repository != repository
+                        for item in MODULE.instances(policy)
+                    )
                 )
                 with self.assertRaisesRegex(MODULE.ProvisionError, "exact enabled"):
                     MODULE.configured_fleet_instance(
