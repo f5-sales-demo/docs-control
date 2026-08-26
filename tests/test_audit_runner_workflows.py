@@ -169,6 +169,49 @@ jobs:
         errors = self.audit("f5-sales-demo/xcsh")
         self.assertTrue(any("socketless trust-gate job" in item for item in errors))
 
+    def test_arc_tag_only_docker_route_accepts_transitive_trust_gate(self):
+        self.use_xcsh_arc_routes()
+        self.write_workflow(
+            """name: ARC release
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  trust-gate:
+    runs-on: xcsh-socketless
+    steps:
+      - run: true
+  container-test:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/v'))) || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+    needs: trust-gate
+    runs-on: xcsh-container-build
+    steps:
+      - run: true
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [container-test]
+    runs-on: xcsh-container-build
+    steps:
+      - run: docker version
+"""
+        )
+        self.assertEqual(self.audit("f5-sales-demo/xcsh"), [])
+        workflow_path = self.root / ".github/workflows/ci.yml"
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+
+        workflow["jobs"]["container-test"]["needs"] = []
+        workflow_path.write_text(
+            yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8"
+        )
+        errors = self.audit("f5-sales-demo/xcsh")
+        self.assertTrue(any("socketless trust-gate" in item for item in errors))
+
+        workflow["jobs"]["container-test"]["needs"] = "trust-gate"
+        workflow["jobs"]["trust-gate"]["needs"] = "publish"
+        workflow_path.write_text(
+            yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8"
+        )
+        errors = self.audit("f5-sales-demo/xcsh")
+        self.assertTrue(any("dependency graph must be acyclic" in item for item in errors))
+
     def test_arc_policy_rejects_malformed_and_duplicate_routes(self):
         self.use_xcsh_arc_routes()
         base = self.data["repositories"]["f5-sales-demo/xcsh"]["runner"]

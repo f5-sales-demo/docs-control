@@ -3,6 +3,9 @@ set -euo pipefail
 
 repo_root=$(cd "$(dirname "$0")/.." && pwd)
 auditor="$repo_root/scripts/audit-runner-workflows.py"
+grep -Fq 'TAG_ONLY_DOCKER_GUARD' "$auditor"
+grep -Fq 'transitive_dependencies(workflow, job_id)' "$auditor"
+echo "runner auditor preserves tag-only Docker jobs with transitive trust gates"
 
 uvx --from 'ruff==0.15.17' ruff format --check --isolated \
   --config 'line-length = 88' "$auditor"
