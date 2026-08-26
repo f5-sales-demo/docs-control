@@ -91,6 +91,10 @@ const recovered = await reconcileContent({api:recoveryApi, owner:'f5', sourceSha
 assert.deepEqual(recovered.repositories.map(x => x.status), ['recovered','recovered','deferred-capacity']);
 assert.equal(recoveryWrites.filter(route => route.includes('/statuses/')).length, 6);
 assert.equal(recoveryWrites.filter(route => route.endsWith('/pulls')).length, 0);
+const workflow = fs.readFileSync(path.join(path.dirname(process.argv[2]), '..', '.github/workflows/reconcile-fleet-content.yml'), 'utf8');
+assert.match(workflow, /^  group: fleet-content-reconciler-v2$/m);
+assert.match(workflow, /^  cancel-in-progress: false$/m);
+assert.doesNotMatch(workflow, /^  group: fleet-content-reconciler$/m);
 console.log('[OK] fleet reconciler contracts');
 })().catch((error) => { console.error(error); process.exit(1); });
 NODE
