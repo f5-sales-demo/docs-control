@@ -102,6 +102,25 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             "repo_classes": {"repos": {"terraform-provider-xcsh": "developer"}}
         }
 
+    def test_documentation_arc_cohort_is_excluded_from_dispatcher_contract(self):
+        cohort = {
+            "f5-sales-demo/docs",
+            "f5-sales-demo/docs-builder",
+            "f5-sales-demo/docs-icons",
+            "f5-sales-demo/docs-theme",
+            "f5-sales-demo/i18n-core",
+            "f5-sales-demo/starlight-llms-txt",
+        }
+        repositories = set(validator.DISPATCHER_POLICY["repositories"])
+        self.assertTrue(cohort.isdisjoint(repositories))
+        self.assertIn("f5-sales-demo/docs-control", repositories)
+
+        fixture_path = (
+            Path(__file__).resolve().parent / "fixtures/workflow-security/policy.json"
+        )
+        fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+        self.assertEqual(validator.DISPATCHER_POLICY, fixture["dispatcher"])
+
     def tearDown(self):
         self.temp.cleanup()
 
