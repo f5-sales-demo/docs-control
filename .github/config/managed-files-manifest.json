@@ -1,5 +1,5 @@
 {
-  "source_commit": "e981097f35a60e435f70b74c27ed5b30b887b6a6",
+  "source_commit": "b61d07a05e30b76c21ecae3a7dc6c401e46ba5f9",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -417,8 +417,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "752671f034a3f3d1902318fad009cd6234c8eafd",
-      "size": 6847,
+      "sha": "487125e99151678467ca14c40ad34ebee09ca340",
+      "size": 9104,
       "mode": "100644"
     },
     ".claude/settings.json": {
@@ -438,8 +438,8 @@
     ".github/actionlint.yaml": {
       "src": ".github/actionlint.yaml",
       "dest": ".github/actionlint.yaml",
-      "sha": "f3aca19d806302530b2d58460a89b2049b00f4d5",
-      "size": 1398,
+      "sha": "43f8fb68b9d47c89a25e50dbead4d3244e74f194",
+      "size": 1447,
       "mode": "100644"
     },
     ".github/workflows/workflow-security-audit.yml": {
@@ -466,8 +466,8 @@
     ".github/config/self-hosted-runner-policy.json": {
       "src": ".github/config/self-hosted-runner-policy.json",
       "dest": ".github/config/self-hosted-runner-policy.json",
-      "sha": "24237fd370d5f579281a8d1e93aa73c7862bc0d5",
-      "size": 29594,
+      "sha": "9ae11031c7bb47fc5eed015b1139e14407816710",
+      "size": 30417,
       "mode": "100644"
     },
     ".github/workflows/semgrep.yml": {
