@@ -12,13 +12,18 @@ function extractScript(workflowPath, stepName) {
   if (stepMarker === -1) throw new Error(`step ${stepName} not found in ${workflowPath}`);
   const marker = lines.findIndex((line, index) => index > stepMarker && line === '          script: |');
   if (marker === -1) throw new Error(`github-script body not found for ${stepName}`);
-  return lines.slice(marker + 1).filter((line) => line === '' || line.startsWith('            '))
-    .map((line) => (line === '' ? line : line.slice(12))).join('\n');
+  return lines
+    .slice(marker + 1)
+    .filter((line) => line === '' || line.startsWith('            '))
+    .map((line) => (line === '' ? line : line.slice(12)))
+    .join('\n');
 }
 
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 const linkedIssueScript = new AsyncFunction(
-  'github', 'context', 'core',
+  'github',
+  'context',
+  'core',
   extractScript(path.join(root, 'workflows/require-linked-issue.yml'), "Check this pull request's linked issues"),
 );
 const context = { repo: { owner: 'f5-sales-demo', repo: 'example' } };
@@ -27,12 +32,19 @@ async function testExactPullRequestQueryPasses() {
   const graphqlCalls = [];
   const info = [];
   const failures = [];
-  await linkedIssueScript({ graphql: async (_query, variables) => {
-    graphqlCalls.push(variables);
-    return { repository: { pullRequest: { closingIssuesReferences: { nodes: [{ number: 1693 }] } } } };
-  } }, { ...context, payload: { pull_request: { number: 77 } } }, {
-    info: (message) => info.push(message), setFailed: (message) => failures.push(message),
-  });
+  await linkedIssueScript(
+    {
+      graphql: async (_query, variables) => {
+        graphqlCalls.push(variables);
+        return { repository: { pullRequest: { closingIssuesReferences: { nodes: [{ number: 1693 }] } } } };
+      },
+    },
+    { ...context, payload: { pull_request: { number: 77 } } },
+    {
+      info: (message) => info.push(message),
+      setFailed: (message) => failures.push(message),
+    },
+  );
   assert.deepEqual(graphqlCalls, [{ owner: 'f5-sales-demo', repo: 'example', number: 77 }]);
   assert.deepEqual(failures, []);
   assert.match(info[0], /#77 links issue #1693/);
@@ -52,10 +64,15 @@ async function testMissingLinkFailsWithGuidance() {
 async function testGraphqlFailureFailsClosed() {
   await assert.rejects(
     linkedIssueScript(
-      { graphql: async () => { throw new Error('GraphQL unavailable'); } },
+      {
+        graphql: async () => {
+          throw new Error('GraphQL unavailable');
+        },
+      },
       { ...context, payload: { pull_request: { number: 79 } } },
       { info: () => {}, setFailed: () => {} },
-    ), /GraphQL unavailable/,
+    ),
+    /GraphQL unavailable/,
   );
 }
 
