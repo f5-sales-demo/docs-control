@@ -5,7 +5,10 @@ set -euo pipefail
 REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
 FAIL=0
 pass() { printf '[OK] %s\n' "$1"; }
-fail() { printf '[FAIL] %s\n' "$1" >&2; FAIL=1; }
+fail() {
+  printf '[FAIL] %s\n' "$1" >&2
+  FAIL=1
+}
 require_literal() {
   if grep -Fq -- "$2" "$1"; then pass "$3"; else fail "$3"; fi
 }
@@ -34,6 +37,10 @@ done
 reject_literal "$managed" workflow_dispatch 'managed caller excludes central-only workflow dispatch'
 require_literal "$managed" "!startsWith(github.event.pull_request.head.ref, 'governance/reconcile-')" \
   'managed caller skips centrally attested reconciliation PRs'
+require_literal "$managed" '  group: require-linked-issue-${{ github.event.pull_request.number }}' \
+  'managed caller serializes checks per pull request'
+require_literal "$managed" '  cancel-in-progress: true' \
+  'managed caller cancels superseded checks'
 
 require_literal "$central" '  workflow_dispatch:' 'central implementation exposes exact-receipt dispatch'
 require_literal "$central" 'pull_request_number:' 'central dispatch requires a PR number'
@@ -43,6 +50,16 @@ require_literal "$central" 'pull.data.head.sha !== process.env.EXPECTED_HEAD_SHA
 require_literal "$central" 'pull.data.head.repo?.full_name !== `${owner}/${repo}`' \
   'central dispatch verifies same-repository ownership'
 require_literal "$central" '      contents: read' 'central dispatch receives only the extra content read scope it needs'
+require_literal "$central" "  group: require-linked-issue-\${{ github.event_name }}-\${{ github.event.pull_request.number || inputs.pull_request_number }}-\${{ inputs.expected_head_sha || 'live' }}" \
+  'central implementation separates live PR and exact-receipt concurrency identities'
+require_literal "$central" '  cancel-in-progress: true' \
+  'central implementation cancels only superseded matching checks'
+if jq -e '.hosted_exceptions["f5-sales-demo/docs-control"][".github/workflows/require-linked-issue.yml"]' \
+  "$REPO_ROOT/.github/config/self-hosted-runner-policy.json" >/dev/null; then
+  fail 'docs-control runner policy excludes the retired linked-issue hosted exception'
+else
+  pass 'docs-control runner policy excludes the retired linked-issue hosted exception'
+fi
 pass 'central and downstream linked-issue workflows have intentionally separate contracts'
 
 if node "$REPO_ROOT/tests/privileged-pr-workflow-behavior.mjs" "$REPO_ROOT"; then

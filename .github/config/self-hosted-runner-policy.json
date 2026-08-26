@@ -158,12 +158,6 @@
           "runs_on": "ubuntu-latest",
           "reason": "read-only pull request workflow security audit"
         }
-      },
-      ".github/workflows/require-linked-issue.yml": {
-        "pr-check": {
-          "runs_on": "ubuntu-24.04",
-          "reason": "immediate read-only linked-issue pull request check"
-        }
       }
     },
     "f5-sales-demo/vscode-xcsh": {

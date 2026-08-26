@@ -24,4 +24,6 @@ grep -Fq 'pull.data.head.ref === "sync/manifest"' "$workflow"
 grep -Fq 'exact synthetic manifest publication' "$workflow"
 grep -Fq 'trusted synthetic manifest publication branch' "$workflow"
 grep -Fq 'closingIssuesReferences(first: 1)' "$workflow"
+grep -Fq "group: require-linked-issue-\${{ github.event_name }}-\${{ github.event.pull_request.number || inputs.pull_request_number }}-\${{ inputs.expected_head_sha || 'live' }}" "$workflow"
+grep -Fq 'cancel-in-progress: true' "$workflow"
 printf 'PASS: linked-issue gate is same-repository, exact-receipt, and read-only\n'

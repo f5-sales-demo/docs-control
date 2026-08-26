@@ -32,6 +32,8 @@ concurrency:
 
 jobs:
   reconcile:
+    name: Reconcile fleet settings
+    environment: repository-settings
     runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
     timeout-minutes: 60
     env:
@@ -41,6 +43,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Resolve governed repository scope
+        id: repository-scope
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = '.github/config/downstream-repos.json';
+          const repositories = JSON.parse(fs.readFileSync(path, 'utf8'));
+          if (!Array.isArray(repositories) || repositories.some((item) => typeof item !== 'string' || item.length === 0)) {
+            throw new Error('downstream repository inventory must be a non-empty string array');
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `repositories=${repositories.join(',')}\n`);
+          NODE
       - id: app-token
         if: env.APP_ID != '' && env.APP_PRIVATE_KEY != ''
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -48,6 +62,10 @@ jobs:
           app-id: ${{ env.APP_ID }}
           private-key: ${{ env.APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.repository-scope.outputs.repositories }}
+          permission-actions: write
+          permission-administration: write
+          permission-pull-requests: read
       - name: Reconcile repository settings
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.REPO_SETTINGS_TOKEN }}
