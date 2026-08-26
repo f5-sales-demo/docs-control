@@ -66,6 +66,8 @@ expected = sorted([
     "macos-15-intel",
     "xcsh-container-build",
     "xcsh-socketless",
+    "docs-container-build",
+    "docs-socketless",
 ])
 assert config.get("self-hosted-runner", {}).get("labels") == expected
 workflow_ignores = config["paths"][".github/workflows/**/*.{yml,yaml}"]["ignore"]
@@ -79,6 +81,60 @@ PY
 else
   fail "2.1 actionlint recognizes governed repository, builder, and ARM labels" \
     "labels and narrow embedded-shell compatibility ignores must be exact"
+fi
+
+if python3 - \
+  "$REPO_ROOT/.github/config/self-hosted-runner-policy.json" \
+  "$REPO_ROOT/.github/config/repo-settings.json" \
+  "$REPO_ROOT/.claude/governance.json" <<'PY'; then
+import json
+import sys
+
+policy, settings, governance = (
+    json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]
+)
+cohort = {
+    "docs", "docs-builder", "docs-icons", "docs-theme", "i18n-core",
+    "starlight-llms-txt",
+}
+routes = {
+    "socketless": {"label": "docs-socketless", "profile": "ubuntu-24.04"},
+    "container-build": {
+        "label": "docs-container-build", "profile": "container-build",
+    },
+}
+managed = {
+    ".github/workflows/auto-merge.yml",
+    ".github/workflows/dependabot-auto-merge.yml",
+    ".github/workflows/translation-audit.yml",
+    ".github/workflows/workflow-security-audit.yml",
+    ".github/workflows/require-linked-issue.yml",
+    ".github/workflows/github-pages-deploy.yml",
+    ".github/workflows/super-linter.yml",
+}
+legacy = set(policy["dispatcher"]["repositories"])
+for repo in cohort:
+    repository = f"f5-sales-demo/{repo}"
+    assert policy["repositories"][repository]["runner"] == {"arc_scale_sets": routes}
+    assert repository not in legacy
+    expected = set(managed)
+    if repo == "i18n-core":
+        expected |= {
+            ".ruff.toml", ".mypy.ini", ".isort.cfg", "README.md",
+            ".github/workflows/semgrep.yml",
+        }
+    elif repo == "starlight-llms-txt":
+        expected.add("README.md")
+    for skips in (settings["managed_files"]["skip_files"], governance["skip_files"]):
+        assert len(skips[repo]) == len(set(skips[repo]))
+        assert set(skips[repo]) == expected
+assert "f5-sales-demo/docs-template" not in policy["repositories"]
+assert settings["managed_files"]["skip_files"] == governance["skip_files"]
+PY
+  pass "2.1a documentation cohort has exact ARC routes and managed opt-outs"
+else
+  fail "2.1a documentation cohort has exact ARC routes and managed opt-outs" \
+    "routes, dispatcher exclusions, or paired managed opt-outs are not exact"
 fi
 
 if jq -e '
