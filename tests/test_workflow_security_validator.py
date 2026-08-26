@@ -254,7 +254,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                     self.root, repository, policy, "ubuntu-24.04", routes
                 )
 
-    def test_arc_route_contract_authorizes_ordinary_job_without_exception(self):
+    def _assert_arc_route_contract_authorizes_ordinary_job_without_exception(self):
         repository = "f5-sales-demo/xcsh"
         workflow = {
             "name": "ARC",
@@ -307,6 +307,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             )
 
     def test_arc_routes_are_internally_validated_without_zizmor_findings(self):
+        self._assert_arc_route_contract_authorizes_ordinary_job_without_exception()
         repository = "f5-sales-demo/xcsh"
         workflow = copy.deepcopy(self.workflow)
         workflow["jobs"][self.job_id]["runs-on"] = "xcsh-socketless"
