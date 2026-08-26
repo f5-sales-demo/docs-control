@@ -1,5 +1,5 @@
 {
-  "source_commit": "f1093ffda7c0533f614741672917dd1da7170c99",
+  "source_commit": "c3c7b2363d9afa96c712c310a9616c60290f4bcb",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -459,15 +459,15 @@
     "scripts/audit-runner-workflows.py": {
       "src": "scripts/audit-runner-workflows.py",
       "dest": "scripts/audit-runner-workflows.py",
-      "sha": "1bf1b889d1c9cb8657265dd7b5a7f75e5a8c034d",
-      "size": 16677,
+      "sha": "9edb9e9511994a363a6a756dbb6fa0bcf082716b",
+      "size": 16724,
       "mode": "100755"
     },
     ".github/config/self-hosted-runner-policy.json": {
       "src": ".github/config/self-hosted-runner-policy.json",
       "dest": ".github/config/self-hosted-runner-policy.json",
-      "sha": "ec6f87a1d81613dc43b79fd90591b3a6b3dd2553",
-      "size": 37422,
+      "sha": "be68b3af1caa820a0a2920741e580b2585870a14",
+      "size": 37216,
       "mode": "100644"
     },
     ".github/workflows/semgrep.yml": {
