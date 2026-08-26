@@ -114,9 +114,9 @@ managed = {
 }
 legacy = set(policy["dispatcher"]["repositories"])
 for repo in cohort:
-    full_name = f"f5-sales-demo/{repo}"
-    assert policy["repositories"][full_name]["runner"] == {"arc_scale_sets": routes}
-    assert full_name not in legacy
+    repository = f"f5-sales-demo/{repo}"
+    assert policy["repositories"][repository]["runner"] == {"arc_scale_sets": routes}
+    assert repository not in legacy
     expected = set(managed)
     if repo == "i18n-core":
         expected |= {
