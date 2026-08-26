@@ -29,7 +29,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: fleet-content-reconciler
+  group: fleet-content-reconciler-v2
   cancel-in-progress: false
 
 jobs:
