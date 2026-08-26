@@ -151,6 +151,39 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             )
         )
 
+    def test_documentation_cohort_uses_only_shared_arc_scale_sets(self):
+        policy = MODULE.active_policy()
+        cohort = {
+            "f5-sales-demo/docs",
+            "f5-sales-demo/docs-builder",
+            "f5-sales-demo/docs-icons",
+            "f5-sales-demo/docs-theme",
+            "f5-sales-demo/i18n-core",
+            "f5-sales-demo/starlight-llms-txt",
+        }
+        expected = {
+            "socketless": {
+                "label": "docs-socketless",
+                "profile": "ubuntu-24.04",
+            },
+            "container-build": {
+                "label": "docs-container-build",
+                "profile": "container-build",
+            },
+        }
+        self.assertTrue(cohort <= set(policy.arc_scale_sets))
+        for repository in cohort:
+            with self.subTest(repository=repository):
+                self.assertEqual(expected, policy.arc_scale_sets[repository])
+                self.assertNotIn(repository, policy.dispatcher.repositories)
+                self.assertTrue(
+                    all(item.repository != repository for item in MODULE.instances(policy))
+                )
+                with self.assertRaisesRegex(MODULE.ProvisionError, "exact enabled"):
+                    MODULE.configured_fleet_instance(
+                        policy, repository, "ubuntu-24.04", 0
+                    )
+
     def test_admission_check_requires_an_exact_enabled_policy_instance(self):
         policy = MODULE.active_policy()
         with (
@@ -399,7 +432,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
 
     def test_inventory_is_repository_and_profile_scoped(self):
         items = MODULE.all_instances()
-        self.assertEqual(len(items), 79)
+        self.assertEqual(len(items), 67)
         docs = [
             item for item in items if item.repository == "f5-sales-demo/docs-control"
         ]
