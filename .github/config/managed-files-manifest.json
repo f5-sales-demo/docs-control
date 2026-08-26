@@ -1,5 +1,5 @@
 {
-  "source_commit": "574dca84c1926854df90556ca4d95846e89b531f",
+  "source_commit": "be592883c33ba7202b8bf47ded4efe9f4630573e",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -11,8 +11,8 @@
     ".github/workflows/require-linked-issue.yml": {
       "src": "workflows/require-linked-issue.yml",
       "dest": ".github/workflows/require-linked-issue.yml",
-      "sha": "b1564948096da7ea1f9c757a4398d50a59a46c4d",
-      "size": 1787,
+      "sha": "354e5c287c9360eea5d56d045b528c50ff1e4c9f",
+      "size": 1898,
       "mode": "100644"
     },
     ".github/workflows/super-linter.yml": {
@@ -396,8 +396,8 @@
     "tests/test-github-api-resilience.sh": {
       "src": "tests/test-github-api-resilience.sh",
       "dest": "tests/test-github-api-resilience.sh",
-      "sha": "235737b6b34fc8dcd8aed7998a4e44fe82f3f26f",
-      "size": 21976,
+      "sha": "f203e20cc434b1ca369e8ff84c02e096f151aa33",
+      "size": 23513,
       "mode": "100644"
     },
     "tests/test-translation-release-policy.sh": {
@@ -466,8 +466,8 @@
     ".github/config/self-hosted-runner-policy.json": {
       "src": ".github/config/self-hosted-runner-policy.json",
       "dest": ".github/config/self-hosted-runner-policy.json",
-      "sha": "178c47ae974ccdbc84e4191553cc6292bde674ee",
-      "size": 37628,
+      "sha": "ec6f87a1d81613dc43b79fd90591b3a6b3dd2553",
+      "size": 37422,
       "mode": "100644"
     },
     ".github/workflows/semgrep.yml": {
