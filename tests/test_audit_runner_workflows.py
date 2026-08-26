@@ -210,7 +210,9 @@ jobs:
             yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8"
         )
         errors = self.audit("f5-sales-demo/xcsh")
-        self.assertTrue(any("dependency graph must be acyclic" in item for item in errors))
+        self.assertTrue(
+            any("dependency graph must be acyclic" in item for item in errors)
+        )
 
     def test_arc_policy_rejects_malformed_and_duplicate_routes(self):
         self.use_xcsh_arc_routes()
