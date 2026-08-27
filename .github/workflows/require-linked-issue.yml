@@ -27,7 +27,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       github.event.pull_request.head.repo.full_name == github.repository
     name: Check linked issues
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    runs-on: managed-socketless
     permissions:
       pull-requests: read # inspect and attest the current pull request
       contents: read # resolve repository metadata for linked-issue validation

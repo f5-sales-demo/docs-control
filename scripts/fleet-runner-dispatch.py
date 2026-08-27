@@ -68,7 +68,10 @@ def state(repositories: tuple[str, ...]) -> dict[str, Any]:
     ):
         message = "fleet dispatcher state is malformed"
         raise PROVISION.ProvisionError(message)
-    value["cursor"] %= len(repositories)
+    if repositories:
+        value["cursor"] %= len(repositories)
+    else:
+        value["cursor"] = 0
     return value
 
 
@@ -371,6 +374,9 @@ def dispatch() -> int:
     PROVISION.require_root()
     policy = PROVISION.active_policy()
     repositories = policy.dispatcher.repositories
+    if not repositories:
+        print("[IDLE] fleet dispatcher inventory empty")
+        return 0
     controller_module = PROVISION.load_controller()
     now = int(time.time())
     with locked():

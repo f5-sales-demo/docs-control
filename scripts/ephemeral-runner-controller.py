@@ -403,7 +403,6 @@ class FleetPolicy:
         repositories = value["repositories"]
         if (
             not isinstance(repositories, list)
-            or not repositories
             or not all(
                 isinstance(repository, str) and repository
                 for repository in repositories

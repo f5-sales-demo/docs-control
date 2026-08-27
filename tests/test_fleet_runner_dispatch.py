@@ -66,6 +66,25 @@ class FleetRunnerDispatchTests(unittest.TestCase):
             json.loads(MODULE.STATE_PATH.read_text(encoding="utf-8"))["cursor"], 7
         )
 
+    def test_empty_dispatcher_inventory_is_a_noop(self):
+        policy = self.policy((), 80)
+        MODULE.save({"cursor": 7, "cooldowns": {"primary": 1200, "secondary": 1300}})
+        self.assertEqual(
+            MODULE.state(()),
+            {"cursor": 0, "cooldowns": {"primary": 1200, "secondary": 1300}},
+        )
+        controller = mock.Mock()
+        with (
+            mock.patch.object(MODULE.PROVISION, "require_root"),
+            mock.patch.object(MODULE.PROVISION, "active_policy", return_value=policy),
+            mock.patch.object(
+                MODULE.PROVISION, "load_controller", return_value=controller
+            ),
+        ):
+            self.assertEqual(MODULE.dispatch(), 0)
+        controller.assert_not_called()
+        self.assertTrue(MODULE.STATE_PATH.exists())
+
     def test_cooldown_suppresses_api_traffic(self):
         policy = self.policy(("f5-sales-demo/docs",), 80)
         MODULE.save({"cursor": 0, "cooldowns": {"primary": 1100, "secondary": 1200}})

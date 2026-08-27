@@ -31,6 +31,38 @@ SPEC.loader.exec_module(MODULE)
 
 
 class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-public-methods
+    @staticmethod
+    def legacy_policy():
+        controller = MODULE.load_controller()
+        policy = controller.FleetPolicy(MODULE.POLICY_SOURCE)
+        profiles = {
+            "f5-sales-demo/administration": ["ubuntu-24.04", "container-build"],
+            "f5-sales-demo/api-protection": ["ubuntu-24.04", "container-build"],
+            "f5-sales-demo/api-specs-enriched": [
+                "ubuntu-24.04",
+                "ubuntu-24.04-secondary",
+                "container-build",
+            ],
+            "f5-sales-demo/docs-control": [
+                "ubuntu-24.04",
+                "ubuntu-24.04-secondary",
+                "automation",
+                "container-build",
+            ],
+        }
+        for repository, enabled in profiles.items():
+            policy.raw["repositories"][repository]["runner"] = {"profiles": enabled}
+            policy.arc_scale_sets.pop(repository)
+        policy.dispatcher = controller.DispatcherPolicy(
+            repositories=tuple(profiles),
+            memory=policy.dispatcher.memory,
+            cpus=policy.dispatcher.cpus,
+            standard_runners=policy.dispatcher.standard_runners,
+            container_build_runners=policy.dispatcher.container_build_runners,
+            request_budget=policy.dispatcher.request_budget,
+        )
+        return policy
+
     def test_rootless_daemon_and_slice_are_hard_bounded(self):
         unit = MODULE.rootless_docker_unit_text()
         slice_unit = MODULE.container_build_slice_text()
@@ -74,7 +106,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertTrue(MODULE.CONTAINER_BUILD_SLICE_UNIT.startswith("f5-actions-"))
 
     def test_fleet_admission_caps_three_socketless_runners_at_48g_and_18_cpus(self):
-        policy = MODULE.active_policy()
+        policy = self.legacy_policy()
         repository = "f5-sales-demo/administration"
         primary = next(
             item
@@ -188,8 +220,9 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                     )
 
     def test_admission_check_requires_an_exact_enabled_policy_instance(self):
-        policy = MODULE.active_policy()
+        policy = self.legacy_policy()
         with (
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
             mock.patch.object(MODULE, "require_root"),
             mock.patch.object(MODULE, "reserved_fleet_instances") as reservations,
             self.assertRaisesRegex(MODULE.ProvisionError, "exact enabled"),
@@ -204,7 +237,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         )
 
     def test_reserved_fleet_instances_counts_active_and_activating_units(self):
-        policy = MODULE.active_policy()
+        policy = self.legacy_policy()
         standard = [
             item for item in MODULE.instances(policy) if item.profile == "ubuntu-24.04"
         ][:3]
@@ -224,7 +257,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             self.assertEqual(MODULE.reserved_fleet_instances(policy), standard[:2])
 
     def test_admission_check_rejects_manual_start_when_global_pool_is_full(self):
-        policy = MODULE.active_policy()
+        policy = self.legacy_policy()
         standard = [
             item for item in MODULE.instances(policy) if item.profile == "ubuntu-24.04"
         ]
@@ -234,6 +267,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             if item.profile == "container-build"
         )
         with (
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
             tempfile.TemporaryDirectory() as temporary,
             mock.patch.object(MODULE, "require_root"),
             mock.patch.object(MODULE, "consume_runner_start_authorization"),
@@ -252,7 +286,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             )
 
     def test_activating_reservation_prevents_concurrent_candidates_passing(self):
-        policy = MODULE.active_policy()
+        policy = self.legacy_policy()
         standard = [
             item for item in MODULE.instances(policy) if item.profile == "ubuntu-24.04"
         ]
@@ -263,6 +297,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         )
         active_and_activating = [*standard[:2], standard[2], builder]
         with (
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
             tempfile.TemporaryDirectory() as temporary,
             mock.patch.object(MODULE, "require_root"),
             mock.patch.object(MODULE, "consume_runner_start_authorization"),
@@ -279,13 +314,14 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             )
 
     def test_admission_check_enforces_single_container_builder(self):
-        policy = MODULE.active_policy()
+        policy = self.legacy_policy()
         builders = [
             item
             for item in MODULE.instances(policy)
             if item.profile == "container-build"
         ]
         with (
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
             tempfile.TemporaryDirectory() as temporary,
             mock.patch.object(MODULE, "require_root"),
             mock.patch.object(MODULE, "consume_runner_start_authorization"),
@@ -327,9 +363,10 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             self.assertFalse(MODULE.admission_allows_instances(cpu_limited, reserved))
 
     def test_admission_check_rejects_unpermitted_manual_start(self):
-        policy = MODULE.active_policy()
+        policy = self.legacy_policy()
         candidate = next(iter(MODULE.instances(policy)))
         with (
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
             tempfile.TemporaryDirectory() as temporary,
             mock.patch.object(MODULE, "require_root"),
             mock.patch.object(
@@ -345,9 +382,10 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             )
 
     def test_dispatcher_permit_is_consumed_by_admission_check(self):
-        policy = MODULE.active_policy()
+        policy = self.legacy_policy()
         candidate = next(iter(MODULE.instances(policy)))
         with (
+            mock.patch.object(MODULE, "active_policy", return_value=policy),
             tempfile.TemporaryDirectory() as temporary,
             mock.patch.object(MODULE, "require_root"),
             mock.patch.object(
@@ -371,7 +409,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 )
 
     def test_admission_fails_closed_when_systemd_state_is_unavailable(self):
-        policy = MODULE.active_policy()
+        policy = self.legacy_policy()
         item = next(iter(MODULE.instances(policy)))
         with (
             mock.patch.object(
@@ -422,66 +460,38 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 )
             )
 
-    def test_every_legacy_dispatch_repository_has_container_build_profile(self):
+    def test_production_inventory_is_fully_arc_managed(self):
         policy = MODULE.active_policy()
-        by_repository: dict[str, set[str]] = {}
-        for item in MODULE.all_instances():
-            by_repository.setdefault(item.repository, set()).add(item.profile)
-        self.assertEqual(set(by_repository), set(policy.dispatcher.repositories))
-        self.assertNotIn("f5-sales-demo/xcsh", by_repository)
-        self.assertTrue(
-            all("container-build" in profiles for profiles in by_repository.values())
-        )
-
-    def test_inventory_is_repository_and_profile_scoped(self):
-        items = MODULE.all_instances()
-        self.assertEqual(len(items), 67)
-        docs = [
-            item for item in items if item.repository == "f5-sales-demo/docs-control"
-        ]
-        self.assertEqual(
-            {item.profile for item in docs},
-            {
-                "ubuntu-24.04",
-                "ubuntu-24.04-secondary",
-                "automation",
-                "container-build",
-            },
-        )
-        sockets = {item.profile: item.docker_socket for item in docs}
-        self.assertFalse(sockets["ubuntu-24.04"])
-        self.assertFalse(sockets["ubuntu-24.04-secondary"])
-        self.assertFalse(sockets["automation"])
-        self.assertTrue(sockets["container-build"])
-
-    def test_api_specs_enriched_has_secondary_socketless_capacity(self):
-        runners = {
-            item.profile: item
-            for item in MODULE.all_instances()
-            if item.repository == "f5-sales-demo/api-specs-enriched"
+        self.assertEqual(policy.dispatcher.repositories, ())
+        self.assertEqual(MODULE.all_instances(), ())
+        self.assertEqual(len(policy.arc_scale_sets), 39)
+        managed = {
+            repository: routes
+            for repository, routes in policy.arc_scale_sets.items()
+            if routes["socketless"]["label"] == "managed-socketless"
         }
+        self.assertEqual(len(managed), 32)
+        for routes in managed.values():
+            self.assertEqual(
+                routes,
+                {
+                    "socketless": {
+                        "label": "managed-socketless",
+                        "profile": "ubuntu-24.04",
+                    },
+                    "container-build": {
+                        "label": "managed-container-build",
+                        "profile": "container-build",
+                    },
+                },
+            )
 
-        self.assertEqual(
-            set(runners),
-            {"ubuntu-24.04", "ubuntu-24.04-secondary", "container-build"},
-        )
-        self.assertFalse(runners["ubuntu-24.04"].docker_socket)
-        self.assertFalse(runners["ubuntu-24.04-secondary"].docker_socket)
-
-    def test_fleet_watcher_uses_dedicated_socketless_automation_profile(self):
+    def test_fleet_watcher_uses_managed_socketless_route(self):
         workflow = (ROOT / ".github/workflows/antigravity-fleet-watcher.yml").read_text(
             encoding="utf-8"
         )
-        route = (
-            "runs-on: [self-hosted, Linux, X64, "
-            '"${{ github.event.repository.name }}", automation]'
-        )
-        self.assertEqual(workflow.count(route), 3)
-        self.assertNotIn(
-            "runs-on: [self-hosted, Linux, X64, "
-            '"${{ github.event.repository.name }}", ubuntu-24.04]',
-            workflow,
-        )
+        self.assertEqual(workflow.count("runs-on: managed-socketless"), 3)
+        self.assertNotIn("automation]", workflow)
 
     def test_runner_unit_keeps_credential_out_of_argv(self):
         unit = MODULE.runner_unit_text()
@@ -516,6 +526,29 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertIn("Persistent=true", timer)
         self.assertNotIn("OnUnitActiveSec=", timer)
 
+    def test_empty_dispatcher_disables_only_its_timer(self):
+        policy = SimpleNamespace(dispatcher=SimpleNamespace(repositories=()))
+        with mock.patch.object(MODULE, "command") as command:
+            MODULE.configure_timers(policy, enable_timers=True)
+        self.assertEqual(
+            command.call_args_list,
+            [
+                mock.call(
+                    ["systemctl", "disable", "--now", MODULE.FLEET_DISPATCH_TIMER],
+                    check=False,
+                ),
+                mock.call(["systemctl", "enable", "--now", MODULE.CAPACITY_TIMER]),
+                mock.call(["systemctl", "enable", "--now", MODULE.RETIRED_TIMER]),
+            ],
+        )
+
+    def test_populated_dispatcher_enables_all_timers(self):
+        policy = SimpleNamespace(dispatcher=SimpleNamespace(repositories=("repo",)))
+        with mock.patch.object(MODULE, "command") as command:
+            MODULE.configure_timers(policy, enable_timers=True)
+        self.assertEqual(command.call_count, 3)
+        self.assertIn(MODULE.FLEET_DISPATCH_TIMER, command.call_args_list[0].args[0])
+
     def test_retired_reconciler_uses_a_persistent_calendar_timer(self):
         unit = MODULE.retired_reconciler_unit_text()
         timer = MODULE.retired_reconciler_timer_text()
@@ -546,10 +579,11 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertEqual(check(low_percent), 1)
 
     def test_profile_resource_limits_are_owned_by_docker_controller(self):
+        policy = self.legacy_policy()
         for profile in ("ubuntu-24.04", "automation"):
             item = next(
                 item
-                for item in MODULE.all_instances()
+                for item in MODULE.instances(policy)
                 if item.repository == "f5-sales-demo/docs-control"
                 and item.profile == profile
             )
