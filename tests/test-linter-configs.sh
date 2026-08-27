@@ -141,7 +141,7 @@ else
     "routes, dispatcher exclusions, or paired managed opt-outs are not exact"
 fi
 
-if python3 - "$REPO_ROOT/.github/config/self-hosted-runner-policy.json" <<'PY'
+if python3 - "$REPO_ROOT/.github/config/self-hosted-runner-policy.json" <<'PY'; then
 import json
 import sys
 
@@ -164,7 +164,6 @@ for repository, workflows in policy["repositories"].items():
                 f"{repository}:{workflow}:{job} uses unknown ARC route {route!r}"
             )
 PY
-then
   pass "2.1b ARC repository job policies use exact scalar routes"
 else
   fail "2.1b ARC repository job policies use exact scalar routes" \
