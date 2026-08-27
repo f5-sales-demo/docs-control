@@ -47,7 +47,7 @@ jobs:
   review:
     name: PR review with Antigravity
     if: vars.ANTIGRAVITY_REVIEW_ENABLED == 'true'
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    runs-on: managed-socketless
     timeout-minutes: 45
     permissions:
       contents: read
@@ -236,7 +236,7 @@ jobs:
     name: Publish exact-head review
     if: always() && vars.ANTIGRAVITY_REVIEW_ENABLED == 'true'
     needs: review
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    runs-on: managed-socketless
     timeout-minutes: 10
     permissions:
       contents: read

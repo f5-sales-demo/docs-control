@@ -167,7 +167,7 @@ PROTECTED_FILES=$(jq -r '.protected_files[]' "$GOVERNANCE_JSON" | sort)
 
 MISSING_FROM_GOVERNANCE=""
 while IFS= read -r dest; do
-  if ! echo "$PROTECTED_FILES" | grep -qxF "$dest"; then
+  if ! grep -qxF "$dest" <<<"$PROTECTED_FILES"; then
     MISSING_FROM_GOVERNANCE="${MISSING_FROM_GOVERNANCE}  - ${dest}\n"
   fi
 done <<<"$MANAGED_DESTS"
@@ -181,7 +181,7 @@ fi
 
 # Test 3.2: governance.json includes the hook infrastructure files
 for infra_file in ".claude/governance.json" ".claude/settings.json" ".claude/hooks/protect-managed-files.sh"; do
-  if echo "$PROTECTED_FILES" | grep -qxF "$infra_file"; then
+  if grep -qxF "$infra_file" <<<"$PROTECTED_FILES"; then
     pass "3.2 governance.json protects $infra_file (self-protection)"
   else
     fail "3.2 governance.json protects $infra_file (self-protection)" "not found"
@@ -190,7 +190,7 @@ done
 
 # Test 3.3: governance.json includes dynamically managed files
 for dynamic_file in "README.md" ".github/dependabot.yml"; do
-  if echo "$PROTECTED_FILES" | grep -qxF "$dynamic_file"; then
+  if grep -qxF "$dynamic_file" <<<"$PROTECTED_FILES"; then
     pass "3.3 governance.json protects dynamic file $dynamic_file"
   else
     fail "3.3 governance.json protects dynamic file $dynamic_file" "not found"
@@ -200,7 +200,7 @@ done
 # Test 3.4: repo-settings.json includes the 3 new managed file entries
 for new_entry in ".claude/governance.json" ".claude/settings.json" ".claude/hooks/protect-managed-files.sh" \
   ".github/config/self-hosted-runner-policy.json" "scripts/workflow-security-validator.py"; do
-  if echo "$MANAGED_DESTS" | grep -qxF "$new_entry"; then
+  if grep -qxF "$new_entry" <<<"$MANAGED_DESTS"; then
     pass "3.4 repo-settings.json distributes $new_entry"
   else
     fail "3.4 repo-settings.json distributes $new_entry" "not in managed_files"
@@ -259,7 +259,7 @@ VALID_SKIP_TARGETS=$(printf '%s\nREADME.md\n.github/dependabot.yml\n' "$MANAGED_
 MISSING_FROM_MANAGED=""
 while IFS= read -r entry; do
   [ -z "$entry" ] && continue
-  if ! echo "$VALID_SKIP_TARGETS" | grep -qxF "$entry"; then
+  if ! grep -qxF "$entry" <<<"$VALID_SKIP_TARGETS"; then
     MISSING_FROM_MANAGED="${MISSING_FROM_MANAGED}  - ${entry}\n"
   fi
 done <<<"$SKIP_ENTRIES"
@@ -367,7 +367,7 @@ UNKNOWN_ASSIGNMENTS=""
 ASSIGNED_REPOS=$(jq -r '.repo_classes.repos | keys[]' "$GOVERNANCE_JSON" 2>/dev/null || true)
 while IFS= read -r repo; do
   [ -z "$repo" ] && continue
-  if ! echo "$GOVERNED_REPOS" | grep -qxF "$repo"; then
+  if ! grep -qxF "$repo" <<<"$GOVERNED_REPOS"; then
     UNKNOWN_ASSIGNMENTS="${UNKNOWN_ASSIGNMENTS} ${repo}"
   fi
 done <<<"$ASSIGNED_REPOS"

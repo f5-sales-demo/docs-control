@@ -44,7 +44,7 @@ concurrency:
 jobs:
   configure:
     name: Apply fail-closed organization controls
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    runs-on: managed-socketless
     timeout-minutes: 30
     environment: antigravity-automation
     permissions:

@@ -12,7 +12,7 @@ concurrency:
 jobs:
   standard:
     name: Verify standard runner boundary
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    runs-on: managed-socketless
     permissions: {}
     steps:
       - name: Verify socketless standard profile
@@ -29,7 +29,7 @@ jobs:
   container-build:
     name: Verify trusted container-build profile
     needs: standard
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", container-build]
+    runs-on: managed-container-build
     permissions: {}
     steps:
       - name: Verify Docker-enabled build profile

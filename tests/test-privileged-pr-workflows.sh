@@ -25,7 +25,7 @@ for file in "$managed" "$central"; do
   require_literal "$file" 'permissions: {}' "${file#"$REPO_ROOT/"} denies default workflow token permissions"
   require_literal "$file" 'github.event.pull_request.head.repo.full_name == github.repository' "${file#"$REPO_ROOT/"} skips fork pull requests"
   require_literal "$file" '    name: Check linked issues' "${file#"$REPO_ROOT/"} emits the exact check context"
-  require_literal "$file" '    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]' "${file#"$REPO_ROOT/"} routes to the repository runner"
+  require_literal "$file" '    runs-on: managed-socketless' "${file#"$REPO_ROOT/"} routes to repository-scoped ARC"
   require_literal "$file" '      pull-requests: read' "${file#"$REPO_ROOT/"} grants pull-request read access"
   require_literal "$file" 'closingIssuesReferences(first: 1)' "${file#"$REPO_ROOT/"} queries only one closing issue"
   require_literal "$file" "Add 'Closes #123'" "${file#"$REPO_ROOT/"} provides actionable guidance"

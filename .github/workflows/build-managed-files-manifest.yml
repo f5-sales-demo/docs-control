@@ -65,7 +65,7 @@ concurrency:
 jobs:
   build:
     name: Build managed-files manifest
-    runs-on: [self-hosted, Linux, X64, "${{ github.event.repository.name }}", ubuntu-24.04]
+    runs-on: managed-socketless
     environment: repository-settings
     permissions:
       contents: read # check out the protected governance source

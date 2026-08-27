@@ -721,6 +721,17 @@ def retire_legacy_dispatch_units():
         path.unlink()
 
 
+def configure_timers(policy, enable_timers=True):
+    """Enable active maintenance timers and stop an empty fleet dispatcher."""
+    if not policy.dispatcher.repositories:
+        command(["systemctl", "disable", "--now", FLEET_DISPATCH_TIMER], check=False)
+    elif enable_timers:
+        command(["systemctl", "enable", "--now", FLEET_DISPATCH_TIMER])
+    if enable_timers:
+        command(["systemctl", "enable", "--now", CAPACITY_TIMER])
+        command(["systemctl", "enable", "--now", RETIRED_TIMER])
+
+
 def install_definition(enable_timers=True):
     require_root()
     ensure_subordinate_ranges()
@@ -805,10 +816,7 @@ def install_definition(enable_timers=True):
         )
     retire_legacy_dispatch_units()
     command(["systemctl", "daemon-reload"])
-    if enable_timers:
-        command(["systemctl", "enable", "--now", FLEET_DISPATCH_TIMER])
-        command(["systemctl", "enable", "--now", CAPACITY_TIMER])
-        command(["systemctl", "enable", "--now", RETIRED_TIMER])
+    configure_timers(policy, enable_timers)
 
 
 def install_credential():

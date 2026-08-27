@@ -245,6 +245,12 @@ class EphemeralRunnerTests(unittest.TestCase):
         )
         self.assertEqual(spec.replicas, 1)
 
+    def test_policy_accepts_an_empty_dispatcher_inventory(self):
+        self.policy_data["dispatcher"]["repositories"] = []
+        self.write_policy()
+
+        self.assertEqual(self.policy().dispatcher.repositories, ())
+
     def test_arc_repository_is_parsed_without_a_legacy_profile_allocation(self):
         self.policy_data["dispatcher"]["repositories"] = ["f5-sales-demo/fixture"]
         self.policy_data["repositories"]["f5-sales-demo/xcsh"]["runner"] = {
