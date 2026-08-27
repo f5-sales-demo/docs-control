@@ -35,6 +35,13 @@ DEFAULT_BRANCH_DOCKER_GUARD = (
     "github.event.pull_request.head.repo.full_name == github.repository)"
 )
 TAG_ONLY_DOCKER_GUARD = "startsWith(github.ref, 'refs/tags/v')"
+SCHEDULED_DEFAULT_BRANCH_DOCKER_GUARD = (
+    "github.event_name == 'workflow_dispatch' || "
+    "github.event_name == 'schedule' || "
+    "(github.event_name == 'push' && "
+    "github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && "
+    "github.ref_protected == true)"
+)
 PAGES_DOCKER_GUARD = (
     "github.event_name == 'workflow_dispatch' || "
     "(github.event_name == 'push' && "
@@ -443,7 +450,7 @@ def audit_docker_route(  # noqa: PLR0917
         triggers = trigger_names(workflow)
     except AuditError as exc:
         return [f"Docker-capable job has a malformed trigger: {exc}"]
-    allowed = {"pull_request", "push", "workflow_call", "workflow_dispatch"}
+    allowed = {"pull_request", "push", "schedule", "workflow_call", "workflow_dispatch"}
     if not triggers or not triggers <= allowed:
         errors.append(
             "Docker-capable jobs require a protected push, same-repository PR, or manual dispatch",
@@ -459,6 +466,8 @@ def audit_docker_route(  # noqa: PLR0917
         ) == (".github/workflows/github-pages-deploy.yml", "build")
         if pages_build:
             expected_guard = PAGES_DOCKER_GUARD
+        elif "schedule" in triggers:
+            expected_guard = SCHEDULED_DEFAULT_BRANCH_DOCKER_GUARD
         elif triggers == {"pull_request"}:
             expected_guard = PULL_REQUEST_GUARD
         elif "push" in triggers or triggers == {"workflow_call"}:

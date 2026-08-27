@@ -713,6 +713,57 @@ jobs:
         errors = self.audit()
         self.assertTrue(any("same-repository guard" in item for item in errors))
 
+    def test_scheduled_docker_profile_requires_exact_protected_default_guard(self):
+        exact_guard = (
+            "github.event_name == 'workflow_dispatch' || "
+            "github.event_name == 'schedule' || "
+            "(github.event_name == 'push' && "
+            "github.ref == format('refs/heads/{0}', "
+            "github.event.repository.default_branch) && "
+            "github.ref_protected == true)"
+        )
+        workflow: dict[str, Any] = {
+            "name": "Scheduled Docker",
+            "on": {
+                "push": {"branches": ["main"]},
+                "schedule": [{"cron": "0 5 * * *"}],
+                "workflow_dispatch": None,
+            },
+            "jobs": {
+                "trust-gate": {
+                    "runs-on": [
+                        "self-hosted",
+                        "Linux",
+                        "X64",
+                        "fixture",
+                        "ubuntu-24.04",
+                    ],
+                    "steps": [{"run": True}],
+                },
+                "build": {
+                    "needs": "trust-gate",
+                    "if": exact_guard,
+                    "runs-on": [
+                        "self-hosted",
+                        "Linux",
+                        "X64",
+                        "fixture",
+                        "container-build",
+                    ],
+                    "steps": [{"run": "docker version"}],
+                },
+            },
+        }
+        self.write_workflow(yaml.safe_dump(workflow, sort_keys=False))
+        self.assertEqual(self.audit(), [])
+
+        workflow["jobs"]["build"]["if"] = exact_guard.replace(
+            " && github.ref_protected == true", ""
+        )
+        self.write_workflow(yaml.safe_dump(workflow, sort_keys=False))
+        errors = self.audit()
+        self.assertTrue(any("same-repository guard" in item for item in errors))
+
     def test_docker_steps_and_privileged_package_installs_are_detected(self):
         self.write_workflow(
             """name: CI
