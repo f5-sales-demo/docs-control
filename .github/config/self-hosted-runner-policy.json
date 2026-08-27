@@ -111,29 +111,9 @@
     },
     "f5-sales-demo/vscode-xcsh": {
       ".github/workflows/ci.yml": {
-        "spec-delivery": {
-          "runs_on": "ubuntu-latest",
-          "reason": "spec delivery validates the GitHub-hosted release contract"
-        },
-        "validate-generation": {
-          "runs_on": "ubuntu-latest",
-          "reason": "generation uses the GitHub-hosted Node toolchain"
-        },
-        "test": {
+        "test-native": {
           "runs_on": "matrix",
-          "reason": "extension integration tests require native hosted platforms"
-        },
-        "build": {
-          "runs_on": "ubuntu-latest",
-          "reason": "VSIX build uses the GitHub-hosted packaging toolchain"
-        },
-        "security": {
-          "runs_on": "ubuntu-latest",
-          "reason": "dependency audit uses the GitHub-hosted Node toolchain"
-        },
-        "release-eligibility": {
-          "runs_on": "ubuntu-latest",
-          "reason": "release classification is a read-only hosted check"
+          "reason": "extension integration tests require native hosted macOS and Windows platforms"
         },
         "release": {
           "runs_on": "ubuntu-latest",
@@ -146,12 +126,6 @@
         "record-spec-delivery": {
           "runs_on": "ubuntu-latest",
           "reason": "delivery recording uses GitHub-hosted publication credentials"
-        }
-      },
-      ".github/workflows/knip.yml": {
-        "knip": {
-          "runs_on": "ubuntu-latest",
-          "reason": "dead-code analysis uses the GitHub-hosted Node toolchain"
         }
       },
       ".github/workflows/workflow-security-audit.yml": {

@@ -884,6 +884,43 @@ jobs:
             },
         )
 
+    def test_vscode_xcsh_hosted_exceptions_are_only_native_and_release_boundaries(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        exception = policy["hosted_exceptions"]["f5-sales-demo/vscode-xcsh"]
+        self.assertEqual(
+            exception,
+            {
+                ".github/workflows/ci.yml": {
+                    "test-native": {
+                        "runs_on": "matrix",
+                        "reason": "extension integration tests require native hosted macOS and Windows platforms",
+                    },
+                    "release": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "extension publication uses GitHub-hosted release credentials",
+                    },
+                    "stage-spec-delivery": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "spec staging uses GitHub-hosted delivery credentials",
+                    },
+                    "record-spec-delivery": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "delivery recording uses GitHub-hosted publication credentials",
+                    },
+                },
+                ".github/workflows/workflow-security-audit.yml": {
+                    "workflow-security-audit": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "read-only pull request workflow security audit",
+                    }
+                },
+            },
+        )
+
     def test_xcsh_npm_backfill_hosted_exception_is_exact(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
