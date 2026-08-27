@@ -1,5 +1,5 @@
 {
-  "source_commit": "d85475b8aa05af2bbc36a5fef80f6c222ddc6f18",
+  "source_commit": "f0bd0c553159ab6f5c95f1d55064ba97efbdd42c",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -417,8 +417,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "487125e99151678467ca14c40ad34ebee09ca340",
-      "size": 9104,
+      "sha": "a23d81c799c4318405e1bd05f18b424ed285613e",
+      "size": 9155,
       "mode": "100644"
     },
     ".claude/settings.json": {
@@ -438,8 +438,8 @@
     ".github/actionlint.yaml": {
       "src": ".github/actionlint.yaml",
       "dest": ".github/actionlint.yaml",
-      "sha": "43f8fb68b9d47c89a25e50dbead4d3244e74f194",
-      "size": 1447,
+      "sha": "c5e7a5fc3adf1b396add566a33ecfebf9f35ff39",
+      "size": 1502,
       "mode": "100644"
     },
     ".github/workflows/workflow-security-audit.yml": {
@@ -452,15 +452,15 @@
     "scripts/workflow-security-validator.py": {
       "src": "scripts/workflow-security-validator.py",
       "dest": "scripts/workflow-security-validator.py",
-      "sha": "648cd0e08151aeea6c7fca1455d4ab20ddec1a7f",
-      "size": 34919,
+      "sha": "a98c205118834e35941c207e553b982b2b168bc8",
+      "size": 37492,
       "mode": "100755"
     },
     "scripts/audit-runner-workflows.py": {
       "src": "scripts/audit-runner-workflows.py",
       "dest": "scripts/audit-runner-workflows.py",
-      "sha": "5fe43f1c7d4223736606a3af54760f84a391b27d",
-      "size": 22710,
+      "sha": "c1bdb5c23954ce5457d03bc24c86ddd164e66f75",
+      "size": 25252,
       "mode": "100755"
     },
     ".github/config/self-hosted-runner-policy.json": {
