@@ -1105,8 +1105,8 @@
                   "type": "string"
                 },
                 "timeout": {
-                  "default": "10",
-                  "description": "Timeout per test (minutes)",
+                  "default": "300",
+                  "description": "Go test suite timeout (minutes)",
                   "required": false,
                   "type": "string"
                 }
@@ -1154,8 +1154,8 @@
                   "type": "string"
                 },
                 "timeout": {
-                  "default": "10",
-                  "description": "Timeout per test (minutes)",
+                  "default": "300",
+                  "description": "Go test suite timeout (minutes)",
                   "required": false,
                   "type": "string"
                 }
