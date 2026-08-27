@@ -141,6 +141,35 @@ else
     "routes, dispatcher exclusions, or paired managed opt-outs are not exact"
 fi
 
+if python3 - "$REPO_ROOT/.github/config/self-hosted-runner-policy.json" <<'PY'; then
+import json
+import sys
+
+policy = json.load(open(sys.argv[1], encoding="utf-8"))
+for repository, workflows in policy["repositories"].items():
+    runner = workflows["runner"]
+    scale_sets = runner.get("arc_scale_sets")
+    if scale_sets is None:
+        continue
+    labels = {route["label"] for route in scale_sets.values()}
+    for workflow, jobs in workflows.items():
+        if workflow == "runner":
+            continue
+        for job, spec in jobs.items():
+            route = spec["runs_on"]
+            assert isinstance(route, str), (
+                f"{repository}:{workflow}:{job} retained a legacy runner array"
+            )
+            assert route in labels, (
+                f"{repository}:{workflow}:{job} uses unknown ARC route {route!r}"
+            )
+PY
+  pass "2.1b ARC repository job policies use exact scalar routes"
+else
+  fail "2.1b ARC repository job policies use exact scalar routes" \
+    "an ARC-converted repository retained a legacy or unknown job route"
+fi
+
 if jq -e '
   [.managed_files.files[] |
     select(.src == ".github/actionlint.yaml" and .dest == ".github/actionlint.yaml")] |
