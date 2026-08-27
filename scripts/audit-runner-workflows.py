@@ -85,6 +85,115 @@ REUSABLE_DEFINITION_ROUTES = {
 }
 
 
+DOCS_ARC_COHORT = frozenset(
+    f"f5-sales-demo/{name}"
+    for name in (
+        "docs",
+        "docs-builder",
+        "docs-icons",
+        "docs-theme",
+        "i18n-core",
+        "starlight-llms-txt",
+    )
+)
+MANAGED_ARC_COHORT = frozenset(
+    f"f5-sales-demo/{name}"
+    for name in (
+        "administration",
+        "api-protection",
+        "api-specs",
+        "api-specs-enriched",
+        "apt-repo",
+        "bot-advanced",
+        "bot-standard",
+        "cdn",
+        "cdn-simulator",
+        "console",
+        "csd",
+        "ddos",
+        "demo-resource-template",
+        "demo-resources",
+        "devcontainer",
+        "dns",
+        "docs-control",
+        "marketplace",
+        "marketplace-claude-code",
+        "mcn",
+        "nginx",
+        "observability",
+        "origin-server",
+        "starlight-mega-menu",
+        "terraform-provider-xcsh",
+        "traffic-generator",
+        "vscode-xcsh",
+        "waf",
+        "was",
+        "webapp-api-protection",
+        "xcsh-action",
+        "xcsh-chrome-extension",
+    )
+)
+ARC_SHARED_CONTRACTS = (
+    (
+        DOCS_ARC_COHORT,
+        {
+            "socketless": {
+                "label": "docs-socketless",
+                "profile": "ubuntu-24.04",
+            },
+            "container-build": {
+                "label": "docs-container-build",
+                "profile": "container-build",
+            },
+        },
+    ),
+    (
+        MANAGED_ARC_COHORT,
+        {
+            "socketless": {
+                "label": "managed-socketless",
+                "profile": "ubuntu-24.04",
+            },
+            "container-build": {
+                "label": "managed-container-build",
+                "profile": "container-build",
+            },
+        },
+    ),
+    (
+        frozenset({"f5-sales-demo/xcsh"}),
+        {
+            "socketless": {
+                "label": "xcsh-socketless",
+                "profile": "ubuntu-24.04",
+            },
+            "container-build": {
+                "label": "xcsh-container-build",
+                "profile": "container-build",
+            },
+        },
+    ),
+)
+RESERVED_ARC_LABELS = frozenset(
+    {
+        "docs-container-build",
+        "docs-socketless",
+        "managed-container-build",
+        "managed-socketless",
+        "xcsh-container-build",
+        "xcsh-socketless",
+    }
+)
+
+
+def expected_arc_scale_sets(repository):
+    """Return the exact shared-label contract for a governed ARC cohort."""
+    for cohort, contract in ARC_SHARED_CONTRACTS:
+        if repository in cohort:
+            return contract
+    return None
+
+
 class AuditError(ValueError):
     """A deterministic workflow policy violation."""
 
@@ -174,19 +283,14 @@ def repository_routes(policy, repository):
             if label in profiles_by_label:
                 raise AuditError(f"duplicate ARC scale set label: {label}")
             profiles_by_label[label] = profile
-        if repository == "f5-sales-demo/xcsh":
-            expected = {
-                "socketless": {
-                    "label": "xcsh-socketless",
-                    "profile": "ubuntu-24.04",
-                },
-                "container-build": {
-                    "label": "xcsh-container-build",
-                    "profile": "container-build",
-                },
-            }
-            if scale_sets != expected:
-                raise AuditError("xcsh ARC scale set contract is invalid")
+        expected = expected_arc_scale_sets(repository)
+        if expected is not None and scale_sets != expected:
+            raise AuditError(f"{repository} ARC scale-set contract is invalid")
+        if expected is None:
+            leaked = set(profiles_by_label) & RESERVED_ARC_LABELS
+            if leaked:
+                message = "reserved ARC scale-set label escaped its cohort"
+                raise AuditError(f"{message}: {sorted(leaked)}")
         return {"kind": "arc", "profiles_by_label": profiles_by_label}
 
     allowed = runner.get("profiles", list(profiles))

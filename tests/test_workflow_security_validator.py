@@ -173,6 +173,64 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             }
         }
 
+    @staticmethod
+    def managed_arc_runner():
+        return {
+            "arc_scale_sets": {
+                "socketless": {
+                    "label": "managed-socketless",
+                    "profile": "ubuntu-24.04",
+                },
+                "container-build": {
+                    "label": "managed-container-build",
+                    "profile": "container-build",
+                },
+            }
+        }
+
+    def test_managed_arc_labels_are_exact_and_cohort_bound(self):
+        routes = validator.repository_runner_routes(
+            {"runner": self.managed_arc_runner()},
+            self.policy["profiles"],
+            "ubuntu-24.04",
+            "f5-sales-demo/administration",
+        )
+        self.assertEqual(
+            "ubuntu-24.04", validator.resolve_route("managed-socketless", routes)
+        )
+        self.assertEqual(
+            "container-build",
+            validator.resolve_route("managed-container-build", routes),
+        )
+        for repository, runner in (
+            ("f5-sales-demo/fixture", self.managed_arc_runner()),
+            (
+                "f5-sales-demo/administration",
+                {
+                    "arc_scale_sets": {
+                        "socketless": {
+                            "label": "managed-container-build",
+                            "profile": "ubuntu-24.04",
+                        },
+                        "container-build": {
+                            "label": "managed-socketless",
+                            "profile": "container-build",
+                        },
+                    }
+                },
+            ),
+        ):
+            with (
+                self.subTest(repository=repository),
+                self.assertRaises(validator.PolicyError),
+            ):
+                validator.repository_runner_routes(
+                    {"runner": runner},
+                    self.policy["profiles"],
+                    "ubuntu-24.04",
+                    repository,
+                )
+
     def test_arc_route_model_accepts_only_exact_scalar_labels(self):
         routes = validator.repository_runner_routes(
             {"runner": self.xcsh_arc_runner()},
