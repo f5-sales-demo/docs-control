@@ -22,12 +22,12 @@ on:
         description: Policy-approved repository-scoped ARC socketless label
         required: false
         type: string
-        default: ''
+        default: 'managed-socketless'
       container_build_runner_label:
         description: Policy-approved repository-scoped ARC container-build label
         required: false
         type: string
-        default: ''
+        default: 'managed-container-build'
 permissions: {}
 
 concurrency:
@@ -40,21 +40,19 @@ concurrency:
 jobs:
   trust-gate:
     name: Trust Docker-capable job
-    runs-on: ${{ inputs.socketless_runner_label || fromJSON(format('["self-hosted","Linux","X64","{0}","ubuntu-24.04"]', github.event.repository.name)) }}
+    runs-on: ${{ inputs.socketless_runner_label || 'managed-socketless' }}
     permissions: {}
     steps:
       - name: Reject untrusted or unsupported events
         env:
-          CONTAINER_BUILD_RUNNER_LABEL: ${{ inputs.container_build_runner_label }}
+          CONTAINER_BUILD_RUNNER_LABEL: ${{ inputs.container_build_runner_label || 'managed-container-build' }}
           EVENT_NAME: ${{ github.event_name }}
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
           REPOSITORY: ${{ github.repository }}
-          SOCKETLESS_RUNNER_LABEL: ${{ inputs.socketless_runner_label }}
+          SOCKETLESS_RUNNER_LABEL: ${{ inputs.socketless_runner_label || 'managed-socketless' }}
         run: |
           set -euo pipefail
-          if [[ -z "$SOCKETLESS_RUNNER_LABEL" && -z "$CONTAINER_BUILD_RUNNER_LABEL" ]]; then
-            : # Legacy caller: retain the canonical five-label routes.
-          elif [[ -z "$SOCKETLESS_RUNNER_LABEL" || -z "$CONTAINER_BUILD_RUNNER_LABEL" ]]; then
+          if [[ -z "$SOCKETLESS_RUNNER_LABEL" || -z "$CONTAINER_BUILD_RUNNER_LABEL" ]]; then
             echo "::error::socketless_runner_label and container_build_runner_label must be supplied together"
             exit 1
           elif [[ ! "$SOCKETLESS_RUNNER_LABEL" =~ ^[a-z0-9][a-z0-9.-]*$ ]] ||
@@ -84,7 +82,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: ${{ inputs.container_build_runner_label || fromJSON(format('["self-hosted","Linux","X64","{0}","container-build"]', github.event.repository.name)) }}
+    runs-on: ${{ inputs.container_build_runner_label || 'managed-container-build' }}
     # Scoped to what the linter needs: read code/packages, write commit statuses
     # and PR annotations. The shell-unit-tests job below gets contents:read only.
     permissions:
@@ -533,7 +531,7 @@ jobs:
 
   shell-unit-tests:
     name: Shell Unit Tests
-    runs-on: ${{ inputs.socketless_runner_label || fromJSON(format('["self-hosted","Linux","X64","{0}","ubuntu-24.04"]', github.event.repository.name)) }}
+    runs-on: ${{ inputs.socketless_runner_label || 'managed-socketless' }}
     permissions:
       contents: read
     steps:
