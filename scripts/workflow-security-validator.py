@@ -233,9 +233,14 @@ ARC_SHARED_CONTRACTS = (
     ),
 )
 RESERVED_ARC_LABELS = frozenset(
-    spec["label"]
-    for _, contract in ARC_SHARED_CONTRACTS
-    for spec in contract.values()
+    {
+        "docs-container-build",
+        "docs-socketless",
+        "managed-container-build",
+        "managed-socketless",
+        "xcsh-container-build",
+        "xcsh-socketless",
+    }
 )
 
 
@@ -348,9 +353,8 @@ def repository_runner_routes(workflows, profiles, default_profile, repository):
         if expected is None:
             leaked = set(profiles_by_label) & RESERVED_ARC_LABELS
             if leaked:
-                raise PolicyError(
-                    f"reserved ARC scale-set label escaped its cohort: {sorted(leaked)}"
-                )
+                message = "reserved ARC scale-set label escaped its cohort"
+                raise PolicyError(f"{message}: {sorted(leaked)}")
         return {"kind": "arc", "profiles_by_route": profiles_by_label}
 
     allowed = runner.get("profiles", [default_profile])

@@ -147,7 +147,14 @@ ARC_SHARED_CONTRACTS = (
     ),
 )
 RESERVED_ARC_LABELS = frozenset(
-    spec["label"] for _, contract in ARC_SHARED_CONTRACTS for spec in contract.values()
+    {
+        "docs-container-build",
+        "docs-socketless",
+        "managed-container-build",
+        "managed-socketless",
+        "xcsh-container-build",
+        "xcsh-socketless",
+    }
 )
 
 
@@ -555,9 +562,8 @@ class FleetPolicy:
         if expected is None:
             leaked = labels & RESERVED_ARC_LABELS
             if leaked:
-                raise FleetError(
-                    f"reserved ARC scale-set label escaped its cohort: {sorted(leaked)}"
-                )
+                message = "reserved ARC scale-set label escaped its cohort"
+                raise FleetError(f"{message}: {sorted(leaked)}")
         return parsed
 
     def repository(self, full_name, org=DEFAULT_ORG):
