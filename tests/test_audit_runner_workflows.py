@@ -722,7 +722,7 @@ jobs:
             "github.event.repository.default_branch) && "
             "github.ref_protected == true)"
         )
-        workflow = {
+        workflow: dict[str, Any] = {
             "name": "Scheduled Docker",
             "on": {
                 "push": {"branches": ["main"]},
