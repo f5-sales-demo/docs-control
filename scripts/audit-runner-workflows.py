@@ -60,6 +60,8 @@ CONTAINER_ROUTE_EXPRESSION = (
     'fromJSON(format(\'["self-hosted","Linux","X64","{0}",'
     '"container-build"]\', github.event.repository.name)) }}'
 )
+ARC_SOCKET_EXPR = "${{ inputs.socketless_runner_label || 'managed-socketless' }}"
+BUILD_EXPR = "${{ inputs.container_build_runner_label || 'managed-container-build' }}"
 REUSABLE_RUNNER_WORKFLOWS = {
     "f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml",
     "f5-sales-demo/docs-control/.github/workflows/super-linter.yml",
@@ -79,15 +81,15 @@ REUSABLE_DEFINITION_ROUTES = {
     ),
     (".github/workflows/super-linter.yml", "trust-gate"): (
         "ubuntu-24.04",
-        SOCKETLESS_ROUTE_EXPRESSION,
+        ARC_SOCKET_EXPR,
     ),
     (".github/workflows/super-linter.yml", "lint"): (
         "container-build",
-        CONTAINER_ROUTE_EXPRESSION,
+        BUILD_EXPR,
     ),
     (".github/workflows/super-linter.yml", "shell-unit-tests"): (
         "ubuntu-24.04",
-        SOCKETLESS_ROUTE_EXPRESSION,
+        ARC_SOCKET_EXPR,
     ),
 }
 
