@@ -57,6 +57,108 @@ REGISTRATION_RATE_LIMIT_FALLBACK_SECONDS = 300
 REGISTRATION_RECOVERY_JITTER_SECONDS = 120
 
 
+DOCS_ARC_COHORT = frozenset(
+    f"f5-sales-demo/{name}"
+    for name in (
+        "docs",
+        "docs-builder",
+        "docs-icons",
+        "docs-theme",
+        "i18n-core",
+        "starlight-llms-txt",
+    )
+)
+MANAGED_ARC_COHORT = frozenset(
+    f"f5-sales-demo/{name}"
+    for name in (
+        "administration",
+        "api-protection",
+        "api-specs",
+        "api-specs-enriched",
+        "apt-repo",
+        "bot-advanced",
+        "bot-standard",
+        "cdn",
+        "cdn-simulator",
+        "console",
+        "csd",
+        "ddos",
+        "demo-resource-template",
+        "demo-resources",
+        "devcontainer",
+        "dns",
+        "docs-control",
+        "marketplace",
+        "marketplace-claude-code",
+        "mcn",
+        "nginx",
+        "observability",
+        "origin-server",
+        "starlight-mega-menu",
+        "terraform-provider-xcsh",
+        "traffic-generator",
+        "vscode-xcsh",
+        "waf",
+        "was",
+        "webapp-api-protection",
+        "xcsh-action",
+        "xcsh-chrome-extension",
+    )
+)
+ARC_SHARED_CONTRACTS = (
+    (
+        DOCS_ARC_COHORT,
+        {
+            "socketless": {
+                "label": "docs-socketless",
+                "profile": "ubuntu-24.04",
+            },
+            "container-build": {
+                "label": "docs-container-build",
+                "profile": "container-build",
+            },
+        },
+    ),
+    (
+        MANAGED_ARC_COHORT,
+        {
+            "socketless": {
+                "label": "managed-socketless",
+                "profile": "ubuntu-24.04",
+            },
+            "container-build": {
+                "label": "managed-container-build",
+                "profile": "container-build",
+            },
+        },
+    ),
+    (
+        frozenset({"f5-sales-demo/xcsh"}),
+        {
+            "socketless": {
+                "label": "xcsh-socketless",
+                "profile": "ubuntu-24.04",
+            },
+            "container-build": {
+                "label": "xcsh-container-build",
+                "profile": "container-build",
+            },
+        },
+    ),
+)
+RESERVED_ARC_LABELS = frozenset(
+    spec["label"] for _, contract in ARC_SHARED_CONTRACTS for spec in contract.values()
+)
+
+
+def expected_arc_scale_sets(repository):
+    """Return the exact shared-label contract for a governed ARC cohort."""
+    for cohort, contract in ARC_SHARED_CONTRACTS:
+        if repository in cohort:
+            return contract
+    return None
+
+
 class FleetError(RuntimeError):
     """A fail-closed runner fleet error."""
 
@@ -447,19 +549,15 @@ class FleetPolicy:
                 )
             labels.add(label)
             parsed[name] = {"label": label, "profile": profile_name}
-        if full_name == "f5-sales-demo/xcsh":
-            expected = {
-                "socketless": {
-                    "label": "xcsh-socketless",
-                    "profile": "ubuntu-24.04",
-                },
-                "container-build": {
-                    "label": "xcsh-container-build",
-                    "profile": "container-build",
-                },
-            }
-            if parsed != expected:
-                raise FleetError("xcsh ARC scale-set contract is invalid")
+        expected = expected_arc_scale_sets(full_name)
+        if expected is not None and parsed != expected:
+            raise FleetError(f"{full_name} ARC scale-set contract is invalid")
+        if expected is None:
+            leaked = labels & RESERVED_ARC_LABELS
+            if leaked:
+                raise FleetError(
+                    f"reserved ARC scale-set label escaped its cohort: {sorted(leaked)}"
+                )
         return parsed
 
     def repository(self, full_name, org=DEFAULT_ORG):

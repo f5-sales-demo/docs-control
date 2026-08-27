@@ -64,6 +64,8 @@ expected = sorted([
     "automation",
     "ubuntu-24.04-arm",
     "macos-15-intel",
+    "managed-container-build",
+    "managed-socketless",
     "xcsh-container-build",
     "xcsh-socketless",
     "docs-container-build",
@@ -129,6 +131,8 @@ for repo in cohort:
         assert len(skips[repo]) == len(set(skips[repo]))
         assert set(skips[repo]) == expected
 assert "f5-sales-demo/docs-template" not in policy["repositories"]
+for skips in (settings["managed_files"]["skip_files"], governance["skip_files"]):
+    assert ".github/workflows/github-pages-deploy.yml" in skips["xcsh"]
 assert settings["managed_files"]["skip_files"] == governance["skip_files"]
 PY
   pass "2.1a documentation cohort has exact ARC routes and managed opt-outs"

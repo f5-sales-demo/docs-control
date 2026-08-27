@@ -319,6 +319,58 @@ class EphemeralRunnerTests(unittest.TestCase):
                 with self.assertRaises(MODULE.FleetError):
                     self.policy()
 
+    def test_managed_arc_labels_are_exact_and_cohort_bound(self):
+        self.policy_data["dispatcher"]["repositories"] = ["f5-sales-demo/fixture"]
+        managed = {
+            "arc_scale_sets": {
+                "socketless": {
+                    "label": "managed-socketless",
+                    "profile": "ubuntu-24.04",
+                },
+                "container-build": {
+                    "label": "managed-container-build",
+                    "profile": "container-build",
+                },
+            }
+        }
+        self.policy_data["repositories"]["f5-sales-demo/administration"] = {
+            "runner": managed
+        }
+        self.write_policy()
+        policy = self.policy()
+        self.assertEqual(
+            managed["arc_scale_sets"],
+            policy.arc_scale_sets["f5-sales-demo/administration"],
+        )
+
+        for repository, runner in (
+            ("f5-sales-demo/fixture", managed),
+            (
+                "f5-sales-demo/administration",
+                {
+                    "arc_scale_sets": {
+                        "socketless": {
+                            "label": "managed-container-build",
+                            "profile": "ubuntu-24.04",
+                        },
+                        "container-build": {
+                            "label": "managed-socketless",
+                            "profile": "container-build",
+                        },
+                    }
+                },
+            ),
+        ):
+            original = json.loads(json.dumps(self.policy_data))
+            self.policy_data["repositories"][repository]["runner"] = runner
+            self.write_policy()
+            with (
+                self.subTest(repository=repository),
+                self.assertRaises(MODULE.FleetError),
+            ):
+                self.policy()
+            self.policy_data = original
+
     def test_policy_requires_exact_schema_v4_docker_contract(self):
         for mutation in (
             {"schema_version": 3},

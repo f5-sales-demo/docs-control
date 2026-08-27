@@ -358,6 +358,60 @@ jobs:
             with self.subTest(runner=runner), self.assertRaises(MODULE.AuditError):
                 MODULE.repository_routes(policy, "f5-sales-demo/xcsh")
 
+    def test_managed_shared_labels_are_exact_and_cohort_bound(self):
+        managed = {
+            "arc_scale_sets": {
+                "socketless": {
+                    "label": "managed-socketless",
+                    "profile": "ubuntu-24.04",
+                },
+                "container-build": {
+                    "label": "managed-container-build",
+                    "profile": "container-build",
+                },
+            }
+        }
+        policy = {
+            "profiles": self.data["profiles"],
+            "repositories": {"f5-sales-demo/administration": {"runner": managed}},
+        }
+        routes = MODULE.repository_routes(policy, "f5-sales-demo/administration")
+        self.assertEqual(
+            "ubuntu-24.04", routes["profiles_by_label"]["managed-socketless"]
+        )
+        self.assertEqual(
+            "container-build", routes["profiles_by_label"]["managed-container-build"]
+        )
+        for repository, runner in (
+            ("f5-sales-demo/fixture", managed),
+            (
+                "f5-sales-demo/administration",
+                {
+                    "arc_scale_sets": {
+                        "socketless": {
+                            "label": "managed-container-build",
+                            "profile": "ubuntu-24.04",
+                        },
+                        "container-build": {
+                            "label": "managed-socketless",
+                            "profile": "container-build",
+                        },
+                    }
+                },
+            ),
+        ):
+            with (
+                self.subTest(repository=repository),
+                self.assertRaises(MODULE.AuditError),
+            ):
+                MODULE.repository_routes(
+                    {
+                        "profiles": self.data["profiles"],
+                        "repositories": {repository: {"runner": runner}},
+                    },
+                    repository,
+                )
+
     def test_canonical_route_and_sha_pin_pass(self):
         self.write_workflow(
             """name: CI
