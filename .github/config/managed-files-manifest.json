@@ -1,5 +1,5 @@
 {
-  "source_commit": "7f5001bd4e9b16a5001fdecda4b354d3c9d3ed25",
+  "source_commit": "4025293d443059bed005bf186f558a1ffa55e1b4",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -438,8 +438,8 @@
     ".github/actionlint.yaml": {
       "src": ".github/actionlint.yaml",
       "dest": ".github/actionlint.yaml",
-      "sha": "d786de999db0c5f54e95724c32cb9cf06f26c00d",
-      "size": 1521,
+      "sha": "a8ade420bf44149ebc8698fbdc761ef4beceb878",
+      "size": 1592,
       "mode": "100644"
     },
     ".github/workflows/workflow-security-audit.yml": {
