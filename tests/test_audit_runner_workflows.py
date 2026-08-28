@@ -960,6 +960,25 @@ jobs:
             },
         )
 
+    def test_xcsh_windows_containment_uat_hosted_exception_is_exact(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        exception = policy["hosted_exceptions"]["f5-sales-demo/xcsh"][
+            ".github/workflows/windows-containment-uat.yml"
+        ]
+        self.assertEqual(
+            exception,
+            {
+                "native-two-volume": {
+                    "runs_on": "windows-latest",
+                    "reason": "multi-volume containment UAT requires native Windows drive discovery",
+                }
+            },
+        )
+
     def test_terraform_hosted_reusable_workflow_exceptions_are_exact(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(

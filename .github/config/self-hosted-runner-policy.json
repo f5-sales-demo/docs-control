@@ -198,6 +198,12 @@
           "reason": "Apple code signing requires native macOS"
         }
       },
+      ".github/workflows/windows-containment-uat.yml": {
+        "native-two-volume": {
+          "runs_on": "windows-latest",
+          "reason": "multi-volume containment UAT requires native Windows drive discovery"
+        }
+      },
       ".github/workflows/workflow-security-audit.yml": {
         "workflow-security-audit": {
           "runs_on": "ubuntu-latest",
