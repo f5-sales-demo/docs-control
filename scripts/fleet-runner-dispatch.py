@@ -34,6 +34,7 @@ DISPATCH_ROOT = PROVISION.STATE_ROOT / "fleet-dispatch"
 STATE_PATH = DISPATCH_ROOT / "state.json"
 LOCK_PATH = DISPATCH_ROOT / "dispatch.lock"
 MINIMUM_REPOSITORY_REQUESTS = 3
+IDLE_REAP_GRACE_SECONDS = 300
 
 
 @dataclass(frozen=True)
@@ -52,19 +53,32 @@ def state(repositories: tuple[str, ...]) -> dict[str, Any]:
     try:
         value = json.loads(STATE_PATH.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return {"cursor": 0, "cooldowns": {"primary": 0, "secondary": 0}}
+        return {
+            "cursor": 0,
+            "cooldowns": {"primary": 0, "secondary": 0},
+            "run_cursors": {},
+        }
     except (OSError, ValueError) as exc:
         message = f"cannot read fleet dispatcher state: {exc}"
         raise PROVISION.ProvisionError(message) from exc
-    if not isinstance(value, dict) or set(value) != {"cursor", "cooldowns"}:
+    if not isinstance(value, dict) or set(value) not in (
+        {"cursor", "cooldowns"},
+        {"cursor", "cooldowns", "run_cursors"},
+    ):
         message = "fleet dispatcher state is malformed"
         raise PROVISION.ProvisionError(message)
     cooldowns = value["cooldowns"]
+    run_cursors = value.setdefault("run_cursors", {})
     if (
         not isinstance(value["cursor"], int)
         or not isinstance(cooldowns, dict)
         or set(cooldowns) != {"primary", "secondary"}
         or not all(isinstance(item, int) and item >= 0 for item in cooldowns.values())
+        or not isinstance(run_cursors, dict)
+        or not all(
+            isinstance(repository, str) and isinstance(run_id, int) and run_id > 0
+            for repository, run_id in run_cursors.items()
+        )
     ):
         message = "fleet dispatcher state is malformed"
         raise PROVISION.ProvisionError(message)
@@ -72,6 +86,11 @@ def state(repositories: tuple[str, ...]) -> dict[str, Any]:
         value["cursor"] %= len(repositories)
     else:
         value["cursor"] = 0
+    value["run_cursors"] = {
+        repository: run_id
+        for repository, run_id in run_cursors.items()
+        if repository in repositories
+    }
     return value
 
 
@@ -215,6 +234,34 @@ def primary_busy(
     )
 
 
+def runner_grace_elapsed(item: Any) -> bool:
+    """Return whether one active runner has had its assignment grace interval."""
+    result = PROVISION.command(
+        [
+            "systemctl",
+            "show",
+            "--property=ActiveEnterTimestampMonotonic",
+            "--value",
+            item.unit,
+        ],
+        check=False,
+        capture=True,
+    )
+    if result.returncode != 0:
+        message = f"cannot read runner activation time: {item.unit}"
+        raise PROVISION.ProvisionError(message)
+    try:
+        activated_at = int(result.stdout.strip())
+    except ValueError as exc:
+        message = f"runner activation time is malformed: {item.unit}"
+        raise PROVISION.ProvisionError(message) from exc
+    now = time.monotonic_ns() // 1_000
+    if activated_at <= 0 or activated_at > now:
+        message = f"runner activation time is invalid: {item.unit}"
+        raise PROVISION.ProvisionError(message)
+    return now - activated_at >= IDLE_REAP_GRACE_SECONDS * 1_000_000
+
+
 def runner_is_idle(
     response: dict[str, Any], spec: Any, profile: Any, item: Any
 ) -> bool:
@@ -263,7 +310,7 @@ def reap_idle(
             requests += 1
         spec = policy.repository(item.repository)
         profile = PROVISION.instance_profile(policy, item)
-        if runner_is_idle(response, spec, profile, item):
+        if runner_is_idle(response, spec, profile, item) and runner_grace_elapsed(item):
             PROVISION.command(["systemctl", "stop", item.unit])
             print(
                 f"[REAP] repository={item.repository} profile={profile.name} "
@@ -331,10 +378,26 @@ def dispatch_job(
     return requests
 
 
+def runs_after_cursor(
+    runs: list[dict[str, Any]], cursor: int | None
+) -> list[dict[str, Any]]:
+    """Rotate live workflow runs so every run makes durable bounded progress."""
+    if cursor is None:
+        return runs
+    identifiers = [run["id"] for run in runs]
+    try:
+        start = (identifiers.index(cursor) + 1) % len(runs)
+    except ValueError:
+        return runs
+    return runs[start:] + runs[:start]
+
+
 def dispatch_repository(
-    context: RepositoryContext, request_budget: int
-) -> tuple[int, bool]:
-    """Inspect and dispatch queued jobs for one repository within a budget."""
+    context: RepositoryContext,
+    request_budget: int,
+    run_cursor: int | None,
+) -> tuple[int, bool, int | None]:
+    """Inspect and fairly dispatch queued jobs for one repository."""
     requests = 0
     runs: list[dict[str, Any]] = []
     for status in ("queued", "in_progress"):
@@ -346,7 +409,8 @@ def dispatch_repository(
         )
         requests += 1
         runs.extend(valid_runs(response))
-    for run in runs:
+    inspected_run = run_cursor
+    for run in runs_after_cursor(runs, run_cursor):
         if requests >= request_budget:
             break
         response = get(
@@ -354,6 +418,7 @@ def dispatch_repository(
             f"/repos/{context.repository}/actions/runs/{run['id']}/jobs?per_page=100",
         )
         requests += 1
+        inspected_run = run["id"]
         jobs = response.get("jobs")
         if not isinstance(jobs, list) or any(not isinstance(job, dict) for job in jobs):
             message = "GitHub fleet job inventory is malformed"
@@ -366,7 +431,7 @@ def dispatch_repository(
                 trusted,
                 request_budget - requests,
             )
-    return requests, bool(runs)
+    return requests, bool(runs), inspected_run if runs else None
 
 
 def dispatch() -> int:
@@ -407,10 +472,16 @@ def dispatch() -> int:
                     repository,
                     policy.repository(repository),
                 )
-                consumed, has_work = dispatch_repository(
-                    context, policy.dispatcher.request_budget - requests
+                consumed, has_work, run_cursor = dispatch_repository(
+                    context,
+                    policy.dispatcher.request_budget - requests,
+                    current["run_cursors"].get(repository),
                 )
                 requests += consumed
+                if run_cursor is None:
+                    current["run_cursors"].pop(repository, None)
+                else:
+                    current["run_cursors"][repository] = run_cursor
                 if has_work:
                     protected_repositories.add(repository)
                 current["cursor"] = (cursor + offset + 1) % len(repositories)

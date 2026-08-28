@@ -169,26 +169,33 @@ workspaces as a capacity response.
 
 ### Automatic profile dispatch
 
-Installation explicitly disables the global profile dispatcher and fleet-wide standby timers.
-`f5-actions-runner-xcsh-dispatch.timer` is a separate opt-in 60-second dispatcher. It calls only
-`f5-sales-demo/xcsh`, stores ETags and complete response bodies atomically, and persists primary or
-secondary GitHub rate-limit deadlines. While a deadline is active it exits successfully without an
-API request.
+Installation disables every retired repository-specific dispatcher and enables
+`f5-actions-runner-fleet-dispatch.timer` whenever the governed repository inventory is non-empty.
+The persistent two-minute timer recovers automatically after a host restart. The dispatcher stores
+ETags and complete response bodies atomically, persists primary and secondary GitHub rate-limit
+deadlines, and resumes both repository and workflow-run scans from durable round-robin cursors.
+This prevents one busy repository or early workflow run from starving later repositories, runs, or
+profiles when the 80-request cycle budget is exhausted.
 
-The dispatcher admits no more than two 8 GiB / 4 CPU standard runners and one 16 GiB / 6 CPU
-container-build runner, enforcing the 32 GiB / 14 CPU fleet budget before every start. A
-`container-build` instance is started only when the same workflow run already contains a successful
-`Trust Docker-capable job`. Malformed GitHub API data, unmatched labels, duplicate labels, missing
-trust evidence, and any repository outside the allowlist fail closed. Enable the timer only after
-three successful canaries:
+The dispatcher enforces the configured fleet memory, CPU, standard-runner, and container-build
+limits before every start. An inactive configured slot starts when exact-label queued demand is
+found, including after planned maintenance. A `container-build` instance starts only when the same
+workflow run contains a successful `Verify same-repository trust boundary` job; retired trust-gate
+display names are rejected. A newly active runner cannot be reaped as idle for five minutes, giving
+GitHub time to assign queued matching work. Malformed GitHub API data, unmatched or duplicate
+labels, missing trust evidence, and repositories outside the allowlist fail closed.
+
+Verify recovery and the timer with:
 
 ```bash
-sudo systemctl enable --now f5-actions-runner-xcsh-dispatch.timer
+sudo systemctl status f5-actions-runner-fleet-dispatch.timer
+sudo systemctl start f5-actions-runner-fleet-dispatch.service
+journalctl -u f5-actions-runner-fleet-dispatch.service --since '15 minutes ago'
 ```
 
-Rollback disables that timer, stops the dedicated builder runner, restores the preceding policy
-revision and original `xcsh` runner, and retains `/data/actions-runners/container-build-docker`
-until the rollback is verified.
+Rollback disables the fleet dispatcher timer, stops only verified task-owned idle runner units,
+restores the preceding policy revision, and retains
+`/data/actions-runners/container-build-docker` until rollback is verified.
 
 If a runner or image may be compromised:
 

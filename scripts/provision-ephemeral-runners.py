@@ -99,9 +99,7 @@ CAPACITY_MIN_FREE_BYTES = 50 * 1024 * 1024 * 1024
 CAPACITY_MIN_FREE_PERCENT = 10
 
 
-TRUSTED_DOCKER_JOB_NAMES = frozenset(
-    ("Trust Docker-capable job", "lint / Trust Docker-capable job")
-)
+TRUSTED_DOCKER_JOB_NAMES = frozenset(("Verify same-repository trust boundary",))
 
 
 class ProvisionError(RuntimeError):

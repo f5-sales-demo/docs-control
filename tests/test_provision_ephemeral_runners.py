@@ -657,21 +657,21 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             policy["profiles"]["ubuntu-24.04"],
         )
 
-    def test_docker_trust_gate_accepts_only_canonical_direct_or_reusable_names(self):
+    def test_docker_trust_gate_accepts_only_canonical_same_repository_name(self):
         self.assertTrue(
             MODULE.successful_docker_trust_gate(
-                {"name": "Trust Docker-capable job", "conclusion": "success"}
-            )
-        )
-        self.assertTrue(
-            MODULE.successful_docker_trust_gate(
-                {"name": "lint / Trust Docker-capable job", "conclusion": "success"}
+                {
+                    "name": "Verify same-repository trust boundary",
+                    "conclusion": "success",
+                }
             )
         )
         for job in (
+            {"name": "Trust Docker-capable job", "conclusion": "success"},
+            {"name": "lint / Trust Docker-capable job", "conclusion": "success"},
             {"name": "release / Trust Docker-capable job", "conclusion": "success"},
-            {"name": "lint / Trust Docker-capable job", "conclusion": "failure"},
-            {"name": "Trust Docker-capable job", "conclusion": None},
+            {"name": "Verify same-repository trust boundary", "conclusion": "failure"},
+            {"name": "Verify same-repository trust boundary", "conclusion": None},
         ):
             self.assertFalse(MODULE.successful_docker_trust_gate(job))
 

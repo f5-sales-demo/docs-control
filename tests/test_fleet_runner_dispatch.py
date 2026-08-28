@@ -60,10 +60,31 @@ class FleetRunnerDispatchTests(unittest.TestCase):
         MODULE.save({"cursor": 7, "cooldowns": {"primary": 1200, "secondary": 1300}})
         self.assertEqual(
             MODULE.state(("one", "two", "three")),
-            {"cursor": 1, "cooldowns": {"primary": 1200, "secondary": 1300}},
+            {
+                "cursor": 1,
+                "cooldowns": {"primary": 1200, "secondary": 1300},
+                "run_cursors": {},
+            },
         )
         self.assertEqual(
             json.loads(MODULE.STATE_PATH.read_text(encoding="utf-8"))["cursor"], 7
+        )
+
+    def test_state_discards_run_cursors_for_removed_repositories(self):
+        MODULE.save(
+            {
+                "cursor": 0,
+                "cooldowns": {"primary": 0, "secondary": 0},
+                "run_cursors": {
+                    "f5-sales-demo/current": 42,
+                    "f5-sales-demo/removed": 84,
+                },
+            }
+        )
+
+        self.assertEqual(
+            MODULE.state(("f5-sales-demo/current",))["run_cursors"],
+            {"f5-sales-demo/current": 42},
         )
 
     def test_empty_dispatcher_inventory_is_a_noop(self):
@@ -71,7 +92,11 @@ class FleetRunnerDispatchTests(unittest.TestCase):
         MODULE.save({"cursor": 7, "cooldowns": {"primary": 1200, "secondary": 1300}})
         self.assertEqual(
             MODULE.state(()),
-            {"cursor": 0, "cooldowns": {"primary": 1200, "secondary": 1300}},
+            {
+                "cursor": 0,
+                "cooldowns": {"primary": 1200, "secondary": 1300},
+                "run_cursors": {},
+            },
         )
         controller = mock.Mock()
         with (
@@ -135,7 +160,11 @@ class FleetRunnerDispatchTests(unittest.TestCase):
             self.assertEqual(MODULE.dispatch(), 0)
         self.assertEqual(
             MODULE.state(policy.dispatcher.repositories),
-            {"cursor": 0, "cooldowns": {"primary": 1200, "secondary": 0}},
+            {
+                "cursor": 0,
+                "cooldowns": {"primary": 1200, "secondary": 0},
+                "run_cursors": {},
+            },
         )
 
     def test_request_budget_resumes_from_the_durable_round_robin_cursor(self):
@@ -219,6 +248,61 @@ class FleetRunnerDispatchTests(unittest.TestCase):
 
         self.assertEqual(started, [["systemctl", "start", primary.unit]])
 
+    def test_run_cursor_prevents_later_workflow_starvation_within_repository(self):
+        repository = "f5-sales-demo/xcsh"
+        base = f"/repos/{repository}/actions/runs"
+        github = GitHub(
+            {
+                f"{base}?status=queued&per_page=100": (
+                    {
+                        "workflow_runs": [
+                            {"id": 11, "status": "queued"},
+                            {"id": 12, "status": "queued"},
+                        ]
+                    },
+                    {},
+                ),
+                f"{base}?status=in_progress&per_page=100": (
+                    {"workflow_runs": []},
+                    {},
+                ),
+                f"{base}/11/jobs?per_page=100": ({"jobs": []}, {}),
+                f"{base}/12/jobs?per_page=100": (
+                    {"jobs": [{"status": "queued", "labels": ["socketless"]}]},
+                    {},
+                ),
+            }
+        )
+        controller = self.controller(github)
+        primary = SimpleNamespace(unit="xcsh.service")
+        started = []
+        with (
+            mock.patch.object(MODULE, "candidate_for", return_value=(primary, None)),
+            mock.patch.object(MODULE, "active", return_value=False),
+            mock.patch.object(MODULE.PROVISION, "admission_allows", return_value=True),
+            mock.patch.object(MODULE.PROVISION, "authorize_runner_start"),
+            mock.patch.object(
+                MODULE.PROVISION,
+                "command",
+                side_effect=lambda argv, **_kwargs: started.append(argv),
+            ),
+        ):
+            self.run_dispatch(self.policy((repository,), 3), controller)
+            self.assertEqual(started, [])
+            self.run_dispatch(self.policy((repository,), 3), controller)
+
+        self.assertEqual(started, [["systemctl", "start", primary.unit]])
+        job_paths = [
+            call[1] for call in github.calls if "/jobs?per_page=100" in call[1]
+        ]
+        self.assertEqual(
+            job_paths,
+            [
+                f"{base}/11/jobs?per_page=100",
+                f"{base}/12/jobs?per_page=100",
+            ],
+        )
+
     def test_exact_labels_and_docker_trust_gate_prevent_starts(self):
         socketless = SimpleNamespace(name="socketless", docker_socket=False)
         docker = SimpleNamespace(name="container-build", docker_socket=True)
@@ -230,6 +314,15 @@ class FleetRunnerDispatchTests(unittest.TestCase):
         )
         self.assertEqual(unexpected, [])
         self.assertEqual(untrusted, [])
+
+    def test_cold_inactive_primary_starts_for_queued_demand(self):
+        profile = SimpleNamespace(name="socketless", docker_socket=False)
+
+        started = self.start_attempt(
+            profile, {"socketless"}, ["socketless"], True, primary_active=False
+        )
+
+        self.assertEqual(started, [["systemctl", "start", "fixture-primary"]])
 
     def test_standby_does_not_start_until_the_primary_is_verified_busy(self):
         profile = SimpleNamespace(name="socketless", docker_socket=False)
@@ -291,12 +384,79 @@ class FleetRunnerDispatchTests(unittest.TestCase):
                 MODULE.PROVISION, "instance_profile", return_value=profile
             ),
             mock.patch.object(MODULE.PROVISION, "command", side_effect=command),
+            mock.patch.object(MODULE, "runner_grace_elapsed", return_value=True),
         ):
             self.assertEqual(MODULE.reap_idle(github, policy, 80, set()), 1)
         self.assertEqual(
             stopped,
             [["systemctl", "stop", item.unit]],
         )
+
+    def test_newly_registered_idle_runner_is_not_reaped_during_assignment_grace(self):
+        repository = "f5-sales-demo/xcsh"
+        profile = SimpleNamespace(name="ubuntu-24.04", docker_socket=False)
+        spec = SimpleNamespace(name="xcsh")
+        item = SimpleNamespace(
+            repository=repository,
+            profile=profile.name,
+            slot=0,
+            unit="xcsh.service",
+        )
+        path = f"/repos/{repository}/actions/runners?per_page=100"
+        github = GitHub(
+            {
+                path: (
+                    {
+                        "runners": [
+                            {
+                                "name": "gha-xcsh-ubuntu-24.04-0-current",
+                                "status": "online",
+                                "busy": False,
+                            }
+                        ]
+                    },
+                    {},
+                )
+            }
+        )
+        command = mock.Mock(
+            return_value=SimpleNamespace(returncode=0, stdout="", stderr="")
+        )
+        policy = SimpleNamespace(repository=lambda _repository: spec)
+        with (
+            mock.patch.object(
+                MODULE.PROVISION, "active_fleet_instances", return_value=(item,)
+            ),
+            mock.patch.object(
+                MODULE.PROVISION, "instance_profile", return_value=profile
+            ),
+            mock.patch.object(MODULE.PROVISION, "command", command),
+            mock.patch.object(MODULE, "runner_grace_elapsed", return_value=False),
+        ):
+            self.assertEqual(MODULE.reap_idle(github, policy, 80, set()), 1)
+
+        self.assertNotIn(
+            ["systemctl", "stop", item.unit],
+            [call.args[0] for call in command.call_args_list],
+        )
+
+    def test_assignment_grace_uses_runner_activation_monotonic_time(self):
+        item = SimpleNamespace(unit="xcsh.service")
+        result = SimpleNamespace(returncode=0, stdout="10000000\n", stderr="")
+        with (
+            mock.patch.object(MODULE.PROVISION, "command", return_value=result),
+            mock.patch.object(
+                MODULE.time, "monotonic_ns", return_value=309_999_999_000
+            ),
+        ):
+            self.assertFalse(MODULE.runner_grace_elapsed(item))
+        with (
+            mock.patch.object(MODULE.PROVISION, "command", return_value=result),
+            mock.patch.object(
+                MODULE.time, "monotonic_ns", return_value=310_000_000_000
+            ),
+        ):
+            self.assertTrue(MODULE.runner_grace_elapsed(item))
 
     def test_idle_reaping_preserves_busy_offline_and_unrelated_runners(self):
         repository = "f5-sales-demo/docs"
