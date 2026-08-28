@@ -1,5 +1,5 @@
 {
-  "source_commit": "3a680bf87d3bd11b1bda0f07154513bbdbcdbffc",
+  "source_commit": "f4254886676847dd9c9445c28a7512794b7860a4",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -11,15 +11,15 @@
     ".github/workflows/require-linked-issue.yml": {
       "src": "workflows/require-linked-issue.yml",
       "dest": ".github/workflows/require-linked-issue.yml",
-      "sha": "d4954fe5178b09f85b89b372cdcb61b998eb2e1a",
-      "size": 1838,
+      "sha": "e3827c864fab7985c4f2c613d8711e06fb054128",
+      "size": 2974,
       "mode": "100644"
     },
     ".github/workflows/super-linter.yml": {
       "src": "workflows/super-linter.yml",
       "dest": ".github/workflows/super-linter.yml",
-      "sha": "bbc95f567e327b03ae164a88aaaf952f5cc64eb5",
-      "size": 1404,
+      "sha": "90f48b5c228afa4355364e11afb23f9746174120",
+      "size": 4516,
       "mode": "100644"
     },
     ".github/workflows/translation-audit.yml": {
@@ -417,8 +417,8 @@
     ".claude/governance.json": {
       "src": ".claude/governance.json",
       "dest": ".claude/governance.json",
-      "sha": "a23d81c799c4318405e1bd05f18b424ed285613e",
-      "size": 9155,
+      "sha": "cacbc2e78b1491291f5fcdd6573b720c7aec4bcd",
+      "size": 9111,
       "mode": "100644"
     },
     ".claude/settings.json": {
