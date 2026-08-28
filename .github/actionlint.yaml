@@ -49,6 +49,7 @@ self-hosted-runner:
     - xcsh
     - xcsh-action
     - xcsh-chrome-extension
+    - xcsh-compute
     - xcsh-container-build
     - xcsh-socketless
 

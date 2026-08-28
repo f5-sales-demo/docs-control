@@ -97,6 +97,10 @@ repository["runner"] = {
             "label": "xcsh-container-build",
             "profile": "container-build",
         },
+        "compute": {
+            "label": "xcsh-compute",
+            "profile": "ubuntu-24.04",
+        },
     }
 }
 for workflow in (value for key, value in repository.items() if key != "runner"):

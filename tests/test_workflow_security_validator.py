@@ -162,6 +162,10 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                     "label": "xcsh-container-build",
                     "profile": "container-build",
                 },
+                "compute": {
+                    "label": "xcsh-compute",
+                    "profile": "ubuntu-24.04",
+                },
             }
         }
 
@@ -416,6 +420,18 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             {(self.workflow_path, self.job_id)},
             validator.inventory(self.root, repository, policy, "ubuntu-24.04", routes),
         )
+
+        for label in ("xcsh-compute", "xcsh-container-build"):
+            workflow["jobs"][self.job_id]["runs-on"] = label
+            spec["runs_on"] = label
+            path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+            with self.subTest(approved_label=label):
+                self.assertEqual(
+                    {(self.workflow_path, self.job_id)},
+                    validator.inventory(
+                        self.root, repository, policy, "ubuntu-24.04", routes
+                    ),
+                )
 
         for rejected in (
             "xcsh-unknown",

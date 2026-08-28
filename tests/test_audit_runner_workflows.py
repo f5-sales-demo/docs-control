@@ -90,6 +90,10 @@ class WorkflowAuditTests(unittest.TestCase):
                             "label": "xcsh-container-build",
                             "profile": "container-build",
                         },
+                        "compute": {
+                            "label": "xcsh-compute",
+                            "profile": "ubuntu-24.04",
+                        },
                     }
                 }
             }
@@ -98,7 +102,7 @@ class WorkflowAuditTests(unittest.TestCase):
 
     def test_arc_routes_accept_only_scalar_contract_labels(self):
         self.use_xcsh_arc_routes()
-        for label in ("xcsh-socketless", "xcsh-container-build"):
+        for label in ("xcsh-socketless", "xcsh-container-build", "xcsh-compute"):
             self.write_workflow(
                 f"""name: ARC
 on: [workflow_dispatch]

@@ -143,10 +143,6 @@
         }
       },
       ".github/workflows/ci.yml": {
-        "setup-zig": {
-          "runs_on": "matrix",
-          "reason": "Zig setup validates hosted Linux, macOS, and Windows"
-        },
         "native": {
           "runs_on": "matrix",
           "reason": "native builds require hosted platform-specific toolchains"
@@ -993,6 +989,10 @@
           "container-build": {
             "label": "xcsh-container-build",
             "profile": "container-build"
+          },
+          "compute": {
+            "label": "xcsh-compute",
+            "profile": "ubuntu-24.04"
           }
         }
       }
