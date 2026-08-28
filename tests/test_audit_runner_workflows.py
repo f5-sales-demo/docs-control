@@ -199,24 +199,40 @@ jobs:
         path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
         self.assertTrue(self.audit())
 
-    def test_reusable_definitions_preserve_legacy_fallbacks(self):
+    def test_reusable_definitions_use_declared_routes(self):
         expectations = {
-            ".github/workflows/github-pages-deploy.yml": {
-                "trust-gate": MODULE.SOCKETLESS_ROUTE_EXPRESSION,
-                "build": MODULE.CONTAINER_ROUTE_EXPRESSION,
-                "deploy": MODULE.SOCKETLESS_ROUTE_EXPRESSION,
-            },
-            ".github/workflows/super-linter.yml": {
-                "trust-gate": MODULE.SOCKETLESS_ROUTE_EXPRESSION,
-                "lint": MODULE.CONTAINER_ROUTE_EXPRESSION,
-                "shell-unit-tests": MODULE.SOCKETLESS_ROUTE_EXPRESSION,
-            },
+            ".github/workflows/github-pages-deploy.yml": (
+                "",
+                "",
+                {
+                    "trust-gate": MODULE.SOCKETLESS_ROUTE_EXPRESSION,
+                    "build": MODULE.CONTAINER_ROUTE_EXPRESSION,
+                    "deploy": MODULE.SOCKETLESS_ROUTE_EXPRESSION,
+                },
+            ),
+            ".github/workflows/super-linter.yml": (
+                "managed-socketless",
+                "managed-container-build",
+                {
+                    "trust-gate": MODULE.ARC_SOCKET_EXPR,
+                    "lint": MODULE.BUILD_EXPR,
+                    "shell-unit-tests": MODULE.ARC_SOCKET_EXPR,
+                },
+            ),
         }
-        for relative, jobs in expectations.items():
+        for relative, (
+            socketless_default,
+            container_default,
+            jobs,
+        ) in expectations.items():
             workflow = yaml.safe_load((ROOT / relative).read_text(encoding="utf-8"))
             inputs = workflow.get("on", workflow.get(True))["workflow_call"]["inputs"]
-            self.assertEqual("", inputs["socketless_runner_label"]["default"])
-            self.assertEqual("", inputs["container_build_runner_label"]["default"])
+            self.assertEqual(
+                socketless_default, inputs["socketless_runner_label"]["default"]
+            )
+            self.assertEqual(
+                container_default, inputs["container_build_runner_label"]["default"]
+            )
             for job_id, expected in jobs.items():
                 self.assertEqual(expected, workflow["jobs"][job_id]["runs-on"])
         pages = (ROOT / ".github/workflows/github-pages-deploy.yml").read_text(
@@ -231,7 +247,7 @@ jobs:
                 "f5-sales-demo/docs-control",
                 ".github/workflows/super-linter.yml",
                 "lint",
-                MODULE.CONTAINER_ROUTE_EXPRESSION,
+                MODULE.BUILD_EXPR,
             ),
             "container-build",
         )
@@ -240,7 +256,7 @@ jobs:
                 "f5-sales-demo/docs-control",
                 ".github/workflows/super-linter.yml",
                 "lint",
-                MODULE.SOCKETLESS_ROUTE_EXPRESSION,
+                MODULE.CONTAINER_ROUTE_EXPRESSION,
             )
         )
 
