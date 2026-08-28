@@ -587,6 +587,10 @@
           "container-build": {
             "label": "managed-container-build",
             "profile": "container-build"
+          },
+          "compute": {
+            "label": "api-specs-enriched-compute",
+            "profile": "ubuntu-24.04"
           }
         }
       }
@@ -1045,6 +1049,10 @@
           "container-build": {
             "label": "managed-container-build",
             "profile": "container-build"
+          },
+          "compute": {
+            "label": "terraform-provider-xcsh-compute",
+            "profile": "ubuntu-24.04"
           }
         }
       },
