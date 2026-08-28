@@ -129,7 +129,6 @@ MANAGED_ARC_COHORT = frozenset(
         "administration",
         "api-protection",
         "api-specs",
-        "api-specs-enriched",
         "apt-repo",
         "bot-advanced",
         "bot-standard",
@@ -150,7 +149,6 @@ MANAGED_ARC_COHORT = frozenset(
         "observability",
         "origin-server",
         "starlight-mega-menu",
-        "terraform-provider-xcsh",
         "traffic-generator",
         "vscode-xcsh",
         "waf",
@@ -188,6 +186,40 @@ ARC_SHARED_CONTRACTS = (
         },
     ),
     (
+        frozenset({"f5-sales-demo/api-specs-enriched"}),
+        {
+            "socketless": {
+                "label": "managed-socketless",
+                "profile": "ubuntu-24.04",
+            },
+            "container-build": {
+                "label": "managed-container-build",
+                "profile": "container-build",
+            },
+            "compute": {
+                "label": "api-specs-enriched-compute",
+                "profile": "ubuntu-24.04",
+            },
+        },
+    ),
+    (
+        frozenset({"f5-sales-demo/terraform-provider-xcsh"}),
+        {
+            "socketless": {
+                "label": "managed-socketless",
+                "profile": "ubuntu-24.04",
+            },
+            "container-build": {
+                "label": "managed-container-build",
+                "profile": "container-build",
+            },
+            "compute": {
+                "label": "terraform-provider-xcsh-compute",
+                "profile": "ubuntu-24.04",
+            },
+        },
+    ),
+    (
         frozenset({"f5-sales-demo/xcsh"}),
         {
             "socketless": {
@@ -207,10 +239,12 @@ ARC_SHARED_CONTRACTS = (
 )
 RESERVED_ARC_LABELS = frozenset(
     {
+        "api-specs-enriched-compute",
         "docs-container-build",
         "docs-socketless",
         "managed-container-build",
         "managed-socketless",
+        "terraform-provider-xcsh-compute",
         "xcsh-container-build",
         "xcsh-compute",
         "xcsh-socketless",
