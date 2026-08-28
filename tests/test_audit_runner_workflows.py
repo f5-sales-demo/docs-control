@@ -179,6 +179,70 @@ jobs:
         self.write_workflow(yaml.safe_dump(workflow, sort_keys=False))
         self.assertTrue(self.audit("f5-sales-demo/xcsh"))
 
+    def test_canonical_conditional_arc_pair_resolves_by_repository(self):
+        socketless = (
+            "${{ github.repository == 'f5-sales-demo/xcsh' && "
+            "'xcsh-socketless' || 'managed-socketless' }}"
+        )
+        container_build = (
+            "${{ github.repository == 'f5-sales-demo/xcsh' && "
+            "'xcsh-container-build' || 'managed-container-build' }}"
+        )
+        workflow = {
+            "name": "Reusable",
+            "on": ["workflow_dispatch"],
+            "jobs": {
+                "lint": {
+                    "uses": (
+                        "f5-sales-demo/docs-control/.github/workflows/"
+                        "super-linter.yml@" + "a" * 40
+                    ),
+                    "with": {
+                        "socketless_runner_label": socketless,
+                        "container_build_runner_label": container_build,
+                    },
+                }
+            },
+        }
+        managed = {
+            "arc_scale_sets": {
+                "socketless": {
+                    "label": "managed-socketless",
+                    "profile": "ubuntu-24.04",
+                },
+                "container-build": {
+                    "label": "managed-container-build",
+                    "profile": "container-build",
+                },
+            }
+        }
+        self.use_xcsh_arc_routes()
+        xcsh_routes = MODULE.repository_routes(self.data, "f5-sales-demo/xcsh")
+        self.assertEqual(
+            "ubuntu-24.04",
+            MODULE.profile_for_route(
+                socketless,
+                self.data["profiles"],
+                xcsh_routes,
+                "f5-sales-demo/xcsh",
+            ),
+        )
+        self.write_workflow(yaml.safe_dump(workflow, sort_keys=False))
+        self.assertEqual(self.audit("f5-sales-demo/xcsh"), [])
+
+        self.data["repositories"] = {
+            "f5-sales-demo/administration": {"runner": managed}
+        }
+        self.write_policy()
+        self.assertEqual(self.audit("f5-sales-demo/administration"), [])
+
+        self.use_xcsh_arc_routes()
+        workflow["jobs"]["lint"]["with"]["container_build_runner_label"] = (
+            container_build.replace("xcsh-container-build", "xcsh-compute")
+        )
+        self.write_workflow(yaml.safe_dump(workflow, sort_keys=False))
+        self.assertTrue(self.audit("f5-sales-demo/xcsh"))
+
     def test_legacy_reusable_call_keeps_canonical_fallback(self):
         self.write_workflow(
             """name: Reusable

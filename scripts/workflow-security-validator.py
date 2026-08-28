@@ -80,6 +80,11 @@ CONTAINER_ROUTE_EXPRESSION = (
 )
 ARC_SOCKET_EXPR = "${{ inputs.socketless_runner_label || 'managed-socketless' }}"
 BUILD_EXPR = "${{ inputs.container_build_runner_label || 'managed-container-build' }}"
+CANONICAL_SUPER_LINTER_INPUTS = {
+    "socketless_runner_label": "${{ github.repository == 'f5-sales-demo/xcsh' && 'xcsh-socketless' || 'managed-socketless' }}",  # fmt: skip
+    "container_build_runner_label": "${{ github.repository == 'f5-sales-demo/xcsh' && 'xcsh-container-build' || 'managed-container-build' }}",  # fmt: skip
+}
+XCSH_REPOSITORY = "f5-sales-demo/xcsh"
 REUSABLE_RUNNER_WORKFLOWS = {
     "f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml",
     "f5-sales-demo/docs-control/.github/workflows/super-linter.yml",
@@ -371,8 +376,23 @@ def repository_runner_routes(workflows, profiles, default_profile, repository):
     return {"kind": "legacy", "profiles_by_route": profiles_by_route}
 
 
-def resolve_route(runs_on, routes):
+def canonical_caller_label(value, repository):
+    """Resolve the exact governed caller expression for the repository under audit."""
+    for name, expression in CANONICAL_SUPER_LINTER_INPUTS.items():
+        if value != expression:
+            continue
+        prefix = "xcsh" if repository == XCSH_REPOSITORY else "managed"
+        suffix = "container-build"
+        if name == "socketless_runner_label":
+            suffix = "socketless"
+        return f"{prefix}-{suffix}"
+    return value
+
+
+def resolve_route(runs_on, routes, repository=None):
     route = tuple(runs_on) if isinstance(runs_on, list) else runs_on
+    if repository is not None:
+        route = canonical_caller_label(route, repository)
     return routes["profiles_by_route"].get(route)
 
 
@@ -390,7 +410,7 @@ def reusable_definition_profile(repository, relative, job_id, runs_on):
     return expected[0]
 
 
-def validate_reusable_runner_inputs(job, routes, default_profile):
+def validate_reusable_runner_inputs(job, routes, default_profile, repository):
     """Validate policy-approved scalar labels passed to governed reusable calls."""
     uses = job.get("uses")
     target = uses.rsplit("@", 1)[0] if isinstance(uses, str) and "@" in uses else uses
@@ -410,6 +430,16 @@ def validate_reusable_runner_inputs(job, routes, default_profile):
         return
     if routes["kind"] != "arc":
         raise PolicyError("legacy reusable workflow calls cannot override runner labels")
+    conditional = set()
+    for name, value in values.items():
+        if value == CANONICAL_SUPER_LINTER_INPUTS[name]:
+            conditional.add(name)
+    if conditional:
+        if conditional != set(names) or not target.endswith("/super-linter.yml"):
+            message = "conditional ARC runner labels must be supplied together"
+            raise PolicyError(message)
+        for name in names:
+            values[name] = canonical_caller_label(values[name], repository)
     expected_profiles = {
         "socketless_runner_label": default_profile,
         "container_build_runner_label": "container-build",
@@ -795,9 +825,9 @@ def inventory(root, repository, policy, default_profile, routes):
             if not isinstance(job, dict):
                 raise PolicyError(f"malformed job {relative}/{job_id}")
             if "uses" in job:
-                validate_reusable_runner_inputs(job, routes, default_profile)
+                validate_reusable_runner_inputs(job, routes, default_profile, repository)  # fmt: skip
             runs_on = job.get("runs-on")
-            resolved_profile = resolve_route(runs_on, routes)
+            resolved_profile = resolve_route(runs_on, routes, repository)
             internal_profile = reusable_definition_profile(
                 repository, relative, job_id, runs_on
             )
