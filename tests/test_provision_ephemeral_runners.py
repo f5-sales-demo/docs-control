@@ -507,7 +507,9 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertFalse(socketless.docker_socket)
         self.assertTrue(container_build.docker_socket)
         self.assertGreater(int(container_build.cpus), int(socketless.cpus))
-        self.assertGreater(int(container_build.memory[:-1]), int(socketless.memory[:-1]))
+        self.assertGreater(
+            int(container_build.memory[:-1]), int(socketless.memory[:-1])
+        )
 
     def test_fleet_watcher_uses_managed_socketless_route(self):
         workflow = (ROOT / ".github/workflows/antigravity-fleet-watcher.yml").read_text(

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=consider-using-with
+# pylint: disable=consider-using-with,too-many-lines
 """Tests for workflow runner routing and immutable action pins."""
 
 import importlib.util
