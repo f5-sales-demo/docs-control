@@ -19,6 +19,8 @@ reject_literal() {
 managed="$REPO_ROOT/workflows/require-linked-issue.yml"
 central="$REPO_ROOT/.github/workflows/require-linked-issue.yml"
 super_linter="$REPO_ROOT/workflows/super-linter.yml"
+require_literal "$super_linter" '  linked-issue:' "managed Super-Linter preserves the canonical linked-issue job ID"
+reject_literal "$super_linter" '  xcsh-linked-issue:' "managed Super-Linter excludes the incompatible xcsh-prefixed job ID"
 
 for file in "$managed" "$central"; do
   require_literal "$file" '  pull_request:' "${file#"$REPO_ROOT/"} triggers on pull requests"

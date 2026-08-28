@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  xcsh-linked-issue:
+  linked-issue:
     if: >-
       github.repository == 'f5-sales-demo/xcsh' &&
       github.event.pull_request.head.repo.full_name == github.repository
@@ -67,7 +67,7 @@ jobs:
             }
 
   lint:
-    needs: xcsh-linked-issue
+    needs: linked-issue
     # Central reconciliation commits contain only canonical blobs that already
     # passed docs-control lint and review. The reconciler attests this exact
     # commit under the two required lint contexts, so do not schedule the
@@ -75,7 +75,7 @@ jobs:
     if: >-
       always() &&
       !startsWith(github.event.pull_request.head.ref, 'governance/reconcile-') &&
-      (github.repository != 'f5-sales-demo/xcsh' || needs.xcsh-linked-issue.result == 'success')
+      (github.repository != 'f5-sales-demo/xcsh' || needs.linked-issue.result == 'success')
     # No `secrets:` — least privilege. The reusable uses only the automatic
     # GITHUB_TOKEN, so passing repository secrets would over-provision it.
     uses: f5-sales-demo/docs-control/.github/workflows/super-linter.yml@d8338fb54e3daff968601523c97f129ef7b04015
