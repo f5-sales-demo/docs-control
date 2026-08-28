@@ -188,7 +188,7 @@ jobs:
             "${{ github.repository == 'f5-sales-demo/xcsh' && "
             "'xcsh-container-build' || 'managed-container-build' }}"
         )
-        workflow = {
+        workflow: dict[str, Any] = {
             "name": "Reusable",
             "on": ["workflow_dispatch"],
             "jobs": {

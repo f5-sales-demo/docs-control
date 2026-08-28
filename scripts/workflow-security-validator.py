@@ -81,8 +81,8 @@ CONTAINER_ROUTE_EXPRESSION = (
 ARC_SOCKET_EXPR = "${{ inputs.socketless_runner_label || 'managed-socketless' }}"
 BUILD_EXPR = "${{ inputs.container_build_runner_label || 'managed-container-build' }}"
 CANONICAL_SUPER_LINTER_INPUTS = {
-    "socketless_runner_label": "${{ github.repository == 'f5-sales-demo/xcsh' && 'xcsh-socketless' || 'managed-socketless' }}",  # fmt: skip
-    "container_build_runner_label": "${{ github.repository == 'f5-sales-demo/xcsh' && 'xcsh-container-build' || 'managed-container-build' }}",  # fmt: skip
+    "socketless_runner_label": "${{ github.repository == 'f5-sales-demo/xcsh' && 'xcsh-socketless' || 'managed-socketless' }}",
+    "container_build_runner_label": "${{ github.repository == 'f5-sales-demo/xcsh' && 'xcsh-container-build' || 'managed-container-build' }}",
 }
 XCSH_REPOSITORY = "f5-sales-demo/xcsh"
 REUSABLE_RUNNER_WORKFLOWS = {
