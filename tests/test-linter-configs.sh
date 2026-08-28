@@ -207,13 +207,16 @@ fi
 if python3 - "$REPO_ROOT/trivy.yaml" <<'PY'; then
 import sys, yaml
 config = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
-skip_dirs = config.get("skip-dirs", [])
-assert skip_dirs.count("target") == 1
+assert "skip-dirs" not in config, "root-level skip-dirs is ignored by Trivy 0.71"
+scan = config.get("scan")
+assert isinstance(scan, dict), "Trivy scan configuration must be a mapping"
+skip_dirs = scan.get("skip-dirs", [])
+assert skip_dirs == [".mypy_cache", ".ruff_cache", ".pytest_cache", "target"]
 PY
-  pass "2.5 Trivy skips the generated Rust target tree"
+  pass "2.5 Trivy skips generated cache and Rust target trees"
 else
-  fail "2.5 Trivy skips the generated Rust target tree" \
-    "target must appear exactly once in skip-dirs to avoid concurrent Clippy artifact races"
+  fail "2.5 Trivy skips generated cache and Rust target trees" \
+    "scan.skip-dirs must contain the four ephemeral trees in canonical order"
 fi
 
 # ═════════════════════════════════════════════════════════════════
