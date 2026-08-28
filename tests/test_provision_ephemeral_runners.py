@@ -471,20 +471,27 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             if routes["socketless"]["label"] == "managed-socketless"
         }
         self.assertEqual(len(managed), 32)
-        for routes in managed.values():
-            self.assertEqual(
-                routes,
-                {
-                    "socketless": {
-                        "label": "managed-socketless",
-                        "profile": "ubuntu-24.04",
-                    },
-                    "container-build": {
-                        "label": "managed-container-build",
-                        "profile": "container-build",
-                    },
+        compute_labels = {
+            "f5-sales-demo/api-specs-enriched": "api-specs-enriched-compute",
+            "f5-sales-demo/terraform-provider-xcsh": "terraform-provider-xcsh-compute",
+        }
+        for repository, routes in managed.items():
+            expected = {
+                "socketless": {
+                    "label": "managed-socketless",
+                    "profile": "ubuntu-24.04",
                 },
-            )
+                "container-build": {
+                    "label": "managed-container-build",
+                    "profile": "container-build",
+                },
+            }
+            if repository in compute_labels:
+                expected["compute"] = {
+                    "label": compute_labels[repository],
+                    "profile": "ubuntu-24.04",
+                }
+            self.assertEqual(routes, expected)
 
     def test_vscode_xcsh_arc_profiles_are_capacity_isolated_and_socket_scoped(self):
         policy = MODULE.active_policy()
