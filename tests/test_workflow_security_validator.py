@@ -345,6 +345,86 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                 [], self.root, repository, self.policy_path, self.governance_path
             )
 
+    def test_canonical_conditional_arc_pair_resolves_by_repository(self):
+        socketless = (
+            "${{ github.repository == 'f5-sales-demo/xcsh' && "
+            "'xcsh-socketless' || 'managed-socketless' }}"
+        )
+        container_build = (
+            "${{ github.repository == 'f5-sales-demo/xcsh' && "
+            "'xcsh-container-build' || 'managed-container-build' }}"
+        )
+        workflow = {
+            "name": "Reusable",
+            "on": {"workflow_dispatch": {}},
+            "permissions": {},
+            "jobs": {
+                "lint": {
+                    "uses": (
+                        "f5-sales-demo/docs-control/.github/workflows/"
+                        "super-linter.yml@" + "a" * 40
+                    ),
+                    "with": {
+                        "socketless_runner_label": socketless,
+                        "container_build_runner_label": container_build,
+                    },
+                }
+            },
+        }
+        xcsh_routes = validator.repository_runner_routes(
+            {"runner": self.xcsh_arc_runner()},
+            self.policy["profiles"],
+            "ubuntu-24.04",
+            "f5-sales-demo/xcsh",
+        )
+        self.assertEqual(
+            "ubuntu-24.04",
+            validator.resolve_route(socketless, xcsh_routes, "f5-sales-demo/xcsh"),
+        )
+        cases = (
+            ("f5-sales-demo/xcsh", self.xcsh_arc_runner()),
+            ("f5-sales-demo/administration", self.managed_arc_runner()),
+        )
+        for repository, runner in cases:
+            policy = copy.deepcopy(self.policy)
+            policy["repositories"] = {repository: {"runner": runner}}
+            governance = {
+                "repo_classes": {"repos": {repository.split("/", 1)[1]: "developer"}}
+            }
+            self.write_fixture(workflow, policy, governance)
+            with self.subTest(repository=repository):
+                self.assertEqual(
+                    validator.validate(
+                        [],
+                        self.root,
+                        repository,
+                        self.policy_path,
+                        self.governance_path,
+                    ),
+                    [],
+                )
+
+        workflow["jobs"]["lint"]["with"]["socketless_runner_label"] = (
+            socketless.replace("xcsh-socketless", "xcsh-compute")
+        )
+        policy = copy.deepcopy(self.policy)
+        policy["repositories"] = {
+            "f5-sales-demo/xcsh": {"runner": self.xcsh_arc_runner()}
+        }
+        self.write_fixture(
+            workflow,
+            policy,
+            {"repo_classes": {"repos": {"xcsh": "developer"}}},
+        )
+        with self.assertRaises(validator.PolicyError):
+            validator.validate(
+                [],
+                self.root,
+                "f5-sales-demo/xcsh",
+                self.policy_path,
+                self.governance_path,
+            )
+
     def test_legacy_reusable_call_without_overrides_is_unchanged(self):
         workflow = {
             "name": "Reusable",
