@@ -486,6 +486,31 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 },
             )
 
+    def test_vscode_xcsh_arc_profiles_are_capacity_isolated_and_socket_scoped(self):
+        policy = MODULE.active_policy()
+        routes = policy.arc_scale_sets["f5-sales-demo/vscode-xcsh"]
+        self.assertEqual(
+            routes,
+            {
+                "socketless": {
+                    "label": "managed-socketless",
+                    "profile": "ubuntu-24.04",
+                },
+                "container-build": {
+                    "label": "managed-container-build",
+                    "profile": "container-build",
+                },
+            },
+        )
+        socketless = policy.profiles[routes["socketless"]["profile"]]
+        container_build = policy.profiles[routes["container-build"]["profile"]]
+        self.assertFalse(socketless.docker_socket)
+        self.assertTrue(container_build.docker_socket)
+        self.assertGreater(int(container_build.cpus), int(socketless.cpus))
+        self.assertGreater(
+            int(container_build.memory[:-1]), int(socketless.memory[:-1])
+        )
+
     def test_fleet_watcher_uses_managed_socketless_route(self):
         workflow = (ROOT / ".github/workflows/antigravity-fleet-watcher.yml").read_text(
             encoding="utf-8"
