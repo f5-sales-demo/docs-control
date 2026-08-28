@@ -67,6 +67,7 @@ expected = sorted([
     "managed-container-build",
     "managed-socketless",
     "xcsh-container-build",
+    "xcsh-compute",
     "xcsh-socketless",
     "docs-container-build",
     "docs-socketless",

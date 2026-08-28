@@ -263,6 +263,10 @@ class EphemeralRunnerTests(unittest.TestCase):
                     "label": "xcsh-container-build",
                     "profile": "container-build",
                 },
+                "compute": {
+                    "label": "xcsh-compute",
+                    "profile": "ubuntu-24.04",
+                },
             }
         }
         self.write_policy()
@@ -276,6 +280,10 @@ class EphemeralRunnerTests(unittest.TestCase):
                 "container-build": {
                     "label": "xcsh-container-build",
                     "profile": "container-build",
+                },
+                "compute": {
+                    "label": "xcsh-compute",
+                    "profile": "ubuntu-24.04",
                 },
             },
             policy.arc_scale_sets["f5-sales-demo/xcsh"],
@@ -295,6 +303,10 @@ class EphemeralRunnerTests(unittest.TestCase):
                 "container-build": {
                     "label": "xcsh-container-build",
                     "profile": "container-build",
+                },
+                "compute": {
+                    "label": "xcsh-compute",
+                    "profile": "ubuntu-24.04",
                 },
             }
         }

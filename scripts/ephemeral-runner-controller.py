@@ -143,6 +143,10 @@ ARC_SHARED_CONTRACTS = (
                 "label": "xcsh-container-build",
                 "profile": "container-build",
             },
+            "compute": {
+                "label": "xcsh-compute",
+                "profile": "ubuntu-24.04",
+            },
         },
     ),
 )
@@ -153,6 +157,7 @@ RESERVED_ARC_LABELS = frozenset(
         "managed-container-build",
         "managed-socketless",
         "xcsh-container-build",
+        "xcsh-compute",
         "xcsh-socketless",
     }
 )
