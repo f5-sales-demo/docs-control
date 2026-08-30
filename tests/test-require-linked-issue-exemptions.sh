@@ -1,29 +1,49 @@
 #!/usr/bin/env bash
-# Hermetic safety contract for the same-repository linked-issue gate and its
-# exact-receipt manual path used by the manifest publisher.
+# Hermetic contract separating ordinary linked-issue checks from exact manifest receipts.
 set -euo pipefail
 
-workflow="$(cd "$(dirname "$0")/.." && pwd)/.github/workflows/require-linked-issue.yml"
-forbidden=(schedule pull_request_target actions/checkout EXCLUDE_BRANCHES createCommitStatus createComment github.paginate 'statuses: write' 'issues: write')
-for token in "${forbidden[@]}"; do
-  if grep -Fq -- "$token" "$workflow"; then
+root=$(cd "$(dirname "$0")/.." && pwd)
+workflow="$root/.github/workflows/require-linked-issue.yml"
+attestor="$root/.github/workflows/attest-manifest-linked-issue.yml"
+publisher="$root/.github/workflows/build-managed-files-manifest.yml"
+
+for token in schedule pull_request_target actions/checkout createCommitStatus createComment github.paginate 'statuses: write' 'issues: write'; do
+  if grep -Fq -- "$token" "$workflow" "$attestor"; then
     printf 'FAIL: retired linked-issue surface remains: %s\n' "$token" >&2
     exit 1
   fi
 done
-grep -Fq "github.event_name == 'workflow_dispatch'" "$workflow"
-grep -Fq 'github.event.pull_request.head.repo.full_name == github.repository' "$workflow"
-grep -Fqx '    name: Check linked issues' "$workflow"
-grep -Fqx '    runs-on: managed-socketless' "$workflow"
-grep -Fqx '      pull-requests: read # inspect and attest the current pull request' "$workflow"
-grep -Fqx '      contents: read # resolve repository metadata for linked-issue validation' "$workflow"
-grep -Fq 'pull_request_number:' "$workflow"
-grep -Fq 'expected_head_sha:' "$workflow"
-grep -Fq 'dispatched linked-issue receipt does not match' "$workflow"
-grep -Fq 'pull.data.head.ref === "sync/manifest"' "$workflow"
-grep -Fq 'exact synthetic manifest publication' "$workflow"
-grep -Fq 'trusted synthetic manifest publication branch' "$workflow"
-grep -Fq 'closingIssuesReferences(first: 1)' "$workflow"
-grep -Fq "group: require-linked-issue-\${{ github.event_name }}-\${{ github.event.pull_request.number || inputs.pull_request_number }}-\${{ inputs.expected_head_sha || 'live' }}" "$workflow"
-grep -Fq 'cancel-in-progress: true' "$workflow"
-printf 'PASS: linked-issue gate is same-repository, exact-receipt, and read-only\n'
+grep -Fq "'Check linked issues'" "$workflow"
+grep -Fq "'Validate manifest receipt candidate'" "$workflow"
+grep -Fq "startsWith(github.event.pull_request.head.ref, 'sync/manifest-')" "$workflow"
+if grep -Fq 'workflow_dispatch:' "$workflow"; then
+  echo 'FAIL: pull-request workflow must not dispatch the required manifest context' >&2
+  exit 1
+fi
+grep -Fq '  workflow_dispatch:' "$attestor"
+grep -Fq 'expected_source_sha:' "$attestor"
+grep -Fq 'expected_head_sha:' "$attestor"
+grep -Fqx '      checks: write # publish the exact required receipt on the verified head' "$attestor"
+grep -Fq 'pull-requests: read' "$attestor"
+grep -Fq 'contents: read' "$attestor"
+grep -Fq 'name: requiredName' "$attestor"
+grep -Fq 'external_id: externalId' "$attestor"
+grep -Fq 'filter: "all"' "$attestor"
+grep -Fq 'gh workflow run attest-manifest-linked-issue.yml' "$publisher"
+grep -Fq 'expected_source_sha=$PROTECTED_MAIN_SHA' "$publisher"
+grep -Fq 'wait_for_exact_linked_issue_receipt' "$publisher"
+node "$root/tests/manifest-receipt-attestor-behavior.mjs" "$root"
+printf 'PASS: linked-issue gate and protected-main manifest attestor are separated\n'
+grep -Fq 'for attempt in $(seq 1 36)' "$publisher"
+grep -Fq 'Timed out waiting for the exact linked-issue receipt' "$publisher"
+grep -Fq 'Protected main advanced after manifest receipt publication' "$publisher"
+grep -Fq 'assert_exact_remote_manifest_ref "$EXPECTED_HEAD"' "$publisher"
+grep -Fq 'assert_manifest_commit_parent "$EXPECTED_HEAD"' "$publisher"
+grep -Fq 'Manifest PR ownership changed after receipt publication' "$publisher"
+wait_line=$(grep -n 'wait_for_exact_linked_issue_receipt "$PR_NUM"' "$publisher" | tail -1 | cut -d: -f1)
+merge_line=$(grep -n 'gh pr merge "$PR_NUM"' "$publisher" | tail -1 | cut -d: -f1)
+if [ "$wait_line" -ge "$merge_line" ]; then
+  echo 'FAIL: auto-merge is enabled before the exact receipt wait succeeds' >&2
+  exit 1
+fi
+printf 'PASS: manifest publisher fails closed before auto-merge\n'

@@ -430,6 +430,65 @@ jobs:
             fi
           }
 
+          assert_manifest_commit_parent() {
+            local expected_head="$1" response
+            response=$(gh api "repos/${GITHUB_REPOSITORY}/git/commits/${expected_head}")
+            if ! printf '%s' "$response" | jq -e \
+              --arg head "$expected_head" \
+              --arg source "$PROTECTED_MAIN_SHA" '
+                .sha == $head and (.parents | length) == 1 and .parents[0].sha == $source
+              ' >/dev/null; then
+              echo "[ERROR] Manifest head does not have the exact protected-main parent" >&2
+              return 1
+            fi
+          }
+
+          manifest_receipt_external_id() {
+            local pr_num="$1" expected_head="$2"
+            printf 'manifest-receipt:%s:pr:%s:source:%s:head:%s' \
+              "$GITHUB_REPOSITORY" "$pr_num" "$PROTECTED_MAIN_SHA" "$expected_head"
+          }
+
+          read_linked_issue_receipts() {
+            local expected_head="$1" response
+            if ! response=$(gh api --method GET \
+              -H 'Accept: application/vnd.github+json' \
+              "repos/${GITHUB_REPOSITORY}/commits/${expected_head}/check-runs" \
+              -f 'check_name=Check linked issues' -f 'filter=all' -F 'per_page=100'); then
+              echo "[ERROR] Could not inventory linked-issue check receipts" >&2
+              return 1
+            fi
+            if ! printf '%s' "$response" | jq -e '
+              (.total_count | type == "number" and floor == . and . >= 0 and . <= 100) and
+              (.check_runs | type == "array" and length == .total_count) and
+              all(.check_runs[]; .name == "Check linked issues")
+            ' >/dev/null; then
+              echo "[ERROR] Linked-issue check receipt inventory is invalid or incomplete" >&2
+              return 1
+            fi
+            printf '%s' "$response" | jq -c '.check_runs'
+          }
+
+          assert_no_foreign_linked_issue_receipt() {
+            local pr_num="$1" expected_head="$2" receipts count external_id
+            external_id=$(manifest_receipt_external_id "$pr_num" "$expected_head")
+            receipts=$(read_linked_issue_receipts "$expected_head")
+            count=$(printf '%s' "$receipts" | jq 'length')
+            if [ "$count" -eq 0 ]; then
+              return 0
+            fi
+            if [ "$count" -eq 1 ] && printf '%s' "$receipts" | jq -e \
+              --arg id "$external_id" --arg head "$expected_head" '
+                .[0].external_id == $id and .[0].head_sha == $head and
+                .[0].status == "completed" and .[0].conclusion == "success" and
+                .[0].app.slug == "github-actions"
+              ' >/dev/null; then
+              return 0
+            fi
+            echo "[ERROR] Manifest head already has a foreign, duplicate, or unsuccessful required check" >&2
+            return 1
+          }
+
           dispatch_manifest_linked_issue_check() {
             local pr_num="$1" expected_sha="$2"
             if ! printf '%s' "$pr_num" | grep -qE '^[1-9][0-9]*$' ||
@@ -441,14 +500,46 @@ jobs:
               echo "[ERROR] Manifest PR changed before linked-issue dispatch" >&2
               return 1
             fi
-            if ! gh workflow run require-linked-issue.yml \
+            if ! gh workflow run attest-manifest-linked-issue.yml \
               --repo "$GITHUB_REPOSITORY" \
               --ref main \
               -f "pull_request_number=$pr_num" \
+              -f "expected_source_sha=$PROTECTED_MAIN_SHA" \
               -f "expected_head_sha=$expected_sha"; then
-              echo "[ERROR] Could not dispatch the manifest PR linked-issue check" >&2
+              echo "[ERROR] Could not dispatch the manifest receipt attestor" >&2
               return 1
             fi
+          }
+
+          wait_for_exact_linked_issue_receipt() {
+            local pr_num="$1" expected_head="$2" external_id receipts count attempt
+            external_id=$(manifest_receipt_external_id "$pr_num" "$expected_head")
+            for attempt in $(seq 1 36); do
+              receipts=$(read_linked_issue_receipts "$expected_head")
+              count=$(printf '%s' "$receipts" | jq 'length')
+              if [ "$count" -eq 1 ]; then
+                if printf '%s' "$receipts" | jq -e \
+                  --arg id "$external_id" --arg head "$expected_head" '
+                    .[0].external_id == $id and .[0].head_sha == $head and
+                    .[0].status == "completed" and .[0].conclusion == "success" and
+                    .[0].app.slug == "github-actions"
+                  ' >/dev/null; then
+                  echo "[OK] Exact linked-issue receipt published for ${expected_head}"
+                  return 0
+                fi
+                echo "[ERROR] Required check receipt is foreign, incomplete, or unsuccessful" >&2
+                return 1
+              fi
+              if [ "$count" -gt 1 ]; then
+                echo "[ERROR] Duplicate required check receipts fail closed" >&2
+                return 1
+              fi
+              if [ "$attempt" -lt 36 ]; then
+                sleep 5
+              fi
+            done
+            echo "[ERROR] Timed out waiting for the exact linked-issue receipt" >&2
+            return 1
           }
 
           # Compare only the files map (ignore source_commit churn).
@@ -574,7 +665,28 @@ jobs:
           fi
           assert_manifest_pr_head "$PR_NUM" "$EXPECTED_HEAD"
           assert_manifest_pr_diff "$EXPECTED_HEAD"
+          assert_no_foreign_linked_issue_receipt "$PR_NUM" "$EXPECTED_HEAD"
           dispatch_manifest_linked_issue_check "$PR_NUM" "$EXPECTED_HEAD"
+          wait_for_exact_linked_issue_receipt "$PR_NUM" "$EXPECTED_HEAD"
+
+          # The receipt is useful only while every immutable fact still matches.
+          CURRENT_MAIN_SHA=$(resolve_protected_main_sha)
+          if [ "$CURRENT_MAIN_SHA" != "$PROTECTED_MAIN_SHA" ]; then
+            echo "[ERROR] Protected main advanced after manifest receipt publication" >&2
+            exit 1
+          fi
+          assert_exact_remote_manifest_ref "$EXPECTED_HEAD"
+          assert_manifest_pr_head "$PR_NUM" "$EXPECTED_HEAD"
+          assert_manifest_commit_parent "$EXPECTED_HEAD"
+          assert_manifest_pr_diff "$EXPECTED_HEAD"
+          FINAL_INVENTORY=$(mktemp)
+          read_manifest_prs "$FINAL_INVENTORY"
+          FINAL_ROW=$(select_owned_manifest_pr "$FINAL_INVENTORY")
+          rm -f "$FINAL_INVENTORY"
+          if [ "$FINAL_ROW" != "${PR_NUM}"$'\t'"${EXPECTED_HEAD}" ]; then
+            echo "[ERROR] Manifest PR ownership changed after receipt publication" >&2
+            exit 1
+          fi
           gh pr merge "$PR_NUM" --repo "$GITHUB_REPOSITORY" \
             --squash --auto --delete-branch --match-head-commit "$EXPECTED_HEAD"
-          echo "[OK] Manifest PR open with auto-merge enabled"
+          echo "[OK] Manifest PR has an exact receipt and auto-merge is enabled"
