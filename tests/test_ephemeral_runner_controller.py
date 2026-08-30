@@ -67,7 +67,7 @@ class EphemeralRunnerTests(unittest.TestCase):
         self.owner_change.start()
         self.policy_path = self.root / "policy.json"
         self.policy_data: dict = {
-            "schema_version": 4,
+            "schema_version": 5,
             "docker": {
                 "host_socket": "/run/f5-actions-runner/container-build/docker.sock",
                 "runner_socket": "/run/docker.sock",
@@ -112,6 +112,8 @@ class EphemeralRunnerTests(unittest.TestCase):
                     "docker_socket": True,
                 },
             },
+            "arc_attestations": {},
+            "restricted_routes": {},
             "hosted_exceptions": {},
             "repositories": {
                 "f5-sales-demo/xcsh": {
@@ -389,7 +391,7 @@ class EphemeralRunnerTests(unittest.TestCase):
                 self.policy()
             self.policy_data = original
 
-    def test_policy_requires_exact_schema_v4_docker_contract(self):
+    def test_policy_requires_exact_schema_v5_docker_contract(self):
         for mutation in (
             {"schema_version": 3},
             {"docker": {"host_socket": "/var/run/docker.sock"}},
@@ -406,6 +408,36 @@ class EphemeralRunnerTests(unittest.TestCase):
                 with self.assertRaises(MODULE.FleetError):
                     self.policy()
                 self.policy_data = original
+
+    def test_policy_validates_attested_arc_runtime_and_exact_restricted_grant(self):
+        source = ROOT / ".github/config/self-hosted-runner-policy.json"
+        policy = MODULE.FleetPolicy(source)
+        d8 = policy.arc_attestations["terraform-provider-xcsh-d8"]
+        d16 = policy.arc_attestations["terraform-provider-xcsh-d16"]
+        self.assertEqual(
+            ("socketless", "Standard_D8ads_v5", 7),
+            (d8["runner_profile"], d8["vm_size"], d8["cpu_limit"]),
+        )
+        self.assertEqual(
+            ("compute", "Standard_D16ads_v5", 15),
+            (d16["runner_profile"], d16["vm_size"], d16["cpu_limit"]),
+        )
+        self.assertEqual(
+            {
+                (
+                    "f5-sales-demo/terraform-provider-xcsh",
+                    ".github/workflows/workload-benchmark.yml",
+                    "benchmark-d16",
+                )
+            },
+            policy.restricted_routes["terraform-provider-xcsh-compute"],
+        )
+
+        raw = json.loads(source.read_text(encoding="utf-8"))
+        raw["arc_attestations"]["terraform-provider-xcsh-d16"]["cpu_limit"] = 0
+        self.policy_path.write_text(json.dumps(raw), encoding="utf-8")
+        with self.assertRaisesRegex(MODULE.FleetError, "attestation is malformed"):
+            MODULE.FleetPolicy(self.policy_path)
 
     def test_policy_rejects_podman_era_profile_fields(self):
         profile = self.policy_data["profiles"]["ubuntu-24.04"]

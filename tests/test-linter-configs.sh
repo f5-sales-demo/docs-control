@@ -149,6 +149,47 @@ import json
 import sys
 
 policy = json.load(open(sys.argv[1], encoding="utf-8"))
+assert policy["schema_version"] == 5
+provider = "f5-sales-demo/terraform-provider-xcsh"
+digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:8817d93949ce0429b16bbcae686065b81d976b43df22e15e90379b5978c6dc2b"
+assert policy["arc_attestations"] == {
+    "terraform-provider-xcsh-d8": {
+        "label": "managed-socketless",
+        "runner_profile": "socketless",
+        "image": digest,
+        "vm_size": "Standard_D8ads_v5",
+        "cpu_limit": 7,
+        "memory_limit_bytes": 28 * 1024**3,
+        "docker_socket": False,
+        "repositories": [provider],
+    },
+    "terraform-provider-xcsh-d16": {
+        "label": "terraform-provider-xcsh-compute",
+        "runner_profile": "compute",
+        "image": digest,
+        "vm_size": "Standard_D16ads_v5",
+        "cpu_limit": 15,
+        "memory_limit_bytes": 56 * 1024**3,
+        "docker_socket": False,
+        "repositories": [provider],
+    },
+}
+assert policy["restricted_routes"] == {
+    "terraform-provider-xcsh-compute": [{
+        "repository": provider,
+        "workflow": ".github/workflows/workload-benchmark.yml",
+        "job": "benchmark-d16",
+    }]
+}
+provider_routes = policy["repositories"][provider]["runner"]["arc_scale_sets"]
+assert provider_routes["socketless"] == {
+    "label": "managed-socketless",
+    "attestation": "terraform-provider-xcsh-d8",
+}
+assert provider_routes["compute"] == {
+    "label": "terraform-provider-xcsh-compute",
+    "attestation": "terraform-provider-xcsh-d16",
+}
 for repository, workflows in policy["repositories"].items():
     runner = workflows["runner"]
     scale_sets = runner.get("arc_scale_sets")
@@ -167,10 +208,10 @@ for repository, workflows in policy["repositories"].items():
                 f"{repository}:{workflow}:{job} uses unknown ARC route {route!r}"
             )
 PY
-  pass "2.1b ARC repository job policies use exact scalar routes"
+  pass "2.1b ARC attestations and repository job routes are exact"
 else
-  fail "2.1b ARC repository job policies use exact scalar routes" \
-    "an ARC-converted repository retained a legacy or unknown job route"
+  fail "2.1b ARC attestations and repository job routes are exact" \
+    "an attestation, restricted grant, or ARC job route drifted"
 fi
 
 if jq -e '

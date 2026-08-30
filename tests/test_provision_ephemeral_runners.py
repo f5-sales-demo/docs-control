@@ -491,6 +491,15 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                     "label": compute_labels[repository],
                     "profile": "ubuntu-24.04",
                 }
+            if repository == "f5-sales-demo/terraform-provider-xcsh":
+                expected["socketless"] = {
+                    "label": "managed-socketless",
+                    "attestation": "terraform-provider-xcsh-d8",
+                }
+                expected["compute"] = {
+                    "label": "terraform-provider-xcsh-compute",
+                    "attestation": "terraform-provider-xcsh-d16",
+                }
             self.assertEqual(routes, expected)
 
     def test_vscode_xcsh_arc_profiles_are_capacity_isolated_and_socket_scoped(self):

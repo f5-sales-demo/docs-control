@@ -1,5 +1,5 @@
 {
-  "schema_version": 4,
+  "schema_version": 5,
   "docker": {
     "host_socket": "/run/f5-actions-runner/container-build/docker.sock",
     "runner_socket": "/run/docker.sock",
@@ -19,6 +19,8 @@
   },
   "defaults": { "profile": "ubuntu-24.04" },
   "profiles": { "ubuntu-24.04": {}, "container-build": {} },
+  "arc_attestations": {},
+  "restricted_routes": {},
   "hosted_exceptions": {},
   "repositories": {
     "f5-sales-demo/fixture": {
