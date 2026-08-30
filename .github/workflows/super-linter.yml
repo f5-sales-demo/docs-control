@@ -508,6 +508,9 @@ jobs:
           # doesn't hit dangling symlinks mid-run). See issue #377.
           TRIVY_CONFIG_FILE: trivy.yaml
           SAVE_SUPER_LINTER_SUMMARY: false
+          # Successful runs retain warnings and errors while omitting verbose
+          # per-validator success output. Failure diagnostics remain complete.
+          SUPPRESS_OUTPUT_ON_SUCCESS: true
           VALIDATE_ALL_CODEBASE: false
           # No commitlint config exists in managed repos
           VALIDATE_GIT_COMMITLINT: false
@@ -647,11 +650,104 @@ jobs:
             exit 1
           fi
 
-      - name: Spectral OpenAPI lint
+      # Spectral is immutable in the container-build runner image. Running it
+      # natively avoids a second Docker action image while retaining the
+      # repository ruleset, JSON/YAML coverage, GitHub annotations, and
+      # error-level failure semantics of the retired container action.
+      - name: Run native Spectral OpenAPI lint
+        id: spectral
         if: hashFiles('.spectral.yaml', '.spectral.yml') != ''
-        uses: stoplightio/spectral-action@6416fd018ae38e60136775066eb3e98172143141 # v0.8.13
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          if [[ -f .spectral.yaml ]]; then
+            ruleset=.spectral.yaml
+          elif [[ -f .spectral.yml ]]; then
+            ruleset=.spectral.yml
+          else
+            echo "::error::Spectral ruleset disappeared after workflow evaluation"
+            exit 1
+          fi
+          if [[ "$(spectral --version)" != "6.16.3" ]]; then
+            echo "::error::runner Spectral version does not match immutable 6.16.3 contract"
+            exit 1
+          fi
+          profile_dir="$RUNNER_TEMP/workload-profile-spectral"
+          rm -rf -- "$profile_dir"
+          install -d -m 0700 "$profile_dir"
+          runner-profile \
+            --name spectral \
+            --output "$profile_dir/profile.json" \
+            --cache-state warm \
+            --variant native-spectral-suppressed \
+            --pair-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}" \
+            -- spectral lint \
+            --ruleset "$ruleset" \
+            --format github-actions \
+            --fail-severity error \
+            "**/*.json" "**/*.yaml"
+
+      - name: Validate Spectral profile
+        id: spectral_profile
+        if: always() && hashFiles('.spectral.yaml', '.spectral.yml') != ''
+        continue-on-error: true
+        env:
+          SPECTRAL_OUTCOME: ${{ steps.spectral.outcome }}
+        run: |
+          set -euo pipefail
+          profile="$RUNNER_TEMP/workload-profile-spectral/profile.json"
+          schema=/usr/local/share/runner-profile/workload-profile.schema.json
+          if [[ ! -s "$profile" ]]; then
+            echo "::error::Spectral profiler did not produce an artifact"
+            exit 1
+          fi
+          node - "$profile" "$schema" "$SPECTRAL_OUTCOME" <<'NODE'
+          const fs = require('fs');
+          const Ajv2020 = require('/opt/spectral/node_modules/ajv/dist/2020').default;
+          const addFormats = require('/opt/spectral/node_modules/ajv-formats').default;
+          const [profilePath, schemaPath, spectralOutcome] = process.argv.slice(2);
+          const profile = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
+          const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+          const ajv = new Ajv2020({allErrors: true, strict: true});
+          addFormats(ajv);
+          if (!ajv.validate(schema, profile)) {
+            throw new Error(`invalid Spectral profile: ${ajv.errorsText(ajv.errors)}`);
+          }
+          if (profile.phase !== 'spectral' || profile.variant !== 'native-spectral-suppressed') {
+            throw new Error('Spectral profile identity does not match the workflow contract');
+          }
+          if (spectralOutcome === 'success' && profile.exit.code !== 0) {
+            throw new Error('successful Spectral step has a nonzero profiled exit code');
+          }
+          if (spectralOutcome === 'failure' && !(profile.exit.code > 0)) {
+            throw new Error('failed Spectral step lacks a nonzero profiled exit code');
+          }
+          NODE
+
+      - name: Upload Spectral profile
+        id: spectral_profile_upload
+        if: always() && hashFiles('.spectral.yaml', '.spectral.yml') != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          file_glob: "**/*.json **/*.yaml"
+          name: workload-profile-spectral
+          path: ${{ runner.temp }}/workload-profile-spectral/profile.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Preserve Spectral conclusion
+        if: always() && hashFiles('.spectral.yaml', '.spectral.yml') != ''
+        env:
+          SPECTRAL_OUTCOME: ${{ steps.spectral.outcome }}
+          PROFILE_OUTCOME: ${{ steps.spectral_profile.outcome }}
+          PROFILE_UPLOAD_OUTCOME: ${{ steps.spectral_profile_upload.outcome }}
+        run: |
+          if [[ "$SPECTRAL_OUTCOME" != success ||
+            "$PROFILE_OUTCOME" != success ||
+            "$PROFILE_UPLOAD_OUTCOME" != success ]]; then
+            echo "::error::Spectral or its required profiling evidence failed"
+            exit 1
+          fi
 
   shell-unit-tests:
     name: Shell Unit Tests
