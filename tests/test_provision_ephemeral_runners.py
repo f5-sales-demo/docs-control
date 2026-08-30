@@ -548,6 +548,9 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             unit.index("admission-check"), unit.index("ephemeral-runner-controller.py")
         )
         self.assertIn("Restart=on-failure", unit)
+        self.assertIn(
+            f"RestartPreventExitStatus={MODULE.ADMISSION_DENIED_EXIT_STATUS}", unit
+        )
         self.assertNotIn("Restart=always", unit)
         self.assertIn("TimeoutStopSec=6min", unit)
         self.assertIn("KillMode=mixed", unit)
@@ -557,6 +560,36 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         self.assertNotIn("f5-actions-podman", unit)
         self.assertTrue(MODULE.ENTRYPOINT_SOURCE.is_file())
         self.assertTrue(MODULE.TOOL_CACHE_INITIALIZER_SOURCE.is_file())
+
+    def test_admission_rejection_uses_the_non_retryable_systemd_exit_status(self):
+        with mock.patch.object(
+            MODULE,
+            "admission_check",
+            side_effect=MODULE.ProvisionError(
+                "runner start lacks fleet dispatcher authorization"
+            ),
+        ):
+            self.assertEqual(
+                MODULE.main(
+                    [
+                        "admission-check",
+                        "f5-sales-demo/xcsh",
+                        "--profile",
+                        "container-build",
+                        "--slot",
+                        "0",
+                    ]
+                ),
+                MODULE.ADMISSION_DENIED_EXIT_STATUS,
+            )
+
+    def test_non_admission_provision_failure_keeps_the_generic_failure_status(self):
+        with mock.patch.object(
+            MODULE,
+            "install_definition",
+            side_effect=MODULE.ProvisionError("controller deployment failed"),
+        ):
+            self.assertEqual(MODULE.main(["install"]), 1)
 
     def test_capacity_guard_installs_a_persistent_systemd_timer(self):
         unit = MODULE.capacity_unit_text()

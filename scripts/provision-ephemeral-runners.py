@@ -91,6 +91,7 @@ FLEET_DISPATCH_ROOT = STATE_ROOT / "fleet-dispatch"
 ADMISSION_LOCK = STATE_ROOT / "admission.lock"
 ADMISSION_PERMIT_ROOT = STATE_ROOT / "admission-permits"
 RUNNER_START_PERMIT_SECONDS = 60
+ADMISSION_DENIED_EXIT_STATUS = 77
 SUBORDINATE_START = 231072
 SUBORDINATE_COUNT = 65536
 RETIRED_UNIT = "f5-actions-runner-retired.service"
@@ -356,6 +357,7 @@ ExecStartPre=/usr/bin/test -r {TOKEN_PATH}
 ExecStartPre=/usr/bin/python3 {INSTALL_ROOT}/provision-ephemeral-runners.py admission-check ${{RUNNER_REPOSITORY}} --profile ${{RUNNER_PROFILE}} --slot ${{RUNNER_SLOT}}
 ExecStart=/usr/bin/python3 {INSTALL_ROOT}/ephemeral-runner-controller.py --policy {INSTALL_ROOT}/self-hosted-runner-policy.json --base-dir {STATE_ROOT} ${{RUNNER_MODE}} ${{RUNNER_REPOSITORY}} --profile ${{RUNNER_PROFILE}} --slot ${{RUNNER_SLOT}}
 Restart=on-failure
+RestartPreventExitStatus={ADMISSION_DENIED_EXIT_STATUS}
 RestartSec=5
 TimeoutStopSec=6min
 KillMode=mixed
@@ -1229,6 +1231,8 @@ def main(argv=None):
         ValueError,
     ) as exc:
         print(f"runner provisioning failed: {exc}", file=sys.stderr)
+        if args.action == "admission-check":
+            return ADMISSION_DENIED_EXIT_STATUS
         return 1
 
 

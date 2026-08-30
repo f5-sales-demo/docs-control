@@ -222,7 +222,8 @@ jobs:
           GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
           SOURCE_COMMIT: ${{ github.sha }}
           MANIFEST_PATH: .github/config/managed-files-manifest.json
-          BRANCH: sync/manifest
+          # Immutable source-SHA branches prevent delayed runs from replacing newer state.
+          BRANCH: sync/manifest-${{ github.sha }}
         run: |
           set -euo pipefail
 
@@ -532,16 +533,12 @@ jobs:
           fi
 
           if [ -n "$REMOTE_BRANCH_SHA" ]; then
-            git push \
-              "--force-with-lease=refs/heads/$BRANCH:$REMOTE_BRANCH_SHA" \
-              origin "HEAD:refs/heads/$BRANCH"
-          else
-            git push \
-              "--force-with-lease=refs/heads/$BRANCH:" \
-              origin "HEAD:refs/heads/$BRANCH"
+            echo "[ERROR] Immutable manifest branch already exists; only the exact prior receipt may be retried" >&2
+            exit 1
           fi
+          git push origin "HEAD:refs/heads/$BRANCH"
 
-          # Re-inventory after the lease-protected push. A concurrent PR must
+          # Re-inventory after the exact ordinary push. A concurrent PR must
           # never be adopted as the workflow's own publication.
           MANIFEST_PR_INVENTORY=$(mktemp)
           read_manifest_prs "$MANIFEST_PR_INVENTORY"
