@@ -2162,7 +2162,7 @@ def scan_jq_identity_writes(
     line_number: int,
     line: str,
     findings: set[Finding],
-    context: LineScanContext,
+    _context: LineScanContext,
 ) -> None:
     """Inspect exact --arg/--argjson values flowing to jq identity object fields."""
     if not path.endswith(".sh") or "jq" not in line:
@@ -2176,7 +2176,7 @@ def scan_jq_identity_writes(
     }
     key = r"tenant(?:_name|_id|-name|-id|Name|Id)?|customer(?:_name|_id|-name|-id|Name|Id)?|account(?:_name|_id|-name|-id|Name|Id)?|subscription(?:_name|_id|-name|-id|Name|Id)|project(?:_name|_id|-name|-id|Name|Id)|namespace"
     for field in re.finditer(
-        rf"(?P<key>{key})\s*:\s*\$(?P<name>[A-Za-z_][A-Za-z0-9_]*)", line, re.I
+        rf"(?P<key>{key})\s*:\s*\$(?P<name>[A-Za-z_][A-Za-z0-9_]*)", line, re.IGNORECASE
     ):
         value = bindings.get(field.group("name"), "")
         if value and not placeholder_value(value):
