@@ -161,7 +161,7 @@ class WorkflowAuditTests(unittest.TestCase):
     def test_attested_compute_route_requires_exact_job_and_trust_guard(self):
         self.use_provider_attested_routes()
         repository = "f5-sales-demo/terraform-provider-xcsh"
-        workflow = {
+        workflow: dict[str, Any] = {
             "name": "Benchmark",
             "on": {"pull_request": {"types": ["labeled"]}},
             "jobs": {
@@ -201,7 +201,7 @@ class WorkflowAuditTests(unittest.TestCase):
         expression = MODULE.TRUSTED_COMPUTE_ROUTE_EXPRESSIONS[
             "terraform-provider-xcsh-compute"
         ]
-        workflow = {
+        workflow: dict[str, Any] = {
             "name": "Benchmark",
             "on": {"pull_request": {}},
             "jobs": {

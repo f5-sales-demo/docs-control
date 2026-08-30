@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=invalid-name,too-many-lines
+# pylint: disable=invalid-name,too-many-lines,too-many-branches,too-many-boolean-expressions
 """Run repository-scoped GitHub Actions runners in one-job Docker sandboxes."""
 
 from __future__ import annotations

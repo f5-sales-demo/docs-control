@@ -1,5 +1,5 @@
 # mypy: ignore-errors
-# pylint: disable=consider-using-with,too-many-public-methods
+# pylint: disable=consider-using-with,too-many-public-methods,too-many-lines
 """Behavioral tests for exact self-hosted workflow exception enforcement."""
 
 import copy

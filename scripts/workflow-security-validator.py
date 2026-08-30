@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: ANN001, ANN201, D101, D103, EM101, EM102, RUF100, TRY003
-# pylint: disable=invalid-name,too-many-branches,broad-exception-caught,import-error
+# pylint: disable=invalid-name,too-many-branches,broad-exception-caught,import-error,too-many-lines,too-many-locals,too-many-statements,too-many-boolean-expressions
 # fmt: off
 """Fail-closed authorization for self-hosted routes and Zizmor findings."""
 
