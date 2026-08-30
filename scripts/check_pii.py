@@ -2189,7 +2189,10 @@ def scan_jq_identity_writes(
             )
 
 
-def scan_multiline_identity_fields(path: str, text: str, findings: set[Finding]) -> None:
+# fmt: off
+def scan_multiline_identity_fields(
+    path: str, text: str, findings: set[Finding]
+) -> None:
     """Cover JSON/YAML keys and scalar values separated by physical lines."""
     key = r"tenant(?:_name|_id|-name|-id|Name|Id)?|customer(?:_name|_id|-name|-id|Name|Id)?|account(?:_name|_id|-name|-id|Name|Id)?|subscription(?:_name|_id|-name|-id|Name|Id)|project(?:_name|_id|-name|-id|Name|Id)|namespace"
     pattern = re.compile(
@@ -2197,7 +2200,11 @@ def scan_multiline_identity_fields(path: str, text: str, findings: set[Finding])
     )
     for match in pattern.finditer(text):
         value = normalized_value(match.group("value").strip().strip("'\""))
-        if not value or value.startswith(("|", ">", "{", "[")) or placeholder_value(value):
+        if (
+            not value
+            or value.startswith(("|", ">", "{", "["))
+            or placeholder_value(value)
+        ):
             continue
         add_finding(
             findings,
@@ -2207,7 +2214,7 @@ def scan_multiline_identity_fields(path: str, text: str, findings: set[Finding])
             message=f"{match.group('key')} contains a literal organization identifier",
         )
 
-
+# fmt: on
 def scan_query_parameters(
     path: str,
     line_number: int,
