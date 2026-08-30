@@ -1,5 +1,5 @@
 # mypy: ignore-errors
-# pylint: disable=consider-using-with,too-many-public-methods
+# pylint: disable=consider-using-with,too-many-public-methods,too-many-lines
 """Behavioral tests for exact self-hosted workflow exception enforcement."""
 
 import copy
@@ -76,7 +76,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             "if": "github.event_name != 'pull_request'",
         }
         self.policy = {
-            "schema_version": 4,
+            "schema_version": 5,
             "docker": {
                 "host_socket": "/run/f5-actions-runner/container-build/docker.sock",
                 "runner_socket": "/run/docker.sock",
@@ -89,6 +89,8 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             "dispatcher": copy.deepcopy(validator.DISPATCHER_POLICY),
             "defaults": {"profile": "ubuntu-24.04"},
             "profiles": {"ubuntu-24.04": {}, "container-build": {}},
+            "arc_attestations": {},
+            "restricted_routes": {},
             "hosted_exceptions": {},
             "repositories": {
                 self.repository: {
@@ -189,6 +191,135 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                 },
             }
         }
+
+    @staticmethod
+    def provider_arc_contract():
+        repository = "f5-sales-demo/terraform-provider-xcsh"
+        digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:" + "a" * 64
+        runner = {
+            "arc_scale_sets": {
+                "socketless": {
+                    "label": "managed-socketless",
+                    "attestation": "terraform-provider-xcsh-d8",
+                },
+                "container-build": {
+                    "label": "managed-container-build",
+                    "profile": "container-build",
+                },
+                "compute": {
+                    "label": "terraform-provider-xcsh-compute",
+                    "attestation": "terraform-provider-xcsh-d16",
+                },
+            }
+        }
+        attestations = {
+            "terraform-provider-xcsh-d8": {
+                "label": "managed-socketless",
+                "runner_profile": "socketless",
+                "image": digest,
+                "vm_size": "Standard_D8ads_v5",
+                "cpu_limit": 7,
+                "memory_limit_bytes": 28 * 1024**3,
+                "docker_socket": False,
+                "repositories": [repository],
+            },
+            "terraform-provider-xcsh-d16": {
+                "label": "terraform-provider-xcsh-compute",
+                "runner_profile": "compute",
+                "image": digest,
+                "vm_size": "Standard_D16ads_v5",
+                "cpu_limit": 15,
+                "memory_limit_bytes": 56 * 1024**3,
+                "docker_socket": False,
+                "repositories": [repository],
+            },
+        }
+        restricted = {
+            "terraform-provider-xcsh-compute": [
+                {
+                    "repository": repository,
+                    "workflow": ".github/workflows/workload-benchmark.yml",
+                    "job": "benchmark-d16",
+                }
+            ]
+        }
+        return runner, attestations, restricted
+
+    def test_restricted_compute_inventory_is_job_and_expression_exact(self):
+        repository = "f5-sales-demo/terraform-provider-xcsh"
+        workflow_path = ".github/workflows/workload-benchmark.yml"
+        runner, attestations, restricted = self.provider_arc_contract()
+        workflow = {
+            "name": "Benchmark",
+            "on": {"pull_request": {"types": ["labeled"]}},
+            "permissions": {},
+            "jobs": {
+                "benchmark-d16": {
+                    "if": validator.BENCHMARK_TRUST_GUARD,
+                    "runs-on": "terraform-provider-xcsh-compute",
+                    "steps": [{"run": True}],
+                }
+            },
+        }
+        path = self.root / workflow_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        policy = copy.deepcopy(self.policy)
+        policy["arc_attestations"] = attestations
+        policy["restricted_routes"] = restricted
+        policy["repositories"] = {repository: {"runner": runner}}
+        governance = {
+            "repo_classes": {"repos": {"terraform-provider-xcsh": "developer"}}
+        }
+
+        def validate_current():
+            path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+            self.policy_path.write_text(json.dumps(policy), encoding="utf-8")
+            self.governance_path.write_text(json.dumps(governance), encoding="utf-8")
+            return validator.validate(
+                [], self.root, repository, self.policy_path, self.governance_path
+            )
+
+        self.assertEqual(
+            [(workflow_path, "benchmark-d16", ["jobs", "benchmark-d16", "runs-on"])],
+            validate_current(),
+        )
+        workflow["jobs"]["benchmark-d16"].pop("if")
+        with self.assertRaisesRegex(validator.PolicyError, "benchmark guard"):
+            validate_current()
+        workflow["jobs"]["benchmark-d16"]["runs-on"] = (
+            validator.TRUSTED_COMPUTE_ROUTE_EXPRESSIONS[
+                "terraform-provider-xcsh-compute"
+            ]
+        )
+        self.assertEqual(1, len(validate_current()))
+        for dynamic in ("${{ matrix.runner }}", "${{ github.event.inputs.runner }}"):
+            workflow["jobs"]["benchmark-d16"]["runs-on"] = dynamic
+            with (
+                self.subTest(dynamic=dynamic),
+                self.assertRaises(validator.PolicyError),
+            ):
+                validate_current()
+
+    def test_arc_attestation_schema_rejects_incomplete_and_cross_repo_claims(self):
+        runner, attestations, restricted = self.provider_arc_contract()
+        validator.validate_arc_contract(attestations, restricted)
+        malformed = copy.deepcopy(attestations)
+        del malformed["terraform-provider-xcsh-d16"]["memory_limit_bytes"]
+        with self.assertRaises(validator.PolicyError):
+            validator.validate_arc_contract(malformed, restricted)
+        cross_repo = copy.deepcopy(attestations)
+        cross_repo["terraform-provider-xcsh-d16"]["repositories"] = [
+            "f5-sales-demo/xcsh"
+        ]
+        with self.assertRaises(validator.PolicyError):
+            validator.repository_runner_routes(
+                {"runner": runner},
+                self.policy["profiles"],
+                "ubuntu-24.04",
+                "f5-sales-demo/terraform-provider-xcsh",
+                cross_repo,
+                restricted,
+            )
 
     def test_managed_arc_labels_are_exact_and_cohort_bound(self):
         routes = validator.repository_runner_routes(

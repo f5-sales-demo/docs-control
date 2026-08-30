@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# pylint: disable=invalid-name,too-many-lines
+# pylint: disable=invalid-name,too-many-lines,too-many-branches,too-many-boolean-expressions
 """Run repository-scoped GitHub Actions runners in one-job Docker sandboxes."""
 
 from __future__ import annotations
@@ -152,7 +152,7 @@ ARC_SHARED_CONTRACTS = (
         {
             "socketless": {
                 "label": "managed-socketless",
-                "profile": "ubuntu-24.04",
+                "attestation": "terraform-provider-xcsh-d8",
             },
             "container-build": {
                 "label": "managed-container-build",
@@ -160,7 +160,7 @@ ARC_SHARED_CONTRACTS = (
             },
             "compute": {
                 "label": "terraform-provider-xcsh-compute",
-                "profile": "ubuntu-24.04",
+                "attestation": "terraform-provider-xcsh-d16",
             },
         },
     ),
@@ -317,7 +317,7 @@ class RepositorySpec:
 
 
 class FleetPolicy:
-    """Strict schema-v4 fleet policy consumed by runtime and workflow audits."""
+    """Strict schema-v5 fleet policy consumed by runtime and workflow audits."""
 
     TOP_LEVEL = {
         "schema_version",
@@ -325,6 +325,8 @@ class FleetPolicy:
         "dispatcher",
         "defaults",
         "profiles",
+        "arc_attestations",
+        "restricted_routes",
         "hosted_exceptions",
         "repositories",
     }
@@ -357,7 +359,17 @@ class FleetPolicy:
         "docker_socket",
     }
     REPOSITORY_RUNTIME_FIELDS = {"replicas", "profiles", "arc_scale_sets"}
-    ARC_SCALE_SET_FIELDS = {"label", "profile"}
+    ARC_ATTESTATION_FIELDS = {
+        "label",
+        "runner_profile",
+        "image",
+        "vm_size",
+        "cpu_limit",
+        "memory_limit_bytes",
+        "docker_socket",
+        "repositories",
+    }
+    RESTRICTED_GRANT_FIELDS = {"repository", "workflow", "job"}
 
     def __init__(self, path):
         self.path = Path(path)
@@ -369,13 +381,15 @@ class FleetPolicy:
             raise FleetError(
                 f"policy top-level fields must equal {sorted(self.TOP_LEVEL)}"
             )
-        if raw["schema_version"] != 4:
-            raise FleetError("runner fleet requires policy schema_version 4")
+        if raw["schema_version"] != 5:
+            raise FleetError("runner fleet requires policy schema_version 5")
         self.raw = raw
         self.docker = self._docker(raw["docker"])
         self.dispatcher = self._dispatcher(raw["dispatcher"])
         self.defaults = self._defaults(raw["defaults"])
         self.profiles = self._profiles(raw["profiles"])
+        self.arc_attestations = self._arc_attestations(raw["arc_attestations"])
+        self.restricted_routes = self._restricted_routes(raw["restricted_routes"])
         default_profile = self.profiles.get(self.defaults["profile"])
         builder_profile = self.profiles.get("container-build")
         if default_profile is None or default_profile.docker_socket:
@@ -395,6 +409,19 @@ class FleetPolicy:
             raise FleetError("hosted_exceptions must be an object")
         if not isinstance(raw["repositories"], dict) or not raw["repositories"]:
             raise FleetError("repositories must be a non-empty object")
+        attestations_by_label = {
+            spec["label"]: spec for spec in self.arc_attestations.values()
+        }
+        for label, grants in self.restricted_routes.items():
+            attestation = attestations_by_label.get(label)
+            if attestation is None:
+                raise FleetError("restricted route must name an attested label")
+            for repository, _workflow, _job in grants:
+                if (
+                    repository not in raw["repositories"]
+                    or repository not in attestation["repositories"]
+                ):
+                    raise FleetError("restricted route grant exceeds attestation scope")
         self.arc_scale_sets = {}
         for repository in raw["repositories"]:
             arc_scale_sets = self._repository_arc_scale_sets(repository)
@@ -465,6 +492,73 @@ class FleetPolicy:
             container_build_runners=value["container_build_runners"],
             request_budget=value["request_budget"],
         )
+
+    @classmethod
+    def _arc_attestations(cls, value):
+        if not isinstance(value, dict):
+            raise FleetError("arc_attestations must be an object")
+        parsed = {}
+        labels = set()
+        for name, spec in value.items():
+            validate_name(name, PROFILE_RE, "ARC attestation")
+            if not isinstance(spec, dict) or set(spec) != cls.ARC_ATTESTATION_FIELDS:
+                raise FleetError(f"ARC attestation fields are invalid: {name}")
+            label = validate_name(spec["label"], PROFILE_RE, "ARC attestation label")
+            repositories = spec["repositories"]
+            if (
+                label in labels
+                or not isinstance(spec["image"], str)
+                or not IMAGE_RE.fullmatch(spec["image"])
+                or not isinstance(spec["vm_size"], str)
+                or not spec["vm_size"].startswith("Standard_")
+                or not isinstance(spec["cpu_limit"], int)
+                or spec["cpu_limit"] <= 0
+                or not isinstance(spec["memory_limit_bytes"], int)
+                or spec["memory_limit_bytes"] <= 0
+                or not isinstance(spec["docker_socket"], bool)
+                or not isinstance(repositories, list)
+                or not repositories
+                or repositories != sorted(set(repositories))
+            ):
+                raise FleetError(f"ARC attestation is malformed: {name}")
+            validate_name(spec["runner_profile"], PROFILE_RE, "ARC runner profile")
+            for repository in repositories:
+                repository_name(repository)
+            labels.add(label)
+            parsed[name] = spec
+        return parsed
+
+    @classmethod
+    def _restricted_routes(cls, value):
+        if not isinstance(value, dict):
+            raise FleetError("restricted_routes must be an object")
+        parsed = {}
+        for label, grants in value.items():
+            validate_name(label, PROFILE_RE, "restricted route")
+            if not isinstance(grants, list) or not grants:
+                raise FleetError("restricted route grants must be a non-empty array")
+            identities = set()
+            for grant in grants:
+                if (
+                    not isinstance(grant, dict)
+                    or set(grant) != cls.RESTRICTED_GRANT_FIELDS
+                ):
+                    raise FleetError("restricted route grant fields are invalid")
+                identity = (grant["repository"], grant["workflow"], grant["job"])
+                repository_name(grant["repository"])
+                if (
+                    not isinstance(grant["workflow"], str)
+                    or not grant["workflow"].startswith(".github/workflows/")
+                    or not isinstance(grant["job"], str)
+                    or not grant["job"]
+                    or identity in identities
+                ):
+                    raise FleetError(
+                        "restricted route grant is malformed or duplicated"
+                    )
+                identities.add(identity)
+            parsed[label] = identities
+        return parsed
 
     @classmethod
     def _defaults(cls, value):
@@ -575,25 +669,42 @@ class FleetPolicy:
         labels = set()
         for name, spec in scale_sets.items():
             validate_name(name, PROFILE_RE, "ARC scale-set route")
-            if not isinstance(spec, dict) or set(spec) != self.ARC_SCALE_SET_FIELDS:
+            if not isinstance(spec, dict) or set(spec) not in (
+                {"label", "profile"},
+                {"label", "attestation"},
+            ):
                 raise FleetError(
-                    f"ARC scale set {name!r} fields must equal "
-                    f"{sorted(self.ARC_SCALE_SET_FIELDS)}"
+                    f"ARC scale set {name!r} must name one profile or attestation"
                 )
             label = validate_name(spec["label"], PROFILE_RE, "ARC scale-set label")
-            profile_name = validate_name(
-                spec["profile"], PROFILE_RE, "ARC scale-set profile"
-            )
             if label in labels:
                 raise FleetError(
                     f"duplicate ARC scale-set label for {full_name}: {label}"
                 )
-            if profile_name not in self.profiles:
-                raise FleetError(
-                    f"unknown ARC scale-set profile for {full_name}: {profile_name}"
+            if "attestation" in spec:
+                attestation_name = validate_name(
+                    spec["attestation"], PROFILE_RE, "ARC scale-set attestation"
                 )
+                attestation = self.arc_attestations.get(attestation_name)
+                if (
+                    attestation is None
+                    or attestation["label"] != label
+                    or full_name not in attestation["repositories"]
+                ):
+                    raise FleetError(
+                        f"invalid ARC scale-set attestation for {full_name}: {attestation_name}"
+                    )
+                parsed[name] = {"label": label, "attestation": attestation_name}
+            else:
+                profile_name = validate_name(
+                    spec["profile"], PROFILE_RE, "ARC scale-set profile"
+                )
+                if profile_name not in self.profiles:
+                    raise FleetError(
+                        f"unknown ARC scale-set profile for {full_name}: {profile_name}"
+                    )
+                parsed[name] = {"label": label, "profile": profile_name}
             labels.add(label)
-            parsed[name] = {"label": label, "profile": profile_name}
         expected = expected_arc_scale_sets(full_name)
         if expected is not None and parsed != expected:
             raise FleetError(f"{full_name} ARC scale-set contract is invalid")

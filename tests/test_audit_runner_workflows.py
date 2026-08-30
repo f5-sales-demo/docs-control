@@ -31,7 +31,7 @@ class WorkflowAuditTests(unittest.TestCase):
         (self.root / ".github/workflows").mkdir(parents=True)
         self.policy = self.root / "policy.json"
         self.data: dict[str, Any] = {
-            "schema_version": 4,
+            "schema_version": 5,
             "docker": {
                 "socket": "/run/docker.sock",
                 "minimum_version": "29.2.1",
@@ -60,6 +60,8 @@ class WorkflowAuditTests(unittest.TestCase):
                     "docker_socket": True,
                 },
             },
+            "arc_attestations": {},
+            "restricted_routes": {},
             "hosted_exceptions": {},
             "repositories": {"f5-sales-demo/fixture": {}},
         }
@@ -99,6 +101,127 @@ class WorkflowAuditTests(unittest.TestCase):
             }
         }
         self.write_policy()
+
+    def use_provider_attested_routes(self):
+        repository = "f5-sales-demo/terraform-provider-xcsh"
+        digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:" + "a" * 64
+        self.data["arc_attestations"] = {
+            "terraform-provider-xcsh-d8": {
+                "label": "managed-socketless",
+                "runner_profile": "socketless",
+                "image": digest,
+                "vm_size": "Standard_D8ads_v5",
+                "cpu_limit": 7,
+                "memory_limit_bytes": 28 * 1024**3,
+                "docker_socket": False,
+                "repositories": [repository],
+            },
+            "terraform-provider-xcsh-d16": {
+                "label": "terraform-provider-xcsh-compute",
+                "runner_profile": "compute",
+                "image": digest,
+                "vm_size": "Standard_D16ads_v5",
+                "cpu_limit": 15,
+                "memory_limit_bytes": 56 * 1024**3,
+                "docker_socket": False,
+                "repositories": [repository],
+            },
+        }
+        self.data["restricted_routes"] = {
+            "terraform-provider-xcsh-compute": [
+                {
+                    "repository": repository,
+                    "workflow": ".github/workflows/workload-benchmark.yml",
+                    "job": "benchmark-d16",
+                }
+            ]
+        }
+        self.data["repositories"] = {
+            repository: {
+                "runner": {
+                    "arc_scale_sets": {
+                        "socketless": {
+                            "label": "managed-socketless",
+                            "attestation": "terraform-provider-xcsh-d8",
+                        },
+                        "container-build": {
+                            "label": "managed-container-build",
+                            "profile": "container-build",
+                        },
+                        "compute": {
+                            "label": "terraform-provider-xcsh-compute",
+                            "attestation": "terraform-provider-xcsh-d16",
+                        },
+                    }
+                }
+            }
+        }
+        self.write_policy()
+
+    def test_attested_compute_route_requires_exact_job_and_trust_guard(self):
+        self.use_provider_attested_routes()
+        repository = "f5-sales-demo/terraform-provider-xcsh"
+        workflow: dict[str, Any] = {
+            "name": "Benchmark",
+            "on": {"pull_request": {"types": ["labeled"]}},
+            "jobs": {
+                "benchmark-d16": {
+                    "if": MODULE.BENCHMARK_TRUST_GUARD,
+                    "runs-on": "terraform-provider-xcsh-compute",
+                    "steps": [{"run": True}],
+                }
+            },
+        }
+        path = self.root / ".github/workflows/workload-benchmark.yml"
+        path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+        self.assertEqual(self.audit(repository), [])
+
+        workflow["jobs"]["benchmark-d16"].pop("if")
+        path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+        self.assertTrue(
+            any("benchmark guard" in item for item in self.audit(repository))
+        )
+
+        workflow["jobs"] = {
+            "unauthorized": {
+                "if": MODULE.BENCHMARK_TRUST_GUARD,
+                "runs-on": "terraform-provider-xcsh-compute",
+                "steps": [{"run": True}],
+            }
+        }
+        path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+        self.assertTrue(
+            any("not allowlisted" in item for item in self.audit(repository))
+        )
+
+    def test_attested_compute_accepts_only_canonical_fork_safe_expression(self):
+        self.use_provider_attested_routes()
+        repository = "f5-sales-demo/terraform-provider-xcsh"
+        path = self.root / ".github/workflows/workload-benchmark.yml"
+        expression = MODULE.TRUSTED_COMPUTE_ROUTE_EXPRESSIONS[
+            "terraform-provider-xcsh-compute"
+        ]
+        workflow: dict[str, Any] = {
+            "name": "Benchmark",
+            "on": {"pull_request": {}},
+            "jobs": {
+                "benchmark-d16": {
+                    "runs-on": expression,
+                    "steps": [{"run": True}],
+                }
+            },
+        }
+        path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+        self.assertEqual(self.audit(repository), [])
+        for dynamic in (
+            "${{ matrix.runner }}",
+            "${{ github.event.inputs.runner }}",
+            expression.replace("ubuntu-latest", "managed-socketless"),
+        ):
+            workflow["jobs"]["benchmark-d16"]["runs-on"] = dynamic
+            path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+            with self.subTest(dynamic=dynamic):
+                self.assertTrue(self.audit(repository))
 
     def test_arc_routes_accept_only_scalar_contract_labels(self):
         self.use_xcsh_arc_routes()
