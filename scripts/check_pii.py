@@ -2157,6 +2157,7 @@ def scan_structured_identity(
             )
 
 
+# fmt: off
 def scan_jq_identity_writes(
     path: str,
     line_number: int,
@@ -2188,7 +2189,7 @@ def scan_jq_identity_writes(
                 message=f"{field.group('key')} contains a literal organization identifier",
             )
 
-
+# fmt: on
 # fmt: off
 def scan_multiline_identity_fields(
     path: str, text: str, findings: set[Finding]
