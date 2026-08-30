@@ -386,7 +386,46 @@ jobs:
             rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
             -config-file .github/actionlint.yaml
 
+      - name: Start Super-Linter profiler
+        id: super_linter_profile_start
+        continue-on-error: true
+        env:
+          SUPER_LINTER_IMAGE: ghcr.io/super-linter/super-linter:v8.7.0
+          SUPER_LINTER_DIGEST: sha256:c05768164eed53bac7c82aade7a14a76955206d4962cd41be97118db96fa5996
+        run: |
+          set -euo pipefail
+          profile_dir="$RUNNER_TEMP/workload-profile-super-linter"
+          rm -rf -- "$profile_dir"
+          install -d -m 0700 "$profile_dir"
+          RUNNER_TRACKING_ID='' docker-action-profile \
+            --name super-linter \
+            --image "$SUPER_LINTER_IMAGE" \
+            --expected-digest "$SUPER_LINTER_DIGEST" \
+            --output "$profile_dir/profile.json" \
+            --ready-file "$profile_dir/ready" \
+            --pid-file "$profile_dir/pid" \
+            --variant instrumentation \
+            --pair-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}" \
+            >/dev/null 2>"$profile_dir/profiler.stderr" &
+          profiler_pid=$!
+          printf '%s\n' "$profiler_pid" >"$profile_dir/launcher.pid"
+          for _ in $(seq 1 100); do
+            if [[ -f "$profile_dir/ready" ]]; then
+              exit 0
+            fi
+            if ! kill -0 "$profiler_pid" 2>/dev/null; then
+              wait "$profiler_pid"
+              exit $?
+            fi
+            sleep 0.1
+          done
+          kill -TERM "$profiler_pid" 2>/dev/null || true
+          echo "::error::Super-Linter profiler did not become ready"
+          exit 1
+
       - name: Run Super-Linter
+        id: super_linter
+        continue-on-error: true
         uses: super-linter/super-linter@4ce20838b8ab83717e78138c5b3a1407148e0918 # v8.7.0
         env:
           DEFAULT_BRANCH: main
@@ -523,6 +562,91 @@ jobs:
           VALIDATE_GO_MODULES: false
           VALIDATE_GO_REVIVE: false
 
+      - name: Finalize Super-Linter profile
+        id: super_linter_profile
+        if: always()
+        continue-on-error: true
+        env:
+          SUPER_LINTER_OUTCOME: ${{ steps.super_linter.outcome }}
+          SUPER_LINTER_DIGEST: sha256:c05768164eed53bac7c82aade7a14a76955206d4962cd41be97118db96fa5996
+        run: |
+          set -euo pipefail
+          profile_dir="$RUNNER_TEMP/workload-profile-super-linter"
+          profile="$profile_dir/profile.json"
+          schema=/usr/local/share/runner-profile/docker-action-profile.schema.json
+          if [[ -r "$profile_dir/launcher.pid" ]]; then
+            read -r profiler_pid <"$profile_dir/launcher.pid"
+            for _ in $(seq 1 150); do
+              [[ -s "$profile" ]] && break
+              kill -0 "$profiler_pid" 2>/dev/null || break
+              sleep 0.1
+            done
+            if [[ ! -s "$profile" ]] && kill -0 "$profiler_pid" 2>/dev/null; then
+              kill -TERM "$profiler_pid" 2>/dev/null || true
+              for _ in $(seq 1 50); do
+                [[ -s "$profile" ]] && break
+                sleep 0.1
+              done
+            fi
+          fi
+          if [[ ! -s "$profile" ]]; then
+            echo "::error::Super-Linter profiler did not produce an artifact"
+            exit 1
+          fi
+          node - "$profile" "$schema" "$SUPER_LINTER_OUTCOME" "$SUPER_LINTER_DIGEST" <<'NODE'
+          const fs = require('fs');
+          const Ajv2020 = require('/opt/spectral/node_modules/ajv/dist/2020').default;
+          const addFormats = require('/opt/spectral/node_modules/ajv-formats').default;
+          const [profilePath, schemaPath, actionOutcome, expectedDigest] = process.argv.slice(2);
+          const profile = JSON.parse(fs.readFileSync(profilePath, 'utf8'));
+          const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+          const ajv = new Ajv2020({allErrors: true, strict: true});
+          addFormats(ajv);
+          if (!ajv.validate(schema, profile)) {
+            throw new Error(`invalid Docker profile: ${ajv.errorsText(ajv.errors)}`);
+          }
+          if (profile.image.digest !== expectedDigest) {
+            throw new Error('profiled image digest does not match the pinned Super-Linter image');
+          }
+          if (actionOutcome === 'success' || actionOutcome === 'failure') {
+            if (profile.observer.result !== 'completed') {
+              throw new Error(`profiler did not observe action completion: ${profile.observer.result}`);
+            }
+            if (actionOutcome === 'success' && profile.exit.code !== 0) {
+              throw new Error('successful action has a nonzero profiled exit code');
+            }
+            if (actionOutcome === 'failure' && !(profile.exit.code > 0)) {
+              throw new Error('failed action lacks a nonzero profiled exit code');
+            }
+          }
+          NODE
+
+      - name: Upload Super-Linter profile
+        id: super_linter_profile_upload
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: workload-profile-super-linter
+          path: ${{ runner.temp }}/workload-profile-super-linter/profile.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Preserve Super-Linter conclusion
+        if: always()
+        env:
+          PROFILE_START_OUTCOME: ${{ steps.super_linter_profile_start.outcome }}
+          SUPER_LINTER_OUTCOME: ${{ steps.super_linter.outcome }}
+          PROFILE_FINALIZE_OUTCOME: ${{ steps.super_linter_profile.outcome }}
+          PROFILE_UPLOAD_OUTCOME: ${{ steps.super_linter_profile_upload.outcome }}
+        run: |
+          if [[ "$PROFILE_START_OUTCOME" != success ||
+            "$SUPER_LINTER_OUTCOME" != success ||
+            "$PROFILE_FINALIZE_OUTCOME" != success ||
+            "$PROFILE_UPLOAD_OUTCOME" != success ]]; then
+            echo "::error::Super-Linter or its required profiling evidence failed"
+            exit 1
+          fi
+
       - name: Spectral OpenAPI lint
         if: hashFiles('.spectral.yaml', '.spectral.yml') != ''
         uses: stoplightio/spectral-action@6416fd018ae38e60136775066eb3e98172143141 # v0.8.13
@@ -570,6 +694,10 @@ jobs:
       - name: Run linter-configs test
         if: hashFiles('tests/test-linter-configs.sh') != ''
         run: bash tests/test-linter-configs.sh
+
+      - name: Run Super-Linter profile contract test
+        if: hashFiles('tests/test-super-linter-profile.sh') != ''
+        run: bash tests/test-super-linter-profile.sh
 
       - name: Setup uv for workflow-security integration
         if: hashFiles('tests/test-workflow-security-validator-integration.sh') != ''
