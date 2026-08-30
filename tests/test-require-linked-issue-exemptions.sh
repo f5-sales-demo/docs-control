@@ -47,3 +47,21 @@ if [ "$wait_line" -ge "$merge_line" ]; then
   exit 1
 fi
 printf 'PASS: manifest publisher fails closed before auto-merge\n'
+normalizer="$root/scripts/normalize-check-run-response.jq"
+valid='{"total_count":0,"check_runs":[]}'
+[ "$(printf '%s' "$valid" | jq -c -f "$normalizer")" = "$valid" ]
+[ "$(printf '[%s]' "$valid" | jq -c -f "$normalizer")" = "$valid" ]
+for invalid in \
+  '[]' \
+  '[{"total_count":0,"check_runs":[]},{"total_count":0,"check_runs":[]}]' \
+  '[[]]' \
+  '{"total_count":1,"check_runs":[]}' \
+  '{"total_count":0,"check_runs":{}}' \
+  '{"total_count":101,"check_runs":[]}' \
+  '{"total_count":1,"check_runs":[{"name":"foreign"}]}'; do
+  if printf '%s' "$invalid" | jq -ce -f "$normalizer" >/dev/null 2>&1; then
+    echo 'FAIL: malformed check-run envelope was accepted' >&2
+    exit 1
+  fi
+done
+printf 'PASS: direct and single-wrapped check-run envelopes normalize fail closed\n'

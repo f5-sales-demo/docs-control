@@ -458,11 +458,8 @@ jobs:
               echo "[ERROR] Could not inventory linked-issue check receipts" >&2
               return 1
             fi
-            if ! printf '%s' "$response" | jq -e '
-              (.total_count | type == "number" and floor == . and . >= 0 and . <= 100) and
-              (.check_runs | type == "array" and length == .total_count) and
-              all(.check_runs[]; .name == "Check linked issues")
-            ' >/dev/null; then
+            if ! response=$(printf '%s' "$response" |
+              jq -ce -f scripts/normalize-check-run-response.jq); then
               echo "[ERROR] Linked-issue check receipt inventory is invalid or incomplete" >&2
               return 1
             fi
