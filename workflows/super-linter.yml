@@ -78,7 +78,7 @@ jobs:
       (github.repository != 'f5-sales-demo/xcsh' || needs.linked-issue.result == 'success')
     # No `secrets:` — least privilege. The reusable uses only the automatic
     # GITHUB_TOKEN, so passing repository secrets would over-provision it.
-    uses: f5-sales-demo/docs-control/.github/workflows/super-linter.yml@04bf6ff98d2adacd9e1c6128f00fdef11fb04a32
+    uses: f5-sales-demo/docs-control/.github/workflows/super-linter.yml@27d9e097a84457c51c04b63d25b07278dce21b88
     with:
       rust_edition: ${{ github.repository == 'f5-sales-demo/xcsh' && '2024' || '2021' }}
       classify_xc_minimum_configs: ${{ github.repository == 'f5-sales-demo/terraform-provider-xcsh' }}
