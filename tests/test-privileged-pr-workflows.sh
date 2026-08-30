@@ -27,7 +27,7 @@ for file in "$managed" "$central"; do
   require_literal "$file" '    types: [opened, reopened, edited, synchronize]' "${file#"$REPO_ROOT/"} covers link transitions"
   require_literal "$file" 'permissions: {}' "${file#"$REPO_ROOT/"} denies default workflow token permissions"
   require_literal "$file" 'github.event.pull_request.head.repo.full_name == github.repository' "${file#"$REPO_ROOT/"} skips fork pull requests"
-  require_literal "$file" '    name: Check linked issues' "${file#"$REPO_ROOT/"} emits the exact check context"
+  require_literal "$file" 'Check linked issues' "${file#"$REPO_ROOT/"} emits the exact check context"
   require_literal "$file" '    runs-on: managed-socketless' "${file#"$REPO_ROOT/"} routes to repository-scoped ARC"
   require_literal "$file" '      pull-requests: read' "${file#"$REPO_ROOT/"} grants pull-request read access"
   require_literal "$file" 'closingIssuesReferences(first: 1)' "${file#"$REPO_ROOT/"} queries only one closing issue"
@@ -72,18 +72,27 @@ for config in "$REPO_ROOT/.github/config/repo-settings.json" "$REPO_ROOT/.claude
   fi
 done
 
-require_literal "$central" '  workflow_dispatch:' 'central implementation exposes exact-receipt dispatch'
-require_literal "$central" 'pull_request_number:' 'central dispatch requires a PR number'
-require_literal "$central" 'expected_head_sha:' 'central dispatch requires an exact head SHA'
-require_literal "$central" 'pull.data.head.sha !== process.env.EXPECTED_HEAD_SHA' \
-  'central dispatch verifies the current PR head'
-require_literal "$central" 'pull.data.head.repo?.full_name !== `${owner}/${repo}`' \
-  'central dispatch verifies same-repository ownership'
-require_literal "$central" '      contents: read' 'central dispatch receives only the extra content read scope it needs'
-require_literal "$central" "  group: require-linked-issue-\${{ github.event_name }}-\${{ github.event.pull_request.number || inputs.pull_request_number }}-\${{ inputs.expected_head_sha || 'live' }}" \
-  'central implementation separates live PR and exact-receipt concurrency identities'
+reject_literal "$central" '  workflow_dispatch:' 'PR workflow cannot publish dispatched manifest receipts'
+require_literal "$central" "'Validate manifest receipt candidate' || 'Check linked issues'" \
+  'central PR workflow selects a non-required manifest candidate context'
+require_literal "$central" "startsWith(github.event.pull_request.head.ref, 'sync/manifest-')" \
+  'central PR workflow isolates immutable manifest branches'
+require_literal "$central" 'Manifest candidate is not one exact manifest-only commit' \
+  'central PR workflow validates candidate ancestry and diff shape'
+require_literal "$central" '      contents: read' \
+  'central PR workflow can inspect manifest candidate ancestry'
+require_literal "$central" '  group: require-linked-issue-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}' \
+  'central PR workflow serializes each exact pull request head'
 require_literal "$central" '  cancel-in-progress: true' \
-  'central implementation cancels only superseded matching checks'
+  'central PR workflow cancels only superseded matching checks'
+attestor="$REPO_ROOT/.github/workflows/attest-manifest-linked-issue.yml"
+require_literal "$attestor" '  workflow_dispatch:' 'protected-main attestor exposes explicit dispatch'
+require_literal "$attestor" 'expected_source_sha:' 'attestor requires an exact source SHA'
+require_literal "$attestor" 'expected_head_sha:' 'attestor requires an exact head SHA'
+require_literal "$attestor" '      checks: write' 'attestor alone can publish the required receipt'
+require_literal "$attestor" 'filter: "all"' 'attestor inventories all duplicate receipts'
+require_literal "$attestor" 'external_id: externalId' 'attestor binds a deterministic external receipt'
+reject_literal "$attestor" 'actions/checkout' 'attestor does not execute pull request content'
 if jq -e '[.hosted_exceptions | to_entries[] |
   select(.value[".github/workflows/require-linked-issue.yml"] != null)] | length == 0' \
   "$REPO_ROOT/.github/config/self-hosted-runner-policy.json" >/dev/null; then
