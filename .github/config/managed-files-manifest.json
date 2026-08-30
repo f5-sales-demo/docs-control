@@ -1,5 +1,5 @@
 {
-  "source_commit": "48a41061805993618c3101711e134587051ef66c",
+  "source_commit": "4e014ded35ae543e6be27eba8ed98cbea7ec2627",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -452,22 +452,22 @@
     "scripts/workflow-security-validator.py": {
       "src": "scripts/workflow-security-validator.py",
       "dest": "scripts/workflow-security-validator.py",
-      "sha": "6d45e98b42f98414ec504eb88facb3a07811b801",
-      "size": 38665,
+      "sha": "cad6cc250a76dc2fc6fe36e2783aaef5bcc85f0f",
+      "size": 45409,
       "mode": "100755"
     },
     "scripts/audit-runner-workflows.py": {
       "src": "scripts/audit-runner-workflows.py",
       "dest": "scripts/audit-runner-workflows.py",
-      "sha": "9ebe86a05223c623555521d80b479547777822a9",
-      "size": 28423,
+      "sha": "1953c11435dfce4fea32af909a8d35fc86909cf8",
+      "size": 34860,
       "mode": "100755"
     },
     ".github/config/self-hosted-runner-policy.json": {
       "src": ".github/config/self-hosted-runner-policy.json",
       "dest": ".github/config/self-hosted-runner-policy.json",
-      "sha": "2fcb48055fa5e34d035ff5ac58596df8be284783",
-      "size": 36620,
+      "sha": "c8841faf1a83e23ca950c8cdab889cb4ddcc5588",
+      "size": 37837,
       "mode": "100644"
     },
     ".github/workflows/semgrep.yml": {
