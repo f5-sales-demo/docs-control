@@ -189,11 +189,18 @@ for infra_file in ".claude/governance.json" ".claude/settings.json" ".claude/hoo
 done
 
 # Test 3.3: governance.json includes dynamically managed files
-for dynamic_file in "README.md" ".github/dependabot.yml"; do
-  if grep -qxF "$dynamic_file" <<<"$PROTECTED_FILES"; then
-    pass "3.3 governance.json protects dynamic file $dynamic_file"
+dynamic_file="README.md"
+if grep -qxF "$dynamic_file" <<<"$PROTECTED_FILES"; then
+  pass "3.3 governance.json protects dynamic file $dynamic_file"
+else
+  fail "3.3 governance.json protects dynamic file $dynamic_file" "not found"
+fi
+for retired_file in ".github/dependabot.yml" ".github/workflows/dependabot-auto-merge.yml"; do
+  if ! grep -qxF "$retired_file" <<<"$PROTECTED_FILES" &&
+    jq -e --arg path "$retired_file" '.managed_files.absent_files | index($path) != null' "$REPO_SETTINGS" >/dev/null; then
+    pass "3.3 governance retires and requires absence for $retired_file"
   else
-    fail "3.3 governance.json protects dynamic file $dynamic_file" "not found"
+    fail "3.3 governance retires $retired_file" "still protected or not absent"
   fi
 done
 
@@ -252,10 +259,10 @@ done
 
 # Test 3.6: every skip_files[repo] entry references a real managed file. A repo
 # may opt out of a STATIC managed file (managed_files.files[].dest) OR a
-# DYNAMICALLY managed file (README.md, .github/dependabot.yml — generated per
+# DYNAMICALLY managed file (README.md — generated per
 # repo by the sync, so they are not listed in managed_files.files).
 SKIP_ENTRIES=$(jq -r '.managed_files.skip_files // {} | to_entries[] | .value[]' "$REPO_SETTINGS" | sort -u)
-VALID_SKIP_TARGETS=$(printf '%s\nREADME.md\n.github/dependabot.yml\n' "$MANAGED_DESTS" | sort -u)
+VALID_SKIP_TARGETS=$(printf '%s\nREADME.md\n' "$MANAGED_DESTS" | sort -u)
 MISSING_FROM_MANAGED=""
 while IFS= read -r entry; do
   [ -z "$entry" ] && continue
@@ -464,7 +471,6 @@ PROTECTED_TEST_CASES=(
   ".editorconfig"
   "LICENSE"
   "README.md"
-  ".github/dependabot.yml"
   ".claude/settings.json"
   ".claude/governance.json"
   ".claude/hooks/protect-managed-files.sh"

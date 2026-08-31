@@ -1,5 +1,5 @@
 {
-  "_comment": "Central repo-settings config \u2014 enforced by reconcile-fleet-settings.yml",
+  "_comment": "Central repo-settings config — enforced by reconcile-fleet-settings.yml",
   "_last_verified": "2026-02-16",
   "repository": {
     "private": false,
@@ -87,23 +87,59 @@
     },
     "api-specs": {
       "additional_contexts": ["Workflow security audit", "Python test suite"]
+    },
+    "docs-icons": {
+      "additional_contexts": ["Generated artifact release"]
     }
   },
   "consumer_shell_tests": {
     "profiles": {
       "devcontainer": {
         "unit": [
-          { "path": "tests/test-agy-pre-push-review.sh", "args": [] },
-          { "path": "tests/test-check-pii.sh", "args": [] },
-          { "path": "tests/test-check-repo-hygiene.sh", "args": [] },
-          { "path": "tests/test-fetch-governed.sh", "args": [] },
-          { "path": "tests/test-github-api-resilience.sh", "args": [] },
-          { "path": "tests/test-hook-neutralization.sh", "args": ["--unit-only"] },
-          { "path": "tests/test-inlined-helpers-match.sh", "args": [] },
-          { "path": "tests/test-lint-mdx-prose.sh", "args": [] },
-          { "path": "tests/test-review-plugin-removal.sh", "args": [] },
-          { "path": "tests/test-translation-release-policy.sh", "args": [] },
-          { "path": "tests/test-validate-translations.sh", "args": [] }
+          {
+            "path": "tests/test-agy-pre-push-review.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-check-pii.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-check-repo-hygiene.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-fetch-governed.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-github-api-resilience.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-hook-neutralization.sh",
+            "args": ["--unit-only"]
+          },
+          {
+            "path": "tests/test-inlined-helpers-match.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-lint-mdx-prose.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-review-plugin-removal.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-translation-release-policy.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-validate-translations.sh",
+            "args": []
+          }
         ],
         "environment": [
           {
@@ -130,15 +166,17 @@
   "managed_files": {
     "source_repo": "f5-sales-demo/docs-control",
     "absent_files": [
-      "actionlint.yml",
+      ".agents/skills/i18n-translate/SKILL.md",
+      ".github/dependabot.yml",
+      ".github/workflows/antigravity-translate.yml",
       ".github/workflows/claude-review.yml",
       ".github/workflows/code-review.yml",
+      ".github/workflows/dependabot-auto-merge.yml",
+      ".github/workflows/enforce-repo-settings.yml",
+      "actionlint.yml",
       "scripts/antigravity-translate-staged.sh",
       "scripts/parse-translation-trigger.sh",
-      "tests/test-antigravity-translate-staged.sh",
-      ".github/workflows/antigravity-translate.yml",
-      ".agents/skills/i18n-translate/SKILL.md",
-      ".github/workflows/enforce-repo-settings.yml"
+      "tests/test-antigravity-translate-staged.sh"
     ],
     "skip_files": {
       "xcsh": [
@@ -148,7 +186,6 @@
         ".python-lint",
         ".mypy.ini",
         ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/semgrep.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
@@ -162,7 +199,6 @@
       "vscode-xcsh": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg", "README.md"],
       "docs": [
         ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
         ".github/workflows/require-linked-issue.yml",
@@ -171,7 +207,6 @@
       ],
       "docs-builder": [
         ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
         ".github/workflows/require-linked-issue.yml",
@@ -179,17 +214,13 @@
         ".github/workflows/super-linter.yml"
       ],
       "docs-icons": [
-        ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
-        ".github/workflows/require-linked-issue.yml",
         ".github/workflows/github-pages-deploy.yml",
         ".github/workflows/super-linter.yml"
       ],
       "docs-theme": [
         ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
         ".github/workflows/require-linked-issue.yml",
@@ -202,7 +233,6 @@
         ".isort.cfg",
         "README.md",
         ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
         ".github/workflows/require-linked-issue.yml",
@@ -218,7 +248,6 @@
       "starlight-llms-txt": [
         "README.md",
         ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
         ".github/workflows/require-linked-issue.yml",
@@ -316,10 +345,6 @@
       {
         "src": ".markdownlint.json",
         "dest": ".markdownlint.json"
-      },
-      {
-        "src": "workflows/dependabot-auto-merge.yml",
-        "dest": ".github/workflows/dependabot-auto-merge.yml"
       },
       {
         "src": "workflows/auto-merge.yml",

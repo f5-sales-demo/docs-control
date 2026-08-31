@@ -1,6 +1,6 @@
 ---
 title: File Synchronization
-description: Managed file synchronization, dynamic dependabot.yml generation, and README templating across the ecosystem.
+description: Managed present-file receipts, required absence, and README templating across the ecosystem.
 sidebar:
   order: 5
 ---
@@ -21,15 +21,16 @@ The managed files manifest includes:
 - `CONTRIBUTING.md`, `CLAUDE.md`, `AGENTS.md`, `STYLE_GUIDE.md`, `.editorconfig`, `.gitignore`, `LICENSE`
 - `.pre-commit-config.yaml`
 
-## Dynamic dependabot.yml generation
+## Managed absence
 
-The workflow detects which package ecosystems exist in the downstream repository:
+The manifest includes a sorted `absent_paths` list and a canonical state digest covering both
+present-file receipts and required absence. Reconciliation rejects disagreement between the central
+configuration and manifest, updates present files only when their Git blob SHA differs, and deletes
+every required-absent path that exists downstream.
 
-- `npm` -- `package.json` exists
-- `pip` -- `requirements.txt`, `pyproject.toml`, or `setup.py` exists
-- `docker` -- `Dockerfile` exists
-
-It generates a `.github/dependabot.yml` with a `github-actions` ecosystem entry (always included) plus entries for each detected ecosystem. All ecosystems use weekly Monday schedules with conventional commit prefixes and minor/patch grouping.
+Dependency automation is owned by the self-hosted organization Renovate App. Repository-local
+Dependabot configuration and its auto-merge workflow are required absent; they are not generated or
+restored by reconciliation.
 
 ## Dynamic README.md generation
 

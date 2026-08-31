@@ -46,7 +46,9 @@ Copy the caller workflow templates from `workflows/` in docs-control into the ne
 - `antigravity-review.yml` -- triggers Antigravity AI PR code review
 - `antigravity-translate.yml` -- triggers Antigravity AI language translation
 - `super-linter.yml` -- runs the super-linter suite on PRs
-- `dependabot-auto-merge.yml` -- auto-merges green dependabot PRs
+
+Dependency automation requires no repository-local caller: the organization-owned Renovate App
+selects governed repositories centrally.
 
 These files are also synced automatically by the [file sync workflow](./file-sync/), but installing them manually bootstraps the process.
 

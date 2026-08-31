@@ -5,18 +5,23 @@ node - "$root/scripts/fleet-reconciler.cjs" <<'NODE'
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {ACTIVE_PR_LIMIT, ATTESTED_CONTEXTS, ApiQueue, aggregateProtection, assertAttestableRecovery, attestationContexts, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, parseSelection, reconcileContent, requireSha, settingsDelta} = require(process.argv[2]);
+const {ACTIVE_PR_LIMIT, ATTESTED_CONTEXTS, ApiQueue, aggregateProtection, assertAttestableRecovery, attestationContexts, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, reconcileContent, requireSha, settingsDelta, validateManifest} = require(process.argv[2]);
 (async () => {
 const sha = 'a'.repeat(40);
+const makeManifest = (files, absent_paths = []) => ({schema_version:2,source_commit:sha,files,absent_paths,state_digest:manifestStateDigest(files,absent_paths)});
+assert.equal(manifestStateDigest([{path:'a',src:'a',sha,size:1,mode:'100644'}], ['retired']), 'sha256:47c0b77c8b70000308f8bea71916953a269e66b98a35361ed8c6382b554149a4');
 assert.equal(requireSha(sha), sha);
 assert.equal(managedCommitMessage(sha), `chore: reconcile governed files @ ${sha.slice(0,12)} [skip ci]`);
 assert.throws(() => requireSha('short'));
 assert.deepEqual(parseSelection('one,two', ['one', 'two']), ['one', 'two']);
 assert.throws(() => parseSelection('missing', ['one']));
 const config = {managed_files:{files:[{src:'a',dest:'a'},{src:'b',dest:'b',only_repos:['one']}],absent_files:['retired'],skip_files:{two:['a']}}};
-const manifest = {files:{a:{src:'a',sha,size:1,mode:'100644'},b:{src:'b',sha:'b'.repeat(40),size:1,mode:'100755'}}};
+const manifest = makeManifest([{path:'a',src:'a',sha,size:1,mode:'100644'},{path:'b',src:'b',sha:'b'.repeat(40),size:1,mode:'100755'}], ['retired']);
 assert.deepEqual(desiredEntries(config, manifest, 'one').files.map(x => x.path), ['a','b']);
 assert.deepEqual(desiredEntries(config, manifest, 'two').files.map(x => x.path), []);
+assert.throws(() => validateManifest(config, {...manifest,state_digest:`sha256:${'0'.repeat(64)}`}), /state digest/);
+assert.throws(() => validateManifest(config, {...manifest,absent_paths:[]}), /configuration and manifest/);
+assert.throws(() => validateManifest(config, makeManifest(manifest.files, ['a','retired'])), /sorted and unique/);
 assert.deepEqual(contentDiff({tree:[{path:'a',type:'blob',sha:'c'.repeat(40),mode:'100644'},{path:'retired',type:'blob',sha:sha,mode:'100644'}]}, desiredEntries(config, manifest, 'one')).map(x => x.action), ['upsert','upsert','delete']);
 assert.deepEqual(settingsDelta({has_issues:true,has_wiki:true}, {has_issues:true,has_wiki:false}), {has_wiki:false});
 const protection = desiredProtection({branch_protection:[{branch:'main',enforce_admins:true,required_status_checks:{strict:true,contexts:['lint / Lint'],self_contexts:['Lint']},required_pull_request_reviews:null,restrictions:null,required_linear_history:false,allow_force_pushes:false,allow_deletions:false,block_creations:false,required_conversation_resolution:false,lock_branch:false,allow_fork_syncing:false}],repo_overrides:{one:{additional_contexts:['Extra']}}}, 'one');
@@ -25,6 +30,7 @@ assert.deepEqual(protection.required_status_checks.checks, [{context:'Extra',app
 const attestedProtection = desiredProtection({branch_protection:[{branch:'main',enforce_admins:true,required_status_checks:{strict:true,contexts:['Check linked issues','lint / Lint Code Base','lint / Shell Unit Tests']},required_pull_request_reviews:null,restrictions:null}]}, 'one');
 assert.deepEqual(attestedProtection.required_status_checks.checks, [{context:'Check linked issues',app_id:-1},{context:'lint / Lint Code Base',app_id:-1},{context:'lint / Shell Unit Tests',app_id:-1}]);
 const canonicalSettings = JSON.parse(fs.readFileSync(path.join(path.dirname(process.argv[2]), '..', '.github/config/repo-settings.json'), 'utf8'));
+assert.deepEqual(attestationContexts(canonicalSettings, 'docs-icons'), ['Check linked issues','Generated artifact release','lint / Lint Code Base','lint / Shell Unit Tests']);
 const xcshProtection = desiredProtection(canonicalSettings, 'xcsh');
 assert.deepEqual(xcshProtection.required_status_checks.checks, [
   {context:'Check linked issues',app_id:-1}, {context:'lint / Lint Code Base',app_id:-1}, {context:'lint / Shell Unit Tests',app_id:-1},
@@ -62,7 +68,8 @@ const fleetApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.MAX_
   else if (route.endsWith('/pulls')) data = {number:1,node_id:'P'};
   return new Response(JSON.stringify(data), {status:200});
 }});
-const admission = await reconcileContent({api:fleetApi, owner:'f5', sourceSha:sha, mode:'full', inventory:['one','two','three'], selection:'', sourceRoot:process.cwd(), manifest:{files:{README:{src:'README.md',sha,mode:'100644'}}}, config:{managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}},branch_protection:[{branch:'main',required_status_checks:{strict:true,contexts:['Check linked issues','lint / Lint Code Base','lint / Shell Unit Tests']}}],repo_overrides:{one:{additional_contexts:['Extra']}}}});
+const oneFileManifest=makeManifest([{path:'README',src:'README.md',sha,size:1,mode:'100644'}]);
+const admission = await reconcileContent({api:fleetApi, owner:'f5', sourceSha:sha, mode:'full', inventory:['one','two','three'], selection:'', sourceRoot:process.cwd(), manifest:oneFileManifest, config:{managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}},branch_protection:[{branch:'main',required_status_checks:{strict:true,contexts:['Check linked issues','lint / Lint Code Base','lint / Shell Unit Tests']}}],repo_overrides:{one:{additional_contexts:['Extra']}}}});
 assert.equal(admission.repositories.filter((entry) => entry.status === 'created').length, 2);
 assert.equal(admission.repositories.find((entry) => entry.repo === 'three').status, 'deferred-capacity');
 assert.equal(writes.filter((route) => route.endsWith('/pulls')).length, 2);
@@ -87,7 +94,7 @@ const recoveryApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.M
   else if (route.includes('/git/trees/')) data={tree:[]};
   return new Response(JSON.stringify(data),{status:200});
 }});
-const recovered = await reconcileContent({api:recoveryApi, owner:'f5', sourceSha:sha, mode:'full', inventory:['one','two','three'], selection:'', sourceRoot:process.cwd(), manifest:{files:{README:{src:'README.md',sha,mode:'100644'}}}, config:{managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}}}});
+const recovered = await reconcileContent({api:recoveryApi, owner:'f5', sourceSha:sha, mode:'full', inventory:['one','two','three'], selection:'', sourceRoot:process.cwd(), manifest:oneFileManifest, config:{managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}}}});
 assert.deepEqual(recovered.repositories.map(x => x.status), ['recovered','recovered','deferred-capacity']);
 assert.equal(recoveryWrites.filter(route => route.includes('/statuses/')).length, 6);
 assert.equal(recoveryWrites.filter(route => route.endsWith('/pulls')).length, 0);

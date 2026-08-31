@@ -110,7 +110,6 @@ routes = {
 }
 managed = {
     ".github/workflows/auto-merge.yml",
-    ".github/workflows/dependabot-auto-merge.yml",
     ".github/workflows/translation-audit.yml",
     ".github/workflows/workflow-security-audit.yml",
     ".github/workflows/require-linked-issue.yml",
@@ -123,7 +122,12 @@ for repo in cohort:
     assert policy["repositories"][repository]["runner"] == {"arc_scale_sets": routes}
     assert repository not in legacy
     expected = set(managed)
-    if repo == "i18n-core":
+    if repo == "docs-icons":
+        expected -= {
+            ".github/workflows/auto-merge.yml",
+            ".github/workflows/require-linked-issue.yml",
+        }
+    elif repo == "i18n-core":
         expected |= {
             ".ruff.toml", ".mypy.ini", ".isort.cfg", "README.md",
             ".github/workflows/semgrep.yml",
