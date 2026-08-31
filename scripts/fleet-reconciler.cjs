@@ -12,7 +12,6 @@ const SHA = /^[0-9a-f]{40}$/;
 const MODES = new Set(['dry-run', 'pilot', 'full']);
 const ACTIVE_PR_LIMIT = 2;
 const WRITE_GAP_MS = 1000;
-const ATTESTED_CONTEXTS = ['Check linked issues', 'lint / Lint Code Base', 'lint / Shell Unit Tests'];
 
 function fail(message) {
   throw new Error(message);
@@ -162,21 +161,6 @@ async function activeGovernancePrs(api, owner, inventory) {
   return active;
 }
 
-async function attestManagedCommit(api, { owner, repo, sha, sourceSha, contexts }) {
-  for (const context of contexts) {
-    await api.request(`repos/${owner}/${repo}/statuses/${sha}`, {
-      method: 'POST',
-      body: {
-        state: 'success',
-        context,
-        description: `Canonical managed tree verified @ ${sourceSha.slice(0, 12)}`,
-        target_url: `https://github.com/${owner}/docs-control/commit/${sourceSha}`,
-      },
-      operationName: `attest ${context} for ${repo}`,
-    });
-  }
-}
-
 async function enableManagedAutoMerge(api, repo, pullRequestId) {
   await api.request('graphql', {
     method: 'POST',
@@ -202,7 +186,7 @@ function assertAttestableRecovery({ pr, note, changes, files, headTree, desired 
 
 async function createContentPr(
   api,
-  { owner, repo, sourceSha, desiredTree, desired, contexts, baseSha, changes, sourceRoot, mode, capacityAvailable },
+  { owner, repo, sourceSha, desiredTree, desired, baseSha, changes, sourceRoot, mode, capacityAvailable },
 ) {
   const branch = branchName(sourceSha, repo);
   const note = marker(sourceSha, desiredTree);
@@ -220,7 +204,6 @@ async function createContentPr(
     });
     assertAttestableRecovery({ pr: recovered, note, changes, files, headTree, desired });
     await enableManagedAutoMerge(api, repo, recovered.node_id);
-    await attestManagedCommit(api, { owner, repo, sha: recovered.head.sha, sourceSha, contexts });
     return { status: 'recovered', pr: recovered.number };
   }
   if (mode === 'dry-run') return { status: 'would-create', changes: changes.length };
@@ -272,7 +255,6 @@ async function createContentPr(
     operationName: `create reconciliation PR for ${repo}`,
   });
   await enableManagedAutoMerge(api, repo, pr.node_id);
-  await attestManagedCommit(api, { owner, repo, sha: commit.sha, sourceSha, contexts });
   return { status: 'created', pr: pr.number, changes: changes.length };
 }
 
@@ -303,7 +285,6 @@ async function reconcileContent(options) {
       sourceSha,
       desiredTree,
       desired,
-      contexts: attestationContexts(config, repo),
       baseSha: main.sha,
       changes,
       sourceRoot,
@@ -360,13 +341,6 @@ function desiredProtection(config, repo) {
     lock_branch: base.lock_branch,
     allow_fork_syncing: base.allow_fork_syncing,
   };
-}
-function attestationContexts(config, repo) {
-  return (
-    desiredProtection(config, repo)?.required_status_checks?.checks.map((check) => check.context) || [
-      ...ATTESTED_CONTEXTS,
-    ]
-  );
 }
 function currentProtection(protection) {
   const enabled = (value) => (typeof value === 'object' ? Boolean(value.enabled) : Boolean(value));
@@ -565,11 +539,9 @@ if (require.main === module)
 
 module.exports = {
   ACTIVE_PR_LIMIT,
-  ATTESTED_CONTEXTS,
   ApiQueue,
   aggregateProtection,
   assertAttestableRecovery,
-  attestationContexts,
   contentDiff,
   currentProtection,
   desiredEntries,
