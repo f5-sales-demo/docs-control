@@ -856,6 +856,10 @@ jobs:
         if: hashFiles('tests/test-fleet-reconciler.sh') != ''
         run: bash tests/test-fleet-reconciler.sh
 
+      - name: Run GitHub Pages import staging test
+        if: hashFiles('tests/test-github-pages-imports.sh') != ''
+        run: bash tests/test-github-pages-imports.sh
+
       - name: Run pr-author-trusted gate test
         if: hashFiles('tests/test-pr-author-trusted.sh') != ''
         run: bash tests/test-pr-author-trusted.sh

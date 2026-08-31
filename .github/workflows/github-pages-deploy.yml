@@ -167,21 +167,59 @@ jobs:
         env:
           CONTENT_PATH: ${{ inputs.content-path || 'docs' }}
         run: |
+          set -euo pipefail
           if [[ ! "$CONTENT_PATH" =~ ^[A-Za-z0-9._/-]+$ ]] ||
             [[ "$CONTENT_PATH" == /* ]] || [[ "$CONTENT_PATH" == *..* ]]; then
             echo "::error::content-path must be a safe relative repository path"
             exit 1
           fi
+          trim() {
+            local value="$1"
+            value="${value#"${value%%[![:space:]]*}"}"
+            value="${value%"${value##*[![:space:]]}"}"
+            printf '%s' "$value"
+          }
+          safe_relative_file() {
+            local path="$1" component
+            [ -n "$path" ] && [[ "$path" != /* ]] && [[ "$path" != */ ]] || return 1
+            IFS=/ read -r -a components <<<"$path"
+            for component in "${components[@]}"; do
+              [ -n "$component" ] && [ "$component" != "." ] && [ "$component" != ".." ] || return 1
+            done
+          }
           IMPORTS="${CONTENT_PATH}/_imports"
           DATA_DIR="${CONTENT_PATH}/_data"
           if [ -f "$IMPORTS" ]; then
             mkdir -p "$DATA_DIR"
-            while IFS= read -r file; do
-              [ -z "$file" ] || [ "${file:0:1}" = "#" ] && continue
-              if [ -f "$file" ]; then
-                cp "$file" "$DATA_DIR/"
-                echo "Staged: $file"
+            while IFS= read -r line || [ -n "$line" ]; do
+              line=$(trim "$line")
+              if [ -z "$line" ] || [[ "$line" == "#"* ]]; then
+                continue
               fi
+              if [[ "$line" == *"->"* ]]; then
+                source_path=$(trim "${line%%->*}")
+                destination=$(trim "${line#*->}")
+                if [[ "$destination" == *"->"* ]]; then
+                  echo "::error::docs/_imports entry has multiple -> delimiters: $line"
+                  exit 1
+                fi
+              else
+                source_path="$line"
+                destination=$(basename -- "$source_path")
+              fi
+              if ! safe_relative_file "$source_path" || ! safe_relative_file "$destination"; then
+                echo "::error::docs/_imports entry must use non-empty safe relative file paths: $line"
+                exit 1
+              fi
+              [ -f "$source_path" ] || continue
+              target="$DATA_DIR/$destination"
+              if [ -e "$target" ]; then
+                echo "::error::docs/_imports destination is duplicated: $destination"
+                exit 1
+              fi
+              mkdir -p "$(dirname -- "$target")"
+              cp -- "$source_path" "$target"
+              echo "Staged: $source_path -> $destination"
             done < "$IMPORTS"
           fi
 
