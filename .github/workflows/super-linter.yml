@@ -645,6 +645,9 @@ jobs:
         id: spectral
         if: hashFiles('.spectral.yaml', '.spectral.yml') != ''
         env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || '' }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           NODE_OPTIONS: --max-old-space-size=4096
         continue-on-error: true
         run: |
@@ -663,7 +666,30 @@ jobs:
           fi
           candidate_manifest="$RUNNER_TEMP/spectral-candidates"
           target_manifest="$RUNNER_TEMP/spectral-targets"
-          git ls-files -z -- '*.json' '*.yaml' '*.yml' >"$candidate_manifest"
+          case "$EVENT_NAME" in
+            pull_request)
+              if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] ||
+                [[ ! "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+                echo "::error::pull-request Spectral discovery requires exact base and head SHAs"
+                exit 1
+              fi
+              if ! git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null ||
+                ! git cat-file -e "$HEAD_SHA^{commit}" 2>/dev/null; then
+                echo "::error::Spectral discovery cannot resolve the pull-request base/head"
+                exit 1
+              fi
+              git diff --name-only --diff-filter=ACMR -z \
+                "$BASE_SHA" "$HEAD_SHA" -- '*.json' '*.yaml' '*.yml' \
+                >"$candidate_manifest"
+              ;;
+            workflow_dispatch)
+              git ls-files -z -- '*.json' '*.yaml' '*.yml' >"$candidate_manifest"
+              ;;
+            *)
+              echo "::error::unsupported event for Spectral discovery: $EVENT_NAME"
+              exit 1
+              ;;
+          esac
           # BEGIN OPENAPI DISCOVERY
           python3 - "$candidate_manifest" "$target_manifest" <<'PYDISCOVERY'
           import json

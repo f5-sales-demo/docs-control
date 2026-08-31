@@ -124,7 +124,12 @@ spectral = by_name["Run native Spectral OpenAPI lint"]
 assert spectral["id"] == "spectral"
 assert spectral["if"] == "hashFiles('.spectral.yaml', '.spectral.yml') != ''"
 assert spectral.get("continue-on-error") is True
-assert spectral["env"] == {"NODE_OPTIONS": "--max-old-space-size=4096"}
+assert spectral["env"] == {
+    "BASE_SHA": "${{ github.event.pull_request.base.sha || '' }}",
+    "EVENT_NAME": "${{ github.event_name }}",
+    "HEAD_SHA": "${{ github.event.pull_request.head.sha || github.sha }}",
+    "NODE_OPTIONS": "--max-old-space-size=4096",
+}
 for fragment in (
     "spectral --version",
     '!= "6.16.3"',
@@ -136,6 +141,8 @@ for fragment in (
     "--format github-actions",
     "--fail-severity error",
     "git ls-files -z -- '*.json' '*.yaml' '*.yml'",
+    "git diff --name-only --diff-filter=ACMR -z",
+    'case "$EVENT_NAME" in',
     "BEGIN OPENAPI DISCOVERY",
     "END OPENAPI DISCOVERY",
     'mapfile -d \'\' -t spectral_files',
@@ -220,10 +227,26 @@ with tempfile.TemporaryDirectory() as directory:
 with tempfile.TemporaryDirectory() as directory:
     root = Path(directory)
     (root / ".spectral.yaml").write_text("extends: spectral:oas\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.com"], cwd=root, check=True
+    )
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
+    (root / "unchanged.json").write_text('{"openapi":"3.1.0"}', encoding="utf-8")
+    (root / "deleted.json").write_text('{"openapi":"3.1.0"}', encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-qm", "base"], cwd=root, check=True)
+    base_sha = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=root, text=True
+    ).strip()
     (root / "api.json").write_text('{"openapi":"3.1.0"}', encoding="utf-8")
     (root / "-api.yaml").write_text("swagger: '2.0'\n", encoding="utf-8")
-    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    (root / "deleted.json").unlink()
+    subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-qm", "candidate"], cwd=root, check=True)
+    head_sha = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"], cwd=root, text=True
+    ).strip()
     bin_dir = root / "bin"
     bin_dir.mkdir()
     args_file = root / "spectral-args"
@@ -249,6 +272,9 @@ with tempfile.TemporaryDirectory() as directory:
         "GITHUB_RUN_ATTEMPT": "1",
         "GITHUB_JOB": "lint",
         "SPECTRAL_ARGS_FILE": str(args_file),
+        "BASE_SHA": base_sha,
+        "EVENT_NAME": "pull_request",
+        "HEAD_SHA": head_sha,
     }
     (root / "runner-temp").mkdir()
     result = subprocess.run(
@@ -259,6 +285,34 @@ with tempfile.TemporaryDirectory() as directory:
         b"lint", b"--ruleset", b".spectral.yaml", b"--format", b"github-actions",
         b"--fail-severity", b"error", b"./-api.yaml", b"./api.json",
     ]
+
+    env["EVENT_NAME"] = "workflow_dispatch"
+    args_file.unlink()
+    result = subprocess.run(
+        ["bash", "-c", spectral["run"]],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert args_file.read_bytes().split(b"\0")[:-1] == [
+        b"lint", b"--ruleset", b".spectral.yaml", b"--format", b"github-actions",
+        b"--fail-severity", b"error", b"./-api.yaml", b"./api.json",
+        b"./unchanged.json",
+    ]
+
+    env.update(EVENT_NAME="pull_request", BASE_SHA="not-a-sha")
+    args_file.unlink()
+    result = subprocess.run(
+        ["bash", "-c", spectral["run"]],
+        cwd=root,
+        env=env,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert not args_file.exists()
 
 spectral_profile = by_name["Validate Spectral profile"]
 assert spectral_profile["id"] == "spectral_profile"
