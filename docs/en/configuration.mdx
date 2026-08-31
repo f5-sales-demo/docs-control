@@ -199,5 +199,8 @@ Defines the file synchronization manifest:
 
 - `source_repo` -- the repository that holds canonical versions of managed files (`f5-sales-demo/docs-control`)
 - `files` -- an array of `{src, dest}` objects mapping source paths in docs-control to destination paths in downstream repositories
+- `absent_files` -- sorted paths that reconciliation must delete and keep absent downstream
 
-The [file sync workflow](./file-sync/) iterates this array to detect and correct drift. Files not listed here (like `dependabot.yml` and `README.md`) are generated dynamically rather than synced from static sources.
+The [file sync workflow](./file-sync/) validates the configuration against the sorted manifest
+receipts, detects content drift by Git blob SHA, and enforces every required absence. `README.md`
+remains dynamically generated rather than synced from a static source.

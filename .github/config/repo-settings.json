@@ -1,5 +1,5 @@
 {
-  "_comment": "Central repo-settings config \u2014 enforced by reconcile-fleet-settings.yml",
+  "_comment": "Central repo-settings config — enforced by reconcile-fleet-settings.yml",
   "_last_verified": "2026-02-16",
   "repository": {
     "private": false,
@@ -33,8 +33,16 @@
       "enforce_admins": true,
       "required_status_checks": {
         "strict": true,
-        "contexts": ["Check linked issues", "lint / Lint Code Base", "lint / Shell Unit Tests"],
-        "self_contexts": ["Check linked issues", "Lint Code Base", "Shell Unit Tests"]
+        "contexts": [
+          "Check linked issues",
+          "lint / Lint Code Base",
+          "lint / Shell Unit Tests"
+        ],
+        "self_contexts": [
+          "Check linked issues",
+          "Lint Code Base",
+          "Shell Unit Tests"
+        ]
       },
       "required_pull_request_reviews": {
         "dismiss_stale_reviews": false,
@@ -63,13 +71,21 @@
   ],
   "repo_overrides": {
     "marketplace": {
-      "additional_contexts": ["Run plugin test suites"]
+      "additional_contexts": [
+        "Run plugin test suites"
+      ]
     },
     "vscode-xcsh": {
-      "additional_contexts": ["Validate Generation", "Test (ubuntu-latest)", "Build VSIX"]
+      "additional_contexts": [
+        "Validate Generation",
+        "Test (ubuntu-latest)",
+        "Build VSIX"
+      ]
     },
     "console": {
-      "additional_contexts": ["Validate Catalog Schemas"]
+      "additional_contexts": [
+        "Validate Catalog Schemas"
+      ]
     },
     "terraform-provider-xcsh": {
       "additional_contexts": [
@@ -83,27 +99,73 @@
       ]
     },
     "api-specs-enriched": {
-      "additional_contexts": ["Contract-diff gate", "Run pytest suite"]
+      "additional_contexts": [
+        "Contract-diff gate",
+        "Run pytest suite"
+      ]
     },
     "api-specs": {
-      "additional_contexts": ["Workflow security audit", "Python test suite"]
+      "additional_contexts": [
+        "Workflow security audit",
+        "Python test suite"
+      ]
+    },
+    "docs-icons": {
+      "additional_contexts": [
+        "Generated artifact release"
+      ]
     }
   },
   "consumer_shell_tests": {
     "profiles": {
       "devcontainer": {
         "unit": [
-          { "path": "tests/test-agy-pre-push-review.sh", "args": [] },
-          { "path": "tests/test-check-pii.sh", "args": [] },
-          { "path": "tests/test-check-repo-hygiene.sh", "args": [] },
-          { "path": "tests/test-fetch-governed.sh", "args": [] },
-          { "path": "tests/test-github-api-resilience.sh", "args": [] },
-          { "path": "tests/test-hook-neutralization.sh", "args": ["--unit-only"] },
-          { "path": "tests/test-inlined-helpers-match.sh", "args": [] },
-          { "path": "tests/test-lint-mdx-prose.sh", "args": [] },
-          { "path": "tests/test-review-plugin-removal.sh", "args": [] },
-          { "path": "tests/test-translation-release-policy.sh", "args": [] },
-          { "path": "tests/test-validate-translations.sh", "args": [] }
+          {
+            "path": "tests/test-agy-pre-push-review.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-check-pii.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-check-repo-hygiene.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-fetch-governed.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-github-api-resilience.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-hook-neutralization.sh",
+            "args": [
+              "--unit-only"
+            ]
+          },
+          {
+            "path": "tests/test-inlined-helpers-match.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-lint-mdx-prose.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-review-plugin-removal.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-translation-release-policy.sh",
+            "args": []
+          },
+          {
+            "path": "tests/test-validate-translations.sh",
+            "args": []
+          }
         ],
         "environment": [
           {
@@ -130,15 +192,17 @@
   "managed_files": {
     "source_repo": "f5-sales-demo/docs-control",
     "absent_files": [
-      "actionlint.yml",
+      ".agents/skills/i18n-translate/SKILL.md",
+      ".github/dependabot.yml",
+      ".github/workflows/antigravity-translate.yml",
       ".github/workflows/claude-review.yml",
       ".github/workflows/code-review.yml",
+      ".github/workflows/dependabot-auto-merge.yml",
+      ".github/workflows/enforce-repo-settings.yml",
+      "actionlint.yml",
       "scripts/antigravity-translate-staged.sh",
       "scripts/parse-translation-trigger.sh",
-      "tests/test-antigravity-translate-staged.sh",
-      ".github/workflows/antigravity-translate.yml",
-      ".agents/skills/i18n-translate/SKILL.md",
-      ".github/workflows/enforce-repo-settings.yml"
+      "tests/test-antigravity-translate-staged.sh"
     ],
     "skip_files": {
       "xcsh": [
@@ -148,21 +212,39 @@
         ".python-lint",
         ".mypy.ini",
         ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/semgrep.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
         ".github/workflows/require-linked-issue.yml",
         ".github/workflows/github-pages-deploy.yml"
       ],
-      "xcsh-action": ["README.md"],
-      "terraform-provider-xcsh": [".github/workflows/translation-audit.yml", "scripts/locale-lint.sh"],
-      "api-specs": [".ruff.toml", ".python-lint", ".mypy.ini"],
-      "api-specs-enriched": [".ruff.toml", ".python-lint", ".mypy.ini", ".github/workflows/github-pages-deploy.yml"],
-      "vscode-xcsh": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg", "README.md"],
+      "xcsh-action": [
+        "README.md"
+      ],
+      "terraform-provider-xcsh": [
+        ".github/workflows/translation-audit.yml",
+        "scripts/locale-lint.sh"
+      ],
+      "api-specs": [
+        ".ruff.toml",
+        ".python-lint",
+        ".mypy.ini"
+      ],
+      "api-specs-enriched": [
+        ".ruff.toml",
+        ".python-lint",
+        ".mypy.ini",
+        ".github/workflows/github-pages-deploy.yml"
+      ],
+      "vscode-xcsh": [
+        ".ruff.toml",
+        ".python-lint",
+        ".mypy.ini",
+        ".isort.cfg",
+        "README.md"
+      ],
       "docs": [
         ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
         ".github/workflows/require-linked-issue.yml",
@@ -171,7 +253,6 @@
       ],
       "docs-builder": [
         ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
         ".github/workflows/require-linked-issue.yml",
@@ -179,17 +260,13 @@
         ".github/workflows/super-linter.yml"
       ],
       "docs-icons": [
-        ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
-        ".github/workflows/require-linked-issue.yml",
         ".github/workflows/github-pages-deploy.yml",
         ".github/workflows/super-linter.yml"
       ],
       "docs-theme": [
         ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
         ".github/workflows/require-linked-issue.yml",
@@ -202,7 +279,6 @@
         ".isort.cfg",
         "README.md",
         ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
         ".github/workflows/require-linked-issue.yml",
@@ -210,23 +286,41 @@
         ".github/workflows/super-linter.yml",
         ".github/workflows/semgrep.yml"
       ],
-      "console": [".ruff.toml", ".mypy.ini", ".isort.cfg"],
-      "xcsh-chrome-extension": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"],
-      "apt-repo": ["README.md"],
-      "demo-resource-template": ["README.md"],
-      "marketplace-claude-code": ["README.md"],
+      "console": [
+        ".ruff.toml",
+        ".mypy.ini",
+        ".isort.cfg"
+      ],
+      "xcsh-chrome-extension": [
+        ".ruff.toml",
+        ".python-lint",
+        ".mypy.ini",
+        ".isort.cfg"
+      ],
+      "apt-repo": [
+        "README.md"
+      ],
+      "demo-resource-template": [
+        "README.md"
+      ],
+      "marketplace-claude-code": [
+        "README.md"
+      ],
       "starlight-llms-txt": [
         "README.md",
         ".github/workflows/auto-merge.yml",
-        ".github/workflows/dependabot-auto-merge.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
         ".github/workflows/require-linked-issue.yml",
         ".github/workflows/github-pages-deploy.yml",
         ".github/workflows/super-linter.yml"
       ],
-      "starlight-mega-menu": ["README.md"],
-      "traffic-generator": ["README.md"]
+      "starlight-mega-menu": [
+        "README.md"
+      ],
+      "traffic-generator": [
+        "README.md"
+      ]
     },
     "files": [
       {
@@ -316,10 +410,6 @@
       {
         "src": ".markdownlint.json",
         "dest": ".markdownlint.json"
-      },
-      {
-        "src": "workflows/dependabot-auto-merge.yml",
-        "dest": ".github/workflows/dependabot-auto-merge.yml"
       },
       {
         "src": "workflows/auto-merge.yml",
@@ -513,11 +603,27 @@
   },
   "secrets_manifest": {
     "roles": {
-      "governance": ["REPO_SETTINGS_TOKEN", "REPO_SYNC_TOKEN"],
-      "npm_publish": ["NPM_TOKEN", "RELEASE_TOKEN"],
-      "release": ["RELEASE_TOKEN"],
-      "vscode_extension": ["VS_MARKETPLACE_TOKEN", "RELEASE_PAT", "RELEASE_TOKEN"],
-      "terraform_provider": ["GPG_PRIVATE_KEY", "PASSPHRASE", "AUTO_MERGE_TOKEN"],
+      "governance": [
+        "REPO_SETTINGS_TOKEN",
+        "REPO_SYNC_TOKEN"
+      ],
+      "npm_publish": [
+        "NPM_TOKEN",
+        "RELEASE_TOKEN"
+      ],
+      "release": [
+        "RELEASE_TOKEN"
+      ],
+      "vscode_extension": [
+        "VS_MARKETPLACE_TOKEN",
+        "RELEASE_PAT",
+        "RELEASE_TOKEN"
+      ],
+      "terraform_provider": [
+        "GPG_PRIVATE_KEY",
+        "PASSPHRASE",
+        "AUTO_MERGE_TOKEN"
+      ],
       "api_enrichment": [
         "DOWNSTREAM_DISPATCH_TOKEN",
         "F5XC_API_TOKEN",
@@ -532,48 +638,142 @@
         "APPLE_PASSWORD",
         "APPLE_TEAM_ID"
       ],
-      "xcsh": ["XCSH_API_URL", "XCSH_API_TOKEN", "XCSH_USERNAME", "XCSH_CONSOLE_PASSWORD"]
+      "xcsh": [
+        "XCSH_API_URL",
+        "XCSH_API_TOKEN",
+        "XCSH_USERNAME",
+        "XCSH_CONSOLE_PASSWORD"
+      ]
     },
     "repo_roles": {
-      "_default": ["governance"],
-      "dns": ["governance"],
-      "demo-resource-template": ["governance"],
-      "docs-icons": ["governance", "npm_publish"],
-      "docs-theme": ["governance", "npm_publish"],
-      "docs-builder": ["governance", "release"],
-      "origin-server": ["governance", "release"],
-      "starlight-llms-txt": ["governance", "npm_publish"],
-      "starlight-mega-menu": ["governance", "npm_publish"],
-      "xcsh": ["governance", "npm_publish", "apple_signing"],
-      "xcsh-action": ["governance"],
-      "vscode-xcsh": ["governance", "vscode_extension"],
-      "terraform-provider-xcsh": ["governance", "terraform_provider"],
-      "api-specs": ["governance"],
-      "api-specs-enriched": ["governance", "api_enrichment"],
-      "apt-repo": ["governance"],
-      "docs": ["governance"],
-      "administration": ["governance"],
-      "nginx": ["governance"],
-      "observability": ["governance"],
-      "was": ["governance"],
-      "mcn": ["governance"],
-      "cdn": ["governance"],
-      "bot-standard": ["governance"],
-      "bot-advanced": ["governance"],
-      "ddos": ["governance"],
-      "waf": ["governance"],
-      "api-protection": ["governance"],
-      "webapp-api-protection": ["governance"],
-      "csd": ["governance"],
-      "devcontainer": ["governance"],
-      "marketplace": ["governance"],
-      "cdn-simulator": ["governance"],
-      "traffic-generator": ["governance"],
-      "demo-resources": ["governance"],
-      "i18n-core": ["governance"],
-      "console": ["governance"],
-      "xcsh-chrome-extension": ["governance"],
-      "marketplace-claude-code": ["governance"]
+      "_default": [
+        "governance"
+      ],
+      "dns": [
+        "governance"
+      ],
+      "demo-resource-template": [
+        "governance"
+      ],
+      "docs-icons": [
+        "governance",
+        "npm_publish"
+      ],
+      "docs-theme": [
+        "governance",
+        "npm_publish"
+      ],
+      "docs-builder": [
+        "governance",
+        "release"
+      ],
+      "origin-server": [
+        "governance",
+        "release"
+      ],
+      "starlight-llms-txt": [
+        "governance",
+        "npm_publish"
+      ],
+      "starlight-mega-menu": [
+        "governance",
+        "npm_publish"
+      ],
+      "xcsh": [
+        "governance",
+        "npm_publish",
+        "apple_signing"
+      ],
+      "xcsh-action": [
+        "governance"
+      ],
+      "vscode-xcsh": [
+        "governance",
+        "vscode_extension"
+      ],
+      "terraform-provider-xcsh": [
+        "governance",
+        "terraform_provider"
+      ],
+      "api-specs": [
+        "governance"
+      ],
+      "api-specs-enriched": [
+        "governance",
+        "api_enrichment"
+      ],
+      "apt-repo": [
+        "governance"
+      ],
+      "docs": [
+        "governance"
+      ],
+      "administration": [
+        "governance"
+      ],
+      "nginx": [
+        "governance"
+      ],
+      "observability": [
+        "governance"
+      ],
+      "was": [
+        "governance"
+      ],
+      "mcn": [
+        "governance"
+      ],
+      "cdn": [
+        "governance"
+      ],
+      "bot-standard": [
+        "governance"
+      ],
+      "bot-advanced": [
+        "governance"
+      ],
+      "ddos": [
+        "governance"
+      ],
+      "waf": [
+        "governance"
+      ],
+      "api-protection": [
+        "governance"
+      ],
+      "webapp-api-protection": [
+        "governance"
+      ],
+      "csd": [
+        "governance"
+      ],
+      "devcontainer": [
+        "governance"
+      ],
+      "marketplace": [
+        "governance"
+      ],
+      "cdn-simulator": [
+        "governance"
+      ],
+      "traffic-generator": [
+        "governance"
+      ],
+      "demo-resources": [
+        "governance"
+      ],
+      "i18n-core": [
+        "governance"
+      ],
+      "console": [
+        "governance"
+      ],
+      "xcsh-chrome-extension": [
+        "governance"
+      ],
+      "marketplace-claude-code": [
+        "governance"
+      ]
     }
   }
 }

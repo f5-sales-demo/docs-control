@@ -28,19 +28,19 @@ concurrency:
 jobs:
   auto-merge:
     name: Enable trusted-author auto-merge
-    runs-on: managed-socketless
+    runs-on: ${{ github.repository == 'f5-sales-demo/docs-icons' && 'docs-socketless' || 'managed-socketless' }}
     permissions:
       contents: write # merge trusted same-repository pull requests
       pull-requests: write # enable squash auto-merge
-    # Candidate filter: non-draft, non-dependabot PRs only. Work-in-progress uses
-    # draft PRs; dependabot PRs are handled by dependabot-auto-merge.yml. Whether
+    # Candidate filter: non-draft, human-authored PRs only. Whether
     # auto-merge is ACTUALLY enabled is further gated on author TRUST below
     # (write/admin permission on the target repo) so external / fork PRs are never
     # auto-merged — a maintainer must review and merge them. Branch protection +
     # required status checks still gate the merge itself ("merge when green").
     if: >-
       github.event.pull_request.draft == false &&
-      github.actor != 'dependabot[bot]'
+      github.event.pull_request.user.type == 'User' &&
+      format('{0}', github.event.pull_request.user.id) != vars.RENOVATE_GITHUB_APP_BOT_ID
     steps:
       # Trusted governance tooling — docs-control's own protected main, NOT the PR
       # head. This pull_request_target job must NEVER check out PR-authored code;

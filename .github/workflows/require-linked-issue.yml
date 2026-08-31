@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Validate pull request policy
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RENOVATE_GITHUB_APP_BOT_ID: ${{ vars.RENOVATE_GITHUB_APP_BOT_ID }}
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -57,6 +59,20 @@ jobs:
               return;
             }
             const number = pull.number;
+            const configuredRenovateId = process.env.RENOVATE_GITHUB_APP_BOT_ID;
+            const renovateId = /^[1-9]\d*$/.test(configuredRenovateId ?? "") &&
+              Number.isSafeInteger(Number(configuredRenovateId))
+                ? Number(configuredRenovateId)
+                : null;
+            const authenticatedRenovate =
+              pull.head?.repo?.full_name === `${owner}/${repo}` &&
+              pull.user?.type === "Bot" &&
+              renovateId !== null &&
+              pull.user?.id === renovateId;
+            if (authenticatedRenovate) {
+              core.info(`PR #${number} is authenticated as the configured Renovate App bot ID ${renovateId}; linked-issue policy is satisfied.`);
+              return;
+            }
             const result = await github.graphql(
               `query($owner: String!, $repo: String!, $number: Int!) {
                 repository(owner: $owner, name: $repo) {

@@ -32,6 +32,13 @@ const xcshLinkedIssueScript = new AsyncFunction(
   'core',
   extractScript(path.join(root, 'workflows/super-linter.yml'), "Check this pull request's linked issues"),
 );
+const localLinkedIssueScript = new AsyncFunction(
+  'github',
+  'context',
+  'core',
+  extractScript(path.join(root, '.github/workflows/require-linked-issue.yml'), 'Validate pull request policy'),
+);
+const linkedScripts = [linkedIssueScript, xcshLinkedIssueScript, localLinkedIssueScript];
 const context = { repo: { owner: 'f5-sales-demo', repo: 'example' } };
 const repoIdentityKey = ['full', 'name'].join('_');
 const generatedReleasePull = {
@@ -185,10 +192,56 @@ async function testMissingAutomationIdentityFailsClosed() {
   }
 }
 
+async function runUnlinkedRenovate(pullRequest, script, configuredId = '987654') {
+  const graphqlCalls = [];
+  const info = [];
+  const failures = [];
+  const previous = process.env.RENOVATE_GITHUB_APP_BOT_ID;
+  if (configuredId === null) delete process.env.RENOVATE_GITHUB_APP_BOT_ID;
+  else process.env.RENOVATE_GITHUB_APP_BOT_ID = configuredId;
+  try {
+    await script(
+      { graphql: async (_query, variables) => { graphqlCalls.push(variables); return { repository: { pullRequest: { closingIssuesReferences: { nodes: [] } } } }; } },
+      { ...context, payload: { pull_request: pullRequest } },
+      { info: (message) => info.push(message), setFailed: (message) => failures.push(message) },
+    );
+  } finally {
+    if (previous === undefined) delete process.env.RENOVATE_GITHUB_APP_BOT_ID;
+    else process.env.RENOVATE_GITHUB_APP_BOT_ID = previous;
+  }
+  return { graphqlCalls, info, failures };
+}
+
+async function testExactRenovateIdentityPassesAndLookalikesFailClosed() {
+  const exact = { number: 90, title: 'chore: update dependency', body: '', user: { id: 987654, login: 'f5-renovate-aks[bot]', type: 'Bot' }, head: { ref: 'renovate/npm', repo: { [repoIdentityKey]: 'f5-sales-demo/example' } }, base: { ref: 'main', repo: { [repoIdentityKey]: 'f5-sales-demo/example' } } };
+  for (const script of linkedScripts) {
+    const accepted = await runUnlinkedRenovate(exact, script);
+    assert.deepEqual(accepted.graphqlCalls, []);
+    assert.deepEqual(accepted.failures, []);
+    assert.match(accepted.info[0], /configured Renovate App bot ID 987654/);
+    const cases = [
+      [{ ...exact, user: { ...exact.user, type: 'User' } }, '987654'],
+      [{ ...exact, user: { ...exact.user, id: 123456 } }, '987654'],
+      [{ ...exact, head: { ...exact.head, repo: { [repoIdentityKey]: 'fork/example' } } }, '987654'],
+      [{ ...exact, user: { id: 987654, login: 'other[bot]', type: 'Bot' } }, '123456'],
+      [exact, 'not-an-id'],
+      [exact, '0'],
+      [exact, null],
+    ];
+    for (const [pull, configuredId] of cases) {
+      const rejected = await runUnlinkedRenovate(pull, script, configuredId);
+      assert.equal(rejected.graphqlCalls.length, 1);
+      assert.equal(rejected.failures.length, 1);
+      assert.match(rejected.failures[0], /Closes #123/);
+    }
+  }
+}
+
 await testExactPullRequestQueryPasses();
 await testMissingLinkFailsWithGuidance();
 await testGraphqlFailureFailsClosed();
 await testAuthenticatedGeneratedReleasePassesWithoutIssue();
 await testGeneratedReleaseBoundaryFailsClosed();
 await testMissingAutomationIdentityFailsClosed();
+await testExactRenovateIdentityPassesAndLookalikesFailClosed();
 console.log('PASS: linked-issue PR behavior is deterministic and fails closed');

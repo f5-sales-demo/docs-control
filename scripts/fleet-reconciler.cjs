@@ -5,6 +5,7 @@
 // so downstream repositories never need a governance dispatcher or token.
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { GitHubRetryDeferredError, requestGitHubApi } = require('./github-api-resilience.cjs');
 
 const SHA = /^[0-9a-f]{40}$/;
@@ -30,18 +31,57 @@ function repositoryApplies(entry, repo, skipFiles) {
   if ((entry.only_repos || []).length && !entry.only_repos.includes(repo)) return false;
   return !(skipFiles[repo] || []).includes(entry.dest);
 }
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value && typeof value === 'object')
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+  return JSON.stringify(value);
+}
+function manifestStateDigest(files, absentPaths) {
+  return `sha256:${crypto.createHash('sha256').update(canonicalJson({ files, absent_paths: absentPaths })).digest('hex')}`;
+}
+function validateManifest(config, manifest) {
+  if (!manifest || manifest.schema_version !== 2 || !SHA.test(manifest.source_commit || '') ||
+      !Array.isArray(manifest.files) || !Array.isArray(manifest.absent_paths) ||
+      typeof manifest.state_digest !== 'string') fail('managed manifest schema version 2 is required');
+  const configFiles = config.managed_files?.files || [];
+  const configPaths = configFiles.map((entry) => entry.dest).sort();
+  const manifestPaths = manifest.files.map((entry) => entry?.path);
+  const configAbsent = [...(config.managed_files?.absent_files || [])].sort();
+  const safePath = (value) => typeof value === 'string' && /^[A-Za-z0-9._/-]+$/.test(value) &&
+    !value.startsWith('/') && value.split('/').every((part) => part && part !== '.' && part !== '..');
+  if (JSON.stringify(manifestPaths) !== JSON.stringify([...manifestPaths].sort()) ||
+      new Set(manifestPaths).size !== manifestPaths.length ||
+      JSON.stringify(manifest.absent_paths) !== JSON.stringify([...manifest.absent_paths].sort()) ||
+      new Set(manifest.absent_paths).size !== manifest.absent_paths.length ||
+      manifestPaths.some((entry) => !safePath(entry)) || manifest.absent_paths.some((entry) => !safePath(entry)) ||
+      manifestPaths.some((entry) => manifest.absent_paths.includes(entry)))
+    fail('managed manifest present and absent paths must be sorted and unique');
+  if (JSON.stringify(configPaths) !== JSON.stringify(manifestPaths) ||
+      JSON.stringify(configAbsent) !== JSON.stringify(manifest.absent_paths))
+    fail('managed configuration and manifest paths disagree');
+  const source = new Map(configFiles.map((entry) => [entry.dest, entry.src]));
+  for (const receipt of manifest.files) {
+    if (!receipt || JSON.stringify(Object.keys(receipt).sort()) !== JSON.stringify(['mode', 'path', 'sha', 'size', 'src']) ||
+        source.get(receipt.path) !== receipt.src || !SHA.test(receipt.sha || '') ||
+        !['100644', '100755'].includes(receipt.mode) || !Number.isSafeInteger(receipt.size) || receipt.size < 0)
+      fail(`invalid manifest receipt for ${receipt?.path || 'unknown path'}`);
+  }
+  if (manifest.state_digest !== manifestStateDigest(manifest.files, manifest.absent_paths))
+    fail('managed manifest state digest is invalid');
+  return manifest;
+}
 function desiredEntries(config, manifest, repo) {
+  validateManifest(config, manifest);
   const source = new Map((config.managed_files.files || []).map((entry) => [entry.dest, entry]));
   const skip = config.managed_files.skip_files || {};
   const files = [];
-  for (const [dest, receipt] of Object.entries(manifest.files || {})) {
-    const entry = source.get(dest);
+  for (const receipt of manifest.files) {
+    const entry = source.get(receipt.path);
     if (!entry || !repositoryApplies(entry, repo, skip)) continue;
-    if (!SHA.test(receipt.sha) || !['100644', '100755'].includes(receipt.mode))
-      fail(`invalid manifest receipt for ${dest}`);
-    files.push({ path: dest, sha: receipt.sha, mode: receipt.mode, src: receipt.src });
+    files.push({ path: receipt.path, sha: receipt.sha, mode: receipt.mode, src: receipt.src });
   }
-  const deletes = (config.managed_files.absent_files || []).filter((entry) => !(skip[repo] || []).includes(entry));
+  const deletes = manifest.absent_paths.filter((entry) => !(skip[repo] || []).includes(entry));
   return { files, deletes };
 }
 function contentDiff(tree, desired) {
@@ -535,10 +575,12 @@ module.exports = {
   desiredEntries,
   desiredProtection,
   managedCommitMessage,
+  manifestStateDigest,
   parseSelection,
   reconcileContent,
   reconcileSettings,
   repositoryApplies,
   requireSha,
   settingsDelta,
+  validateManifest,
 };

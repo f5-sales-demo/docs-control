@@ -8,7 +8,6 @@ on:
       - '.github/workflows/antigravity-review.yml'
       - '.github/workflows/antigravity-translate.yml'
       - '.github/workflows/auto-merge.yml'
-      - '.github/workflows/dependabot-auto-merge.yml'
       - '.github/workflows/github-pages-deploy.yml'
       - '.github/workflows/require-linked-issue.yml'
       - '.github/workflows/super-linter.yml'

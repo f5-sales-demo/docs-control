@@ -18,7 +18,6 @@ on:
       - '.github/config/managed-files-manifest.json'
       - '.github/ISSUE_TEMPLATE/**'
       - '.github/PULL_REQUEST_TEMPLATE.md'
-      - '.github/dependabot.yml'
       - 'workflows/**'
       - 'CONTRIBUTING.md'
       - 'CLAUDE.md'
@@ -163,7 +162,7 @@ jobs:
             exit 1
           fi
 
-          FILES_JSON="{}"
+          FILES_JSON="[]"
           MISSING=""
           INVALID_MODES=""
           while IFS= read -r entry; do
@@ -181,12 +180,12 @@ jobs:
               continue
             fi
             FILES_JSON=$(echo "$FILES_JSON" | jq \
-              --arg dest "$dest" \
+              --arg path "$dest" \
               --arg src "$src" \
               --arg sha "$sha" \
               --arg mode "$mode" \
               --argjson size "$size" \
-              '.[$dest] = {src: $src, dest: $dest, sha: $sha, size: $size, mode: $mode}')
+              '. + [{path: $path, src: $src, sha: $sha, size: $size, mode: $mode}] | sort_by(.path)')
           done <<<"$ENTRIES"
 
           if [ -n "$MISSING" ]; then
@@ -200,20 +199,26 @@ jobs:
             exit 1
           fi
 
+          ABSENT_PATHS=$(jq -c '.managed_files.absent_files | sort' "$CONFIG_PATH")
+          STATE=$(jq -cnS --argjson files "$FILES_JSON" --argjson absent_paths "$ABSENT_PATHS" \
+            '{files: $files, absent_paths: $absent_paths}')
+          STATE_DIGEST="sha256:$(printf '%s' "$STATE" | sha256sum | cut -d' ' -f1)"
           jq -n \
             --arg source_commit "$SOURCE_COMMIT" \
             --argjson files "$FILES_JSON" \
-            '{source_commit: $source_commit, files: $files}' \
+            --argjson absent_paths "$ABSENT_PATHS" \
+            --arg state_digest "$STATE_DIGEST" \
+            '{schema_version: 2, source_commit: $source_commit, files: $files, absent_paths: $absent_paths, state_digest: $state_digest}' \
             >"$MANIFEST_PATH"
 
-          echo "[OK] Wrote manifest with $(echo "$FILES_JSON" | jq 'length') entries"
+          echo "[OK] Wrote manifest with $(echo "$FILES_JSON" | jq 'length') present entries, $(echo "$ABSENT_PATHS" | jq 'length') absent paths, and state $STATE_DIGEST"
 
       - name: Open or update auto-merged manifest PR if files changed
         # main is protected (required checks + enforce_admins, no bypass), so a
         # direct push of the manifest is rejected. Instead route the manifest
         # through an auto-merging PR on a sync/* branch (excluded from the
         # require-linked-issue gate). The PR is only opened/updated when the
-        # `files` map actually changes — source_commit churn is ignored — so
+        # canonical managed state actually changes — source_commit churn is ignored — so
         # there is no per-run PR spam. The manifest is excluded
         # from biome, so the PR's Lint Code Base passes. Downstream sync fails
         # closed until this exact manifest evidence lands.
@@ -539,21 +544,26 @@ jobs:
             return 1
           }
 
-          # Compare only the files map (ignore source_commit churn).
-          NEW_FILES=$(jq -eS '.files | select(type == "object")' "$MANIFEST_PATH")
+          # Compare the canonical present+absent state (ignore source_commit churn).
+          NEW_STATE=$(jq -er '.state_digest | select(test("^sha256:[0-9a-f]{64}$"))' "$MANIFEST_PATH")
           CURRENT_MANIFEST=$(mktemp)
           if ! git show "HEAD:${MANIFEST_PATH}" >"$CURRENT_MANIFEST"; then
             echo "[ERROR] Current checkout lacks a committed manifest receipt" >&2
             exit 1
           fi
-          if ! CURRENT_FILES=$(jq -eS '.files | select(type == "object")' "$CURRENT_MANIFEST"); then
-            echo "[ERROR] Current committed manifest is invalid" >&2
-            rm -f "$CURRENT_MANIFEST"
-            exit 1
+          if CURRENT_STATE=$(jq -er '
+            select(.schema_version == 2) |
+            .state_digest | select(test("^sha256:[0-9a-f]{64}$"))
+          ' "$CURRENT_MANIFEST"); then
+            :
+          else
+            # One clean schema cutover is expected. The reconciler itself rejects
+            # this legacy receipt; the builder must replace it through a PR.
+            CURRENT_STATE="schema-replacement-required"
           fi
           rm -f "$CURRENT_MANIFEST"
 
-          if [ "$NEW_FILES" = "$CURRENT_FILES" ]; then
+          if [ "$NEW_STATE" = "$CURRENT_STATE" ]; then
             echo "[OK] Managed-file set unchanged - no manifest PR needed"
             exit 0
           fi
