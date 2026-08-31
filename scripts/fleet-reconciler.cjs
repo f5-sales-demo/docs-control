@@ -114,7 +114,10 @@ function issueTitle(sourceSha) {
   return `Governance reconciliation @ ${sourceSha.slice(0, 12)}`;
 }
 function managedCommitMessage(sourceSha) {
-  return `chore: reconcile governed files @ ${sourceSha.slice(0, 12)} [skip ci]`;
+  // Protected targets require their real pull-request workflows.  Do not add a
+  // skip-CI marker here: GitHub would suppress those checks before they can
+  // satisfy branch protection.
+  return `chore: reconcile governed files @ ${sourceSha.slice(0, 12)}`;
 }
 
 class ApiQueue {
