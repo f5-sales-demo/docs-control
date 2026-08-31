@@ -8,6 +8,7 @@ python3 - "$workflow" <<'PYTEST'
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -134,9 +135,88 @@ for fragment in (
     '--ruleset "$ruleset"',
     "--format github-actions",
     "--fail-severity error",
-    '"**/*.json" "**/*.yaml"',
+    '--\n    "${spectral_files[@]}"',
+    "git ls-files -z -- '*.json' '*.yaml' '*.yml'",
+    "BEGIN OPENAPI DISCOVERY",
+    "END OPENAPI DISCOVERY",
+    'mapfile -d \'\' -t spectral_files',
+    '"${spectral_files[@]}"',
 ):
     assert fragment in spectral["run"]
+
+discovery = spectral["run"].split("# BEGIN OPENAPI DISCOVERY\n", 1)[1].split(
+    "\n# END OPENAPI DISCOVERY", 1
+)[0]
+discovery = discovery.split("<<'PYDISCOVERY'\n", 1)[1].split("\nPYDISCOVERY", 1)[0]
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    fixtures = {
+        "api.json": '{"openapi":"3.1.0","info":{"title":"x","version":"1"},"paths":{}}',
+        "api.yaml": "openapi: 3.0.3\ninfo: {title: x, version: '1'}\npaths: {}\n",
+        "legacy.yml": "swagger: '2.0'\ninfo: {title: x, version: '1'}\npaths: {}\n",
+        "config.yaml": "service:\n  openapi: disabled\n",
+        "-api.json": '{"openapi":"3.1.0","info":{"title":"x","version":"1"},"paths":{}}',
+        "odd\nname.json": '{"openapi":"3.1.0","info":{"title":"x","version":"1"},"paths":{}}',
+    }
+    for name, content in fixtures.items():
+        (root / name).write_text(content, encoding="utf-8")
+    candidates = root / "candidates"
+    targets = root / "targets"
+    candidates.write_bytes(b"\0".join(os.fsencode(name) for name in fixtures) + b"\0")
+    result = subprocess.run(
+        [sys.executable, "-", str(candidates), str(targets)],
+        input=discovery,
+        text=True,
+        cwd=root,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert targets.read_bytes().split(b"\0")[:-1] == [
+        b"api.json",
+        b"api.yaml",
+        b"legacy.yml",
+        b"-api.json",
+        b"odd\nname.json",
+    ]
+
+    (root / "broken.json").write_text('{"openapi":"3.1.0",', encoding="utf-8")
+    candidates.write_bytes(b"broken.json\0")
+    result = subprocess.run(
+        [sys.executable, "-", str(candidates), str(targets)],
+        input=discovery,
+        text=True,
+        cwd=root,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "broken.json" in result.stderr
+
+    candidates.write_bytes(b"config.yaml\0")
+    result = subprocess.run(
+        [sys.executable, "-", str(candidates), str(targets)],
+        input=discovery,
+        text=True,
+        cwd=root,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert targets.read_bytes() == b""
+
+    (root / "linked.yaml").symlink_to(root / "api.yaml")
+    candidates.write_bytes(b"linked.yaml\0")
+    result = subprocess.run(
+        [sys.executable, "-", str(candidates), str(targets)],
+        input=discovery,
+        text=True,
+        cwd=root,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "not a regular file" in result.stderr
 
 spectral_profile = by_name["Validate Spectral profile"]
 assert spectral_profile["id"] == "spectral_profile"
