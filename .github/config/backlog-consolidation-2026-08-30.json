@@ -1,0 +1,193 @@
+{
+  "schema_version": 1,
+  "source_repository": "f5-sales-demo/docs-control",
+  "expected_open_issues": [720, 772, 803, 809, 820, 848, 849, 878, 1167, 1454, 1646, 1878],
+  "issues": {
+    "718": {
+      "state": "closed",
+      "state_reason": "completed",
+      "title": "dispatch-downstream can be cancelled mid-fan-out, silently skipping downstream repos",
+      "status": "status:superseded",
+      "area": "area:governance"
+    },
+    "720": {
+      "state": "open",
+      "title": "Spike: GitHub App identity + branch-creation ruleset for governance automation",
+      "status": "status:active",
+      "area": "area:governance"
+    },
+    "772": {
+      "state": "open",
+      "title": "CLAUDE.md: 'Lint Code Base' CI gate and textlint no longer exist in xcsh — instructions are stale and misleading",
+      "status": "status:active",
+      "area": "area:governance"
+    },
+    "788": {
+      "state": "closed",
+      "state_reason": "completed",
+      "title": "Reviewer succeeded but emitted no verdict.json — blocking with no findings (xcsh#2377)",
+      "status": "status:superseded",
+      "area": "area:ai-automation"
+    },
+    "796": {
+      "state": "closed",
+      "state_reason": "completed",
+      "title": "Managed zizmor pre-commit hook is stricter than the merge gate, forcing SKIP=zizmor on every workflow edit",
+      "status": "status:resolved",
+      "area": "area:security"
+    },
+    "803": {
+      "state": "open",
+      "title": "Live Azure subscription ID committed in plaintext across 4 repos, 2 of them public — and gitleaks has no rule for it",
+      "status": "status:active",
+      "area": "area:security"
+    },
+    "809": {
+      "state": "open",
+      "title": "docs-translate emits unwrapped paragraphs, so MD013 fails once translation expands them",
+      "status": "status:deferred",
+      "area": "area:i18n"
+    },
+    "820": {
+      "state": "open",
+      "title": "docs-translate pre-commit hook is a silent no-op in docs/-layout repos: CONTENT_DIR defaults to src/content/docs",
+      "status": "status:deferred",
+      "area": "area:i18n"
+    },
+    "848": {
+      "state": "open",
+      "title": "Migrate governed dependency updates from Dependabot to Renovate (forks have the dependency graph off)",
+      "status": "status:active",
+      "area": "area:governance"
+    },
+    "849": {
+      "state": "open",
+      "title": "docs/_imports cannot publish a directory tree: flat staging silently collapses repeated basenames",
+      "status": "status:active",
+      "area": "area:docs-publishing"
+    },
+    "878": {
+      "state": "open",
+      "title": "Add fleet-wide PII policy, audit, and enforcement campaign",
+      "status": "status:tracking",
+      "area": "area:security"
+    },
+    "1016": {
+      "state": "closed",
+      "state_reason": "completed",
+      "title": "Security: fail closed third-party reviewer installation and PR trust boundary",
+      "status": "status:resolved",
+      "area": "area:ai-automation"
+    },
+    "1046": {
+      "state": "closed",
+      "state_reason": "completed",
+      "title": "fix: restore clean full-tree Markdown lint on protected main",
+      "status": "status:resolved",
+      "area": "area:linting"
+    },
+    "1167": {
+      "state": "open",
+      "title": "Route routine AI work to Antigravity and retire Claude/Codex review",
+      "status": "status:tracking",
+      "area": "area:ai-automation"
+    },
+    "1223": {
+      "state": "closed",
+      "state_reason": "not_planned",
+      "title": "fix: isolate generated Dependabot fixtures across concurrent worktrees",
+      "status": "status:superseded",
+      "area": "area:governance"
+    },
+    "1453": {
+      "state": "closed",
+      "state_reason": "completed",
+      "title": "fix(governance): pin Super-Linter caller to Docker-capable revision",
+      "status": "status:resolved",
+      "area": "area:linting"
+    },
+    "1454": {
+      "state": "open",
+      "title": "Deferred i18n reactivation: readiness trigger and translation hook correctness",
+      "status": "status:deferred",
+      "area": "area:i18n"
+    },
+    "1533": {
+      "state": "closed",
+      "state_reason": "completed",
+      "title": "fix(runners): provide APT repository packaging tools immutably",
+      "status": "status:resolved",
+      "area": "area:runners"
+    },
+    "1646": {
+      "state": "open",
+      "title": "chore(runners): track immutable self-hosted runner fleet rollout",
+      "status": "status:tracking",
+      "area": "area:runners"
+    },
+    "1680": {
+      "state": "closed",
+      "state_reason": "completed",
+      "title": "Allow guarded tag Docker publication on governed runners",
+      "status": "status:resolved",
+      "area": "area:runners"
+    },
+    "1878": {
+      "state": "open",
+      "title": "Instrument and optimize managed Super-Linter with evidence-gated canaries",
+      "status": "status:active",
+      "area": "area:linting"
+    },
+    "1902": {
+      "state": "closed",
+      "state_reason": "completed",
+      "title": "Backlog consolidation audit: 2026-08-30",
+      "status": "status:tracking",
+      "area": "area:governance"
+    }
+  },
+  "relationships": {
+    "878": [803],
+    "1167": [788, 1016],
+    "1454": [809, 820],
+    "1646": [1533]
+  },
+  "transfers": [
+    {
+      "source_number": 807,
+      "repository": "f5-sales-demo/starlight-llms-txt",
+      "number": 579,
+      "state": "open",
+      "status": "status:active",
+      "area": "area:docs-publishing",
+      "labels": ["bug"]
+    },
+    {
+      "source_number": 810,
+      "repository": "f5-sales-demo/starlight-llms-txt",
+      "number": 580,
+      "state": "open",
+      "status": "status:active",
+      "area": "area:docs-publishing",
+      "labels": ["bug"]
+    }
+  ],
+  "pull_requests": [
+    {
+      "number": 1231,
+      "state": "closed",
+      "head_ref": "fix/1223-isolate-dependabot-fixtures",
+      "head_sha": "abca2c22ec176275189d23e3a337dcbb1566c84c",
+      "body_forbidden_patterns": ["(?i)\\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\\s+#1223\\b"],
+      "head_branch": "absent"
+    },
+    {
+      "number": 1892,
+      "state": "open",
+      "head_ref": "codex/1878-super-linter-canaries-20260830T061938Z",
+      "head_sha": "9807cfed4264832fa8e96717688f9b93086f661a",
+      "body_forbidden_patterns": [],
+      "head_branch": "present"
+    }
+  ]
+}
