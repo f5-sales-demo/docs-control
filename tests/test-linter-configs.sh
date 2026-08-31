@@ -151,7 +151,7 @@ import sys
 policy = json.load(open(sys.argv[1], encoding="utf-8"))
 assert policy["schema_version"] == 5
 provider = "f5-sales-demo/terraform-provider-xcsh"
-digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:8817d93949ce0429b16bbcae686065b81d976b43df22e15e90379b5978c6dc2b"
+digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:2a0243be5404daa0f52bae16384f53dbc04554e31406ed0db45152d92f6187e1"
 assert policy["arc_attestations"] == {
     "terraform-provider-xcsh-d8": {
         "label": "managed-socketless",
@@ -751,16 +751,15 @@ else
     "GITHUB_ACTIONS_CONFIG_FILE must select .github/actionlint.yaml"
 fi
 
-if grep -qF \
-  'rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667' \
-  "$SL_YML" &&
-  grep -qF 'Run actionlint 1.7.12 in its immutable' "$SL_YML" &&
-  grep -qF -- '--user "$(id -u):$(id -g)"' "$SL_YML" &&
+if grep -qF 'Run actionlint 1.7.12 directly from' "$SL_YML" &&
+  grep -qF 'actionlint -config-file .github/actionlint.yaml' "$SL_YML" &&
+  ! grep -qF 'rhysd/actionlint@' "$SL_YML" &&
+  ! grep -qF -- '--volume "$GITHUB_WORKSPACE:/repo:ro"' "$SL_YML" &&
   grep -qE '^[[:space:]]*VALIDATE_GITHUB_ACTIONS:[[:space:]]+false$' "$SL_YML"; then
-  pass "5e.4b actionlint is pinned outside Super-Linter"
+  pass "5e.4b actionlint runs natively outside Super-Linter"
 else
-  fail "5e.4b actionlint is pinned outside Super-Linter" \
-    "the bundled actionlint regression can hang on managed inline workflows"
+  fail "5e.4b actionlint runs natively outside Super-Linter" \
+    "the native runner actionlint must replace the retired Docker action"
 fi
 
 # Each entry below is an explicit "not relevant" decision captured with

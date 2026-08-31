@@ -366,25 +366,12 @@ jobs:
           done
 
       # Super-Linter v8.7.0's bundled actionlint can deadlock while analyzing
-      # the large managed sync workflow. Run actionlint 1.7.12 in its immutable
-      # upstream image and keep the validator isolated from both the Docker
-      # socket and the network.
-      - name: Run pinned actionlint
+      # the large managed sync workflow. Run actionlint 1.7.12 directly from
+      # the immutable container-build runner image.
+      - name: Run native actionlint
         run: |
-          docker run --rm \
-            --user "$(id -u):$(id -g)" \
-            --network none \
-            --read-only \
-            --cap-drop ALL \
-            --security-opt no-new-privileges \
-            --pids-limit 256 \
-            --memory 512m \
-            --cpus 1 \
-            --tmpfs /tmp:rw,noexec,nosuid,size=64m \
-            --volume "$GITHUB_WORKSPACE:/repo:ro" \
-            --workdir /repo \
-            rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
-            -config-file .github/actionlint.yaml
+          set -euo pipefail
+          actionlint -config-file .github/actionlint.yaml
 
       - name: Start Super-Linter profiler
         id: super_linter_profile_start
