@@ -1061,6 +1061,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         with self.assertRaises(json.JSONDecodeError):
             json.loads('[{"ident":')
 
+
 class DocsConditionalRouteTests(unittest.TestCase):
     def test_resolves_docs_socketless_route_by_repository(self):
         expression = validator.DOCS_SOCKETLESS_ROUTE_EXPRESSION
