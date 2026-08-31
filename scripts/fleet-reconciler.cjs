@@ -10,6 +10,7 @@ const { GitHubRetryDeferredError, requestGitHubApi } = require('./github-api-res
 
 const SHA = /^[0-9a-f]{40}$/;
 const MODES = new Set(['dry-run', 'pilot', 'full']);
+const BRANCH_PREFIXES = new Set(['governance/reconcile', 'governance/bootstrap']);
 const ACTIVE_PR_LIMIT = 2;
 const WRITE_GAP_MS = 1000;
 
@@ -96,8 +97,15 @@ function contentDiff(tree, desired) {
   for (const absent of desired.deletes) if (actual.has(absent)) changes.push({ path: absent, action: 'delete' });
   return changes.sort((a, b) => a.path.localeCompare(b.path));
 }
-function branchName(sourceSha, repo) {
-  return `governance/reconcile-${sourceSha.slice(0, 12)}-${repo}`;
+function reconciliationBranchPrefix(value = 'governance/reconcile') {
+  if (!BRANCH_PREFIXES.has(value)) fail('reconciliation branch prefix is invalid');
+  return value;
+}
+function branchName(sourceSha, repo, prefix = 'governance/reconcile') {
+  return `${reconciliationBranchPrefix(prefix)}-${sourceSha.slice(0, 12)}-${repo}`;
+}
+function isReconciliationBranch(ref) {
+  return [...BRANCH_PREFIXES].some((prefix) => ref?.startsWith(`${prefix}-`));
 }
 function marker(sourceSha, desiredTree) {
   return `<!-- governance-reconciler source=${sourceSha} desired-tree=${desiredTree} -->`;
@@ -156,7 +164,7 @@ async function activeGovernancePrs(api, owner, inventory) {
     const prs = await api.request(`repos/${owner}/${repo}/pulls?state=open&per_page=100`, {
       operationName: `list reconciliation PRs for ${repo}`,
     });
-    active += prs.filter((pr) => pr.head?.ref?.startsWith('governance/reconcile-')).length;
+    active += prs.filter((pr) => isReconciliationBranch(pr.head?.ref)).length;
   }
   return active;
 }
@@ -186,9 +194,9 @@ function assertAttestableRecovery({ pr, note, changes, files, headTree, desired 
 
 async function createContentPr(
   api,
-  { owner, repo, sourceSha, desiredTree, desired, baseSha, changes, sourceRoot, mode, capacityAvailable },
+  { owner, repo, sourceSha, desiredTree, desired, baseSha, changes, sourceRoot, mode, capacityAvailable, branchPrefix },
 ) {
-  const branch = branchName(sourceSha, repo);
+  const branch = branchName(sourceSha, repo, branchPrefix);
   const note = marker(sourceSha, desiredTree);
   const open = await api.request(
     `repos/${owner}/${repo}/pulls?state=open&head=${owner}:${encodeURIComponent(branch)}&per_page=10`,
@@ -259,9 +267,10 @@ async function createContentPr(
 }
 
 async function reconcileContent(options) {
-  const { api, owner, sourceSha, mode, inventory, config, manifest, sourceRoot, selection } = options;
+  const { api, owner, sourceSha, mode, inventory, config, manifest, sourceRoot, selection, branchPrefix = 'governance/reconcile' } = options;
   requireSha(sourceSha);
   if (!MODES.has(mode)) fail('mode must be dry-run, pilot, or full');
+  reconciliationBranchPrefix(branchPrefix);
   const repos = parseSelection(selection, inventory);
   const result = { sourceSha, mode, repositories: [], deferred: false };
   let active = await activeGovernancePrs(api, owner, inventory);
@@ -290,6 +299,7 @@ async function reconcileContent(options) {
       sourceRoot,
       mode,
       capacityAvailable: active < ACTIVE_PR_LIMIT,
+      branchPrefix,
     });
     if (outcome.status === 'created') active += 1;
     if (outcome.status === 'deferred-capacity') result.deferred = true;
@@ -528,6 +538,7 @@ async function main() {
           manifest,
           sourceRoot: root,
           selection: process.env.REPOSITORIES,
+          branchPrefix: reconciliationBranchPrefix(process.env.RECONCILE_BRANCH_PREFIX || 'governance/reconcile'),
         });
   console.log(JSON.stringify(result, null, 2));
 }
@@ -543,11 +554,13 @@ module.exports = {
   aggregateProtection,
   assertAttestableRecovery,
   contentDiff,
+  branchName,
   currentProtection,
   desiredEntries,
   desiredProtection,
   managedCommitMessage,
   manifestStateDigest,
+  reconciliationBranchPrefix,
   parseSelection,
   reconcileContent,
   reconcileSettings,
