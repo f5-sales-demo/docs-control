@@ -5,7 +5,7 @@ node - "$root/scripts/fleet-reconciler.cjs" <<'NODE'
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {ACTIVE_PR_LIMIT, ATTESTED_CONTEXTS, ApiQueue, aggregateProtection, assertAttestableRecovery, attestationContexts, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, reconcileContent, requireSha, settingsDelta, validateManifest} = require(process.argv[2]);
+const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, reconcileContent, requireSha, settingsDelta, validateManifest} = require(process.argv[2]);
 (async () => {
 const sha = 'a'.repeat(40);
 const makeManifest = (files, absent_paths = []) => ({schema_version:2,source_commit:sha,files,absent_paths,state_digest:manifestStateDigest(files,absent_paths)});
@@ -30,21 +30,18 @@ assert.deepEqual(protection.required_status_checks.checks, [{context:'Extra',app
 const attestedProtection = desiredProtection({branch_protection:[{branch:'main',enforce_admins:true,required_status_checks:{strict:true,contexts:['Check linked issues','lint / Lint Code Base','lint / Shell Unit Tests']},required_pull_request_reviews:null,restrictions:null}]}, 'one');
 assert.deepEqual(attestedProtection.required_status_checks.checks, [{context:'Check linked issues',app_id:-1},{context:'lint / Lint Code Base',app_id:-1},{context:'lint / Shell Unit Tests',app_id:-1}]);
 const canonicalSettings = JSON.parse(fs.readFileSync(path.join(path.dirname(process.argv[2]), '..', '.github/config/repo-settings.json'), 'utf8'));
-assert.deepEqual(attestationContexts(canonicalSettings, 'docs-icons'), ['Check linked issues','Generated artifact release','lint / Lint Code Base','lint / Shell Unit Tests']);
 const xcshProtection = desiredProtection(canonicalSettings, 'xcsh');
 assert.deepEqual(xcshProtection.required_status_checks.checks, [
   {context:'Check linked issues',app_id:-1}, {context:'lint / Lint Code Base',app_id:-1}, {context:'lint / Shell Unit Tests',app_id:-1},
 ]);
 const mixedCaseProtection = desiredProtection({branch_protection:[{branch:'main',required_status_checks:{strict:true,contexts:['Python test suite','lint / Lint Code Base']}}]}, 'one');
 assert.deepEqual(mixedCaseProtection.required_status_checks.checks.map(x => x.context), ['lint / Lint Code Base','Python test suite']);
-assert.deepEqual(attestationContexts({branch_protection:[{branch:'main',required_status_checks:{strict:true,contexts:['Check linked issues']}}],repo_overrides:{one:{additional_contexts:['Python test suite']}}}, 'one'), ['Check linked issues','Python test suite']);
 assert.deepEqual(aggregateProtection(attestedProtection).required_status_checks, {strict:true,contexts:['Check linked issues','lint / Lint Code Base','lint / Shell Unit Tests']});
 assert.equal(currentProtection({enforce_admins:{enabled:true},required_status_checks:{strict:true,contexts:['Extra','Lint']},required_pull_request_reviews:null,restrictions:null,required_linear_history:{enabled:false},allow_force_pushes:{enabled:false},allow_deletions:{enabled:false},block_creations:{enabled:false},required_conversation_resolution:{enabled:false},lock_branch:{enabled:false},allow_fork_syncing:{enabled:false}}).enforce_admins, true);
 assert.deepEqual(currentProtection({required_status_checks:{strict:true,checks:[{context:'lint / Lint',app_id:-1}]},required_pull_request_reviews:null,restrictions:null}).required_status_checks, {strict:true,contexts:[],checks:[{context:'lint / Lint',app_id:-1}]});
 assert.equal(currentProtection({enforce_admins:{enabled:true},required_status_checks:null,required_pull_request_reviews:null,restrictions:{users:[],teams:[],apps:[]}}).restrictions, null);
 assert.deepEqual(currentProtection({enforce_admins:{enabled:true},required_status_checks:null,required_pull_request_reviews:null,restrictions:{users:[{login:'alice'}],teams:[],apps:[]}}).restrictions, {users:['alice'],teams:[],apps:[]});
 assert.equal(ACTIVE_PR_LIMIT, 2);
-assert.deepEqual(ATTESTED_CONTEXTS, ['Check linked issues', 'lint / Lint Code Base', 'lint / Shell Unit Tests']);
 const recovery = {pr:{base:{ref:'main'},body:'marker\n\nCloses #1'},note:'marker',changes:[{path:'a'}],files:[{filename:'a'}],headTree:{tree:[{path:'a',type:'blob',sha,mode:'100644'}]},desired:{files:[{path:'a',sha,mode:'100644'}],deletes:[]}};
 assert.doesNotThrow(() => assertAttestableRecovery(recovery));
 assert.throws(() => assertAttestableRecovery({...recovery,pr:{base:{ref:'main'},body:'marker'}}), /metadata/);
@@ -73,8 +70,8 @@ const admission = await reconcileContent({api:fleetApi, owner:'f5', sourceSha:sh
 assert.equal(admission.repositories.filter((entry) => entry.status === 'created').length, 2);
 assert.equal(admission.repositories.find((entry) => entry.repo === 'three').status, 'deferred-capacity');
 assert.equal(writes.filter((route) => route.endsWith('/pulls')).length, 2);
-assert.equal(writes.filter((route) => route.includes('/statuses/')).length, 7);
-assert.ok(writes.findIndex((route) => route.endsWith('/graphql')) < writes.findIndex((route) => route.includes('/statuses/')));
+assert.equal(writes.filter((route) => route.includes('/statuses/')).length, 0);
+assert.equal(writes.filter((route) => route.endsWith('/graphql')).length, 2);
 const recoveryWrites=[];
 const recoveryDesired={files:[{path:'README',sha,mode:'100644',src:'README.md'}],deletes:[]};
 const recoveryTree=require('node:crypto').createHash('sha256').update(JSON.stringify(recoveryDesired)).digest('hex');
@@ -96,7 +93,7 @@ const recoveryApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.M
 }});
 const recovered = await reconcileContent({api:recoveryApi, owner:'f5', sourceSha:sha, mode:'full', inventory:['one','two','three'], selection:'', sourceRoot:process.cwd(), manifest:oneFileManifest, config:{managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}}}});
 assert.deepEqual(recovered.repositories.map(x => x.status), ['recovered','recovered','deferred-capacity']);
-assert.equal(recoveryWrites.filter(route => route.includes('/statuses/')).length, 6);
+assert.equal(recoveryWrites.filter(route => route.includes('/statuses/')).length, 0);
 assert.equal(recoveryWrites.filter(route => route.endsWith('/pulls')).length, 0);
 const workflow = fs.readFileSync(path.join(path.dirname(process.argv[2]), '..', '.github/workflows/reconcile-fleet-content.yml'), 'utf8');
 assert.match(workflow, /^  group: fleet-content-reconciler-v2$/m);
