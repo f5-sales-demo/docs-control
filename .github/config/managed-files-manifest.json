@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "3e880de5ec851e6f5153321a499caa5b70fe8812",
+  "source_commit": "60240bb091413e8d9a67b4351f7c65e0b5f93ca3",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -334,8 +334,8 @@
     {
       "path": "scripts/audit-runner-workflows.py",
       "src": "scripts/audit-runner-workflows.py",
-      "sha": "1953c11435dfce4fea32af909a8d35fc86909cf8",
-      "size": 34860,
+      "sha": "eb6690ea34097df247107b83a9cb4a4822a2c24b",
+      "size": 35267,
       "mode": "100755"
     },
     {
@@ -404,8 +404,8 @@
     {
       "path": "scripts/workflow-security-validator.py",
       "src": "scripts/workflow-security-validator.py",
-      "sha": "cad6cc250a76dc2fc6fe36e2783aaef5bcc85f0f",
-      "size": 45409,
+      "sha": "47256345571e5bb0ecc0ffd524489a220108e527",
+      "size": 45816,
       "mode": "100755"
     },
     {
@@ -485,5 +485,5 @@
     "scripts/parse-translation-trigger.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:706f808241302d2d1a3ec5c0e0c3912a93812e600958264cdb6b179434f57af6"
+  "state_digest": "sha256:d494af0c0ba9264639dfed922a6f3939c921bb0d8202b082f19d1f21432bf4ad"
 }
