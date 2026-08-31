@@ -5,13 +5,17 @@ node - "$root/scripts/fleet-reconciler.cjs" <<'NODE'
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, reconcileContent, requireSha, settingsDelta, validateManifest} = require(process.argv[2]);
+const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, branchName, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, reconcileContent, reconciliationBranchPrefix, requireSha, settingsDelta, validateManifest} = require(process.argv[2]);
 (async () => {
 const sha = 'a'.repeat(40);
 const makeManifest = (files, absent_paths = []) => ({schema_version:2,source_commit:sha,files,absent_paths,state_digest:manifestStateDigest(files,absent_paths)});
 assert.equal(manifestStateDigest([{path:'a',src:'a',sha,size:1,mode:'100644'}], ['retired']), 'sha256:47c0b77c8b70000308f8bea71916953a269e66b98a35361ed8c6382b554149a4');
 assert.equal(requireSha(sha), sha);
 assert.equal(managedCommitMessage(sha), `chore: reconcile governed files @ ${sha.slice(0,12)} [skip ci]`);
+assert.equal(branchName(sha, 'one'), `governance/reconcile-${sha.slice(0,12)}-one`);
+assert.equal(branchName(sha, 'one', 'governance/bootstrap'), `governance/bootstrap-${sha.slice(0,12)}-one`);
+assert.equal(reconciliationBranchPrefix('governance/bootstrap'), 'governance/bootstrap');
+assert.throws(() => reconciliationBranchPrefix('bootstrap/reconcile'), /prefix is invalid/);
 assert.throws(() => requireSha('short'));
 assert.deepEqual(parseSelection('one,two', ['one', 'two']), ['one', 'two']);
 assert.throws(() => parseSelection('missing', ['one']));
