@@ -17,6 +17,23 @@ branch naming, and CI requirements.
 See [Self-hosted runner operations](docs/self-hosted-runners.md) for the runner security model,
 image release process, workstation provisioning, pilot procedure, and incident response.
 
+## Backlog consolidation verification
+
+The dated policy in
+[backlog-consolidation-2026-08-30.json](.github/config/backlog-consolidation-2026-08-30.json)
+records the accepted issue, transfer, relationship, pull request, and branch state from
+[#1902](https://github.com/f5-sales-demo/docs-control/issues/1902). Verify current GitHub state
+without making changes:
+
+```bash
+python3 scripts/verify_backlog_consolidation.py
+```
+
+The command uses the authenticated `gh` CLI and fails closed on API errors, malformed data, or
+policy drift. To capture live input for later diagnosis, add `--write-snapshot <path>`. To replay
+that input without network access, use `--snapshot <path>`. Update the versioned policy deliberately
+when accepted backlog state changes; do not weaken checks to accommodate unexplained drift.
+
 ## License
 
 See [LICENSE](LICENSE).
