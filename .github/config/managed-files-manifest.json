@@ -1,481 +1,489 @@
 {
-  "source_commit": "31570c23ff32acb6a8d66144f08338f5e7613e96",
-  "files": {
-    ".github/workflows/github-pages-deploy.yml": {
-      "src": "workflows/github-pages-deploy.yml",
-      "dest": ".github/workflows/github-pages-deploy.yml",
-      "sha": "4de15032b4d913080b0de5de452135310c393816",
-      "size": 965,
-      "mode": "100644"
-    },
-    ".github/workflows/require-linked-issue.yml": {
-      "src": "workflows/require-linked-issue.yml",
-      "dest": ".github/workflows/require-linked-issue.yml",
-      "sha": "e3827c864fab7985c4f2c613d8711e06fb054128",
-      "size": 2974,
-      "mode": "100644"
-    },
-    ".github/workflows/super-linter.yml": {
-      "src": "workflows/super-linter.yml",
-      "dest": ".github/workflows/super-linter.yml",
-      "sha": "f3d42ced6d4a21c1b8476cc32d1c66f24fd1685d",
-      "size": 4501,
-      "mode": "100644"
-    },
-    ".github/workflows/translation-audit.yml": {
-      "src": "workflows/translation-audit.yml",
-      "dest": ".github/workflows/translation-audit.yml",
-      "sha": "02501ddb09da56f7884e8b37255ac2ea80aa9b76",
-      "size": 662,
-      "mode": "100644"
-    },
-    ".github/workflows/antigravity-review.yml": {
-      "src": "workflows/antigravity-review.yml",
-      "dest": ".github/workflows/antigravity-review.yml",
-      "sha": "7e649b8b88f7b71bd2dfb3c8ec51c45ae270090e",
-      "size": 1309,
-      "mode": "100644"
-    },
-    ".github/PULL_REQUEST_TEMPLATE.md": {
-      "src": ".github/PULL_REQUEST_TEMPLATE.md",
-      "dest": ".github/PULL_REQUEST_TEMPLATE.md",
-      "sha": "8fa6f0db7f0affe53fb029e29894493c7eea0224",
-      "size": 1190,
-      "mode": "100644"
-    },
-    ".github/ISSUE_TEMPLATE/bug_report.md": {
-      "src": ".github/ISSUE_TEMPLATE/bug_report.md",
-      "dest": ".github/ISSUE_TEMPLATE/bug_report.md",
-      "sha": "d9a3cf932abdc3fcbc004b0ae76e3de5edd8ecfe",
-      "size": 845,
-      "mode": "100644"
-    },
-    ".github/ISSUE_TEMPLATE/feature_request.md": {
-      "src": ".github/ISSUE_TEMPLATE/feature_request.md",
-      "dest": ".github/ISSUE_TEMPLATE/feature_request.md",
-      "sha": "ecdb5a3a6dc83a975f36946f0c826152da46498a",
-      "size": 756,
-      "mode": "100644"
-    },
-    ".github/ISSUE_TEMPLATE/documentation.md": {
-      "src": ".github/ISSUE_TEMPLATE/documentation.md",
-      "dest": ".github/ISSUE_TEMPLATE/documentation.md",
-      "sha": "c3c4dd7402ee9395899f757afba117eb36c9443d",
-      "size": 739,
-      "mode": "100644"
-    },
-    ".github/ISSUE_TEMPLATE/config.yml": {
-      "src": ".github/ISSUE_TEMPLATE/config.yml",
-      "dest": ".github/ISSUE_TEMPLATE/config.yml",
-      "sha": "5cc3f75c0329abc4613691e543afe40b13b6c86d",
-      "size": 50,
-      "mode": "100644"
-    },
-    "CONTRIBUTING.md": {
-      "src": "CONTRIBUTING.md",
-      "dest": "CONTRIBUTING.md",
-      "sha": "72820785902ad131df37d4e47dd8b49ccbe49747",
-      "size": 29806,
-      "mode": "100644"
-    },
-    "CLAUDE.md": {
-      "src": "CLAUDE.md",
-      "dest": "CLAUDE.md",
-      "sha": "74f38194b6f74f175de8ad2a49d1bbbc7ec7e04e",
-      "size": 7941,
-      "mode": "100644"
-    },
-    "AGENTS.md": {
-      "src": "AGENTS.md",
-      "dest": "AGENTS.md",
-      "sha": "c78d6b8577f287145854eb6e39f0de7a8198a7fc",
-      "size": 3993,
-      "mode": "100644"
-    },
-    ".agents/skills/demo-components/SKILL.md": {
+  "schema_version": 2,
+  "source_commit": "de314e9bf3ea45b98c89ccda2aa7a75af1013858",
+  "files": [
+    {
+      "path": ".agents/skills/demo-components/SKILL.md",
       "src": ".agents/skills/demo-components/SKILL.md",
-      "dest": ".agents/skills/demo-components/SKILL.md",
       "sha": "a5bf12ece27711c2518ca26a9269ede5f785ff8d",
       "size": 3209,
       "mode": "100644"
     },
-    ".agents/skills/demo-components/agents/openai.yaml": {
+    {
+      "path": ".agents/skills/demo-components/agents/openai.yaml",
       "src": ".agents/skills/demo-components/agents/openai.yaml",
-      "dest": ".agents/skills/demo-components/agents/openai.yaml",
       "sha": "9dbf41a0e0a08808bafba972256f87f71ef5692f",
       "size": 208,
       "mode": "100644"
     },
-    "STYLE_GUIDE.md": {
-      "src": "STYLE_GUIDE.md",
-      "dest": "STYLE_GUIDE.md",
-      "sha": "91a34e6bff0c3c05d4c9d58bfbdfef9dab6123ef",
-      "size": 20200,
-      "mode": "100644"
-    },
-    ".editorconfig": {
-      "src": ".editorconfig",
-      "dest": ".editorconfig",
-      "sha": "4e5d7c09600d24ab79d106e2886b0a203edd5840",
-      "size": 334,
-      "mode": "100644"
-    },
-    ".gitignore": {
-      "src": ".gitignore",
-      "dest": ".gitignore",
-      "sha": "291106ba7f8ae620e36c5a553af340b694833272",
-      "size": 3308,
-      "mode": "100644"
-    },
-    "LICENSE": {
-      "src": "LICENSE",
-      "dest": "LICENSE",
-      "sha": "95aea347c042fd2c0d835bb5f754b0d6dd0249ed",
-      "size": 1075,
-      "mode": "100644"
-    },
-    ".pre-commit-config.yaml": {
-      "src": ".pre-commit-config.yaml",
-      "dest": ".pre-commit-config.yaml",
-      "sha": "118a205aace0b8602b4f53db2dde820fa37174b0",
-      "size": 12908,
-      "mode": "100644"
-    },
-    ".yamllint.yaml": {
-      "src": ".yamllint.yaml",
-      "dest": ".yamllint.yaml",
-      "sha": "7797048acaf20cb2eac6dce7ab0ce02b27cc9a8a",
-      "size": 331,
-      "mode": "100644"
-    },
-    ".markdownlint.json": {
-      "src": ".markdownlint.json",
-      "dest": ".markdownlint.json",
-      "sha": "194c8741f8fde0c1b6d18b9dda7046ade65a400d",
-      "size": 139,
-      "mode": "100644"
-    },
-    ".github/workflows/dependabot-auto-merge.yml": {
-      "src": "workflows/dependabot-auto-merge.yml",
-      "dest": ".github/workflows/dependabot-auto-merge.yml",
-      "sha": "59b3d82b8056456e7391da86becc7751c6413fdd",
-      "size": 2245,
-      "mode": "100644"
-    },
-    ".github/workflows/auto-merge.yml": {
-      "src": "workflows/auto-merge.yml",
-      "dest": ".github/workflows/auto-merge.yml",
-      "sha": "c89cd4e97416af30c0d70ea649d5c6f6f4e8a3b2",
-      "size": 3098,
-      "mode": "100644"
-    },
-    "biome.json": {
-      "src": "biome.json",
-      "dest": "biome.json",
-      "sha": "38154e50194259656ba1e33051db87ace55c98cb",
-      "size": 1144,
-      "mode": "100644"
-    },
-    ".jscpd.json": {
-      "src": ".jscpd.json",
-      "dest": ".jscpd.json",
-      "sha": "d8be4c6c375e2dd1fbea46c3fcc74c389a293154",
-      "size": 422,
-      "mode": "100644"
-    },
-    ".textlintrc": {
-      "src": ".textlintrc",
-      "dest": ".textlintrc",
-      "sha": "837e21aa2deaee206474f552508f3453541f257a",
-      "size": 1258,
-      "mode": "100644"
-    },
-    ".editorconfig-checker.json": {
-      "src": ".editorconfig-checker.json",
-      "dest": ".editorconfig-checker.json",
-      "sha": "77927baee37c7c9acea75cc9af5ae8ef2244d302",
-      "size": 107,
-      "mode": "100644"
-    },
-    ".checkov.yaml": {
+    {
+      "path": ".checkov.yaml",
       "src": ".checkov.yaml",
-      "dest": ".checkov.yaml",
       "sha": "4418b6c128e308dfcfa1910a0388d9fc993d318c",
       "size": 3357,
       "mode": "100644"
     },
-    "zizmor.yaml": {
-      "src": "zizmor.yaml",
-      "dest": "zizmor.yaml",
-      "sha": "df44a8fb0315f3cfd7b8a154ec16e6eca464ab7c",
-      "size": 184,
-      "mode": "100644"
-    },
-    ".shellcheckrc": {
-      "src": ".shellcheckrc",
-      "dest": ".shellcheckrc",
-      "sha": "e25dba89f3d2bfc697062159cd39d212c3e2c9f2",
-      "size": 1348,
-      "mode": "100644"
-    },
-    ".codespellrc": {
-      "src": ".codespellrc",
-      "dest": ".codespellrc",
-      "sha": "379be00258180aea2dcb5cd1c043848ae9eeb92b",
-      "size": 784,
-      "mode": "100644"
-    },
-    ".gitleaks.toml": {
-      "src": ".gitleaks.toml",
-      "dest": ".gitleaks.toml",
-      "sha": "b239ea9c3030926328bb71e2f0eb39c7cfd34163",
-      "size": 67,
-      "mode": "100644"
-    },
-    ".prettierignore": {
-      "src": ".prettierignore",
-      "dest": ".prettierignore",
-      "sha": "41e6b63e0856b6fdcb1bf97b1ba1a55e8490467e",
-      "size": 183,
-      "mode": "100644"
-    },
-    ".trivyignore": {
-      "src": ".trivyignore",
-      "dest": ".trivyignore",
-      "sha": "d158a5719e6325409a2825267a4c93a48cfa4a78",
-      "size": 716,
-      "mode": "100644"
-    },
-    "trivy.yaml": {
-      "src": "trivy.yaml",
-      "dest": "trivy.yaml",
-      "sha": "2bd9c62ad0f3eb16300cc4c2f08a99227f5bc59e",
-      "size": 780,
-      "mode": "100644"
-    },
-    ".ruff.toml": {
-      "src": ".ruff.toml",
-      "dest": ".ruff.toml",
-      "sha": "2cb29e64ca6efb19613acc987061d8aac532f68c",
-      "size": 2117,
-      "mode": "100644"
-    },
-    ".isort.cfg": {
-      "src": ".isort.cfg",
-      "dest": ".isort.cfg",
-      "sha": "7c74842c842147232fce0c8f5d1fa411288ffd9f",
-      "size": 88,
-      "mode": "100644"
-    },
-    ".python-lint": {
-      "src": ".python-lint",
-      "dest": ".python-lint",
-      "sha": "64d9fd274ef74a1d19e5c39005cc66a09927c823",
-      "size": 740,
-      "mode": "100644"
-    },
-    ".mypy.ini": {
-      "src": ".mypy.ini",
-      "dest": ".mypy.ini",
-      "sha": "dcd042c771b42c5fdbc35c06e089f7f784663681",
-      "size": 273,
-      "mode": "100644"
-    },
-    "scripts/locale-lint.sh": {
-      "src": "scripts/locale-lint.sh",
-      "dest": "scripts/locale-lint.sh",
-      "sha": "4c2e7bf8397e962f27c6f1e0415269f7c6cde887",
-      "size": 2851,
-      "mode": "100755"
-    },
-    "scripts/agy-pre-push-review.sh": {
-      "src": "scripts/agy-pre-push-review.sh",
-      "dest": "scripts/agy-pre-push-review.sh",
-      "sha": "7cef2680a37b0cc4da910e0c55e8e06f42f04f74",
-      "size": 554,
-      "mode": "100755"
-    },
-    "scripts/agy-review.sh": {
-      "src": "scripts/agy-review.sh",
-      "dest": "scripts/agy-review.sh",
-      "sha": "bf8cd03cc8fcd127be3e44848f5e04cb51fc6627",
-      "size": 18337,
-      "mode": "100755"
-    },
-    "scripts/agy-review-output.schema.json": {
-      "src": "scripts/agy-review-output.schema.json",
-      "dest": "scripts/agy-review-output.schema.json",
-      "sha": "d62142757a48bec62ecf6a038f91de28ea2250ba",
-      "size": 1414,
-      "mode": "100644"
-    },
-    "scripts/run-with-progress.sh": {
-      "src": "scripts/run-with-progress.sh",
-      "dest": "scripts/run-with-progress.sh",
-      "sha": "eca2ff0a05196ab0bbe6a2aaa1e6ec9826e4f5dd",
-      "size": 3484,
-      "mode": "100755"
-    },
-    "scripts/github-api-resilience.cjs": {
-      "src": "scripts/github-api-resilience.cjs",
-      "dest": "scripts/github-api-resilience.cjs",
-      "sha": "93eb7259397fe335424ef12166aedc20df21a7e7",
-      "size": 16107,
-      "mode": "100644"
-    },
-    "scripts/translation-release-policy.sh": {
-      "src": "scripts/translation-release-policy.sh",
-      "dest": "scripts/translation-release-policy.sh",
-      "sha": "97aee6cc47e7def8a41e3f6319aecd605e82e464",
-      "size": 2004,
-      "mode": "100755"
-    },
-    "scripts/validate-translations.sh": {
-      "src": "scripts/validate-translations.sh",
-      "dest": "scripts/validate-translations.sh",
-      "sha": "a34a00f7b00b32b85c4f459f0e597044db93dbdc",
-      "size": 13079,
-      "mode": "100755"
-    },
-    "scripts/check-repo-hygiene.sh": {
-      "src": "scripts/check-repo-hygiene.sh",
-      "dest": "scripts/check-repo-hygiene.sh",
-      "sha": "742e7ed55ced12341b91fee9cfdddd9ea6bcf707",
-      "size": 7160,
-      "mode": "100755"
-    },
-    "scripts/check_pii.py": {
-      "src": "scripts/check_pii.py",
-      "dest": "scripts/check_pii.py",
-      "sha": "1e950a03242d3a8d91a38df1ed79e3e397fad5a2",
-      "size": 100738,
-      "mode": "100644"
-    },
-    "scripts/check-pii.sh": {
-      "src": "scripts/check-pii.sh",
-      "dest": "scripts/check-pii.sh",
-      "sha": "1aa5dfecda8ce7d28e45a74b029f224810e8f751",
-      "size": 8687,
-      "mode": "100755"
-    },
-    "scripts/lint-mdx-prose.sh": {
-      "src": "scripts/lint-mdx-prose.sh",
-      "dest": "scripts/lint-mdx-prose.sh",
-      "sha": "2b8c300b3f27a0c914f5d975212b9b6527a728e7",
-      "size": 4953,
-      "mode": "100755"
-    },
-    "tests/test-check-repo-hygiene.sh": {
-      "src": "tests/test-check-repo-hygiene.sh",
-      "dest": "tests/test-check-repo-hygiene.sh",
-      "sha": "d60db5dc35ce7bd70b503ee730f71b0e147d5583",
-      "size": 9220,
-      "mode": "100755"
-    },
-    "tests/test-check-pii.sh": {
-      "src": "tests/test-check-pii.sh",
-      "dest": "tests/test-check-pii.sh",
-      "sha": "e4f053268f2888e12cab8f1d934030170f09c160",
-      "size": 95482,
-      "mode": "100755"
-    },
-    "tests/test-lint-mdx-prose.sh": {
-      "src": "tests/test-lint-mdx-prose.sh",
-      "dest": "tests/test-lint-mdx-prose.sh",
-      "sha": "2182f113bceff4c54a69b973c45445e1e382d605",
-      "size": 9157,
-      "mode": "100755"
-    },
-    "tests/test-agy-pre-push-review.sh": {
-      "src": "tests/test-agy-pre-push-review.sh",
-      "dest": "tests/test-agy-pre-push-review.sh",
-      "sha": "7b2f944450a3512ab270a612dd2a1229d80e9745",
-      "size": 19077,
-      "mode": "100755"
-    },
-    "tests/test-github-api-resilience.sh": {
-      "src": "tests/test-github-api-resilience.sh",
-      "dest": "tests/test-github-api-resilience.sh",
-      "sha": "80ffac8507e8d908383f8cfa784889b4cd6b5c71",
-      "size": 23536,
-      "mode": "100644"
-    },
-    "tests/test-translation-release-policy.sh": {
-      "src": "tests/test-translation-release-policy.sh",
-      "dest": "tests/test-translation-release-policy.sh",
-      "sha": "1032399e8e5d711b19a7fe6d5bcf7e6c277d4f80",
-      "size": 1328,
-      "mode": "100755"
-    },
-    "tests/test-validate-translations.sh": {
-      "src": "tests/test-validate-translations.sh",
-      "dest": "tests/test-validate-translations.sh",
-      "sha": "eda0d377779d5c66038b464058dd2b006ccb7f9b",
-      "size": 9486,
-      "mode": "100755"
-    },
-    ".claude/governance.json": {
+    {
+      "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "dest": ".claude/governance.json",
-      "sha": "cacbc2e78b1491291f5fcdd6573b720c7aec4bcd",
-      "size": 9111,
+      "sha": "e09a482914231c716c286a144e7d7f31d659e91f",
+      "size": 8565,
       "mode": "100644"
     },
-    ".claude/settings.json": {
-      "src": ".claude/settings.json",
-      "dest": ".claude/settings.json",
-      "sha": "d8d2f7a20ef078fa850694042025a568e90d80a5",
-      "size": 540,
-      "mode": "100644"
-    },
-    ".claude/hooks/protect-managed-files.sh": {
+    {
+      "path": ".claude/hooks/protect-managed-files.sh",
       "src": ".claude/hooks/protect-managed-files.sh",
-      "dest": ".claude/hooks/protect-managed-files.sh",
       "sha": "c15c0f8484bfbb86402788e305b08af6823082c3",
       "size": 3882,
       "mode": "100755"
     },
-    ".github/actionlint.yaml": {
+    {
+      "path": ".claude/settings.json",
+      "src": ".claude/settings.json",
+      "sha": "d8d2f7a20ef078fa850694042025a568e90d80a5",
+      "size": 540,
+      "mode": "100644"
+    },
+    {
+      "path": ".codespellrc",
+      "src": ".codespellrc",
+      "sha": "379be00258180aea2dcb5cd1c043848ae9eeb92b",
+      "size": 784,
+      "mode": "100644"
+    },
+    {
+      "path": ".editorconfig",
+      "src": ".editorconfig",
+      "sha": "4e5d7c09600d24ab79d106e2886b0a203edd5840",
+      "size": 334,
+      "mode": "100644"
+    },
+    {
+      "path": ".editorconfig-checker.json",
+      "src": ".editorconfig-checker.json",
+      "sha": "77927baee37c7c9acea75cc9af5ae8ef2244d302",
+      "size": 107,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "src": ".github/ISSUE_TEMPLATE/bug_report.md",
+      "sha": "d9a3cf932abdc3fcbc004b0ae76e3de5edd8ecfe",
+      "size": 845,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/config.yml",
+      "src": ".github/ISSUE_TEMPLATE/config.yml",
+      "sha": "5cc3f75c0329abc4613691e543afe40b13b6c86d",
+      "size": 50,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/documentation.md",
+      "src": ".github/ISSUE_TEMPLATE/documentation.md",
+      "sha": "c3c4dd7402ee9395899f757afba117eb36c9443d",
+      "size": 739,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "src": ".github/ISSUE_TEMPLATE/feature_request.md",
+      "sha": "ecdb5a3a6dc83a975f36946f0c826152da46498a",
+      "size": 756,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/PULL_REQUEST_TEMPLATE.md",
+      "src": ".github/PULL_REQUEST_TEMPLATE.md",
+      "sha": "8fa6f0db7f0affe53fb029e29894493c7eea0224",
+      "size": 1190,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/actionlint.yaml",
       "src": ".github/actionlint.yaml",
-      "dest": ".github/actionlint.yaml",
       "sha": "a8ade420bf44149ebc8698fbdc761ef4beceb878",
       "size": 1592,
       "mode": "100644"
     },
-    ".github/workflows/workflow-security-audit.yml": {
-      "src": "workflows/workflow-security-audit.yml",
-      "dest": ".github/workflows/workflow-security-audit.yml",
-      "sha": "6959e43d71ceb84a6f43822feacc5d92ecd1e178",
-      "size": 4842,
-      "mode": "100644"
-    },
-    "scripts/workflow-security-validator.py": {
-      "src": "scripts/workflow-security-validator.py",
-      "dest": "scripts/workflow-security-validator.py",
-      "sha": "cad6cc250a76dc2fc6fe36e2783aaef5bcc85f0f",
-      "size": 45409,
-      "mode": "100755"
-    },
-    "scripts/audit-runner-workflows.py": {
-      "src": "scripts/audit-runner-workflows.py",
-      "dest": "scripts/audit-runner-workflows.py",
-      "sha": "1953c11435dfce4fea32af909a8d35fc86909cf8",
-      "size": 34860,
-      "mode": "100755"
-    },
-    ".github/config/self-hosted-runner-policy.json": {
+    {
+      "path": ".github/config/self-hosted-runner-policy.json",
       "src": ".github/config/self-hosted-runner-policy.json",
-      "dest": ".github/config/self-hosted-runner-policy.json",
       "sha": "32788afcb0eed937b254053d6e8fa6a8e22cb8c8",
       "size": 37837,
       "mode": "100644"
     },
-    ".github/workflows/semgrep.yml": {
+    {
+      "path": ".github/workflows/antigravity-review.yml",
+      "src": "workflows/antigravity-review.yml",
+      "sha": "7e649b8b88f7b71bd2dfb3c8ec51c45ae270090e",
+      "size": 1309,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/workflows/auto-merge.yml",
+      "src": "workflows/auto-merge.yml",
+      "sha": "2aa05c5c4262f04e714c9b26945c280872c34e8b",
+      "size": 3422,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/workflows/github-pages-deploy.yml",
+      "src": "workflows/github-pages-deploy.yml",
+      "sha": "4de15032b4d913080b0de5de452135310c393816",
+      "size": 965,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/workflows/require-linked-issue.yml",
+      "src": "workflows/require-linked-issue.yml",
+      "sha": "4feaefcba32b1e7b31ce0065a487c0d3c1a4ed36",
+      "size": 3885,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/workflows/semgrep.yml",
       "src": "workflows/semgrep.yml",
-      "dest": ".github/workflows/semgrep.yml",
       "sha": "a7a2848cbbf142e662e3a482ec22e7a3d4216e76",
       "size": 2525,
       "mode": "100644"
+    },
+    {
+      "path": ".github/workflows/super-linter.yml",
+      "src": "workflows/super-linter.yml",
+      "sha": "c2a5b9e2a491e175af35096d9d485ba8e72ecbeb",
+      "size": 5331,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/workflows/translation-audit.yml",
+      "src": "workflows/translation-audit.yml",
+      "sha": "02501ddb09da56f7884e8b37255ac2ea80aa9b76",
+      "size": 662,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/workflows/workflow-security-audit.yml",
+      "src": "workflows/workflow-security-audit.yml",
+      "sha": "6959e43d71ceb84a6f43822feacc5d92ecd1e178",
+      "size": 4842,
+      "mode": "100644"
+    },
+    {
+      "path": ".gitignore",
+      "src": ".gitignore",
+      "sha": "291106ba7f8ae620e36c5a553af340b694833272",
+      "size": 3308,
+      "mode": "100644"
+    },
+    {
+      "path": ".gitleaks.toml",
+      "src": ".gitleaks.toml",
+      "sha": "b239ea9c3030926328bb71e2f0eb39c7cfd34163",
+      "size": 67,
+      "mode": "100644"
+    },
+    {
+      "path": ".isort.cfg",
+      "src": ".isort.cfg",
+      "sha": "7c74842c842147232fce0c8f5d1fa411288ffd9f",
+      "size": 88,
+      "mode": "100644"
+    },
+    {
+      "path": ".jscpd.json",
+      "src": ".jscpd.json",
+      "sha": "d8be4c6c375e2dd1fbea46c3fcc74c389a293154",
+      "size": 422,
+      "mode": "100644"
+    },
+    {
+      "path": ".markdownlint.json",
+      "src": ".markdownlint.json",
+      "sha": "194c8741f8fde0c1b6d18b9dda7046ade65a400d",
+      "size": 139,
+      "mode": "100644"
+    },
+    {
+      "path": ".mypy.ini",
+      "src": ".mypy.ini",
+      "sha": "dcd042c771b42c5fdbc35c06e089f7f784663681",
+      "size": 273,
+      "mode": "100644"
+    },
+    {
+      "path": ".pre-commit-config.yaml",
+      "src": ".pre-commit-config.yaml",
+      "sha": "118a205aace0b8602b4f53db2dde820fa37174b0",
+      "size": 12908,
+      "mode": "100644"
+    },
+    {
+      "path": ".prettierignore",
+      "src": ".prettierignore",
+      "sha": "41e6b63e0856b6fdcb1bf97b1ba1a55e8490467e",
+      "size": 183,
+      "mode": "100644"
+    },
+    {
+      "path": ".python-lint",
+      "src": ".python-lint",
+      "sha": "64d9fd274ef74a1d19e5c39005cc66a09927c823",
+      "size": 740,
+      "mode": "100644"
+    },
+    {
+      "path": ".ruff.toml",
+      "src": ".ruff.toml",
+      "sha": "2cb29e64ca6efb19613acc987061d8aac532f68c",
+      "size": 2117,
+      "mode": "100644"
+    },
+    {
+      "path": ".shellcheckrc",
+      "src": ".shellcheckrc",
+      "sha": "e25dba89f3d2bfc697062159cd39d212c3e2c9f2",
+      "size": 1348,
+      "mode": "100644"
+    },
+    {
+      "path": ".textlintrc",
+      "src": ".textlintrc",
+      "sha": "837e21aa2deaee206474f552508f3453541f257a",
+      "size": 1258,
+      "mode": "100644"
+    },
+    {
+      "path": ".trivyignore",
+      "src": ".trivyignore",
+      "sha": "d158a5719e6325409a2825267a4c93a48cfa4a78",
+      "size": 716,
+      "mode": "100644"
+    },
+    {
+      "path": ".yamllint.yaml",
+      "src": ".yamllint.yaml",
+      "sha": "7797048acaf20cb2eac6dce7ab0ce02b27cc9a8a",
+      "size": 331,
+      "mode": "100644"
+    },
+    {
+      "path": "AGENTS.md",
+      "src": "AGENTS.md",
+      "sha": "c78d6b8577f287145854eb6e39f0de7a8198a7fc",
+      "size": 3993,
+      "mode": "100644"
+    },
+    {
+      "path": "CLAUDE.md",
+      "src": "CLAUDE.md",
+      "sha": "74f38194b6f74f175de8ad2a49d1bbbc7ec7e04e",
+      "size": 7941,
+      "mode": "100644"
+    },
+    {
+      "path": "CONTRIBUTING.md",
+      "src": "CONTRIBUTING.md",
+      "sha": "72820785902ad131df37d4e47dd8b49ccbe49747",
+      "size": 29806,
+      "mode": "100644"
+    },
+    {
+      "path": "LICENSE",
+      "src": "LICENSE",
+      "sha": "95aea347c042fd2c0d835bb5f754b0d6dd0249ed",
+      "size": 1075,
+      "mode": "100644"
+    },
+    {
+      "path": "STYLE_GUIDE.md",
+      "src": "STYLE_GUIDE.md",
+      "sha": "91a34e6bff0c3c05d4c9d58bfbdfef9dab6123ef",
+      "size": 20200,
+      "mode": "100644"
+    },
+    {
+      "path": "biome.json",
+      "src": "biome.json",
+      "sha": "38154e50194259656ba1e33051db87ace55c98cb",
+      "size": 1144,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/agy-pre-push-review.sh",
+      "src": "scripts/agy-pre-push-review.sh",
+      "sha": "7cef2680a37b0cc4da910e0c55e8e06f42f04f74",
+      "size": 554,
+      "mode": "100755"
+    },
+    {
+      "path": "scripts/agy-review-output.schema.json",
+      "src": "scripts/agy-review-output.schema.json",
+      "sha": "d62142757a48bec62ecf6a038f91de28ea2250ba",
+      "size": 1414,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/agy-review.sh",
+      "src": "scripts/agy-review.sh",
+      "sha": "bf8cd03cc8fcd127be3e44848f5e04cb51fc6627",
+      "size": 18337,
+      "mode": "100755"
+    },
+    {
+      "path": "scripts/audit-runner-workflows.py",
+      "src": "scripts/audit-runner-workflows.py",
+      "sha": "1953c11435dfce4fea32af909a8d35fc86909cf8",
+      "size": 34860,
+      "mode": "100755"
+    },
+    {
+      "path": "scripts/check-pii.sh",
+      "src": "scripts/check-pii.sh",
+      "sha": "1aa5dfecda8ce7d28e45a74b029f224810e8f751",
+      "size": 8687,
+      "mode": "100755"
+    },
+    {
+      "path": "scripts/check-repo-hygiene.sh",
+      "src": "scripts/check-repo-hygiene.sh",
+      "sha": "742e7ed55ced12341b91fee9cfdddd9ea6bcf707",
+      "size": 7160,
+      "mode": "100755"
+    },
+    {
+      "path": "scripts/check_pii.py",
+      "src": "scripts/check_pii.py",
+      "sha": "1e950a03242d3a8d91a38df1ed79e3e397fad5a2",
+      "size": 100738,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/github-api-resilience.cjs",
+      "src": "scripts/github-api-resilience.cjs",
+      "sha": "93eb7259397fe335424ef12166aedc20df21a7e7",
+      "size": 16107,
+      "mode": "100644"
+    },
+    {
+      "path": "scripts/lint-mdx-prose.sh",
+      "src": "scripts/lint-mdx-prose.sh",
+      "sha": "2b8c300b3f27a0c914f5d975212b9b6527a728e7",
+      "size": 4953,
+      "mode": "100755"
+    },
+    {
+      "path": "scripts/locale-lint.sh",
+      "src": "scripts/locale-lint.sh",
+      "sha": "4c2e7bf8397e962f27c6f1e0415269f7c6cde887",
+      "size": 2851,
+      "mode": "100755"
+    },
+    {
+      "path": "scripts/run-with-progress.sh",
+      "src": "scripts/run-with-progress.sh",
+      "sha": "eca2ff0a05196ab0bbe6a2aaa1e6ec9826e4f5dd",
+      "size": 3484,
+      "mode": "100755"
+    },
+    {
+      "path": "scripts/translation-release-policy.sh",
+      "src": "scripts/translation-release-policy.sh",
+      "sha": "97aee6cc47e7def8a41e3f6319aecd605e82e464",
+      "size": 2004,
+      "mode": "100755"
+    },
+    {
+      "path": "scripts/validate-translations.sh",
+      "src": "scripts/validate-translations.sh",
+      "sha": "a34a00f7b00b32b85c4f459f0e597044db93dbdc",
+      "size": 13079,
+      "mode": "100755"
+    },
+    {
+      "path": "scripts/workflow-security-validator.py",
+      "src": "scripts/workflow-security-validator.py",
+      "sha": "cad6cc250a76dc2fc6fe36e2783aaef5bcc85f0f",
+      "size": 45409,
+      "mode": "100755"
+    },
+    {
+      "path": "tests/test-agy-pre-push-review.sh",
+      "src": "tests/test-agy-pre-push-review.sh",
+      "sha": "7b2f944450a3512ab270a612dd2a1229d80e9745",
+      "size": 19077,
+      "mode": "100755"
+    },
+    {
+      "path": "tests/test-check-pii.sh",
+      "src": "tests/test-check-pii.sh",
+      "sha": "e4f053268f2888e12cab8f1d934030170f09c160",
+      "size": 95482,
+      "mode": "100755"
+    },
+    {
+      "path": "tests/test-check-repo-hygiene.sh",
+      "src": "tests/test-check-repo-hygiene.sh",
+      "sha": "d60db5dc35ce7bd70b503ee730f71b0e147d5583",
+      "size": 9220,
+      "mode": "100755"
+    },
+    {
+      "path": "tests/test-github-api-resilience.sh",
+      "src": "tests/test-github-api-resilience.sh",
+      "sha": "80ffac8507e8d908383f8cfa784889b4cd6b5c71",
+      "size": 23536,
+      "mode": "100644"
+    },
+    {
+      "path": "tests/test-lint-mdx-prose.sh",
+      "src": "tests/test-lint-mdx-prose.sh",
+      "sha": "2182f113bceff4c54a69b973c45445e1e382d605",
+      "size": 9157,
+      "mode": "100755"
+    },
+    {
+      "path": "tests/test-translation-release-policy.sh",
+      "src": "tests/test-translation-release-policy.sh",
+      "sha": "1032399e8e5d711b19a7fe6d5bcf7e6c277d4f80",
+      "size": 1328,
+      "mode": "100755"
+    },
+    {
+      "path": "tests/test-validate-translations.sh",
+      "src": "tests/test-validate-translations.sh",
+      "sha": "eda0d377779d5c66038b464058dd2b006ccb7f9b",
+      "size": 9486,
+      "mode": "100755"
+    },
+    {
+      "path": "trivy.yaml",
+      "src": "trivy.yaml",
+      "sha": "2bd9c62ad0f3eb16300cc4c2f08a99227f5bc59e",
+      "size": 780,
+      "mode": "100644"
+    },
+    {
+      "path": "zizmor.yaml",
+      "src": "zizmor.yaml",
+      "sha": "df44a8fb0315f3cfd7b8a154ec16e6eca464ab7c",
+      "size": 184,
+      "mode": "100644"
     }
-  }
+  ],
+  "absent_paths": [
+    ".agents/skills/i18n-translate/SKILL.md",
+    ".github/dependabot.yml",
+    ".github/workflows/antigravity-translate.yml",
+    ".github/workflows/claude-review.yml",
+    ".github/workflows/code-review.yml",
+    ".github/workflows/dependabot-auto-merge.yml",
+    ".github/workflows/enforce-repo-settings.yml",
+    "actionlint.yml",
+    "scripts/antigravity-translate-staged.sh",
+    "scripts/parse-translation-trigger.sh",
+    "tests/test-antigravity-translate-staged.sh"
+  ],
+  "state_digest": "sha256:517cd5f2c19d916d848b371408f199cc42a2421629c7fd3c667f5f4e2f087fb7"
 }
