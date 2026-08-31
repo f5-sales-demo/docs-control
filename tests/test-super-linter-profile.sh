@@ -32,6 +32,10 @@ required = (
     "Finalize Super-Linter profile",
     "Upload Super-Linter profile",
     "Preserve Super-Linter conclusion",
+    "Run native Spectral OpenAPI lint",
+    "Validate Spectral profile",
+    "Upload Spectral profile",
+    "Preserve Spectral conclusion",
 )
 assert set(required) <= by_name.keys()
 order = [next(i for i, step in enumerate(steps) if step.get("name") == name) for name in required]
@@ -112,8 +116,76 @@ assert subprocess.run(
     ["bash", "-c", gate["run"]], env=cancelled_env, capture_output=True, check=False
 ).returncode != 0
 
-assert "SUPPRESS_OUTPUT_ON_SUCCESS" not in lint.get("env", {})
-assert "stoplightio/spectral-action" in text
+assert lint["env"]["SUPPRESS_OUTPUT_ON_SUCCESS"] is True
+assert "stoplightio/spectral-action" not in text
+
+spectral = by_name["Run native Spectral OpenAPI lint"]
+assert spectral["id"] == "spectral"
+assert spectral["if"] == "hashFiles('.spectral.yaml', '.spectral.yml') != ''"
+assert spectral.get("continue-on-error") is True
+for fragment in (
+    "spectral --version",
+    '!= "6.16.3"',
+    "runner-profile",
+    "--name spectral",
+    "--cache-state warm",
+    "--variant native-spectral-suppressed",
+    '--ruleset "$ruleset"',
+    "--format github-actions",
+    "--fail-severity error",
+    '"**/*.json" "**/*.yaml"',
+):
+    assert fragment in spectral["run"]
+
+spectral_profile = by_name["Validate Spectral profile"]
+assert spectral_profile["id"] == "spectral_profile"
+assert spectral_profile["if"] == "always() && hashFiles('.spectral.yaml', '.spectral.yml') != ''"
+assert spectral_profile.get("continue-on-error") is True
+for fragment in (
+    "workload-profile.schema.json",
+    "/opt/spectral/node_modules/ajv/dist/2020",
+    "profile.phase !== 'spectral'",
+    "profile.exit.code",
+):
+    assert fragment in spectral_profile["run"]
+
+spectral_upload = by_name["Upload Spectral profile"]
+assert spectral_upload["id"] == "spectral_profile_upload"
+assert spectral_upload["if"] == "always() && hashFiles('.spectral.yaml', '.spectral.yml') != ''"
+assert spectral_upload.get("continue-on-error") is True
+assert spectral_upload["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+assert spectral_upload["with"] == {
+    "name": "workload-profile-spectral",
+    "path": "${{ runner.temp }}/workload-profile-spectral/profile.json",
+    "if-no-files-found": "error",
+    "retention-days": 30,
+}
+
+spectral_gate = by_name["Preserve Spectral conclusion"]
+assert spectral_gate["if"] == "always() && hashFiles('.spectral.yaml', '.spectral.yml') != ''"
+assert spectral_gate["env"] == {
+    "SPECTRAL_OUTCOME": "${{ steps.spectral.outcome }}",
+    "PROFILE_OUTCOME": "${{ steps.spectral_profile.outcome }}",
+    "PROFILE_UPLOAD_OUTCOME": "${{ steps.spectral_profile_upload.outcome }}",
+}
+for name in spectral_gate["env"]:
+    assert f'"${name}" != success' in spectral_gate["run"]
+spectral_base_env = os.environ | {name: "success" for name in spectral_gate["env"]}
+assert subprocess.run(
+    ["bash", "-c", spectral_gate["run"]],
+    env=spectral_base_env,
+    capture_output=True,
+    check=False,
+).returncode == 0
+for failed_outcome in spectral_gate["env"]:
+    failure_env = spectral_base_env | {failed_outcome: "failure"}
+    assert subprocess.run(
+        ["bash", "-c", spectral_gate["run"]],
+        env=failure_env,
+        capture_output=True,
+        check=False,
+    ).returncode != 0
+
 assert "Docker-capable lint is forbidden for fork pull requests." in text
 PYTEST
 
