@@ -229,7 +229,7 @@ with tempfile.TemporaryDirectory() as directory:
     (root / ".spectral.yaml").write_text("extends: spectral:oas\n", encoding="utf-8")
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     subprocess.run(
-        ["git", "config", "user.email", "test@example.invalid"], cwd=root, check=True
+        ["git", "config", "user.email", "test@example.com"], cwd=root, check=True
     )
     subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
     (root / "unchanged.json").write_text('{"openapi":"3.1.0"}', encoding="utf-8")
