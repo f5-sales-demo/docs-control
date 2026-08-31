@@ -661,6 +661,77 @@ jobs:
             echo "::error::runner Spectral version does not match immutable 6.16.3 contract"
             exit 1
           fi
+          candidate_manifest="$RUNNER_TEMP/spectral-candidates"
+          target_manifest="$RUNNER_TEMP/spectral-targets"
+          git ls-files -z -- '*.json' '*.yaml' '*.yml' >"$candidate_manifest"
+          # BEGIN OPENAPI DISCOVERY
+          python3 - "$candidate_manifest" "$target_manifest" <<'PYDISCOVERY'
+          import json
+          import os
+          import re
+          import sys
+          from pathlib import Path
+
+          import yaml
+
+          candidate_manifest = Path(sys.argv[1])
+          target_manifest = Path(sys.argv[2])
+          candidates = [
+              os.fsdecode(path)
+              for path in candidate_manifest.read_bytes().split(b"\0")
+              if path
+          ]
+          json_marker = re.compile(
+              rb'(?m)(?:\A\{[ \t\r\n]*|^[ \t]*)"(?:openapi|swagger)"[ \t]*:'
+          )
+          yaml_marker = re.compile(rb'(?m)^(?:openapi|swagger)[ \t]*:')
+          targets = []
+          for candidate in candidates:
+              path = Path(candidate)
+              if path.is_symlink() or not path.is_file():
+                  print(
+                      f"tracked Spectral candidate is not a regular file: {candidate!r}",
+                      file=sys.stderr,
+                  )
+                  raise SystemExit(1)
+              raw = path.read_bytes()
+              is_json = path.suffix.lower() == ".json"
+              marker = json_marker if is_json else yaml_marker
+              if marker.search(raw) is None:
+                  continue
+              try:
+                  document = json.loads(raw) if is_json else yaml.safe_load(raw)
+              except (UnicodeDecodeError, json.JSONDecodeError, yaml.YAMLError) as error:
+                  print(
+                      f"cannot parse potential OpenAPI document {candidate!r}: "
+                      f"{type(error).__name__}",
+                      file=sys.stderr,
+                  )
+                  raise SystemExit(1) from error
+              if isinstance(document, dict) and (
+                  "openapi" in document or "swagger" in document
+              ):
+                  targets.append(os.fsencode(candidate))
+
+          with target_manifest.open("wb") as output:
+              for target in targets:
+                  output.write(target + b"\0")
+          PYDISCOVERY
+          # END OPENAPI DISCOVERY
+          mapfile -d '' -t spectral_files <"$target_manifest"
+          echo "Discovered ${#spectral_files[@]} tracked OpenAPI document(s)"
+          if ((${#spectral_files[@]})); then
+            spectral_command=(
+              spectral lint
+              --ruleset "$ruleset"
+              --format github-actions
+              --fail-severity error
+              --
+              "${spectral_files[@]}"
+            )
+          else
+            spectral_command=(bash -c 'echo "No tracked OpenAPI documents require Spectral linting."')
+          fi
           profile_dir="$RUNNER_TEMP/workload-profile-spectral"
           rm -rf -- "$profile_dir"
           install -d -m 0700 "$profile_dir"
@@ -670,11 +741,7 @@ jobs:
             --cache-state warm \
             --variant native-spectral-suppressed \
             --pair-id "${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${GITHUB_JOB}" \
-            -- spectral lint \
-            --ruleset "$ruleset" \
-            --format github-actions \
-            --fail-severity error \
-            "**/*.json" "**/*.yaml"
+            -- "${spectral_command[@]}"
 
       - name: Validate Spectral profile
         id: spectral_profile
