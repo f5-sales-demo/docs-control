@@ -56,6 +56,17 @@ def _require_integer(value: Any, path: str) -> int:
     return value
 
 
+def _parse_issue_key(value: Any, context: str) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError) as exc:
+        raise AuditInputError(f"{context} {value!r} must be an issue number") from exc
+    _require_integer(number, context)
+    if str(number) != str(value):
+        raise AuditInputError(f"{context} {value!r} must be canonical")
+    return number
+
+
 def _require_integer_list(value: Any, path: str) -> list[int]:
     items = _require_list(value, path)
     result = [_require_integer(item, f"{path}[]") for item in items]
@@ -111,7 +122,7 @@ def validate_policy(policy: dict[str, Any]) -> None:
     relationships = _require_mapping(policy.get("relationships", {}), "relationships")
     seen_children: set[int] = set()
     for parent_key, raw_children in relationships.items():
-        parent = _require_integer(int(parent_key), f"relationships.{parent_key}")
+        parent = _parse_issue_key(parent_key, "relationships key")
         if parent not in issue_numbers:
             raise AuditInputError(f"relationship parent #{parent} is not in issues")
         children = _require_integer_list(raw_children, f"relationships.{parent_key}")
@@ -301,7 +312,7 @@ def audit_snapshot(policy: dict[str, Any], snapshot: dict[str, Any]) -> list[str
         for number_text, actual in source_issues.items():
             if not isinstance(actual, dict):
                 continue
-            number = int(number_text)
+            number = _parse_issue_key(number_text, "snapshot issue key")
             expected_children = policy.get("relationships", {}).get(number_text, [])
             actual_children = actual.get("children")
             if actual_children != expected_children:

@@ -237,6 +237,24 @@ class AuditSnapshotTests(unittest.TestCase):
         with self.assertRaisesRegex(MODULE.AuditInputError, "status: prefix"):
             MODULE.audit_snapshot(policy, base_snapshot())
 
+    def test_nonnumeric_relationship_key_is_rejected(self):
+        policy = base_policy()
+        policy["relationships"] = {"invalid": [2]}
+
+        with self.assertRaisesRegex(
+            MODULE.AuditInputError, "relationships key 'invalid'"
+        ):
+            MODULE.audit_snapshot(policy, base_snapshot())
+
+    def test_nonnumeric_snapshot_issue_key_is_rejected(self):
+        snapshot = base_snapshot()
+        snapshot["repositories"]["example/source"]["issues"]["invalid"] = {}
+
+        with self.assertRaisesRegex(
+            MODULE.AuditInputError, "snapshot issue key 'invalid'"
+        ):
+            MODULE.audit_snapshot(base_policy(), snapshot)
+
     def test_load_json_rejects_malformed_input(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "broken.json"
