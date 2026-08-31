@@ -189,13 +189,12 @@ for infra_file in ".claude/governance.json" ".claude/settings.json" ".claude/hoo
 done
 
 # Test 3.3: governance.json includes dynamically managed files
-for dynamic_file in "README.md"; do
-  if grep -qxF "$dynamic_file" <<<"$PROTECTED_FILES"; then
-    pass "3.3 governance.json protects dynamic file $dynamic_file"
-  else
-    fail "3.3 governance.json protects dynamic file $dynamic_file" "not found"
-  fi
-done
+dynamic_file="README.md"
+if grep -qxF "$dynamic_file" <<<"$PROTECTED_FILES"; then
+  pass "3.3 governance.json protects dynamic file $dynamic_file"
+else
+  fail "3.3 governance.json protects dynamic file $dynamic_file" "not found"
+fi
 for retired_file in ".github/dependabot.yml" ".github/workflows/dependabot-auto-merge.yml"; do
   if ! grep -qxF "$retired_file" <<<"$PROTECTED_FILES" &&
     jq -e --arg path "$retired_file" '.managed_files.absent_files | index($path) != null' "$REPO_SETTINGS" >/dev/null; then
