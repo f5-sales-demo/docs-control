@@ -135,7 +135,6 @@ for fragment in (
     '--ruleset "$ruleset"',
     "--format github-actions",
     "--fail-severity error",
-    '--\n    "${spectral_files[@]}"',
     "git ls-files -z -- '*.json' '*.yaml' '*.yml'",
     "BEGIN OPENAPI DISCOVERY",
     "END OPENAPI DISCOVERY",
@@ -173,11 +172,11 @@ with tempfile.TemporaryDirectory() as directory:
     )
     assert result.returncode == 0, result.stderr
     assert targets.read_bytes().split(b"\0")[:-1] == [
-        b"api.json",
-        b"api.yaml",
-        b"legacy.yml",
-        b"-api.json",
-        b"odd\nname.json",
+        b"./api.json",
+        b"./api.yaml",
+        b"./legacy.yml",
+        b"./-api.json",
+        b"./odd\nname.json",
     ]
 
     (root / "broken.json").write_text('{"openapi":"3.1.0",', encoding="utf-8")
@@ -217,6 +216,49 @@ with tempfile.TemporaryDirectory() as directory:
     )
     assert result.returncode != 0
     assert "not a regular file" in result.stderr
+
+with tempfile.TemporaryDirectory() as directory:
+    root = Path(directory)
+    (root / ".spectral.yaml").write_text("extends: spectral:oas\n", encoding="utf-8")
+    (root / "api.json").write_text('{"openapi":"3.1.0"}', encoding="utf-8")
+    (root / "-api.yaml").write_text("swagger: '2.0'\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    bin_dir = root / "bin"
+    bin_dir.mkdir()
+    args_file = root / "spectral-args"
+    (bin_dir / "spectral").write_text(
+        "#!/usr/bin/env bash\n"
+        "if [[ ${1:-} == --version ]]; then echo 6.16.3; exit 0; fi\n"
+        "printf '%s\\0' \"$@\" >\"$SPECTRAL_ARGS_FILE\"\n",
+        encoding="utf-8",
+    )
+    (bin_dir / "runner-profile").write_text(
+        "#!/usr/bin/env bash\n"
+        "while (($#)) && [[ $1 != -- ]]; do shift; shift; done\n"
+        "shift\n"
+        'exec "$@"\n',
+        encoding="utf-8",
+    )
+    for executable in ("spectral", "runner-profile"):
+        (bin_dir / executable).chmod(0o755)
+    env = os.environ | {
+        "PATH": f"{bin_dir}:{os.environ['PATH']}",
+        "RUNNER_TEMP": str(root / "runner-temp"),
+        "GITHUB_RUN_ID": "1",
+        "GITHUB_RUN_ATTEMPT": "1",
+        "GITHUB_JOB": "lint",
+        "SPECTRAL_ARGS_FILE": str(args_file),
+    }
+    (root / "runner-temp").mkdir()
+    result = subprocess.run(
+        ["bash", "-c", spectral["run"]], cwd=root, env=env, capture_output=True, check=False
+    )
+    assert result.returncode == 0, result.stderr
+    assert args_file.read_bytes().split(b"\0")[:-1] == [
+        b"lint", b"--ruleset", b".spectral.yaml", b"--format", b"github-actions",
+        b"--fail-severity", b"error", b"./-api.yaml", b"./api.json",
+    ]
 
 spectral_profile = by_name["Validate Spectral profile"]
 assert spectral_profile["id"] == "spectral_profile"
