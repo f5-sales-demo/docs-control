@@ -644,6 +644,8 @@ jobs:
       - name: Run native Spectral OpenAPI lint
         id: spectral
         if: hashFiles('.spectral.yaml', '.spectral.yml') != ''
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         continue-on-error: true
         run: |
           set -euo pipefail
