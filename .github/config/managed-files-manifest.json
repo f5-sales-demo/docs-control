@@ -1,5 +1,5 @@
 {
-  "source_commit": "87cb50fc9d6c5161551e540a04e9fc0eb3de0942",
+  "source_commit": "08e70e2907ceedbb1a65d5d2e19c64989c2633db",
   "files": {
     ".github/workflows/github-pages-deploy.yml": {
       "src": "workflows/github-pages-deploy.yml",
@@ -74,8 +74,8 @@
     "CONTRIBUTING.md": {
       "src": "CONTRIBUTING.md",
       "dest": "CONTRIBUTING.md",
-      "sha": "704a812aae4358be533adc1baa7793953bfc5e05",
-      "size": 29210,
+      "sha": "72820785902ad131df37d4e47dd8b49ccbe49747",
+      "size": 29806,
       "mode": "100644"
     },
     "CLAUDE.md": {
