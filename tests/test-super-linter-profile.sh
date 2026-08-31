@@ -123,6 +123,7 @@ spectral = by_name["Run native Spectral OpenAPI lint"]
 assert spectral["id"] == "spectral"
 assert spectral["if"] == "hashFiles('.spectral.yaml', '.spectral.yml') != ''"
 assert spectral.get("continue-on-error") is True
+assert spectral["env"] == {"NODE_OPTIONS": "--max-old-space-size=4096"}
 for fragment in (
     "spectral --version",
     '!= "6.16.3"',
