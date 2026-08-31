@@ -823,6 +823,10 @@ jobs:
             tests/test_provision_ephemeral_runners.py \
             tests/test_workflow_security_validator.py
 
+      - name: Run backlog consolidation verifier tests
+        if: hashFiles('tests/test-backlog-consolidation.sh') != ''
+        run: bash tests/test-backlog-consolidation.sh
+
       - name: Run consumer shell-test selector test
         if: hashFiles('tests/test-consumer-shell-tests.sh') != ''
         run: bash tests/test-consumer-shell-tests.sh

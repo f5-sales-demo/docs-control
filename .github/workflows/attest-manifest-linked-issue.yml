@@ -1,0 +1,132 @@
+---
+name: Attest Manifest Linked Issue Receipt
+
+on:
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: Exact manifest pull request number.
+        required: true
+        type: string
+      expected_source_sha:
+        description: Exact protected main source SHA.
+        required: true
+        type: string
+      expected_head_sha:
+        description: Exact manifest pull request head SHA.
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: attest-manifest-receipt-${{ inputs.pull_request_number }}-${{ inputs.expected_source_sha }}-${{ inputs.expected_head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  attest:
+    name: Attest exact manifest receipt
+    runs-on: managed-socketless
+    permissions:
+      pull-requests: read # validate immutable pull request receipts
+      contents: read # validate protected main and commit ancestry
+      checks: write # publish the exact required receipt on the verified head
+    steps:
+      - name: Validate receipts and publish exact linked-issue check
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          PR_NUMBER: ${{ inputs.pull_request_number }}
+          EXPECTED_SOURCE_SHA: ${{ inputs.expected_source_sha }}
+          EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
+          ATTESTOR_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const number = Number(process.env.PR_NUMBER);
+            const source = process.env.EXPECTED_SOURCE_SHA;
+            const head = process.env.EXPECTED_HEAD_SHA;
+            const requiredName = "Check linked issues";
+            const manifestPath = ".github/config/managed-files-manifest.json";
+            if (!Number.isSafeInteger(number) || number < 1 ||
+                !/^[0-9a-f]{40}$/.test(source) || !/^[0-9a-f]{40}$/.test(head)) {
+              core.setFailed("Manifest receipt inputs must be a positive PR number and exact lowercase SHA-1 values.");
+              return;
+            }
+            const externalId = `manifest-receipt:${owner}/${repo}:pr:${number}:source:${source}:head:${head}`;
+
+            async function readCandidate() {
+              const pull = (await github.rest.pulls.get({ owner, repo, pull_number: number })).data;
+              const main = (await github.rest.repos.getBranch({ owner, repo, branch: "main" })).data;
+              const commit = (await github.rest.git.getCommit({ owner, repo, commit_sha: head })).data;
+              const commits = (await github.rest.pulls.listCommits({ owner, repo, pull_number: number, per_page: 2 })).data;
+              const files = (await github.rest.pulls.listFiles({ owner, repo, pull_number: number, per_page: 2 })).data;
+              const valid = pull.state === "open" &&
+                pull.head.repo?.full_name === `${owner}/${repo}` &&
+                pull.base.repo?.full_name === `${owner}/${repo}` &&
+                pull.base.ref === "main" &&
+                pull.head.ref === `sync/manifest-${source}` &&
+                pull.head.sha === head &&
+                main.protected === true && main.commit.sha === source &&
+                commit.sha === head && commit.parents.length === 1 && commit.parents[0].sha === source &&
+                commits.length === 1 && commits[0].sha === head &&
+                files.length === 1 && files[0].filename === manifestPath && files[0].status === "modified";
+              if (!valid) throw new Error("Manifest PR, branch, base, head, parent, commit count, or diff receipt is invalid.");
+              return JSON.stringify({
+                pr: pull.number,
+                state: pull.state,
+                headRepo: pull.head.repo.full_name,
+                baseRepo: pull.base.repo.full_name,
+                base: pull.base.ref,
+                branch: pull.head.ref,
+                head: pull.head.sha,
+                source: main.commit.sha,
+                protected: main.protected,
+                parent: commit.parents[0].sha,
+                commits: commits.map((item) => item.sha),
+                files: files.map((item) => [item.filename, item.status]),
+              });
+            }
+
+            async function readRequiredReceipts() {
+              const response = await github.rest.checks.listForRef({
+                owner, repo, ref: head, check_name: requiredName, filter: "all", per_page: 100,
+              });
+              if (response.data.total_count !== response.data.check_runs.length || response.data.total_count > 100) {
+                throw new Error("Required check receipt inventory is incomplete.");
+              }
+              return response.data.check_runs.filter((run) => run.name === requiredName);
+            }
+
+            const first = await readCandidate();
+            const existing = await readRequiredReceipts();
+            if (existing.length > 1) throw new Error("Duplicate required check receipts fail closed.");
+            if (existing.length === 1) {
+              const receipt = existing[0];
+              if (receipt.external_id !== externalId || receipt.head_sha !== head ||
+                  receipt.status !== "completed" || receipt.conclusion !== "success" ||
+                  receipt.app?.slug !== "github-actions") {
+                throw new Error("Foreign, mismatched, incomplete, or failed required check receipt exists.");
+              }
+              core.info(`Reusing exact successful manifest receipt ${externalId}.`);
+              return;
+            }
+
+            const lastReceipts = await readRequiredReceipts();
+            if (lastReceipts.length !== 0) throw new Error("A required check receipt appeared during final validation.");
+            const final = await readCandidate();
+            if (final !== first) throw new Error("Manifest PR, head, or protected main changed before receipt publication.");
+            await github.rest.checks.create({
+              owner,
+              repo,
+              name: requiredName,
+              head_sha: head,
+              status: "completed",
+              conclusion: "success",
+              external_id: externalId,
+              details_url: process.env.ATTESTOR_RUN_URL,
+              output: {
+                title: "Exact manifest receipt attested",
+                summary: `PR #${number}; source ${source.slice(0, 12)}...; head ${head.slice(0, 12)}... Validated by the protected-main attestor.`,
+              },
+            });
+            core.info(`Published exact successful manifest receipt ${externalId}.`);

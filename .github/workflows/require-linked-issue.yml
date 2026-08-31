@@ -4,69 +4,59 @@ name: Require Linked Issue
 on:
   pull_request:
     types: [opened, reopened, edited, synchronize]
-  workflow_dispatch:
-    inputs:
-      pull_request_number:
-        description: Pull request number to check.
-        required: true
-        type: string
-      expected_head_sha:
-        description: Exact head receipt for the PR branch.
-        required: true
-        type: string
 
 permissions: {}
 
 concurrency:
-  group: require-linked-issue-${{ github.event_name }}-${{ github.event.pull_request.number || inputs.pull_request_number }}-${{ inputs.expected_head_sha || 'live' }}
+  group: require-linked-issue-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
   cancel-in-progress: true
 
 jobs:
-  check-linked-issues:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      github.event.pull_request.head.repo.full_name == github.repository
-    name: Check linked issues
+  validate-pull-request:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    name: ${{ startsWith(github.event.pull_request.head.ref, 'sync/manifest-') && 'Validate manifest receipt candidate' || 'Check linked issues' }}
     runs-on: managed-socketless
     permissions:
-      pull-requests: read # inspect and attest the current pull request
-      contents: read # resolve repository metadata for linked-issue validation
+      pull-requests: read # inspect the current pull request
+      contents: read # inspect manifest candidate ancestry
     steps:
-      - name: Check this pull request's linked issues
+      - name: Validate pull request policy
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ inputs.pull_request_number || github.event.pull_request.number }}
-          EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
         with:
           script: |
             const { owner, repo } = context.repo;
-            const number = Number(process.env.PR_NUMBER);
-            if (!Number.isSafeInteger(number) || number < 1) {
-              core.setFailed("Pull request number must be a positive integer.");
+            const pull = context.payload.pull_request;
+            if (pull.head?.ref?.startsWith("sync/manifest-")) {
+              const match = /^sync\/manifest-([0-9a-f]{40})$/.exec(pull.head.ref);
+              if (!match || pull.base.ref !== "main" || pull.base.repo.full_name !== `${owner}/${repo}`) {
+                core.setFailed("Manifest candidate branch, repository, or base is invalid.");
+                return;
+              }
+              const source = match[1];
+              const head = pull.head.sha;
+              if (!/^[0-9a-f]{40}$/.test(head)) {
+                core.setFailed("Manifest candidate head is invalid.");
+                return;
+              }
+              const [commit, commits, files] = await Promise.all([
+                github.rest.git.getCommit({ owner, repo, commit_sha: head }),
+                github.rest.pulls.listCommits({ owner, repo, pull_number: pull.number, per_page: 2 }),
+                github.rest.pulls.listFiles({ owner, repo, pull_number: pull.number, per_page: 2 }),
+              ]);
+              const valid = commit.data.parents.length === 1 &&
+                commit.data.parents[0].sha === source &&
+                commits.data.length === 1 && commits.data[0].sha === head &&
+                files.data.length === 1 &&
+                files.data[0].filename === ".github/config/managed-files-manifest.json" &&
+                files.data[0].status === "modified";
+              if (!valid) {
+                core.setFailed("Manifest candidate is not one exact manifest-only commit on its receipted source.");
+                return;
+              }
+              core.info(`Manifest candidate #${pull.number} has a valid untrusted shape; protected-main attestation is still required.`);
               return;
             }
-            if (process.env.EVENT_NAME === "pull_request" &&
-                context.payload.pull_request.head.ref === "sync/manifest") {
-              core.info(`PR #${number} is the trusted synthetic manifest publication branch.`);
-              return;
-            }
-            if (process.env.EVENT_NAME === "workflow_dispatch") {
-              if (!/^[0-9a-f]{40}$/.test(process.env.EXPECTED_HEAD_SHA)) {
-                core.setFailed("Manual linked-issue checks require exact lowercase SHA receipts.");
-                return;
-              }
-              const pull = await github.rest.pulls.get({ owner, repo, pull_number: number });
-              if (pull.data.head.sha !== process.env.EXPECTED_HEAD_SHA ||
-                  pull.data.head.repo?.full_name !== `${owner}/${repo}`) {
-                core.setFailed("The dispatched linked-issue receipt does not match the current same-repository pull request.");
-                return;
-              }
-              if (pull.data.head.ref === "sync/manifest") {
-                core.info(`PR #${number} is the exact synthetic manifest publication; linked-issue policy is satisfied by its verified publisher receipt.`);
-                return;
-              }
-            }
+            const number = pull.number;
             const result = await github.graphql(
               `query($owner: String!, $repo: String!, $number: Int!) {
                 repository(owner: $owner, name: $repo) {
