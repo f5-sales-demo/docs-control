@@ -1239,5 +1239,18 @@ jobs:
         )
 
 
+class DocsConditionalRouteTests(unittest.TestCase):
+    def test_resolves_docs_socketless_route_by_repository(self):
+        expression = MODULE.DOCS_SOCKETLESS_ROUTE_EXPRESSION
+        self.assertEqual(
+            MODULE.canonical_route_label(expression, "f5-sales-demo/docs-icons"),
+            "docs-socketless",
+        )
+        self.assertEqual(
+            MODULE.canonical_route_label(expression, "f5-sales-demo/nginx"),
+            "managed-socketless",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
