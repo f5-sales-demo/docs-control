@@ -711,7 +711,7 @@ jobs:
               if isinstance(document, dict) and (
                   "openapi" in document or "swagger" in document
               ):
-                  targets.append(os.fsencode(candidate))
+                  targets.append(b"./" + os.fsencode(candidate))
 
           with target_manifest.open("wb") as output:
               for target in targets:
@@ -726,7 +726,6 @@ jobs:
               --ruleset "$ruleset"
               --format github-actions
               --fail-severity error
-              --
               "${spectral_files[@]}"
             )
           else
