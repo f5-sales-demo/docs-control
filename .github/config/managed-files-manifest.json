@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "60240bb091413e8d9a67b4351f7c65e0b5f93ca3",
+  "source_commit": "da57f858512d0f51b5ccb63a8b4a5dce31770e9a",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,7 +26,7 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "e09a482914231c716c286a144e7d7f31d659e91f",
+      "sha": "d14cee6a0596c1f7142d5dc9429192adcc414019",
       "size": 8565,
       "mode": "100644"
     },
@@ -166,7 +166,7 @@
     {
       "path": ".github/workflows/workflow-security-audit.yml",
       "src": "workflows/workflow-security-audit.yml",
-      "sha": "6959e43d71ceb84a6f43822feacc5d92ecd1e178",
+      "sha": "4c233acd5970da97ce8e700fcafc621c304e6d27",
       "size": 4842,
       "mode": "100644"
     },
@@ -402,8 +402,8 @@
       "mode": "100755"
     },
     {
-      "path": "scripts/workflow-security-validator.py",
-      "src": "scripts/workflow-security-validator.py",
+      "path": "scripts/workflow_security_validator.py",
+      "src": "scripts/workflow_security_validator.py",
       "sha": "47256345571e5bb0ecc0ffd524489a220108e527",
       "size": 45816,
       "mode": "100755"
@@ -483,7 +483,8 @@
     "actionlint.yml",
     "scripts/antigravity-translate-staged.sh",
     "scripts/parse-translation-trigger.sh",
+    "scripts/workflow-security-validator.py",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:d494af0c0ba9264639dfed922a6f3939c921bb0d8202b082f19d1f21432bf4ad"
+  "state_digest": "sha256:e57e48bcc0a393d6dd246fbc58c61fb73d276d86c2f4c2c99bd69bb4cda6885d"
 }
