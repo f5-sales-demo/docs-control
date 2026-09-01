@@ -30,7 +30,9 @@ every required-absent path that exists downstream.
 
 Dependency automation is owned by the self-hosted organization Renovate App. Repository-local
 Dependabot configuration and its auto-merge workflow are required absent; they are not generated or
-restored by reconciliation.
+restored by reconciliation. Run `python3 scripts/audit-dependency-automation.py` to fail closed on
+retired files, mutable Dependabot settings, bot pull requests or branches, catalog drift, and
+organization defaults.
 
 ## Dynamic README.md generation
 
