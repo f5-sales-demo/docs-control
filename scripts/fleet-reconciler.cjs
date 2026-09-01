@@ -10,7 +10,11 @@ const { GitHubRetryDeferredError, requestGitHubApi } = require('./github-api-res
 
 const SHA = /^[0-9a-f]{40}$/;
 const MODES = new Set(['dry-run', 'pilot', 'full']);
-const BRANCH_PREFIXES = new Set(['governance/reconcile', 'governance/bootstrap']);
+const BRANCH_PREFIXES = new Set([
+  'governance/reconcile',
+  'governance/bootstrap',
+  'governance/sync-managed-files',
+]);
 const ACTIVE_PR_LIMIT = 2;
 const WRITE_GAP_MS = 1000;
 
@@ -102,7 +106,15 @@ function reconciliationBranchPrefix(value = 'governance/reconcile') {
   return value;
 }
 function branchName(sourceSha, repo, prefix = 'governance/reconcile') {
-  return `${reconciliationBranchPrefix(prefix)}-${sourceSha.slice(0, 12)}-${repo}`;
+  const approvedPrefix = reconciliationBranchPrefix(prefix);
+  if (approvedPrefix === 'governance/sync-managed-files') {
+    // Downstream developer-owned governance guards recognize this exact form.
+    // The repository-derived positive number makes the ref deterministic without
+    // exposing an arbitrary caller-controlled suffix.
+    const repositoryId = (crypto.createHash('sha256').update(repo).digest().readUInt32BE(0) || 1);
+    return `${approvedPrefix}-${sourceSha.slice(0, 12)}-${repositoryId}-1`;
+  }
+  return `${approvedPrefix}-${sourceSha.slice(0, 12)}-${repo}`;
 }
 function isReconciliationBranch(ref) {
   return [...BRANCH_PREFIXES].some((prefix) => ref?.startsWith(`${prefix}-`));

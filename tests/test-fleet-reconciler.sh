@@ -15,6 +15,11 @@ assert.equal(managedCommitMessage(sha), `chore: reconcile governed files @ ${sha
 assert.equal(branchName(sha, 'one'), `governance/reconcile-${sha.slice(0,12)}-one`);
 assert.equal(branchName(sha, 'one', 'governance/bootstrap'), `governance/bootstrap-${sha.slice(0,12)}-one`);
 assert.equal(reconciliationBranchPrefix('governance/bootstrap'), 'governance/bootstrap');
+assert.match(
+  branchName(sha, 'one', 'governance/sync-managed-files'),
+  new RegExp(`^governance/sync-managed-files-${sha.slice(0, 12)}-[1-9][0-9]*-1$`),
+);
+assert.equal(reconciliationBranchPrefix('governance/sync-managed-files'), 'governance/sync-managed-files');
 assert.throws(() => reconciliationBranchPrefix('bootstrap/reconcile'), /prefix is invalid/);
 assert.throws(() => requireSha('short'));
 assert.deepEqual(parseSelection('one,two', ['one', 'two']), ['one', 'two']);
