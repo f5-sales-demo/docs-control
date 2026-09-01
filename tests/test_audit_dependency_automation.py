@@ -1,13 +1,15 @@
-# ruff: noqa: EM101, INP001, PT009, TRY003
+# ruff: noqa: EM101, INP001, PT009, PT027, TRY003
 """Tests for the fleet dependency-automation retirement audit."""
 
 from __future__ import annotations
 
 import importlib.util
+import subprocess
 import sys
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parent.parent
 SPEC = importlib.util.spec_from_file_location(
@@ -73,6 +75,9 @@ class FakeGitHub:
 
     def mutate(self, method, endpoint, body=None):
         self.calls.append((method, endpoint, body))
+
+    def delete_ref(self, endpoint):
+        self.calls.append(("DELETE", endpoint, None))
 
 
 class DependencyAutomationAuditTests(unittest.TestCase):
@@ -158,6 +163,25 @@ class DependencyAutomationAuditTests(unittest.TestCase):
                 for call in calls
             )
         )
+
+    def test_ref_deletion_accepts_only_deleted_or_already_absent(self):
+        client = MODULE.GhClient()
+        endpoint = (
+            "repos/f5-sales-demo/fixture/git/refs/heads/dependabot%2Fnpm%2Fexample"
+        )
+        for status, returncode in ((204, 0), (404, 1)):
+            result = subprocess.CompletedProcess(
+                [], returncode, f"HTTP/2 {status}\n", "fixture"
+            )
+            with patch.object(client, "_run", return_value=result):
+                client.delete_ref(endpoint)
+        for stdout in ("HTTP/2 500\n", ""):
+            result = subprocess.CompletedProcess([], 1, stdout, "fixture")
+            with (
+                patch.object(client, "_run", return_value=result),
+                self.assertRaises(RuntimeError),
+            ):
+                client.delete_ref(endpoint)
 
 
 if __name__ == "__main__":

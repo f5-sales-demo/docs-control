@@ -33,6 +33,7 @@ class GitHubAPI(Protocol):
     def json(self, endpoint: str) -> Any: ...
     def status(self, endpoint: str) -> int: ...
     def mutate(self, method: str, endpoint: str, body: Any = None) -> None: ...
+    def delete_ref(self, endpoint: str) -> None: ...
 
 
 class GhClient:
@@ -82,6 +83,15 @@ class GhClient:
             raise RuntimeError(
                 f"GitHub API {method} {endpoint} failed: {result.stderr.strip()}"
             )
+
+    def delete_ref(self, endpoint: str) -> None:
+        result = self._run(["--include", "--method", "DELETE", endpoint])
+        first_line = result.stdout.splitlines()[0] if result.stdout else ""
+        fields = first_line.split()
+        if len(fields) >= 2 and fields[1].isdigit() and int(fields[1]) in (204, 404):
+            return
+        detail = first_line or result.stderr.strip() or "missing HTTP status"
+        raise RuntimeError(f"GitHub API DELETE {endpoint} failed: {detail}")
 
 
 def load_catalog(path: Path = POLICY) -> list[str]:
@@ -213,9 +223,8 @@ def retire_fleet(repositories: list[str], github: GitHubAPI) -> None:
         for branch in branches:
             name = branch.get("name")
             if isinstance(name, str) and name.startswith("dependabot/"):
-                github.mutate(
-                    "DELETE",
-                    f"repos/{repository}/git/refs/heads/{quote(name, safe='')}",
+                github.delete_ref(
+                    f"repos/{repository}/git/refs/heads/{quote(name, safe='')}"
                 )
 
 
