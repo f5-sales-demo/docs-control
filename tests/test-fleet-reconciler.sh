@@ -56,6 +56,15 @@ assert.doesNotThrow(() => assertAttestableRecovery(recovery));
 assert.throws(() => assertAttestableRecovery({...recovery,pr:{base:{ref:'main'},body:'marker'}}), /metadata/);
 assert.throws(() => assertAttestableRecovery({...recovery,files:[{filename:'a'},{filename:'unmanaged'}]}), /unexpected paths/);
 assert.throws(() => assertAttestableRecovery({...recovery,headTree:{tree:[]}}), /desired managed tree/);
+const renameRecovery = {
+  ...recovery,
+  changes:[{path:'old.py'},{path:'new.py'}],
+  files:[{filename:'new.py',status:'renamed',previous_filename:'old.py'}],
+  headTree:{tree:[{path:'new.py',type:'blob',sha,mode:'100644'}]},
+  desired:{files:[{path:'new.py',sha,mode:'100644'}],deletes:['old.py']},
+};
+assert.doesNotThrow(() => assertAttestableRecovery(renameRecovery));
+assert.throws(() => assertAttestableRecovery({...renameRecovery,files:[{filename:'new.py',status:'renamed'}]}), /unexpected paths/);
 const calls=[]; const headers=[]; let now=0; const api = new ApiQueue({token:'x', now:()=>now, sleep:async(ms)=>{calls.push(ms); now += ms;}, fetch:async(_url, request)=>{headers.push(request.headers); return new Response('{}',{status:200,headers:{etag:'"fleet"'}});}});
 await api.request('one',{method:'POST'}); now=10; await api.request('two',{method:'PATCH'}); assert.deepEqual(calls,[990]);
 await api.request('read'); await api.request('read'); assert.equal(headers.at(-1)['if-none-match'], '"fleet"');

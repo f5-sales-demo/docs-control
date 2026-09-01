@@ -200,7 +200,10 @@ function assertAttestableRecovery({ pr, note, changes, files, headTree, desired 
   if (pr.base?.ref !== 'main' || !pr.body?.includes(note) || !/^Closes #[1-9][0-9]*$/m.test(pr.body))
     fail('recovered reconciliation PR metadata is invalid');
   const expectedPaths = changes.map((change) => change.path).sort();
-  const actualPaths = files.map((file) => file.filename).sort();
+  const actualPaths = files.flatMap((file) => [
+    file.filename,
+    ...(file.status === 'renamed' && typeof file.previous_filename === 'string' ? [file.previous_filename] : []),
+  ]).sort();
   if (JSON.stringify(actualPaths) !== JSON.stringify(expectedPaths))
     fail('recovered reconciliation PR contains unexpected paths');
   if (contentDiff(headTree, desired).length)
