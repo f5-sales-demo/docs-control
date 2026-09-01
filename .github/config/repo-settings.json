@@ -176,6 +176,7 @@
       "actionlint.yml",
       "scripts/antigravity-translate-staged.sh",
       "scripts/parse-translation-trigger.sh",
+      "scripts/workflow-security-validator.py",
       "tests/test-antigravity-translate-staged.sh"
     ],
     "skip_files": {
@@ -511,8 +512,8 @@
         "dest": ".github/workflows/workflow-security-audit.yml"
       },
       {
-        "src": "scripts/workflow-security-validator.py",
-        "dest": "scripts/workflow-security-validator.py"
+        "src": "scripts/workflow_security_validator.py",
+        "dest": "scripts/workflow_security_validator.py"
       },
       {
         "src": "scripts/audit-runner-workflows.py",
