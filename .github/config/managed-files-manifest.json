@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "da57f858512d0f51b5ccb63a8b4a5dce31770e9a",
+  "source_commit": "c48ff4a0bd06a33ea0ed69bf61486c313ff8a7a9",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -19,8 +19,8 @@
     {
       "path": ".checkov.yaml",
       "src": ".checkov.yaml",
-      "sha": "4418b6c128e308dfcfa1910a0388d9fc993d318c",
-      "size": 3357,
+      "sha": "a3dc74f7ce99995e0e56431daa6efd4f0b1020a8",
+      "size": 3355,
       "mode": "100644"
     },
     {
@@ -486,5 +486,5 @@
     "scripts/workflow-security-validator.py",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:e57e48bcc0a393d6dd246fbc58c61fb73d276d86c2f4c2c99bd69bb4cda6885d"
+  "state_digest": "sha256:7650c34355b2255cb5eef4733f68a3108bc01d90fd1898506c741f8b1e8793bd"
 }
