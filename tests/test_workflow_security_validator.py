@@ -12,7 +12,7 @@ from pathlib import Path
 import yaml
 
 SCRIPT = (
-    Path(__file__).resolve().parent.parent / "scripts/workflow-security-validator.py"
+    Path(__file__).resolve().parent.parent / "scripts/workflow_security_validator.py"
 )
 SPEC = importlib.util.spec_from_file_location("workflow_security_validator", SCRIPT)
 validator = importlib.util.module_from_spec(SPEC)

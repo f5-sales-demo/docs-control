@@ -364,7 +364,7 @@ fi
 # The managed validator is linted under downstream profiles that may not
 # enable BLE001. Its CLI must catch expected input/I/O errors without an
 # inline BLE suppression that becomes an RUF100 unused-noqa failure.
-if python3 - "$REPO_ROOT/scripts/workflow-security-validator.py" <<'PY'; then
+if python3 - "$REPO_ROOT/scripts/workflow_security_validator.py" <<'PY'; then
 import ast
 import sys
 

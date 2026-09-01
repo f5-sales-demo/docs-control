@@ -7,7 +7,7 @@ if [[ $# -gt 1 ]]; then
 fi
 
 DOCS_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-VALIDATOR="$DOCS_ROOT/scripts/workflow-security-validator.py"
+VALIDATOR="$DOCS_ROOT/scripts/workflow_security_validator.py"
 FIXTURE="$DOCS_ROOT/tests/fixtures/workflow-security"
 TMP=$(mktemp -d /tmp/workflow-security-integration-XXXXXX)
 trap 'find "$TMP" -depth -delete' EXIT

@@ -206,7 +206,7 @@ done
 
 # Test 3.4: repo-settings.json includes the 3 new managed file entries
 for new_entry in ".claude/governance.json" ".claude/settings.json" ".claude/hooks/protect-managed-files.sh" \
-  ".github/config/self-hosted-runner-policy.json" "scripts/workflow-security-validator.py"; do
+  ".github/config/self-hosted-runner-policy.json" "scripts/workflow_security_validator.py"; do
   if grep -qxF "$new_entry" <<<"$MANAGED_DESTS"; then
     pass "3.4 repo-settings.json distributes $new_entry"
   else
@@ -214,7 +214,7 @@ for new_entry in ".claude/governance.json" ".claude/settings.json" ".claude/hook
   fi
 done
 
-for new_entry in ".github/config/self-hosted-runner-policy.json" "scripts/workflow-security-validator.py"; do
+for new_entry in ".github/config/self-hosted-runner-policy.json" "scripts/workflow_security_validator.py"; do
   count=$(jq --arg path "$new_entry" '[.managed_files.files[] | select(.dest == $path and .src == $path)] | length' "$REPO_SETTINGS")
   protected_count=$(jq --arg path "$new_entry" '[.protected_files[] | select(. == $path)] | length' "$GOVERNANCE_JSON")
   skipped_count=$(jq --arg path "$new_entry" '[(.managed_files.skip_files["terraform-provider-xcsh"] // [])[] | select(. == $path)] | length' "$REPO_SETTINGS")
@@ -226,7 +226,7 @@ for new_entry in ".github/config/self-hosted-runner-policy.json" "scripts/workfl
   fi
 done
 
-if grep -Fq 'scripts/workflow-security-validator.py' "$REPO_ROOT/workflows/workflow-security-audit.yml" &&
+if grep -Fq 'scripts/workflow_security_validator.py' "$REPO_ROOT/workflows/workflow-security-audit.yml" &&
   grep -Fq '.github/config/self-hosted-runner-policy.json' "$REPO_ROOT/workflows/workflow-security-audit.yml"; then
   pass "3.4b audit invokes both atomically managed security assets"
 else
