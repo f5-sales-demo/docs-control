@@ -66,7 +66,7 @@ The design follows GitHub's current primary guidance:
 - Self-hosted runners can be persistently compromised by untrusted workflow code. Public
   repositories therefore require approval for all external contributors before jobs are sent to
   this fleet: [Secure use: Hardening for self-hosted runners](https://docs.github.com/en/actions/reference/security/secure-use#hardening-for-self-hosted-runners).
-- A full commit SHA is the only immutable release reference for an action. Dependabot checks
+- A full commit SHA is the only immutable release reference for an action. Renovate checks
   GitHub Actions daily and the fleet audit rejects mutable references:
   [Secure use: Pin actions to a full-length commit SHA](https://docs.github.com/en/actions/reference/security/secure-use#using-third-party-actions).
 - Docker documents daemon access as privileged host control, which is why socket profiles are
