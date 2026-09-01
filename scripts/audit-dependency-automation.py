@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: D101, D102, D103, EM101, EM102, PLR2004, S603, TRY003, TRY004, TRY301
+# pylint: disable=invalid-name
 """Audit or retire mutable Dependabot state across the governed fleet."""
 
 from __future__ import annotations

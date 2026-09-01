@@ -7,6 +7,7 @@ import importlib.util
 import sys
 import unittest
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 SPEC = importlib.util.spec_from_file_location(
@@ -22,7 +23,7 @@ SPEC.loader.exec_module(MODULE)
 class FakeGitHub:
     def __init__(self):
         self.calls: list[tuple[str, str, object | None]] = []
-        self.repositories = {
+        self.repositories: dict[str, dict[str, Any]] = {
             "f5-sales-demo/fixture": {
                 "default_branch": "main",
                 "private": False,
