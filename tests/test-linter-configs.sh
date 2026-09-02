@@ -1852,6 +1852,10 @@ else
     "the config disables default rules or suppresses repository paths"
 fi
 
+if ! command -v gitleaks >/dev/null 2>&1; then
+  skip "16.2 Azure subscription assignment rejection (gitleaks CLI not installed)"
+  skip "16.3 documented synthetic subscription placeholders (gitleaks CLI not installed)"
+else
 GITLEAKS_TMP=$(mktemp -d)
 mkdir -p "$GITLEAKS_TMP/live" "$GITLEAKS_TMP/placeholder"
 LIVE_GUID="12345678-1234-1234-1234-123456789""abc"
@@ -1892,6 +1896,7 @@ else
     "the managed rule rejected a documented placeholder"
 fi
 rm -rf "$GITLEAKS_TMP"
+fi
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 17: one-job ephemeral jobs never require privileged repair
