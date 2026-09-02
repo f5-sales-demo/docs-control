@@ -1853,8 +1853,8 @@ else
 fi
 
 if ! command -v gitleaks >/dev/null 2>&1; then
-  skip "16.2 Azure subscription assignment rejection (gitleaks CLI not installed)"
-  skip "16.3 documented synthetic subscription placeholders (gitleaks CLI not installed)"
+  echo "  SKIP: 16.2 Azure subscription assignment rejection (gitleaks CLI not installed)"
+  echo "  SKIP: 16.3 documented synthetic subscription placeholders (gitleaks CLI not installed)"
 else
 GITLEAKS_TMP=$(mktemp -d)
 mkdir -p "$GITLEAKS_TMP/live" "$GITLEAKS_TMP/placeholder"
