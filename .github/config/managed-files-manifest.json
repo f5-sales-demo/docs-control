@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "8327e819e86b4f5d03ecd17f04d18820e1351a54",
+  "source_commit": "2adafb89bb0d7d974bf80e5ddb42562f3865ed7d",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -173,15 +173,15 @@
     {
       "path": ".gitignore",
       "src": ".gitignore",
-      "sha": "291106ba7f8ae620e36c5a553af340b694833272",
-      "size": 3308,
+      "sha": "49908323186e7e117133f3ced59c77dea015ecf7",
+      "size": 3487,
       "mode": "100644"
     },
     {
       "path": ".gitleaks.toml",
       "src": ".gitleaks.toml",
-      "sha": "b239ea9c3030926328bb71e2f0eb39c7cfd34163",
-      "size": 67,
+      "sha": "14c6fcc4ffac2f33017753455cb984e9c50c96bb",
+      "size": 614,
       "mode": "100644"
     },
     {
@@ -306,8 +306,8 @@
     {
       "path": "biome.json",
       "src": "biome.json",
-      "sha": "38154e50194259656ba1e33051db87ace55c98cb",
-      "size": 1144,
+      "sha": "c641a7cb5d1429efab27f8059ce076c181b4a492",
+      "size": 1195,
       "mode": "100644"
     },
     {
@@ -486,5 +486,5 @@
     "scripts/workflow-security-validator.py",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:72898d6536705a1137ef17efb5ea200cf14fe612c18e124a9a7d7539907c3ea7"
+  "state_digest": "sha256:247d1f47e0e33daec18f3679599c51dbb37bb72edcaf7f1fb6fe58280254f806"
 }
