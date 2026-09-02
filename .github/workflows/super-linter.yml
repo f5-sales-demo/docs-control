@@ -883,9 +883,6 @@ jobs:
       - name: Setup uv for workflow-security integration
         if: hashFiles('tests/test-workflow-security-validator-integration.sh') != ''
         uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d # v10.0.0
-        env:
-          # The image cache is immutable; uncatalogued versions are job-private.
-          RUNNER_TOOL_CACHE: ${{ runner.temp }}/tool-cache
         with:
           version: "0.8.24"
 
