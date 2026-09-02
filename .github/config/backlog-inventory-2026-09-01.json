@@ -2,7 +2,7 @@
   "catalog": {
     "repository_count": 39,
     "sha256": "ca9da8c07833d477b0a48e52c0afe89ab5d551e83c2bb8aef23b8d389c9f82fd",
-    "source": ".github/config/self-hosted-runner-policy.json"
+    "source": "/data/robin-GIT/docs-control/.worktrees/1954-governance-cleanup-20260902T023335Z/.github/config/self-hosted-runner-policy.json"
   },
   "control": {
     "program": "f5-sales-demo/docs-control#1953",
@@ -21,7 +21,7 @@
       "security": "f5-sales-demo/docs-control#1957"
     }
   },
-  "generated_at": "2026-09-02T06:13:17.855572Z",
+  "generated_at": "2026-09-02T08:28:26.928722Z",
   "repositories": [
     {
       "default_branch": "main",
@@ -54,7 +54,7 @@
       ],
       "name": "f5-sales-demo/administration",
       "pull_requests": [],
-      "updated_at": "2026-09-02T06:09:19Z",
+      "updated_at": "2026-09-02T06:58:26Z",
       "url": "https://github.com/f5-sales-demo/administration"
     },
     {
@@ -62,7 +62,7 @@
       "issues": [],
       "name": "f5-sales-demo/api-protection",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:36:55Z",
+      "updated_at": "2026-09-02T07:13:24Z",
       "url": "https://github.com/f5-sales-demo/api-protection"
     },
     {
@@ -98,7 +98,7 @@
       ],
       "name": "f5-sales-demo/api-specs",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:06:47Z",
+      "updated_at": "2026-09-02T07:19:03Z",
       "url": "https://github.com/f5-sales-demo/api-specs"
     },
     {
@@ -107,29 +107,29 @@
         {
           "created_at": "2026-05-18T20:01:23Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "deferred",
           "evidence": [
             "https://github.com/f5-sales-demo/api-specs-enriched/issues/422"
           ],
           "labels": [
-            "area:developer-tooling",
+            "area:api-contracts",
             "enhancement",
             "p2",
             "question",
-            "status:active"
+            "status:deferred"
           ],
           "node_id": "I_kwDORzhoLs8AAAABCo_svg",
           "number": 422,
-          "parent": "f5-sales-demo/docs-control#1960",
+          "parent": "f5-sales-demo/docs-control#1958",
           "taxonomy": {
-            "area": "developer-tooling",
-            "lifecycle": "active",
+            "area": "api-contracts",
+            "lifecycle": "deferred",
             "priority": "p2"
           },
           "title": "CRUD-verify aws_vpc_site and gcp_vpc_site resources",
-          "updated_at": "2026-09-02T02:55:36Z",
+          "updated_at": "2026-09-02T08:17:15Z",
           "url": "https://github.com/f5-sales-demo/api-specs-enriched/issues/422",
-          "workstream": "f5-sales-demo/docs-control#1960"
+          "workstream": "f5-sales-demo/docs-control#1958"
         },
         {
           "created_at": "2026-08-28T19:15:38Z",
@@ -160,8 +160,164 @@
         }
       ],
       "name": "f5-sales-demo/api-specs-enriched",
-      "pull_requests": [],
-      "updated_at": "2026-09-02T04:45:33Z",
+      "pull_requests": [
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            ".github/workflows/self-hosted-runner-tool-cache-smoke.yml"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054591"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITHUB_ACTIONS_ZIZMOR",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054591"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054591"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054591"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054591"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054591"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054591"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: YAML",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054591"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054138/job/100151543775"
+            },
+            {
+              "conclusion": "success",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054266/job/100151543162"
+            },
+            {
+              "conclusion": "success",
+              "name": "Contract-diff gate",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054119/job/100151542736"
+            },
+            {
+              "conclusion": "success",
+              "name": "Pylint",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054119/job/100151542699"
+            },
+            {
+              "conclusion": "success",
+              "name": "Run pytest suite",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054119/job/100151542537"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054138/job/100151542900"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "github.repository == 'f5-sales-demo/xcsh' && 'Check linked issues' || 'xcsh linked issue (not applicable)'",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054591/job/100151546270"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054591/job/100151584060"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054591/job/100151546191"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/api-specs-enriched/actions/runs/33600054591/job/100151545978"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:42:22Z",
+          "dependencies": [],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/api-specs-enriched/pull/1699"
+          ],
+          "head_ref": "renovate/actions-minor-patch",
+          "head_repository": "f5-sales-demo/api-specs-enriched",
+          "head_sha": "16b5abc5355f69933a43f4111b22124339a888d8",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDORzhoLs8AAAABB2wMtg",
+          "number": 1699,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update dependency python to v3.14.7",
+          "updated_at": "2026-09-02T07:03:42Z",
+          "url": "https://github.com/f5-sales-demo/api-specs-enriched/pull/1699",
+          "workstream": "f5-sales-demo/docs-control#1956"
+        }
+      ],
+      "updated_at": "2026-09-02T07:27:19Z",
       "url": "https://github.com/f5-sales-demo/api-specs-enriched"
     },
     {
@@ -169,7 +325,7 @@
       "issues": [],
       "name": "f5-sales-demo/apt-repo",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:07:47Z",
+      "updated_at": "2026-09-02T08:15:18Z",
       "url": "https://github.com/f5-sales-demo/apt-repo"
     },
     {
@@ -177,7 +333,7 @@
       "issues": [],
       "name": "f5-sales-demo/bot-advanced",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:07:26Z",
+      "updated_at": "2026-09-02T07:11:13Z",
       "url": "https://github.com/f5-sales-demo/bot-advanced"
     },
     {
@@ -185,7 +341,7 @@
       "issues": [],
       "name": "f5-sales-demo/bot-standard",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:38:08Z",
+      "updated_at": "2026-09-02T07:08:04Z",
       "url": "https://github.com/f5-sales-demo/bot-standard"
     },
     {
@@ -193,7 +349,7 @@
       "issues": [],
       "name": "f5-sales-demo/cdn",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:07:49Z",
+      "updated_at": "2026-09-02T07:08:20Z",
       "url": "https://github.com/f5-sales-demo/cdn"
     },
     {
@@ -201,7 +357,7 @@
       "issues": [],
       "name": "f5-sales-demo/cdn-simulator",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:09:18Z",
+      "updated_at": "2026-09-02T07:54:36Z",
       "url": "https://github.com/f5-sales-demo/cdn-simulator"
     },
     {
@@ -234,34 +390,6 @@
           "updated_at": "2026-09-02T02:56:42Z",
           "url": "https://github.com/f5-sales-demo/console/issues/21",
           "workstream": "f5-sales-demo/docs-control#1960"
-        },
-        {
-          "created_at": "2026-06-18T18:00:07Z",
-          "dependencies": [
-            "f5xc-salesdemos/xcsh#1477",
-            "f5xc-salesdemos/xcsh#1478"
-          ],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/console/issues/22"
-          ],
-          "labels": [
-            "area:api-contracts",
-            "p1",
-            "status:active"
-          ],
-          "node_id": "I_kwDOS7xxPM8AAAABF9VTCA",
-          "number": 22,
-          "parent": "f5-sales-demo/docs-control#1958",
-          "taxonomy": {
-            "area": "api-contracts",
-            "lifecycle": "active",
-            "priority": "p1"
-          },
-          "title": "Publish catalogue as a fetchable release artifact (xcsh CI embedding parity)",
-          "updated_at": "2026-09-02T02:56:43Z",
-          "url": "https://github.com/f5-sales-demo/console/issues/22",
-          "workstream": "f5-sales-demo/docs-control#1958"
         },
         {
           "created_at": "2026-08-02T19:50:53Z",
@@ -304,85 +432,85 @@
               "conclusion": "success",
               "name": "--> Linted: CHECKOV",
               "status": "success",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471938"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600120323"
             },
             {
               "conclusion": "success",
               "name": "--> Linted: GITLEAKS",
               "status": "success",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471938"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600120323"
             },
             {
               "conclusion": "success",
               "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
               "status": "success",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471938"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600120323"
             },
             {
               "conclusion": "success",
               "name": "--> Linted: JSCPD",
               "status": "success",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471938"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600120323"
             },
             {
               "conclusion": "success",
               "name": "--> Linted: SPELL_CODESPELL",
               "status": "success",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471938"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600120323"
             },
             {
               "conclusion": "success",
               "name": "--> Linted: TRIVY",
               "status": "success",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471938"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600120323"
             },
             {
               "conclusion": "skipped",
               "name": "Audit workflows (zizmor)",
               "status": "completed",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471536/job/100137927632"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600119890/job/100151745536"
             },
             {
               "conclusion": "success",
               "name": "Check linked issues",
               "status": "completed",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471603/job/100137927125"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600119887/job/100151744276"
             },
             {
               "conclusion": "success",
               "name": "Validate Catalog Schemas",
               "status": "completed",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471558/job/100137926749"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600119885/job/100151744094"
             },
             {
               "conclusion": "success",
               "name": "Workflow security audit",
               "status": "completed",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471536/job/100137926837"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600119890/job/100151744247"
             },
             {
               "conclusion": "skipped",
               "name": "github.repository == 'f5-sales-demo/xcsh' && 'Check linked issues' || 'xcsh linked issue (not applicable)'",
               "status": "completed",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471938/job/100137929136"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600120323/job/100151747149"
             },
             {
               "conclusion": "success",
               "name": "lint / Lint Code Base",
               "status": "completed",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471938/job/100137960035"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600120323/job/100151786561"
             },
             {
               "conclusion": "success",
               "name": "lint / Shell Unit Tests",
               "status": "completed",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471938/job/100137929075"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600120323/job/100151746997"
             },
             {
               "conclusion": "success",
               "name": "lint / Trust Docker-capable job",
               "status": "completed",
-              "url": "https://github.com/f5-sales-demo/console/actions/runs/33595471938/job/100137928909"
+              "url": "https://github.com/f5-sales-demo/console/actions/runs/33600120323/job/100151746845"
             },
             {
               "conclusion": "success",
@@ -397,39 +525,36 @@
               "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
             }
           ],
-          "created_at": "2026-09-02T05:08:26Z",
-          "dependencies": [
-            "HEAD/CHANGELOG.md#530",
-            "HEAD/CHANGELOG.md#540"
-          ],
+          "created_at": "2026-09-02T06:43:14Z",
+          "dependencies": [],
           "disposition": "execute",
           "draft": false,
           "evidence": [
-            "https://github.com/f5-sales-demo/console/pull/499"
+            "https://github.com/f5-sales-demo/console/pull/500"
           ],
-          "head_ref": "renovate/npm-minor-patch",
+          "head_ref": "renovate/fast-uri-4.x",
           "head_repository": "f5-sales-demo/console",
-          "head_sha": "fd2490f15433c2e9f77cbb416a40f42fc80f1a76",
+          "head_sha": "4df72fa65bb94b8f86e609b5c5e5397ecec3a6f8",
           "labels": [
             "area:dependencies",
             "p1",
             "status:active"
           ],
           "mergeable_state": null,
-          "node_id": "PR_kwDOS7xxPM8AAAABB2MWRA",
-          "number": 499,
+          "node_id": "PR_kwDOS7xxPM8AAAABB2whRQ",
+          "number": 500,
           "taxonomy": {
             "area": "dependencies",
             "lifecycle": "active",
             "priority": "p1"
           },
-          "title": "chore(deps): update npm-minor-patch",
-          "updated_at": "2026-09-02T06:01:58Z",
-          "url": "https://github.com/f5-sales-demo/console/pull/499",
+          "title": "chore(deps): update dependency fast-uri to v4",
+          "updated_at": "2026-09-02T07:03:45Z",
+          "url": "https://github.com/f5-sales-demo/console/pull/500",
           "workstream": "f5-sales-demo/docs-control#1956"
         }
       ],
-      "updated_at": "2026-09-02T05:40:36Z",
+      "updated_at": "2026-09-02T08:21:34Z",
       "url": "https://github.com/f5-sales-demo/console"
     },
     {
@@ -509,36 +634,11 @@
           "updated_at": "2026-09-02T02:57:00Z",
           "url": "https://github.com/f5-sales-demo/csd/issues/357",
           "workstream": "f5-sales-demo/docs-control#1960"
-        },
-        {
-          "created_at": "2026-03-23T06:39:54Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/csd/issues/368"
-          ],
-          "labels": [
-            "area:linting",
-            "p2",
-            "status:active"
-          ],
-          "node_id": "I_kwDORPqkDc71fUVs",
-          "number": 368,
-          "parent": "f5-sales-demo/docs-control#1960",
-          "taxonomy": {
-            "area": "linting",
-            "lifecycle": "active",
-            "priority": "p2"
-          },
-          "title": "docs: add test file for github-ops workflow validation",
-          "updated_at": "2026-09-02T02:57:01Z",
-          "url": "https://github.com/f5-sales-demo/csd/issues/368",
-          "workstream": "f5-sales-demo/docs-control#1960"
         }
       ],
       "name": "f5-sales-demo/csd",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:09:04Z",
+      "updated_at": "2026-09-02T07:21:44Z",
       "url": "https://github.com/f5-sales-demo/csd"
     },
     {
@@ -572,7 +672,7 @@
       ],
       "name": "f5-sales-demo/ddos",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:08:56Z",
+      "updated_at": "2026-09-02T07:09:25Z",
       "url": "https://github.com/f5-sales-demo/ddos"
     },
     {
@@ -580,7 +680,7 @@
       "issues": [],
       "name": "f5-sales-demo/demo-resource-template",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:09:15Z",
+      "updated_at": "2026-09-02T07:58:30Z",
       "url": "https://github.com/f5-sales-demo/demo-resource-template"
     },
     {
@@ -588,41 +688,16 @@
       "issues": [],
       "name": "f5-sales-demo/demo-resources",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:09:57Z",
+      "updated_at": "2026-09-02T07:58:06Z",
       "url": "https://github.com/f5-sales-demo/demo-resources"
     },
     {
       "default_branch": "main",
       "issues": [
         {
-          "created_at": "2026-03-30T04:44:55Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/devcontainer/issues/771"
-          ],
-          "labels": [
-            "area:developer-tooling",
-            "p2",
-            "status:active"
-          ],
-          "node_id": "I_kwDORWn1Kc74Y_6a",
-          "number": 771,
-          "parent": "f5-sales-demo/docs-control#1960",
-          "taxonomy": {
-            "area": "developer-tooling",
-            "lifecycle": "active",
-            "priority": "p2"
-          },
-          "title": "feat: add F5XC theme as default OpenCode theme",
-          "updated_at": "2026-09-02T02:57:49Z",
-          "url": "https://github.com/f5-sales-demo/devcontainer/issues/771",
-          "workstream": "f5-sales-demo/docs-control#1960"
-        },
-        {
           "created_at": "2026-03-30T16:07:42Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "tracking",
           "evidence": [
             "https://github.com/f5-sales-demo/devcontainer/issues/776"
           ],
@@ -630,153 +705,124 @@
             "area:developer-tooling",
             "build-health",
             "p2",
-            "status:active"
+            "status:tracking"
           ],
           "node_id": "I_kwDORWn1Kc74q7Xc",
           "number": 776,
           "parent": "f5-sales-demo/docs-control#1960",
           "taxonomy": {
             "area": "developer-tooling",
-            "lifecycle": "active",
+            "lifecycle": "tracking",
             "priority": "p2"
           },
           "title": "build-warning: Python SyntaxWarning invalid escape sequence in binwalk and websockify",
-          "updated_at": "2026-09-02T02:57:50Z",
+          "updated_at": "2026-09-02T08:01:27Z",
           "url": "https://github.com/f5-sales-demo/devcontainer/issues/776",
           "workstream": "f5-sales-demo/docs-control#1960"
         },
         {
           "created_at": "2026-03-30T16:07:44Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "externally-blocked",
           "evidence": [
             "https://github.com/f5-sales-demo/devcontainer/issues/777"
           ],
           "labels": [
-            "area:security",
+            "area:dependencies",
             "build-health",
-            "p0",
-            "status:active"
+            "p1",
+            "status:blocked"
           ],
           "node_id": "I_kwDORWn1Kc74q7cA",
           "number": 777,
-          "parent": "f5-sales-demo/docs-control#1957",
+          "parent": "f5-sales-demo/docs-control#1956",
           "taxonomy": {
-            "area": "security",
-            "lifecycle": "active",
-            "priority": "p0"
+            "area": "dependencies",
+            "lifecycle": "blocked",
+            "priority": "p1"
           },
           "title": "build-warning: ATT&CK Navigator npm ci has 49 vulnerabilities (31 high)",
-          "updated_at": "2026-09-02T02:57:52Z",
+          "updated_at": "2026-09-02T06:16:30Z",
           "url": "https://github.com/f5-sales-demo/devcontainer/issues/777",
-          "workstream": "f5-sales-demo/docs-control#1957"
+          "workstream": "f5-sales-demo/docs-control#1956"
         },
         {
           "created_at": "2026-03-30T16:07:46Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "externally-blocked",
           "evidence": [
             "https://github.com/f5-sales-demo/devcontainer/issues/778"
           ],
           "labels": [
-            "area:security",
+            "area:dependencies",
             "build-health",
-            "p0",
-            "status:active"
+            "p3",
+            "status:blocked"
           ],
           "node_id": "I_kwDORWn1Kc74q7fw",
           "number": 778,
-          "parent": "f5-sales-demo/docs-control#1957",
+          "parent": "f5-sales-demo/docs-control#1956",
           "taxonomy": {
-            "area": "security",
-            "lifecycle": "active",
-            "priority": "p0"
+            "area": "dependencies",
+            "lifecycle": "blocked",
+            "priority": "p3"
           },
           "title": "build-warning: Caldera magma plugin Vite chunk size warning",
-          "updated_at": "2026-09-02T02:57:54Z",
+          "updated_at": "2026-09-02T06:16:37Z",
           "url": "https://github.com/f5-sales-demo/devcontainer/issues/778",
-          "workstream": "f5-sales-demo/docs-control#1957"
+          "workstream": "f5-sales-demo/docs-control#1956"
         },
         {
           "created_at": "2026-03-30T16:07:51Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "externally-blocked",
           "evidence": [
             "https://github.com/f5-sales-demo/devcontainer/issues/781"
           ],
           "labels": [
-            "area:security",
+            "area:dependencies",
             "build-health",
-            "p0",
-            "status:active"
+            "p3",
+            "status:blocked"
           ],
           "node_id": "I_kwDORWn1Kc74q7qY",
           "number": 781,
-          "parent": "f5-sales-demo/docs-control#1957",
+          "parent": "f5-sales-demo/docs-control#1956",
           "taxonomy": {
-            "area": "security",
-            "lifecycle": "active",
-            "priority": "p0"
+            "area": "dependencies",
+            "lifecycle": "blocked",
+            "priority": "p3"
           },
           "title": "build-warning: 16 deprecated npm transitive deps remain after #772 cleanup",
-          "updated_at": "2026-09-02T02:57:55Z",
+          "updated_at": "2026-09-02T06:16:38Z",
           "url": "https://github.com/f5-sales-demo/devcontainer/issues/781",
-          "workstream": "f5-sales-demo/docs-control#1957"
+          "workstream": "f5-sales-demo/docs-control#1956"
         },
         {
           "created_at": "2026-03-30T16:07:54Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "externally-blocked",
           "evidence": [
             "https://github.com/f5-sales-demo/devcontainer/issues/783"
           ],
           "labels": [
-            "area:security",
+            "area:dependencies",
             "build-health",
-            "p0",
-            "status:active"
+            "p3",
+            "status:blocked"
           ],
           "node_id": "I_kwDORWn1Kc74q7zu",
           "number": 783,
-          "parent": "f5-sales-demo/docs-control#1957",
+          "parent": "f5-sales-demo/docs-control#1956",
           "taxonomy": {
-            "area": "security",
-            "lifecycle": "active",
-            "priority": "p0"
+            "area": "dependencies",
+            "lifecycle": "blocked",
+            "priority": "p3"
           },
           "title": "build-warning: hermes-agent npm install has 3 moderate vulnerabilities",
-          "updated_at": "2026-09-02T02:57:56Z",
+          "updated_at": "2026-09-02T06:16:39Z",
           "url": "https://github.com/f5-sales-demo/devcontainer/issues/783",
-          "workstream": "f5-sales-demo/docs-control#1957"
-        },
-        {
-          "created_at": "2026-04-11T10:59:39Z",
-          "dependencies": [
-            "f5xc-salesdemos/xcsh#13",
-            "f5xc-salesdemos/xcsh#14",
-            "f5xc-salesdemos/xcsh#56"
-          ],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/devcontainer/issues/905"
-          ],
-          "labels": [
-            "area:developer-tooling",
-            "p2",
-            "status:active"
-          ],
-          "node_id": "I_kwDORWn1Kc78-sOe",
-          "number": 905,
-          "parent": "f5-sales-demo/docs-control#1960",
-          "taxonomy": {
-            "area": "developer-tooling",
-            "lifecycle": "active",
-            "priority": "p2"
-          },
-          "title": "fix: xcsh native addon missing after npm install \u2014 add postinstall download",
-          "updated_at": "2026-09-02T02:58:00Z",
-          "url": "https://github.com/f5-sales-demo/devcontainer/issues/905",
-          "workstream": "f5-sales-demo/docs-control#1960"
+          "workstream": "f5-sales-demo/docs-control#1956"
         },
         {
           "created_at": "2026-04-18T20:57:28Z",
@@ -832,31 +878,6 @@
           "workstream": "f5-sales-demo/docs-control#1960"
         },
         {
-          "created_at": "2026-07-25T14:26:39Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/devcontainer/issues/1554"
-          ],
-          "labels": [
-            "area:runners",
-            "p0",
-            "status:active"
-          ],
-          "node_id": "I_kwDORWn1Kc8AAAABKJnyfw",
-          "number": 1554,
-          "parent": "f5-sales-demo/docs-control#1955",
-          "taxonomy": {
-            "area": "runners",
-            "lifecycle": "active",
-            "priority": "p0"
-          },
-          "title": "test-firecrawl.sh fails in CI unconditionally \u2014 needs a service-availability gate",
-          "updated_at": "2026-09-02T02:58:06Z",
-          "url": "https://github.com/f5-sales-demo/devcontainer/issues/1554",
-          "workstream": "f5-sales-demo/docs-control#1955"
-        },
-        {
           "created_at": "2026-08-02T19:50:49Z",
           "dependencies": [
             "f5-sales-demo/docs-control#1004"
@@ -886,7 +907,7 @@
       ],
       "name": "f5-sales-demo/devcontainer",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:10:12Z",
+      "updated_at": "2026-09-02T07:47:46Z",
       "url": "https://github.com/f5-sales-demo/devcontainer"
     },
     {
@@ -946,7 +967,7 @@
       ],
       "name": "f5-sales-demo/dns",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:11:20Z",
+      "updated_at": "2026-09-02T07:03:07Z",
       "url": "https://github.com/f5-sales-demo/dns"
     },
     {
@@ -954,7 +975,7 @@
       "issues": [],
       "name": "f5-sales-demo/docs",
       "pull_requests": [],
-      "updated_at": "2026-09-01T18:06:58Z",
+      "updated_at": "2026-09-02T06:54:08Z",
       "url": "https://github.com/f5-sales-demo/docs"
     },
     {
@@ -1092,9 +1113,298 @@
           "updated_at": "2026-09-02T06:02:02Z",
           "url": "https://github.com/f5-sales-demo/docs-builder/pull/1245",
           "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            "package-lock.json",
+            "package.json"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600269536"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600269536"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600269536"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600269536"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600269536"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600269536"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600268845/job/100152201019"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600268850/job/100152200269"
+            },
+            {
+              "conclusion": "success",
+              "name": "Require canonical auto-merge token",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600269527/job/100152201645"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600268845/job/100152199809"
+            },
+            {
+              "conclusion": null,
+              "name": "call / Enable trusted-author auto-merge",
+              "status": "queued",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600269527/job/100152248908"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600269536/job/100152245240"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600269536/job/100152202871"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600269536/job/100152203042"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:45:08Z",
+          "dependencies": [
+            "api-reference-react/CHANGELOG.md#0963",
+            "api-reference-react/CHANGELOG.md#0965",
+            "astro/CHANGELOG.md#722",
+            "astro/CHANGELOG.md#723",
+            "astro/CHANGELOG.md#724",
+            "astro/CHANGELOG.md#725",
+            "astro/CHANGELOG.md#726",
+            "astro/CHANGELOG.md#727",
+            "flight-icons/CHANGELOG.md#510",
+            "react/CHANGELOG.md#603",
+            "react/CHANGELOG.md#604",
+            "remark/CHANGELOG.md#723",
+            "remark/CHANGELOG.md#724",
+            "starlight/CHANGELOG.md#0418",
+            "starlight/CHANGELOG.md#0419"
+          ],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/docs-builder/pull/1247"
+          ],
+          "head_ref": "renovate/npm-minor-patch",
+          "head_repository": "f5-sales-demo/docs-builder",
+          "head_sha": "c4e6d00673d445c07e276d1fe605ccfe92fb6aad",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDORPqYOs8AAAABB2xP4Q",
+          "number": 1247,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update npm-minor-patch",
+          "updated_at": "2026-09-02T07:03:48Z",
+          "url": "https://github.com/f5-sales-demo/docs-builder/pull/1247",
+          "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            "package-lock.json",
+            "package.json"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600283543"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600283543"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600283543"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600283543"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600283543"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600283543"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600282945/job/100152243167"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600282919/job/100152240172"
+            },
+            {
+              "conclusion": "success",
+              "name": "Require canonical auto-merge token",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600283513/job/100152241610"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600282945/job/100152241733"
+            },
+            {
+              "conclusion": null,
+              "name": "call / Enable trusted-author auto-merge",
+              "status": "queued",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600283513/job/100152284664"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600283543/job/100152283072"
+            },
+            {
+              "conclusion": "failure",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600283543/job/100152242322"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-builder/actions/runs/33600283543/job/100152242144"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:45:18Z",
+          "dependencies": [
+            "HEAD/CHANGELOG.md#500",
+            "HEAD/CHANGELOG.md#510",
+            "HEAD/CHANGELOG.md#520",
+            "HEAD/CHANGELOG.md#521",
+            "HEAD/CHANGELOG.md#522",
+            "HEAD/CHANGELOG.md#523",
+            "HEAD/CHANGELOG.md#530",
+            "HEAD/CHANGELOG.md#540"
+          ],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/docs-builder/pull/1248"
+          ],
+          "head_ref": "renovate/js-yaml-5.x",
+          "head_repository": "f5-sales-demo/docs-builder",
+          "head_sha": "f65403e3741b30ad95ef34a7a8669e326d2100eb",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDORPqYOs8AAAABB2xU2Q",
+          "number": 1248,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update dependency js-yaml to v5",
+          "updated_at": "2026-09-02T07:03:50Z",
+          "url": "https://github.com/f5-sales-demo/docs-builder/pull/1248",
+          "workstream": "f5-sales-demo/docs-control#1956"
         }
       ],
-      "updated_at": "2026-09-01T18:18:05Z",
+      "updated_at": "2026-09-02T06:50:46Z",
       "url": "https://github.com/f5-sales-demo/docs-builder"
     },
     {
@@ -1103,7 +1413,7 @@
         {
           "created_at": "2026-07-21T18:24:39Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "externally-blocked",
           "evidence": [
             "https://github.com/f5-sales-demo/docs-control/issues/720"
           ],
@@ -1111,18 +1421,18 @@
             "area:governance",
             "enhancement",
             "p1",
-            "status:active"
+            "status:blocked"
           ],
           "node_id": "I_kwDORPrdm88AAAABJo95FA",
           "number": 720,
           "parent": "f5-sales-demo/docs-control#1954",
           "taxonomy": {
             "area": "governance",
-            "lifecycle": "active",
+            "lifecycle": "blocked",
             "priority": "p1"
           },
           "title": "Spike: GitHub App identity + branch-creation ruleset for governance automation",
-          "updated_at": "2026-09-02T02:59:07Z",
+          "updated_at": "2026-09-02T07:22:04Z",
           "url": "https://github.com/f5-sales-demo/docs-control/issues/720",
           "workstream": "f5-sales-demo/docs-control#1954"
         },
@@ -1540,279 +1850,16 @@
         }
       ],
       "name": "f5-sales-demo/docs-control",
-      "pull_requests": [
-        {
-          "base_ref": "main",
-          "changed_paths": [
-            ".github/workflows/super-linter.yml",
-            ".github/workflows/workflow-security-audit.yml"
-          ],
-          "checks": [
-            {
-              "conclusion": "success",
-              "name": "--> Linted: CHECKOV",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-control/actions/runs/33592653998"
-            },
-            {
-              "conclusion": "success",
-              "name": "--> Linted: GITHUB_ACTIONS_ZIZMOR",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-control/actions/runs/33592653998"
-            },
-            {
-              "conclusion": "success",
-              "name": "--> Linted: GITLEAKS",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-control/actions/runs/33592653998"
-            },
-            {
-              "conclusion": "success",
-              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-control/actions/runs/33592653998"
-            },
-            {
-              "conclusion": "success",
-              "name": "--> Linted: JSCPD",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-control/actions/runs/33592653998"
-            },
-            {
-              "conclusion": "success",
-              "name": "--> Linted: SPELL_CODESPELL",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-control/actions/runs/33592653998"
-            },
-            {
-              "conclusion": "success",
-              "name": "--> Linted: TRIVY",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-control/actions/runs/33592653998"
-            },
-            {
-              "conclusion": "success",
-              "name": "--> Linted: YAML",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-control/actions/runs/33592653998"
-            },
-            {
-              "conclusion": "success",
-              "name": "Check linked issues",
-              "status": "completed",
-              "url": "https://github.com/f5-sales-demo/docs-control/actions/runs/33592654207/job/100129625948"
-            },
-            {
-              "conclusion": "success",
-              "name": "Lint Code Base",
-              "status": "completed",
-              "url": "https://github.com/f5-sales-demo/docs-control/actions/runs/33592653998/job/100129657321"
-            },
-            {
-              "conclusion": "failure",
-              "name": "Shell Unit Tests",
-              "status": "completed",
-              "url": "https://github.com/f5-sales-demo/docs-control/actions/runs/33592653998/job/100129625697"
-            },
-            {
-              "conclusion": "success",
-              "name": "Trust Docker-capable job",
-              "status": "completed",
-              "url": "https://github.com/f5-sales-demo/docs-control/actions/runs/33592653998/job/100129625911"
-            },
-            {
-              "conclusion": "success",
-              "name": "renovate/stability-days",
-              "status": "success",
-              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
-            },
-            {
-              "conclusion": "success",
-              "name": "renovate/stability-days",
-              "status": "success",
-              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
-            }
-          ],
-          "created_at": "2026-09-02T04:55:16Z",
-          "dependencies": [
-            "HEAD/CHANGELOG.md#0120",
-            "HEAD/CHANGELOG.md#0121",
-            "HEAD/CHANGELOG.md#0122",
-            "HEAD/CHANGELOG.md#0123",
-            "HEAD/CHANGELOG.md#0124",
-            "HEAD/CHANGELOG.md#0125",
-            "HEAD/CHANGELOG.md#0126"
-          ],
-          "disposition": "execute",
-          "draft": false,
-          "evidence": [
-            "https://github.com/f5-sales-demo/docs-control/pull/1966"
-          ],
-          "head_ref": "renovate/actions-minor-patch",
-          "head_repository": "f5-sales-demo/docs-control",
-          "head_sha": "21b0192873f78ac1a7970a1df082dbde7951e38b",
-          "labels": [
-            "area:dependencies",
-            "p1",
-            "status:active"
-          ],
-          "mergeable_state": null,
-          "node_id": "PR_kwDORPrdm88AAAABB2H5kQ",
-          "number": 1966,
-          "taxonomy": {
-            "area": "dependencies",
-            "lifecycle": "active",
-            "priority": "p1"
-          },
-          "title": "chore(deps): update actions-minor-patch",
-          "updated_at": "2026-09-02T06:02:04Z",
-          "url": "https://github.com/f5-sales-demo/docs-control/pull/1966",
-          "workstream": "f5-sales-demo/docs-control#1956"
-        }
-      ],
-      "updated_at": "2026-09-02T06:09:53Z",
+      "pull_requests": [],
+      "updated_at": "2026-09-02T06:46:41Z",
       "url": "https://github.com/f5-sales-demo/docs-control"
     },
     {
       "default_branch": "main",
       "issues": [],
       "name": "f5-sales-demo/docs-icons",
-      "pull_requests": [
-        {
-          "base_ref": "main",
-          "changed_paths": [
-            "package-lock.json",
-            "packages/hashicorp-flight/icons.json",
-            "packages/hashicorp-flight/package.json",
-            "packages/lucide/icons.json",
-            "packages/lucide/package.json",
-            "packages/mdi/package.json",
-            "packages/phosphor/package.json"
-          ],
-          "checks": [
-            {
-              "conclusion": "success",
-              "name": "--> Linted: CHECKOV",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-icons/actions/runs/33595565538"
-            },
-            {
-              "conclusion": "success",
-              "name": "--> Linted: GITLEAKS",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-icons/actions/runs/33595565538"
-            },
-            {
-              "conclusion": "success",
-              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-icons/actions/runs/33595565538"
-            },
-            {
-              "conclusion": "success",
-              "name": "--> Linted: JSCPD",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-icons/actions/runs/33595565538"
-            },
-            {
-              "conclusion": "success",
-              "name": "--> Linted: SPELL_CODESPELL",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-icons/actions/runs/33595565538"
-            },
-            {
-              "conclusion": "success",
-              "name": "--> Linted: TRIVY",
-              "status": "success",
-              "url": "https://github.com/f5-sales-demo/docs-icons/actions/runs/33595565538"
-            },
-            {
-              "conclusion": "skipped",
-              "name": "Audit workflows (zizmor)",
-              "status": "completed",
-              "url": "https://github.com/f5-sales-demo/docs-icons/actions/runs/33595565145/job/100138198236"
-            },
-            {
-              "conclusion": "success",
-              "name": "Check linked issues",
-              "status": "completed",
-              "url": "https://github.com/f5-sales-demo/docs-icons/actions/runs/33595565152/job/100138197794"
-            },
-            {
-              "conclusion": "success",
-              "name": "Generated artifact release",
-              "status": "completed",
-              "url": "https://github.com/f5-sales-demo/docs-icons/actions/runs/33595565132/job/100138197553"
-            },
-            {
-              "conclusion": "success",
-              "name": "Workflow security audit",
-              "status": "completed",
-              "url": "https://github.com/f5-sales-demo/docs-icons/actions/runs/33595565145/job/100138197691"
-            },
-            {
-              "conclusion": "success",
-              "name": "lint / Lint Code Base",
-              "status": "completed",
-              "url": "https://github.com/f5-sales-demo/docs-icons/actions/runs/33595565538/job/100138258497"
-            },
-            {
-              "conclusion": "success",
-              "name": "lint / Shell Unit Tests",
-              "status": "completed",
-              "url": "https://github.com/f5-sales-demo/docs-icons/actions/runs/33595565538/job/100138198832"
-            },
-            {
-              "conclusion": "success",
-              "name": "lint / Trust Docker-capable job",
-              "status": "completed",
-              "url": "https://github.com/f5-sales-demo/docs-icons/actions/runs/33595565538/job/100138199033"
-            },
-            {
-              "conclusion": "success",
-              "name": "renovate/stability-days",
-              "status": "success",
-              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
-            },
-            {
-              "conclusion": "success",
-              "name": "renovate/stability-days",
-              "status": "success",
-              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
-            }
-          ],
-          "created_at": "2026-09-02T05:11:10Z",
-          "dependencies": [
-            "flight-icons/CHANGELOG.md#510"
-          ],
-          "disposition": "execute",
-          "draft": false,
-          "evidence": [
-            "https://github.com/f5-sales-demo/docs-icons/pull/1004"
-          ],
-          "head_ref": "renovate/npm-minor-patch",
-          "head_repository": "f5-sales-demo/docs-icons",
-          "head_sha": "15efc54ad95530e92e7be170f235f7c178d5115d",
-          "labels": [
-            "area:dependencies",
-            "p1",
-            "status:active"
-          ],
-          "mergeable_state": null,
-          "node_id": "PR_kwDORR8sx88AAAABB2NXPw",
-          "number": 1004,
-          "taxonomy": {
-            "area": "dependencies",
-            "lifecycle": "active",
-            "priority": "p1"
-          },
-          "title": "chore(deps): update npm-minor-patch",
-          "updated_at": "2026-09-02T06:02:07Z",
-          "url": "https://github.com/f5-sales-demo/docs-icons/pull/1004",
-          "workstream": "f5-sales-demo/docs-control#1956"
-        }
-      ],
-      "updated_at": "2026-09-02T05:39:26Z",
+      "pull_requests": [],
+      "updated_at": "2026-09-02T07:33:17Z",
       "url": "https://github.com/f5-sales-demo/docs-icons"
     },
     {
@@ -1950,9 +1997,323 @@
           "updated_at": "2026-09-02T06:02:09Z",
           "url": "https://github.com/f5-sales-demo/docs-theme/pull/1412",
           "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            ".github/workflows/release.yml"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600342527"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITHUB_ACTIONS_ZIZMOR",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600342527"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600342527"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600342527"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600342527"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600342527"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600342527"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: YAML",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600342527"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600341847/job/100152426004"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600341893/job/100152424732"
+            },
+            {
+              "conclusion": "success",
+              "name": "Require canonical auto-merge token",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600342582/job/100152426255"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600341847/job/100152424640"
+            },
+            {
+              "conclusion": null,
+              "name": "call / Enable trusted-author auto-merge",
+              "status": "queued",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600342582/job/100152496298"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600342527/job/100152468478"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600342527/job/100152427261"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600342527/job/100152427396"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:46:04Z",
+          "dependencies": [],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/docs-theme/pull/1414"
+          ],
+          "head_ref": "renovate/actions-minor-patch",
+          "head_repository": "f5-sales-demo/docs-theme",
+          "head_sha": "5880f6f11c52c3082596070a36480eed809113c6",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDORPqh1s8AAAABB2xpBg",
+          "number": 1414,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update dependency node to v24.19.0",
+          "updated_at": "2026-09-02T07:03:52Z",
+          "url": "https://github.com/f5-sales-demo/docs-theme/pull/1414",
+          "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            "package-lock.json",
+            "package.json"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600377344"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600377344"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600377344"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600377344"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600377344"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600377344"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600376799/job/100152532820"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600376649/job/100152530818"
+            },
+            {
+              "conclusion": "success",
+              "name": "Require canonical auto-merge token",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600377302/job/100152533078"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600376799/job/100152531653"
+            },
+            {
+              "conclusion": null,
+              "name": "call / Enable trusted-author auto-merge",
+              "status": "queued",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600377302/job/100152622889"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600377344/job/100152585791"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600377344/job/100152533973"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/docs-theme/actions/runs/33600377344/job/100152534163"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:46:31Z",
+          "dependencies": [
+            "HEAD/CHANGELOG.md#01171",
+            "HEAD/CHANGELOG.md#01180",
+            "HEAD/CHANGELOG.md#01190",
+            "HEAD/CHANGELOG.md#01200",
+            "astro/CHANGELOG.md#7210",
+            "astro/CHANGELOG.md#722",
+            "astro/CHANGELOG.md#723",
+            "astro/CHANGELOG.md#724",
+            "astro/CHANGELOG.md#725",
+            "astro/CHANGELOG.md#726",
+            "astro/CHANGELOG.md#727",
+            "nodejs-private/node-private#846",
+            "nodejs-private/node-private#854",
+            "nodejs-private/node-private#855",
+            "nodejs-private/node-private#857",
+            "nodejs-private/node-private#867",
+            "nodejs-private/node-private#868",
+            "nodejs-private/node-private#869",
+            "nodejs-private/node-private#870",
+            "nodejs-private/node-private#873",
+            "nodejs-private/node-private#878",
+            "nodejs-private/node-private#890",
+            "nodejs-private/node-private#911",
+            "nodejs-private/node-private#921",
+            "nodejs-private/node-private#926",
+            "nodejs-private/node-private#927",
+            "nodejs-private/node-private#929",
+            "nodejs-private/node-private#930",
+            "nodejs-private/node-private#931",
+            "nodejs-private/node-private#932",
+            "nodejs-private/node-private#934",
+            "nodejs-private/node-private#935",
+            "react/CHANGELOG.md#603",
+            "react/CHANGELOG.md#604",
+            "remark/CHANGELOG.md#723",
+            "remark/CHANGELOG.md#724",
+            "starlight/CHANGELOG.md#0418",
+            "starlight/CHANGELOG.md#0419"
+          ],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/docs-theme/pull/1415"
+          ],
+          "head_ref": "renovate/npm-minor-patch",
+          "head_repository": "f5-sales-demo/docs-theme",
+          "head_sha": "72d7101e646e62eb1e51b86cf55066d21d52c626",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDORPqh1s8AAAABB2xz5A",
+          "number": 1415,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update npm-minor-patch",
+          "updated_at": "2026-09-02T07:03:54Z",
+          "url": "https://github.com/f5-sales-demo/docs-theme/pull/1415",
+          "workstream": "f5-sales-demo/docs-control#1956"
         }
       ],
-      "updated_at": "2026-09-01T17:44:30Z",
+      "updated_at": "2026-09-02T06:55:47Z",
       "url": "https://github.com/f5-sales-demo/docs-theme"
     },
     {
@@ -2102,7 +2463,7 @@
           "workstream": "f5-sales-demo/docs-control#1956"
         }
       ],
-      "updated_at": "2026-09-01T19:14:20Z",
+      "updated_at": "2026-09-02T08:15:51Z",
       "url": "https://github.com/f5-sales-demo/i18n-core"
     },
     {
@@ -2134,54 +2495,29 @@
           "workstream": "f5-sales-demo/docs-control#1959"
         },
         {
-          "created_at": "2026-08-05T00:07:21Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/marketplace/issues/1062"
-          ],
-          "labels": [
-            "area:ci",
-            "p0",
-            "status:active"
-          ],
-          "node_id": "I_kwDORmXfFc8AAAABLfSk3A",
-          "number": 1062,
-          "parent": "f5-sales-demo/docs-control#1955",
-          "taxonomy": {
-            "area": "ci",
-            "lifecycle": "active",
-            "priority": "p0"
-          },
-          "title": "Enhance github-ops and github plugins with Git SOPs, progressive hints, and CLI mastery",
-          "updated_at": "2026-09-02T02:59:48Z",
-          "url": "https://github.com/f5-sales-demo/marketplace/issues/1062",
-          "workstream": "f5-sales-demo/docs-control#1955"
-        },
-        {
           "created_at": "2026-08-16T23:37:05Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "externally-blocked",
           "evidence": [
             "https://github.com/f5-sales-demo/marketplace/issues/1194"
           ],
           "labels": [
-            "area:ci",
+            "area:api-contracts",
             "p0",
-            "status:active"
+            "status:blocked"
           ],
           "node_id": "I_kwDORmXfFc8AAAABM_i4PA",
           "number": 1194,
-          "parent": "f5-sales-demo/docs-control#1955",
+          "parent": "f5-sales-demo/docs-control#1958",
           "taxonomy": {
-            "area": "ci",
-            "lifecycle": "active",
+            "area": "api-contracts",
+            "lifecycle": "blocked",
             "priority": "p0"
           },
           "title": "bug(platform): validate Secure Mesh v2 against published tenant API",
-          "updated_at": "2026-09-02T02:59:50Z",
+          "updated_at": "2026-09-02T06:45:04Z",
           "url": "https://github.com/f5-sales-demo/marketplace/issues/1194",
-          "workstream": "f5-sales-demo/docs-control#1955"
+          "workstream": "f5-sales-demo/docs-control#1958"
         }
       ],
       "name": "f5-sales-demo/marketplace",
@@ -2329,9 +2665,297 @@
           "updated_at": "2026-09-02T06:02:14Z",
           "url": "https://github.com/f5-sales-demo/marketplace/pull/1293",
           "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            "plugins/asm-migration/bun.lock",
+            "plugins/asm-migration/package.json"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426672"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426672"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426672"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426672"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426672"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426672"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426810/job/100152686038"
+            },
+            {
+              "conclusion": "success",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426007/job/100152682187"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Check published versions are tagged",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426161/job/100152683786"
+            },
+            {
+              "conclusion": "success",
+              "name": "Run plugin test suites",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426161/job/100152682410"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Validate plugin manifests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426161/job/100152682265"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426810/job/100152685023"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "github.repository == 'f5-sales-demo/xcsh' && 'Check linked issues' || 'xcsh linked issue (not applicable)'",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426672/job/100152685255"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426672/job/100153095452"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426672/job/100152684989"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600426672/job/100152685056"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:47:09Z",
+          "dependencies": [],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/marketplace/pull/1294"
+          ],
+          "head_ref": "renovate/bun-types-1.x",
+          "head_repository": "f5-sales-demo/marketplace",
+          "head_sha": "847f14b57d533e1ad547bc1e6edd218195853d77",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDORmXfFc8AAAABB2yFgw",
+          "number": 1294,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update dependency bun-types to v1.4.0",
+          "updated_at": "2026-09-02T07:03:56Z",
+          "url": "https://github.com/f5-sales-demo/marketplace/pull/1294",
+          "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            "plugins/asm-migration/bun.lock",
+            "plugins/asm-migration/package.json"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600445969"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600445969"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600445969"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600445969"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600445969"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600445969"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600444820/job/100152741178"
+            },
+            {
+              "conclusion": "success",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600444693/job/100152739933"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Check published versions are tagged",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600444944/job/100152742202"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Run plugin test suites",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600444944/job/100152740795"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Validate plugin manifests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600444944/job/100152740635"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600444820/job/100152739883"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "github.repository == 'f5-sales-demo/xcsh' && 'Check linked issues' || 'xcsh linked issue (not applicable)'",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600445969/job/100152744709"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600445969/job/100153328086"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600445969/job/100152744231"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/marketplace/actions/runs/33600445969/job/100152744109"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:47:20Z",
+          "dependencies": [],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/marketplace/pull/1295"
+          ],
+          "head_ref": "renovate/fast-xml-parser-5.x",
+          "head_repository": "f5-sales-demo/marketplace",
+          "head_sha": "2a59e1dc18b096fdb13478a14adc675a32518519",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDORmXfFc8AAAABB2yK1w",
+          "number": 1295,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update dependency fast-xml-parser to v5.11.0",
+          "updated_at": "2026-09-02T07:03:58Z",
+          "url": "https://github.com/f5-sales-demo/marketplace/pull/1295",
+          "workstream": "f5-sales-demo/docs-control#1956"
         }
       ],
-      "updated_at": "2026-09-02T05:40:53Z",
+      "updated_at": "2026-09-02T07:46:03Z",
       "url": "https://github.com/f5-sales-demo/marketplace"
     },
     {
@@ -2339,7 +2963,7 @@
       "issues": [],
       "name": "f5-sales-demo/marketplace-claude-code",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:15:37Z",
+      "updated_at": "2026-09-02T08:22:07Z",
       "url": "https://github.com/f5-sales-demo/marketplace-claude-code"
     },
     {
@@ -2500,27 +3124,27 @@
         {
           "created_at": "2026-07-26T17:45:52Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "externally-blocked",
           "evidence": [
             "https://github.com/f5-sales-demo/mcn/issues/648"
           ],
           "labels": [
-            "area:security",
+            "area:api-contracts",
             "p0",
-            "status:active"
+            "status:blocked"
           ],
           "node_id": "I_kwDORPqsGs8AAAABKPApaQ",
           "number": 648,
-          "parent": "f5-sales-demo/docs-control#1957",
+          "parent": "f5-sales-demo/docs-control#1958",
           "taxonomy": {
-            "area": "security",
-            "lifecycle": "active",
+            "area": "api-contracts",
+            "lifecycle": "blocked",
             "priority": "p0"
           },
           "title": "SMSv2 coverage gap: advanced_delivery + log_anonymization oneofs, tunnel_*, annotations/disable, custom_proxy remainder, ref tenant (26 arms, S8 families B/C/D/E/F/H/I)",
-          "updated_at": "2026-09-02T03:00:27Z",
+          "updated_at": "2026-09-02T06:59:49Z",
           "url": "https://github.com/f5-sales-demo/mcn/issues/648",
-          "workstream": "f5-sales-demo/docs-control#1957"
+          "workstream": "f5-sales-demo/docs-control#1958"
         },
         {
           "created_at": "2026-07-28T03:58:15Z",
@@ -2550,25 +3174,25 @@
         {
           "created_at": "2026-07-28T13:30:01Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "externally-blocked",
           "evidence": [
             "https://github.com/f5-sales-demo/mcn/issues/702"
           ],
           "labels": [
             "area:security",
             "p0",
-            "status:active"
+            "status:blocked"
           ],
           "node_id": "I_kwDORPqsGs8AAAABKfg29A",
           "number": 702,
           "parent": "f5-sales-demo/docs-control#1957",
           "taxonomy": {
             "area": "security",
-            "lifecycle": "active",
+            "lifecycle": "blocked",
             "priority": "p0"
           },
           "title": "Test client VM accepts SSH from 0.0.0.0/0, and it is the only host in the deployment with a public IP",
-          "updated_at": "2026-09-02T03:00:30Z",
+          "updated_at": "2026-09-02T06:59:51Z",
           "url": "https://github.com/f5-sales-demo/mcn/issues/702",
           "workstream": "f5-sales-demo/docs-control#1957"
         },
@@ -2650,57 +3274,57 @@
         {
           "created_at": "2026-08-15T19:06:22Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "externally-blocked",
           "evidence": [
             "https://github.com/f5-sales-demo/mcn/issues/973"
           ],
           "labels": [
-            "area:security",
+            "area:product",
             "p0",
-            "status:active"
+            "status:blocked"
           ],
           "node_id": "I_kwDORPqsGs8AAAABM5z5cQ",
           "number": 973,
-          "parent": "f5-sales-demo/docs-control#1957",
+          "parent": "f5-sales-demo/docs-control#1961",
           "taxonomy": {
-            "area": "security",
-            "lifecycle": "active",
+            "area": "product",
+            "lifecycle": "blocked",
             "priority": "p0"
           },
           "title": "docs: re-release MCN as a verified full-showcase guide",
-          "updated_at": "2026-09-02T03:00:37Z",
+          "updated_at": "2026-09-02T06:59:53Z",
           "url": "https://github.com/f5-sales-demo/mcn/issues/973",
-          "workstream": "f5-sales-demo/docs-control#1957"
+          "workstream": "f5-sales-demo/docs-control#1961"
         },
         {
           "created_at": "2026-09-02T05:24:13Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "externally-blocked",
           "evidence": [
             "https://github.com/f5-sales-demo/mcn/issues/1076"
           ],
           "labels": [
             "area:api-contracts",
             "p1",
-            "status:active"
+            "status:blocked"
           ],
           "node_id": "I_kwDORPqsGs8AAAABPRpUAA",
           "number": 1076,
           "parent": "f5-sales-demo/docs-control#1958",
           "taxonomy": {
             "area": "api-contracts",
-            "lifecycle": "active",
+            "lifecycle": "blocked",
             "priority": "p1"
           },
           "title": "fix(terraform): pin the published SMSv2 provider and API contract",
-          "updated_at": "2026-09-02T06:02:16Z",
+          "updated_at": "2026-09-02T07:32:01Z",
           "url": "https://github.com/f5-sales-demo/mcn/issues/1076",
           "workstream": "f5-sales-demo/docs-control#1958"
         }
       ],
       "name": "f5-sales-demo/mcn",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:13:49Z",
+      "updated_at": "2026-09-02T07:03:08Z",
       "url": "https://github.com/f5-sales-demo/mcn"
     },
     {
@@ -2708,7 +3332,7 @@
       "issues": [],
       "name": "f5-sales-demo/nginx",
       "pull_requests": [],
-      "updated_at": "2026-09-02T06:10:15Z",
+      "updated_at": "2026-09-02T06:58:32Z",
       "url": "https://github.com/f5-sales-demo/nginx"
     },
     {
@@ -2742,7 +3366,7 @@
       ],
       "name": "f5-sales-demo/observability",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:14:05Z",
+      "updated_at": "2026-09-02T06:59:35Z",
       "url": "https://github.com/f5-sales-demo/observability"
     },
     {
@@ -2776,7 +3400,7 @@
       ],
       "name": "f5-sales-demo/origin-server",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:41:58Z",
+      "updated_at": "2026-09-02T07:54:48Z",
       "url": "https://github.com/f5-sales-demo/origin-server"
     },
     {
@@ -2830,58 +3454,6 @@
           "title": "feat: retranslate with fixed hero.tagline and title translation",
           "updated_at": "2026-09-02T03:01:48Z",
           "url": "https://github.com/f5-sales-demo/starlight-llms-txt/issues/105",
-          "workstream": "f5-sales-demo/docs-control#1959"
-        },
-        {
-          "created_at": "2026-07-26T13:49:57Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/starlight-llms-txt/issues/579"
-          ],
-          "labels": [
-            "area:docs-publishing",
-            "bug",
-            "p2",
-            "status:active"
-          ],
-          "node_id": "I_kwDOSJPK4c8AAAABO6Rk_w",
-          "number": 579,
-          "parent": "f5-sales-demo/docs-control#1959",
-          "taxonomy": {
-            "area": "docs-publishing",
-            "lifecycle": "active",
-            "priority": "p2"
-          },
-          "title": "llms.txt promote/demote never match on localized sites: 23 repos have inert tier ordering",
-          "updated_at": "2026-09-02T03:01:49Z",
-          "url": "https://github.com/f5-sales-demo/starlight-llms-txt/issues/579",
-          "workstream": "f5-sales-demo/docs-control#1959"
-        },
-        {
-          "created_at": "2026-07-26T16:25:57Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/starlight-llms-txt/issues/580"
-          ],
-          "labels": [
-            "area:docs-publishing",
-            "bug",
-            "p2",
-            "status:active"
-          ],
-          "node_id": "I_kwDOSJPK4c8AAAABO6Rl7g",
-          "number": 580,
-          "parent": "f5-sales-demo/docs-control#1959",
-          "taxonomy": {
-            "area": "docs-publishing",
-            "lifecycle": "active",
-            "priority": "p2"
-          },
-          "title": "starlight-llms-txt: a parent index sorting after its children silently deletes the whole subtree",
-          "updated_at": "2026-09-02T03:01:50Z",
-          "url": "https://github.com/f5-sales-demo/starlight-llms-txt/issues/580",
           "workstream": "f5-sales-demo/docs-control#1959"
         }
       ],
@@ -3068,9 +3640,332 @@
           "updated_at": "2026-09-02T06:02:24Z",
           "url": "https://github.com/f5-sales-demo/starlight-llms-txt/pull/598",
           "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            ".github/workflows/ci.yml",
+            ".github/workflows/release.yml"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600523476"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITHUB_ACTIONS_ZIZMOR",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600523476"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600523476"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600523476"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600523476"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600523476"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600523476"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: YAML",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600523476"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600522963/job/100152980911"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600522945/job/100152979368"
+            },
+            {
+              "conclusion": "success",
+              "name": "Require canonical auto-merge token",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600523497/job/100152991412"
+            },
+            {
+              "conclusion": "success",
+              "name": "Smoke test (docs build)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600522979/job/100152979912"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Unit tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600522979/job/100152979654"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600522963/job/100152979746"
+            },
+            {
+              "conclusion": null,
+              "name": "call / Enable trusted-author auto-merge",
+              "status": "queued",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600523497/job/100153073143"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600523476/job/100153178104"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600523476/job/100152982039"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600523476/job/100152981889"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:48:24Z",
+          "dependencies": [
+            "pnpm/get-npm-tarball-url#16",
+            "pnpm/pnpm#12042",
+            "pnpm/pnpm#13389",
+            "pnpm/pnpm#13725",
+            "pnpm/pnpm#13741",
+            "pnpm/pnpm#13815",
+            "pnpm/pnpm#13892",
+            "pnpm/pnpm#13918",
+            "pnpm/pnpm#13953",
+            "pnpm/pnpm#13956",
+            "pnpm/pnpm#13969",
+            "pnpm/pnpm#13976",
+            "pnpm/pnpm#14101",
+            "pnpm/pnpm#9618"
+          ],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/starlight-llms-txt/pull/599"
+          ],
+          "head_ref": "renovate/actions-minor-patch",
+          "head_repository": "f5-sales-demo/starlight-llms-txt",
+          "head_sha": "f28957145e95bdd0751ebd9b89553012e301a283",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDOSJPK4c8AAAABB2yn-A",
+          "number": 599,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update actions-minor-patch",
+          "updated_at": "2026-09-02T07:04:07Z",
+          "url": "https://github.com/f5-sales-demo/starlight-llms-txt/pull/599",
+          "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            "package.json",
+            "pnpm-lock.yaml"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600551178"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600551178"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600551178"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600551178"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600551178"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600551178"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: YAML",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600551178"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600550641/job/100153067527"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600550646/job/100153066098"
+            },
+            {
+              "conclusion": "success",
+              "name": "Require canonical auto-merge token",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600551116/job/100153067547"
+            },
+            {
+              "conclusion": "success",
+              "name": "Smoke test (docs build)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600550763/job/100153066991"
+            },
+            {
+              "conclusion": "success",
+              "name": "Unit tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600550763/job/100153066795"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600550641/job/100153066353"
+            },
+            {
+              "conclusion": null,
+              "name": "call / Enable trusted-author auto-merge",
+              "status": "queued",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600551116/job/100153146898"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600551178/job/100153263001"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600551178/job/100153068658"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-llms-txt/actions/runs/33600551178/job/100153068547"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:48:47Z",
+          "dependencies": [
+            "changelog-github/CHANGELOG.md#100"
+          ],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/starlight-llms-txt/pull/600"
+          ],
+          "head_ref": "renovate/changesets-changelog-github-1.x",
+          "head_repository": "f5-sales-demo/starlight-llms-txt",
+          "head_sha": "d8afb119fda6ede8a82d468c784007649262097b",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDOSJPK4c8AAAABB2yxYw",
+          "number": 600,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update dependency @changesets/changelog-github to v1",
+          "updated_at": "2026-09-02T07:04:09Z",
+          "url": "https://github.com/f5-sales-demo/starlight-llms-txt/pull/600",
+          "workstream": "f5-sales-demo/docs-control#1956"
         }
       ],
-      "updated_at": "2026-09-01T18:54:25Z",
+      "updated_at": "2026-09-02T08:15:11Z",
       "url": "https://github.com/f5-sales-demo/starlight-llms-txt"
     },
     {
@@ -3293,9 +4188,287 @@
           "updated_at": "2026-09-02T06:02:26Z",
           "url": "https://github.com/f5-sales-demo/starlight-mega-menu/pull/323",
           "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            "package-lock.json",
+            "package.json"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600584448"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600584448"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600584448"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600584448"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600584448"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600584448"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600584143/job/100153171554"
+            },
+            {
+              "conclusion": "success",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600583921/job/100153169144"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Typecheck and verify package",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600583966/job/100153169446"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600584143/job/100153170211"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "github.repository == 'f5-sales-demo/xcsh' && 'Check linked issues' || 'xcsh linked issue (not applicable)'",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600584448/job/100153171814"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600584448/job/100153243690"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600584448/job/100153171954"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600584448/job/100153171858"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:49:14Z",
+          "dependencies": [
+            "react/CHANGELOG.md#500",
+            "react/CHANGELOG.md#501",
+            "react/CHANGELOG.md#502",
+            "react/CHANGELOG.md#503",
+            "react/CHANGELOG.md#504",
+            "react/CHANGELOG.md#505",
+            "react/CHANGELOG.md#506",
+            "react/CHANGELOG.md#507",
+            "react/CHANGELOG.md#600",
+            "react/CHANGELOG.md#601",
+            "react/CHANGELOG.md#602",
+            "react/CHANGELOG.md#603",
+            "react/CHANGELOG.md#604"
+          ],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/starlight-mega-menu/pull/324"
+          ],
+          "head_ref": "renovate/astrojs-react-6.x",
+          "head_repository": "f5-sales-demo/starlight-mega-menu",
+          "head_sha": "3e40623e32754d7cbbcb7a6608fa0e7adf1fcf00",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDOS0sxPM8AAAABB2y8nA",
+          "number": 324,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update dependency @astrojs/react to v6",
+          "updated_at": "2026-09-02T07:04:11Z",
+          "url": "https://github.com/f5-sales-demo/starlight-mega-menu/pull/324",
+          "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            "package-lock.json",
+            "package.json"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598867"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598867"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598867"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598867"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598867"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598867"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598401/job/100153214678"
+            },
+            {
+              "conclusion": "success",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598427/job/100153213817"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Typecheck and verify package",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598439/job/100153213844"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598401/job/100153213782"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "github.repository == 'f5-sales-demo/xcsh' && 'Check linked issues' || 'xcsh linked issue (not applicable)'",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598867/job/100153216515"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598867/job/100153305553"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598867/job/100153216029"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/starlight-mega-menu/actions/runs/33600598867/job/100153215771"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:49:26Z",
+          "dependencies": [],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/starlight-mega-menu/pull/325"
+          ],
+          "head_ref": "renovate/typescript-7.x",
+          "head_repository": "f5-sales-demo/starlight-mega-menu",
+          "head_sha": "3cf8fd476c7983eed854149e715cd2e8c9413fef",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDOS0sxPM8AAAABB2zBag",
+          "number": 325,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update dependency typescript to v7",
+          "updated_at": "2026-09-02T07:04:12Z",
+          "url": "https://github.com/f5-sales-demo/starlight-mega-menu/pull/325",
+          "workstream": "f5-sales-demo/docs-control#1956"
         }
       ],
-      "updated_at": "2026-09-02T05:16:27Z",
+      "updated_at": "2026-09-02T08:11:22Z",
       "url": "https://github.com/f5-sales-demo/starlight-mega-menu"
     },
     {
@@ -3404,6 +4577,33 @@
           "updated_at": "2026-09-02T03:02:21Z",
           "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/issues/1885",
           "workstream": "f5-sales-demo/docs-control#1957"
+        },
+        {
+          "created_at": "2026-09-02T06:55:52Z",
+          "dependencies": [],
+          "disposition": "execute",
+          "evidence": [
+            "https://github.com/f5-sales-demo/terraform-provider-xcsh/issues/1955"
+          ],
+          "labels": [
+            "area:docs-publishing",
+            "automated",
+            "p2",
+            "regeneration",
+            "status:active"
+          ],
+          "node_id": "I_kwDORV6V4s8AAAABPST7tw",
+          "number": 1955,
+          "parent": "f5-sales-demo/docs-control#1959",
+          "taxonomy": {
+            "area": "docs-publishing",
+            "lifecycle": "active",
+            "priority": "p2"
+          },
+          "title": "chore: auto-regenerate provider from 339296ae9e67c3b8f8f89a9a15626d85ee7efb10",
+          "updated_at": "2026-09-02T07:04:14Z",
+          "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/issues/1955",
+          "workstream": "f5-sales-demo/docs-control#1959"
         }
       ],
       "name": "f5-sales-demo/terraform-provider-xcsh",
@@ -3672,9 +4872,9 @@
               "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33591153397/job/100125842461"
             },
             {
-              "conclusion": null,
+              "conclusion": "success",
               "name": "D8 go-race d8-current",
-              "status": "in_progress",
+              "status": "completed",
               "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33591548935/job/100126403397"
             },
             {
@@ -3698,7 +4898,7 @@
             {
               "conclusion": null,
               "name": "D8 go-race d8-n2",
-              "status": "queued",
+              "status": "in_progress",
               "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33591548935/job/100126403344"
             },
             {
@@ -3710,7 +4910,7 @@
             {
               "conclusion": null,
               "name": "D8 go-race d8-n4",
-              "status": "queued",
+              "status": "in_progress",
               "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33591548935/job/100126404148"
             },
             {
@@ -3744,9 +4944,9 @@
               "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33591153397/job/100125841985"
             },
             {
-              "conclusion": null,
+              "conclusion": "success",
               "name": "D8 go-vet d8-n1",
-              "status": "in_progress",
+              "status": "completed",
               "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33591548935/job/100126403270"
             },
             {
@@ -4231,9 +5431,393 @@
           "updated_at": "2026-09-02T06:02:28Z",
           "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/pull/1950",
           "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            "go.mod",
+            "go.sum"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674651"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674651"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674651"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674651"
+            },
+            {
+              "conclusion": "error",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "error",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674651"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674651"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674024/job/100153448126"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Build and Test / Build and Test",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674311/job/100155960792"
+            },
+            {
+              "conclusion": "success",
+              "name": "Build and Test / Lint",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674311/job/100155960869"
+            },
+            {
+              "conclusion": "success",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674037/job/100153446984"
+            },
+            {
+              "conclusion": "success",
+              "name": "Constitution Check",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674311/job/100153447883"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Require canonical auto-merge token",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674733/job/100153450137"
+            },
+            {
+              "conclusion": "success",
+              "name": "Semgrep OSS",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/runs/100153905402"
+            },
+            {
+              "conclusion": "success",
+              "name": "Semgrep SAST",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674095/job/100153447120"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate Docs Generation",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674311/job/100153447837"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate Mock Fixtures",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674311/job/100153447825"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate Shell Scripts",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674311/job/100153447709"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate Terraform Examples",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674311/job/100153447878"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674024/job/100153447189"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "call",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674733/job/100153450997"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "github.repository == 'f5-sales-demo/xcsh' && 'Check linked issues' || 'xcsh linked issue (not applicable)'",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674651/job/100153474935"
+            },
+            {
+              "conclusion": "failure",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674651/job/100153794805"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674651/job/100153449120"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600674651/job/100153449113"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:50:21Z",
+          "dependencies": [],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/terraform-provider-xcsh/pull/1953"
+          ],
+          "head_ref": "renovate/golang.org-x-text-0.x",
+          "head_repository": "f5-sales-demo/terraform-provider-xcsh",
+          "head_sha": "9794cfcf6eb9e0413f407e8017283c29e1508fb0",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDORV6V4s8AAAABB2zX_g",
+          "number": 1953,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update module golang.org/x/text to v0.41.0",
+          "updated_at": "2026-09-02T07:04:15Z",
+          "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/pull/1953",
+          "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            "go.mod",
+            "go.sum"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684229"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684229"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684229"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684229"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684229"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684229"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600683799/job/100153478297"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Build and Test / Build and Test",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684000/job/100155854627"
+            },
+            {
+              "conclusion": "success",
+              "name": "Build and Test / Lint",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684000/job/100155854631"
+            },
+            {
+              "conclusion": "success",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600683804/job/100153477299"
+            },
+            {
+              "conclusion": "success",
+              "name": "Constitution Check",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684000/job/100153478478"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Require canonical auto-merge token",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684230/job/100153479991"
+            },
+            {
+              "conclusion": "success",
+              "name": "Semgrep OSS",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/runs/100154459840"
+            },
+            {
+              "conclusion": "success",
+              "name": "Semgrep SAST",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600683807/job/100153477154"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate Docs Generation",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684000/job/100153478238"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate Mock Fixtures",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684000/job/100153478425"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate Shell Scripts",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684000/job/100153478369"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate Terraform Examples",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684000/job/100153478435"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600683799/job/100153477348"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "call",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684230/job/100153480604"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "github.repository == 'f5-sales-demo/xcsh' && 'Check linked issues' || 'xcsh linked issue (not applicable)'",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684229/job/100153479676"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684229/job/100156549050"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684229/job/100153479574"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/actions/runs/33600684229/job/100153479533"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:50:32Z",
+          "dependencies": [],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/terraform-provider-xcsh/pull/1954"
+          ],
+          "head_ref": "renovate/golang.org-x-tools-0.x",
+          "head_repository": "f5-sales-demo/terraform-provider-xcsh",
+          "head_sha": "b804207d7cfce1892d1f2bb7c1c2e66f2b676f10",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDORV6V4s8AAAABB2zcwg",
+          "number": 1954,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update module golang.org/x/tools to v0.49.0",
+          "updated_at": "2026-09-02T07:05:13Z",
+          "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh/pull/1954",
+          "workstream": "f5-sales-demo/docs-control#1956"
         }
       ],
-      "updated_at": "2026-09-02T05:44:01Z",
+      "updated_at": "2026-09-02T07:42:33Z",
       "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh"
     },
     {
@@ -4241,7 +5825,7 @@
       "issues": [],
       "name": "f5-sales-demo/traffic-generator",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:17:50Z",
+      "updated_at": "2026-09-02T07:57:52Z",
       "url": "https://github.com/f5-sales-demo/traffic-generator"
     },
     {
@@ -4437,9 +6021,401 @@
           "updated_at": "2026-09-02T06:02:31Z",
           "url": "https://github.com/f5-sales-demo/vscode-xcsh/pull/1521",
           "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            "package-lock.json",
+            "package.json"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600746215"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600746215"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600746215"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600746215"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600746215"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600746215"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600745448/job/100153667825"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Build VSIX",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600745469/job/100153732251"
+            },
+            {
+              "conclusion": "success",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600745572/job/100153667194"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Create Release",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600745469/job/100153770809"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Record Published Spec Delivery",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600745469/job/100153771190"
+            },
+            {
+              "conclusion": "success",
+              "name": "Release Eligibility",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600745469/job/100153666926"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Resolve Spec Delivery",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600745469/job/100153667102"
+            },
+            {
+              "conclusion": "failure",
+              "name": "Security Audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600745469/job/100153667158"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Stage Spec Delivery",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600745469/job/100153771070"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Test (${{ matrix.os }})",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600745469/job/100153731185"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Test (ubuntu-latest)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600745469/job/100153731261"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Validate Generation",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600745469/job/100153731171"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600745448/job/100153666448"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "github.repository == 'f5-sales-demo/xcsh' && 'Check linked issues' || 'xcsh linked issue (not applicable)'",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600746215/job/100153701259"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600746215/job/100153708888"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600746215/job/100153669824"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600746215/job/100153669925"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:51:19Z",
+          "dependencies": [
+            "HEAD/release-notes.md#900"
+          ],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/vscode-xcsh/pull/1522"
+          ],
+          "head_ref": "renovate/diff-9.x",
+          "head_repository": "f5-sales-demo/vscode-xcsh",
+          "head_sha": "53a5d0e5313b60cae9a013a5ec0222f95f7aa533",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDOShOURs8AAAABB2zxxw",
+          "number": 1522,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update dependency diff to v9",
+          "updated_at": "2026-09-02T07:04:19Z",
+          "url": "https://github.com/f5-sales-demo/vscode-xcsh/pull/1522",
+          "workstream": "f5-sales-demo/docs-control#1956"
+        },
+        {
+          "base_ref": "main",
+          "changed_paths": [
+            ".github/workflows/ci.yml",
+            ".nvmrc"
+          ],
+          "checks": [
+            {
+              "conclusion": "success",
+              "name": "--> Linted: CHECKOV",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758667"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITHUB_ACTIONS_ZIZMOR",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758667"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GITLEAKS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758667"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: GIT_MERGE_CONFLICT_MARKERS",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758667"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: JSCPD",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758667"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: SPELL_CODESPELL",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758667"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: TRIVY",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758667"
+            },
+            {
+              "conclusion": "success",
+              "name": "--> Linted: YAML",
+              "status": "success",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758667"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Audit workflows (zizmor)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758151/job/100153705197"
+            },
+            {
+              "conclusion": "success",
+              "name": "Build VSIX",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758175/job/100155188198"
+            },
+            {
+              "conclusion": "success",
+              "name": "Check linked issues",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758164/job/100153704592"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Create Release",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758175/job/100155773326"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Record Published Spec Delivery",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758175/job/100155774013"
+            },
+            {
+              "conclusion": "success",
+              "name": "Release Eligibility",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758175/job/100153704845"
+            },
+            {
+              "conclusion": "success",
+              "name": "Resolve Spec Delivery",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758175/job/100153704799"
+            },
+            {
+              "conclusion": "success",
+              "name": "Security Audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758175/job/100153705048"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "Stage Spec Delivery",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758175/job/100155774129"
+            },
+            {
+              "conclusion": "success",
+              "name": "Test (macos-latest)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758175/job/100154137725"
+            },
+            {
+              "conclusion": "success",
+              "name": "Test (ubuntu-latest)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758175/job/100154137799"
+            },
+            {
+              "conclusion": "success",
+              "name": "Test (windows-latest)",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758175/job/100154137666"
+            },
+            {
+              "conclusion": "success",
+              "name": "Validate Generation",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758175/job/100153903088"
+            },
+            {
+              "conclusion": "success",
+              "name": "Workflow security audit",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758151/job/100153704212"
+            },
+            {
+              "conclusion": "skipped",
+              "name": "github.repository == 'f5-sales-demo/xcsh' && 'Check linked issues' || 'xcsh linked issue (not applicable)'",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758667/job/100153709035"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Lint Code Base",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758667/job/100153769238"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Shell Unit Tests",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758667/job/100153708825"
+            },
+            {
+              "conclusion": "success",
+              "name": "lint / Trust Docker-capable job",
+              "status": "completed",
+              "url": "https://github.com/f5-sales-demo/vscode-xcsh/actions/runs/33600758667/job/100153708814"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            },
+            {
+              "conclusion": "success",
+              "name": "renovate/stability-days",
+              "status": "success",
+              "url": "https://docs.renovatebot.com/key-concepts/minimum-release-age/"
+            }
+          ],
+          "created_at": "2026-09-02T06:51:29Z",
+          "dependencies": [],
+          "disposition": "execute",
+          "draft": false,
+          "evidence": [
+            "https://github.com/f5-sales-demo/vscode-xcsh/pull/1523"
+          ],
+          "head_ref": "renovate/node-24.x",
+          "head_repository": "f5-sales-demo/vscode-xcsh",
+          "head_sha": "86e86d8ba9f9e33f7ef2e9cade338fc5279116c3",
+          "labels": [
+            "area:dependencies",
+            "p1",
+            "status:active"
+          ],
+          "mergeable_state": null,
+          "node_id": "PR_kwDOShOURs8AAAABB2z2GA",
+          "number": 1523,
+          "taxonomy": {
+            "area": "dependencies",
+            "lifecycle": "active",
+            "priority": "p1"
+          },
+          "title": "chore(deps): update dependency node",
+          "updated_at": "2026-09-02T07:04:21Z",
+          "url": "https://github.com/f5-sales-demo/vscode-xcsh/pull/1523",
+          "workstream": "f5-sales-demo/docs-control#1956"
         }
       ],
-      "updated_at": "2026-09-02T05:44:49Z",
+      "updated_at": "2026-09-02T08:09:30Z",
       "url": "https://github.com/f5-sales-demo/vscode-xcsh"
     },
     {
@@ -4473,7 +6449,7 @@
       ],
       "name": "f5-sales-demo/waf",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:18:58Z",
+      "updated_at": "2026-09-02T07:13:32Z",
       "url": "https://github.com/f5-sales-demo/waf"
     },
     {
@@ -4481,7 +6457,7 @@
       "issues": [],
       "name": "f5-sales-demo/was",
       "pull_requests": [],
-      "updated_at": "2026-09-02T06:12:59Z",
+      "updated_at": "2026-09-02T06:59:24Z",
       "url": "https://github.com/f5-sales-demo/was"
     },
     {
@@ -4540,37 +6516,12 @@
       ],
       "name": "f5-sales-demo/webapp-api-protection",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:19:09Z",
+      "updated_at": "2026-09-02T07:19:59Z",
       "url": "https://github.com/f5-sales-demo/webapp-api-protection"
     },
     {
       "default_branch": "main",
       "issues": [
-        {
-          "created_at": "2026-05-05T02:08:12Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/xcsh/issues/570"
-          ],
-          "labels": [
-            "area:ci",
-            "p0",
-            "status:active"
-          ],
-          "node_id": "I_kwDOR9dB188AAAABBSB_xQ",
-          "number": 570,
-          "parent": "f5-sales-demo/docs-control#1955",
-          "taxonomy": {
-            "area": "ci",
-            "lifecycle": "active",
-            "priority": "p0"
-          },
-          "title": "bug: pi_natives native addon fails to load in devcontainer (linux-arm64)",
-          "updated_at": "2026-09-02T03:03:45Z",
-          "url": "https://github.com/f5-sales-demo/xcsh/issues/570",
-          "workstream": "f5-sales-demo/docs-control#1955"
-        },
         {
           "created_at": "2026-06-18T18:00:10Z",
           "dependencies": [],
@@ -4624,52 +6575,52 @@
         {
           "created_at": "2026-07-12T11:26:25Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "externally-blocked",
           "evidence": [
             "https://github.com/f5-sales-demo/xcsh/issues/1995"
           ],
           "labels": [
-            "area:dependencies",
+            "area:ai-automation",
             "p1",
-            "status:active"
+            "status:blocked"
           ],
           "node_id": "I_kwDOR9dB188AAAABIhYIXw",
           "number": 1995,
-          "parent": "f5-sales-demo/docs-control#1956",
+          "parent": "f5-sales-demo/docs-control#1960",
           "taxonomy": {
-            "area": "dependencies",
-            "lifecycle": "active",
+            "area": "ai-automation",
+            "lifecycle": "blocked",
             "priority": "p1"
           },
           "title": "coding-agent: sequential bench origin-pool turn does not produce the expected resource",
-          "updated_at": "2026-09-02T03:03:48Z",
+          "updated_at": "2026-09-02T07:22:08Z",
           "url": "https://github.com/f5-sales-demo/xcsh/issues/1995",
-          "workstream": "f5-sales-demo/docs-control#1956"
+          "workstream": "f5-sales-demo/docs-control#1960"
         },
         {
           "created_at": "2026-07-13T14:17:36Z",
           "dependencies": [],
-          "disposition": "execute",
+          "disposition": "externally-blocked",
           "evidence": [
             "https://github.com/f5-sales-demo/xcsh/issues/2007"
           ],
           "labels": [
-            "area:dependencies",
+            "area:developer-tooling",
             "p1",
-            "status:active"
+            "status:blocked"
           ],
           "node_id": "I_kwDOR9dB188AAAABIosv6w",
           "number": 2007,
-          "parent": "f5-sales-demo/docs-control#1956",
+          "parent": "f5-sales-demo/docs-control#1960",
           "taxonomy": {
-            "area": "dependencies",
-            "lifecycle": "active",
+            "area": "developer-tooling",
+            "lifecycle": "blocked",
             "priority": "p1"
           },
           "title": "Native addon fails to load on managed/MDM Macs: bare .node can't be stapled \u2192 offline notarization check fails",
-          "updated_at": "2026-09-02T03:03:49Z",
+          "updated_at": "2026-09-02T07:22:11Z",
           "url": "https://github.com/f5-sales-demo/xcsh/issues/2007",
-          "workstream": "f5-sales-demo/docs-control#1956"
+          "workstream": "f5-sales-demo/docs-control#1960"
         },
         {
           "created_at": "2026-07-25T04:37:32Z",
@@ -5047,7 +6998,7 @@
           "workstream": "f5-sales-demo/docs-control#1956"
         }
       ],
-      "updated_at": "2026-09-02T05:08:17Z",
+      "updated_at": "2026-09-02T07:49:26Z",
       "url": "https://github.com/f5-sales-demo/xcsh"
     },
     {
@@ -5055,7 +7006,7 @@
       "issues": [],
       "name": "f5-sales-demo/xcsh-action",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:50:01Z",
+      "updated_at": "2026-09-02T07:49:04Z",
       "url": "https://github.com/f5-sales-demo/xcsh-action"
     },
     {
@@ -5086,143 +7037,17 @@
           "updated_at": "2026-09-02T03:04:25Z",
           "url": "https://github.com/f5-sales-demo/xcsh-chrome-extension/issues/10",
           "workstream": "f5-sales-demo/docs-control#1959"
-        },
-        {
-          "created_at": "2026-06-22T16:20:48Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/xcsh-chrome-extension/issues/12"
-          ],
-          "labels": [
-            "area:ai-automation",
-            "p2",
-            "released",
-            "status:active"
-          ],
-          "node_id": "I_kwDOS_u0E88AAAABGT8JBQ",
-          "number": 12,
-          "parent": "f5-sales-demo/docs-control#1960",
-          "taxonomy": {
-            "area": "ai-automation",
-            "lifecycle": "active",
-            "priority": "p2"
-          },
-          "title": "Fix llms-config.json schema (docs-builder warning)",
-          "updated_at": "2026-09-02T03:04:26Z",
-          "url": "https://github.com/f5-sales-demo/xcsh-chrome-extension/issues/12",
-          "workstream": "f5-sales-demo/docs-control#1960"
-        },
-        {
-          "created_at": "2026-06-23T02:44:42Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/xcsh-chrome-extension/issues/38"
-          ],
-          "labels": [
-            "area:developer-tooling",
-            "p2",
-            "status:active"
-          ],
-          "node_id": "I_kwDOS_u0E88AAAABGXZ8Vg",
-          "number": 38,
-          "parent": "f5-sales-demo/docs-control#1960",
-          "taxonomy": {
-            "area": "developer-tooling",
-            "lifecycle": "active",
-            "priority": "p2"
-          },
-          "title": "Add click_xy + type_text tools to drive heavy forms where read_ax can't run",
-          "updated_at": "2026-09-02T03:04:28Z",
-          "url": "https://github.com/f5-sales-demo/xcsh-chrome-extension/issues/38",
-          "workstream": "f5-sales-demo/docs-control#1960"
-        },
-        {
-          "created_at": "2026-06-29T03:13:48Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/xcsh-chrome-extension/issues/102"
-          ],
-          "labels": [
-            "area:developer-tooling",
-            "p2",
-            "status:active"
-          ],
-          "node_id": "I_kwDOS_u0E88AAAABG__3Jg",
-          "number": 102,
-          "parent": "f5-sales-demo/docs-control#1960",
-          "taxonomy": {
-            "area": "developer-tooling",
-            "lifecycle": "active",
-            "priority": "p2"
-          },
-          "title": "Add showOverlay DOM integration test (close rendering test gap)",
-          "updated_at": "2026-09-02T03:04:29Z",
-          "url": "https://github.com/f5-sales-demo/xcsh-chrome-extension/issues/102",
-          "workstream": "f5-sales-demo/docs-control#1960"
-        },
-        {
-          "created_at": "2026-07-02T01:26:32Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/xcsh-chrome-extension/issues/123"
-          ],
-          "labels": [
-            "area:product",
-            "p2",
-            "status:active"
-          ],
-          "node_id": "I_kwDOS_u0E88AAAABHYhxVg",
-          "number": 123,
-          "parent": "f5-sales-demo/docs-control#1961",
-          "taxonomy": {
-            "area": "product",
-            "lifecycle": "active",
-            "priority": "p2"
-          },
-          "title": "Multi-session: tenant-aware side panel (session-locking, activation gating, SW diagnostics)",
-          "updated_at": "2026-09-02T03:04:31Z",
-          "url": "https://github.com/f5-sales-demo/xcsh-chrome-extension/issues/123",
-          "workstream": "f5-sales-demo/docs-control#1961"
-        },
-        {
-          "created_at": "2026-08-14T04:27:29Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/xcsh-chrome-extension/issues/518"
-          ],
-          "labels": [
-            "area:dependencies",
-            "p1",
-            "status:active"
-          ],
-          "node_id": "I_kwDOS_u0E88AAAABMt0OIg",
-          "number": 518,
-          "parent": "f5-sales-demo/docs-control#1956",
-          "taxonomy": {
-            "area": "dependencies",
-            "lifecycle": "active",
-            "priority": "p1"
-          },
-          "title": "fix(ci): refresh frozen Bun lockfile for pinned toolchain",
-          "updated_at": "2026-09-02T03:04:32Z",
-          "url": "https://github.com/f5-sales-demo/xcsh-chrome-extension/issues/518",
-          "workstream": "f5-sales-demo/docs-control#1956"
         }
       ],
       "name": "f5-sales-demo/xcsh-chrome-extension",
       "pull_requests": [],
-      "updated_at": "2026-09-02T05:25:57Z",
+      "updated_at": "2026-09-02T08:21:34Z",
       "url": "https://github.com/f5-sales-demo/xcsh-chrome-extension"
     }
   ],
   "schema_version": 2,
   "summary": {
-    "open_issues": 87,
-    "open_pull_requests": 13
+    "open_issues": 74,
+    "open_pull_requests": 26
   }
 }
