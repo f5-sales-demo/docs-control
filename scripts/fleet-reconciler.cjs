@@ -105,7 +105,7 @@ function reconciliationBranchPrefix(value = 'governance/reconcile') {
   if (!BRANCH_PREFIXES.has(value)) fail('reconciliation branch prefix is invalid');
   return value;
 }
-function branchName(sourceSha, repo, prefix = 'governance/reconcile') {
+function branchName(sourceSha, repo, prefix = 'governance/sync-managed-files') {
   const approvedPrefix = reconciliationBranchPrefix(prefix);
   if (approvedPrefix === 'governance/sync-managed-files') {
     // Downstream developer-owned governance guards recognize this exact form.
@@ -285,7 +285,18 @@ async function createContentPr(
 }
 
 async function reconcileContent(options) {
-  const { api, owner, sourceSha, mode, inventory, config, manifest, sourceRoot, selection, branchPrefix = 'governance/reconcile' } = options;
+  const {
+    api,
+    owner,
+    sourceSha,
+    mode,
+    inventory,
+    config,
+    manifest,
+    sourceRoot,
+    selection,
+    branchPrefix = 'governance/sync-managed-files',
+  } = options;
   requireSha(sourceSha);
   if (!MODES.has(mode)) fail('mode must be dry-run, pilot, or full');
   reconciliationBranchPrefix(branchPrefix);
@@ -556,7 +567,9 @@ async function main() {
           manifest,
           sourceRoot: root,
           selection: process.env.REPOSITORIES,
-          branchPrefix: reconciliationBranchPrefix(process.env.RECONCILE_BRANCH_PREFIX || 'governance/reconcile'),
+          branchPrefix: reconciliationBranchPrefix(
+            process.env.RECONCILE_BRANCH_PREFIX || 'governance/sync-managed-files',
+          ),
         });
   console.log(JSON.stringify(result, null, 2));
 }

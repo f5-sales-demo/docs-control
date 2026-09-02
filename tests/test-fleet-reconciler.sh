@@ -12,7 +12,10 @@ const makeManifest = (files, absent_paths = []) => ({schema_version:2,source_com
 assert.equal(manifestStateDigest([{path:'a',src:'a',sha,size:1,mode:'100644'}], ['retired']), 'sha256:47c0b77c8b70000308f8bea71916953a269e66b98a35361ed8c6382b554149a4');
 assert.equal(requireSha(sha), sha);
 assert.equal(managedCommitMessage(sha), `chore: reconcile governed files @ ${sha.slice(0,12)}`);
-assert.equal(branchName(sha, 'one'), `governance/reconcile-${sha.slice(0,12)}-one`);
+assert.match(
+  branchName(sha, 'one'),
+  new RegExp(`^governance/sync-managed-files-${sha.slice(0, 12)}-[1-9][0-9]*-1$`),
+);
 assert.equal(branchName(sha, 'one', 'governance/bootstrap'), `governance/bootstrap-${sha.slice(0,12)}-one`);
 assert.equal(reconciliationBranchPrefix('governance/bootstrap'), 'governance/bootstrap');
 assert.match(
@@ -99,7 +102,7 @@ const recoveryApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.M
   let data={};
   if (route.includes('/pulls?state=open&per_page=100')) {
     const repo=route.match(/repos\/f5\/([^/]+)/)[1];
-    data=['one','two'].includes(repo) ? [{head:{ref:`governance/reconcile-${sha.slice(0,12)}-${repo}`}}] : [];
+    data=['one','two'].includes(repo) ? [{head:{ref:branchName(sha, repo)}}] : [];
   } else if (route.includes('/pulls?state=open&head=')) {
     const repo=route.match(/repos\/f5\/([^/]+)/)[1];
     data=['one','two'].includes(repo) ? [{number:1,node_id:'P',base:{ref:'main'},body:`${recoveryNote}\n\nCloses #1`,head:{sha}}] : [];
