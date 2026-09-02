@@ -1478,6 +1478,9 @@ mkdir -p \
   "$GI_TMP/packages/example" \
   "$GI_TMP/superpowers" \
   "$GI_TMP/internal" \
+  "$GI_TMP/coverage/report" \
+  "$GI_TMP/coverage/smsv2/reject-tests" \
+  "$GI_TMP/coverage/unrelated" \
   "$GI_TMP/docs/superpowers"
 : >"$GI_TMP/vendor/modules.txt"
 : >"$GI_TMP/src/vendor/chat-ui/index.ts"
@@ -1491,6 +1494,11 @@ mkdir -p \
 : >"$GI_TMP/terraform-provider-xcsh"
 : >"$GI_TMP/internal/terraform-provider-xcsh"
 : >"$GI_TMP/superpowers.txt"
+: >"$GI_TMP/coverage/report/index.html"
+: >"$GI_TMP/coverage/smsv2/main.tf"
+: >"$GI_TMP/coverage/smsv2/reject-tests/invalid.tftest.hcl"
+: >"$GI_TMP/coverage/smsv2/terraform.tfstate"
+: >"$GI_TMP/coverage/unrelated/output.json"
 ln -s /tmp/example-venv "$GI_TMP/.venv"
 
 # A top-level vendor/ tree must still be ignored — that is the rule's purpose.
@@ -1579,6 +1587,31 @@ if git -C "$GI_TMP" check-ignore -q internal/terraform-provider-xcsh; then
     "the provider-binary rule must be root-anchored"
 else
   pass "8.11 nested terraform-provider-xcsh remains trackable"
+fi
+
+for report_path in coverage/report/index.html coverage/unrelated/output.json; do
+  if git -C "$GI_TMP" check-ignore -q "$report_path"; then
+    pass "8.12 generated coverage output remains ignored ($report_path)"
+  else
+    fail "8.12 generated coverage output remains ignored ($report_path)" \
+      "$report_path is unexpectedly trackable"
+  fi
+done
+
+for harness_path in coverage/smsv2/main.tf coverage/smsv2/reject-tests/invalid.tftest.hcl; do
+  if git -C "$GI_TMP" check-ignore -q "$harness_path"; then
+    fail "8.13 MCN SMSv2 harness source is trackable ($harness_path)" \
+      "$harness_path still requires git add -f"
+  else
+    pass "8.13 MCN SMSv2 harness source is trackable ($harness_path)"
+  fi
+done
+
+if git -C "$GI_TMP" check-ignore -q coverage/smsv2/terraform.tfstate; then
+  pass "8.14 Terraform state remains ignored inside the SMSv2 harness"
+else
+  fail "8.14 Terraform state remains ignored inside the SMSv2 harness" \
+    "the harness exception bypasses the fleet Terraform-state rule"
 fi
 
 rm -rf "$GI_TMP"
@@ -1806,17 +1839,63 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 16: managed Gitleaks configuration has no escape hatches
+# SECTION 16: managed Gitleaks configuration and Azure identifier guard
 # ════════════════════════════════════════════════════════════════════
 echo ""
-echo "=== Section 16: unsuppressed Gitleaks configuration ==="
+echo "=== Section 16: Gitleaks configuration and Azure identifiers ==="
 
-EXPECTED_GITLEAKS_CONFIG=$'title = "Fleet default Gitleaks rules"\n\n[extend]\nuseDefault = true'
-if [ "$(cat "$REPO_ROOT/.gitleaks.toml")" = "$EXPECTED_GITLEAKS_CONFIG" ]; then
-  pass "16.1 managed Gitleaks config uses defaults without allowlists or baselines"
+if grep -Fq 'useDefault = true' "$REPO_ROOT/.gitleaks.toml" &&
+  ! grep -Eq '^[[:space:]]*path[[:space:]]*=|^[[:space:]]*paths[[:space:]]*=' "$REPO_ROOT/.gitleaks.toml"; then
+  pass "16.1 managed Gitleaks config extends defaults without path suppression"
 else
-  fail "16.1 managed Gitleaks config uses defaults without allowlists or baselines" \
-    "the config contains an escape hatch or does not enable the default rules"
+  fail "16.1 managed Gitleaks config extends defaults without path suppression" \
+    "the config disables default rules or suppresses repository paths"
+fi
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "  SKIP: 16.2 Azure subscription assignment rejection (gitleaks CLI not installed)"
+  echo "  SKIP: 16.3 documented synthetic subscription placeholders (gitleaks CLI not installed)"
+else
+  GITLEAKS_TMP=$(mktemp -d)
+  mkdir -p "$GITLEAKS_TMP/live" "$GITLEAKS_TMP/placeholder"
+  LIVE_GUID="12345678-1234-1234-1234-123456789""abc"
+  PLACEHOLDER_GUID="00000000-0000-0000-0000-000000000""000"
+  SYNTHETIC_GUID="00000000-0000-4000-8000-123456789""abc"
+  cat >"$GITLEAKS_TMP/live/identifiers.txt" <<EOF
+subscription_id = "$LIVE_GUID"
+az account set --subscription $LIVE_GUID
+AZURE_SUBSCRIPTION_ID=$LIVE_GUID
+scope=/subscriptions/$LIVE_GUID/resourceGroups/example
+EOF
+  cat >"$GITLEAKS_TMP/placeholder/identifiers.txt" <<EOF
+subscription_id = "$PLACEHOLDER_GUID"
+az account set --subscription $PLACEHOLDER_GUID
+AZURE_SUBSCRIPTION_ID=$PLACEHOLDER_GUID
+scope=/subscriptions/$PLACEHOLDER_GUID/resourceGroups/example
+scope=/subscriptions/$SYNTHETIC_GUID/resourceGroups/example
+EOF
+
+  if gitleaks detect --no-git --source "$GITLEAKS_TMP/live" \
+    --config "$REPO_ROOT/.gitleaks.toml" --exit-code 42 --report-format json \
+    --report-path "$GITLEAKS_TMP/report.json" >/dev/null 2>&1 && false; then
+    fail "16.2 Azure subscription assignment is rejected" "gitleaks unexpectedly passed"
+  elif [ "$?" -eq 42 ] && jq -e \
+    '[.[] | select(.RuleID == "azure-subscription-id")] | length == 4' \
+    "$GITLEAKS_TMP/report.json" >/dev/null; then
+    pass "16.2 Azure subscription assignment is rejected"
+  else
+    fail "16.2 Azure subscription assignment is rejected" \
+      "the managed rule did not report the synthetic identifier"
+  fi
+
+  if gitleaks detect --no-git --source "$GITLEAKS_TMP/placeholder" \
+    --config "$REPO_ROOT/.gitleaks.toml" >/dev/null 2>&1; then
+    pass "16.3 documented synthetic subscription placeholders are accepted"
+  else
+    fail "16.3 documented synthetic subscription placeholders are accepted" \
+      "the managed rule rejected a documented placeholder"
+  fi
+  rm -rf "$GITLEAKS_TMP"
 fi
 
 # ════════════════════════════════════════════════════════════════════
