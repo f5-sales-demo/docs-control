@@ -166,7 +166,10 @@ def infer_area(repository: str, title: str, body: str, labels: list[str]) -> str
         ("linting", r"lint|ruff|biome|markdownlint|clippy|pre-commit"),
         ("ci", r"\bci\b|workflow|github actions|check run|build failure|test failure"),
         ("docs-publishing", r"\bdocs?\b|readme|starlight|publish|pages|documentation"),
-        ("developer-tooling", r"release|cli|devcontainer|tooling|build|test|packag"),
+        (
+            "developer-tooling",
+            r"release|cli|devcontainer|tooling|build|test|package|packaging",
+        ),
         ("governance", r"govern|reconcil|managed.sync|policy|catalog|backlog"),
     ]
     for text in (title.lower(), body.lower()):
@@ -278,7 +281,9 @@ def _required(raw: dict[str, Any], fields: tuple[str, ...], context: str) -> Non
         raise InventoryError(f"GitHub response is incomplete for {context}")
 
 
-def collect(catalog_path: Path, api: GitHub | None = None) -> dict[str, Any]:
+def collect(  # pylint: disable=too-many-locals,too-many-statements
+    catalog_path: Path, api: GitHub | None = None
+) -> dict[str, Any]:
     client = api or GitHub()
     names = catalog_names(catalog_path)
     repositories = []
@@ -493,7 +498,9 @@ def collect(catalog_path: Path, api: GitHub | None = None) -> dict[str, Any]:
     }
 
 
-def validate(inventory: dict[str, Any], catalog_path: Path) -> list[str]:
+def validate(  # pylint: disable=too-many-locals,too-many-branches
+    inventory: dict[str, Any], catalog_path: Path
+) -> list[str]:
     problems: list[str] = []
     if inventory.get("schema_version") != SCHEMA_VERSION:
         raise InventoryError(f"inventory schema_version must be {SCHEMA_VERSION}")

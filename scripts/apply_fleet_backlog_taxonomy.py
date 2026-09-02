@@ -95,7 +95,7 @@ def preflight(inventory: dict[str, Any], writer: GitHubWriter) -> None:
                     )
 
 
-def apply(
+def apply(  # pylint: disable=too-many-locals,too-many-branches
     inventory: dict[str, Any], writer: GitHubWriter, *, dry_run: bool
 ) -> dict[str, int]:
     counts = {

@@ -543,7 +543,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     raw_args = sys.argv[1:] if argv is None else argv
     if raw_args and raw_args[0] in {"collect", "verify", "verify-live"}:
-        from fleet_backlog_inventory import main as fleet_main
+        # pylint: disable-next=import-outside-toplevel
+        from fleet_backlog_inventory import (
+            main as fleet_main,
+        )
 
         return fleet_main(raw_args)
     args = parse_args(raw_args)

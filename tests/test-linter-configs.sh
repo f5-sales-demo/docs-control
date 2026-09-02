@@ -1439,12 +1439,12 @@ else
   # fork-pr-contributor-approval endpoint. Anything else is silently
   # rejected by the API and would leave the fleet on GitHub's default.
   case "$FORK_POLICY" in
-  first_time_contributors_new_to_github | first_time_contributors | all_external_contributors)
-    pass "11.2 approval_policy is a valid enum ($FORK_POLICY)"
-    ;;
-  *)
-    fail "11.2 approval_policy is a valid enum" "got '$FORK_POLICY'"
-    ;;
+    first_time_contributors_new_to_github | first_time_contributors | all_external_contributors)
+      pass "11.2 approval_policy is a valid enum ($FORK_POLICY)"
+      ;;
+    *)
+      fail "11.2 approval_policy is a valid enum" "got '$FORK_POLICY'"
+      ;;
   esac
 fi
 
@@ -1856,18 +1856,18 @@ if ! command -v gitleaks >/dev/null 2>&1; then
   echo "  SKIP: 16.2 Azure subscription assignment rejection (gitleaks CLI not installed)"
   echo "  SKIP: 16.3 documented synthetic subscription placeholders (gitleaks CLI not installed)"
 else
-GITLEAKS_TMP=$(mktemp -d)
-mkdir -p "$GITLEAKS_TMP/live" "$GITLEAKS_TMP/placeholder"
-LIVE_GUID="12345678-1234-1234-1234-123456789""abc"
-PLACEHOLDER_GUID="00000000-0000-0000-0000-000000000""000"
-SYNTHETIC_GUID="00000000-0000-4000-8000-123456789""abc"
-cat >"$GITLEAKS_TMP/live/identifiers.txt" <<EOF
+  GITLEAKS_TMP=$(mktemp -d)
+  mkdir -p "$GITLEAKS_TMP/live" "$GITLEAKS_TMP/placeholder"
+  LIVE_GUID="12345678-1234-1234-1234-123456789""abc"
+  PLACEHOLDER_GUID="00000000-0000-0000-0000-000000000""000"
+  SYNTHETIC_GUID="00000000-0000-4000-8000-123456789""abc"
+  cat >"$GITLEAKS_TMP/live/identifiers.txt" <<EOF
 subscription_id = "$LIVE_GUID"
 az account set --subscription $LIVE_GUID
 AZURE_SUBSCRIPTION_ID=$LIVE_GUID
 scope=/subscriptions/$LIVE_GUID/resourceGroups/example
 EOF
-cat >"$GITLEAKS_TMP/placeholder/identifiers.txt" <<EOF
+  cat >"$GITLEAKS_TMP/placeholder/identifiers.txt" <<EOF
 subscription_id = "$PLACEHOLDER_GUID"
 az account set --subscription $PLACEHOLDER_GUID
 AZURE_SUBSCRIPTION_ID=$PLACEHOLDER_GUID
@@ -1875,27 +1875,27 @@ scope=/subscriptions/$PLACEHOLDER_GUID/resourceGroups/example
 scope=/subscriptions/$SYNTHETIC_GUID/resourceGroups/example
 EOF
 
-if gitleaks detect --no-git --source "$GITLEAKS_TMP/live" \
-  --config "$REPO_ROOT/.gitleaks.toml" --exit-code 42 --report-format json \
-  --report-path "$GITLEAKS_TMP/report.json" >/dev/null 2>&1 && false; then
-  fail "16.2 Azure subscription assignment is rejected" "gitleaks unexpectedly passed"
-elif [ "$?" -eq 42 ] && jq -e \
-  '[.[] | select(.RuleID == "azure-subscription-id")] | length == 4' \
-  "$GITLEAKS_TMP/report.json" >/dev/null; then
-  pass "16.2 Azure subscription assignment is rejected"
-else
-  fail "16.2 Azure subscription assignment is rejected" \
-    "the managed rule did not report the synthetic identifier"
-fi
+  if gitleaks detect --no-git --source "$GITLEAKS_TMP/live" \
+    --config "$REPO_ROOT/.gitleaks.toml" --exit-code 42 --report-format json \
+    --report-path "$GITLEAKS_TMP/report.json" >/dev/null 2>&1 && false; then
+    fail "16.2 Azure subscription assignment is rejected" "gitleaks unexpectedly passed"
+  elif [ "$?" -eq 42 ] && jq -e \
+    '[.[] | select(.RuleID == "azure-subscription-id")] | length == 4' \
+    "$GITLEAKS_TMP/report.json" >/dev/null; then
+    pass "16.2 Azure subscription assignment is rejected"
+  else
+    fail "16.2 Azure subscription assignment is rejected" \
+      "the managed rule did not report the synthetic identifier"
+  fi
 
-if gitleaks detect --no-git --source "$GITLEAKS_TMP/placeholder" \
-  --config "$REPO_ROOT/.gitleaks.toml" >/dev/null 2>&1; then
-  pass "16.3 documented synthetic subscription placeholders are accepted"
-else
-  fail "16.3 documented synthetic subscription placeholders are accepted" \
-    "the managed rule rejected a documented placeholder"
-fi
-rm -rf "$GITLEAKS_TMP"
+  if gitleaks detect --no-git --source "$GITLEAKS_TMP/placeholder" \
+    --config "$REPO_ROOT/.gitleaks.toml" >/dev/null 2>&1; then
+    pass "16.3 documented synthetic subscription placeholders are accepted"
+  else
+    fail "16.3 documented synthetic subscription placeholders are accepted" \
+      "the managed rule rejected a documented placeholder"
+  fi
+  rm -rf "$GITLEAKS_TMP"
 fi
 
 # ════════════════════════════════════════════════════════════════════

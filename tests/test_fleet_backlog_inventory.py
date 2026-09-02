@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -29,15 +30,15 @@ APPLY_SPEC.loader.exec_module(APPLY_MODULE)
 
 
 class InventoryTests(unittest.TestCase):
-    def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
+    def setUp(self) -> None:
+        self.temp: tempfile.TemporaryDirectory[str] = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.catalog = Path(self.temp.name) / "catalog.json"
         self.catalog.write_text(
             json.dumps({"repositories": {"f5-sales-demo/example": {}}}),
             encoding="utf-8",
         )
         taxonomy = {"lifecycle": "active", "priority": "p2", "area": "product"}
-        self.inventory = {
+        self.inventory: dict[str, Any] = {
             "schema_version": 2,
             "summary": {"open_issues": 1, "open_pull_requests": 1},
             "repositories": [
@@ -95,7 +96,7 @@ class InventoryTests(unittest.TestCase):
             ],
         }
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         self.temp.cleanup()
 
     def test_valid_inventory(self):
