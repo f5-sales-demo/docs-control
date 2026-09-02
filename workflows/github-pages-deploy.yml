@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   docs:
-    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@de314e9bf3ea45b98c89ccda2aa7a75af1013858
+    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@2f8fb461413667baaa0820d3aac51a66b321eb11
     with:
       content-ref: ${{ github.sha }}
       socketless_runner_label: managed-socketless
