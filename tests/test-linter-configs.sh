@@ -24,6 +24,7 @@ fail() {
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 REPO_SETTINGS="$REPO_ROOT/.github/config/repo-settings.json"
 SUPER_LINTER_WORKFLOW="$REPO_ROOT/.github/workflows/super-linter.yml"
+WORKFLOW_SECURITY_AUDIT="$REPO_ROOT/.github/workflows/workflow-security-audit.yml"
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 1: JSON Parse Validity (all managed JSON lint configs)
@@ -1711,11 +1712,15 @@ else
     "the group needs a reusable-workflow-specific prefix"
 fi
 
-if python3 - "$SUPER_LINTER_WORKFLOW" <<'PY'; then
-import sys, yaml
+if python3 - "$SUPER_LINTER_WORKFLOW" "$WORKFLOW_SECURITY_AUDIT" <<'PY'; then
+import re
+import sys
 
-workflow = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
-steps = workflow["jobs"]["shell-unit-tests"]["steps"]
+import yaml
+
+super_linter = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+security_audit = yaml.safe_load(open(sys.argv[2], encoding="utf-8"))
+steps = super_linter["jobs"]["shell-unit-tests"]["steps"]
 setup_index = next(
     i for i, step in enumerate(steps)
     if step.get("name") == "Setup uv for workflow-security integration"
@@ -1725,9 +1730,16 @@ integration_index = next(
     if step.get("name") == "Run workflow-security validator integration test"
 )
 setup = steps[setup_index]
+audit_setup = next(
+    step
+    for step in security_audit["jobs"]["workflow-security-audit"]["steps"]
+    if step.get("name") == "Set up pinned Python and uv"
+)
 assert setup_index < integration_index
-assert setup["uses"] == "astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d"
-assert setup["with"] == {"version": "0.8.24"}
+assert re.fullmatch(r"astral-sh/setup-uv@[0-9a-f]{40}", setup["uses"])
+assert setup["uses"] == audit_setup["uses"]
+assert setup["with"] == {"version": audit_setup["with"]["version"]}
+assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", setup["with"]["version"])
 assert setup["if"] == "hashFiles('tests/test-workflow-security-validator-integration.sh') != ''"
 PY
   pass "14.3 workflow-security integration installs an immutable uv toolchain first"
