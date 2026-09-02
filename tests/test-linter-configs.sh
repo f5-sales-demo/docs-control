@@ -1855,18 +1855,20 @@ fi
 GITLEAKS_TMP=$(mktemp -d)
 mkdir -p "$GITLEAKS_TMP/live" "$GITLEAKS_TMP/placeholder"
 LIVE_GUID="12345678-1234-1234-1234-123456789""abc"
+PLACEHOLDER_GUID="00000000-0000-0000-0000-000000000""000"
+SYNTHETIC_GUID="00000000-0000-4000-8000-123456789""abc"
 cat >"$GITLEAKS_TMP/live/identifiers.txt" <<EOF
 subscription_id = "$LIVE_GUID"
 az account set --subscription $LIVE_GUID
 AZURE_SUBSCRIPTION_ID=$LIVE_GUID
 scope=/subscriptions/$LIVE_GUID/resourceGroups/example
 EOF
-cat >"$GITLEAKS_TMP/placeholder/identifiers.txt" <<'EOF'
-subscription_id = "00000000-0000-0000-0000-000000000000"
-az account set --subscription 00000000-0000-0000-0000-000000000000
-AZURE_SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000000
-scope=/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example
-scope=/subscriptions/00000000-0000-4000-8000-123456789abc/resourceGroups/example
+cat >"$GITLEAKS_TMP/placeholder/identifiers.txt" <<EOF
+subscription_id = "$PLACEHOLDER_GUID"
+az account set --subscription $PLACEHOLDER_GUID
+AZURE_SUBSCRIPTION_ID=$PLACEHOLDER_GUID
+scope=/subscriptions/$PLACEHOLDER_GUID/resourceGroups/example
+scope=/subscriptions/$SYNTHETIC_GUID/resourceGroups/example
 EOF
 
 if gitleaks detect --no-git --source "$GITLEAKS_TMP/live" \
