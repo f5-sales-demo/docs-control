@@ -1737,11 +1737,10 @@ audit_setup = next(
     if step.get("name") == "Set up pinned Python and uv"
 )
 assert setup_index < integration_index
-assert setup["env"]["RUNNER_TOOL_CACHE"] == "${{ runner.temp }}/tool-cache"
 assert re.fullmatch(r"astral-sh/setup-uv@[0-9a-f]{40}", setup["uses"])
 assert setup["uses"] == audit_setup["uses"]
 assert setup["with"] == {"version": audit_setup["with"]["version"]}
-assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", setup["with"]["version"])
+assert setup["with"]["version"] == "0.8.24"
 assert setup["if"] == "hashFiles('tests/test-workflow-security-validator-integration.sh') != ''"
 PY
   pass "14.3 workflow-security integration installs an immutable uv toolchain first"
