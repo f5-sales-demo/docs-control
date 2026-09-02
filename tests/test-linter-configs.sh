@@ -1720,7 +1720,8 @@ import yaml
 
 super_linter = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
 security_audit = yaml.safe_load(open(sys.argv[2], encoding="utf-8"))
-steps = super_linter["jobs"]["shell-unit-tests"]["steps"]
+shell_job = super_linter["jobs"]["shell-unit-tests"]
+steps = shell_job["steps"]
 setup_index = next(
     i for i, step in enumerate(steps)
     if step.get("name") == "Setup uv for workflow-security integration"
@@ -1736,6 +1737,7 @@ audit_setup = next(
     if step.get("name") == "Set up pinned Python and uv"
 )
 assert setup_index < integration_index
+assert setup["env"]["RUNNER_TOOL_CACHE"] == "${{ runner.temp }}/tool-cache"
 assert re.fullmatch(r"astral-sh/setup-uv@[0-9a-f]{40}", setup["uses"])
 assert setup["uses"] == audit_setup["uses"]
 assert setup["with"] == {"version": audit_setup["with"]["version"]}
