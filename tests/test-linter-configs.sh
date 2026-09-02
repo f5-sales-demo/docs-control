@@ -1478,6 +1478,9 @@ mkdir -p \
   "$GI_TMP/packages/example" \
   "$GI_TMP/superpowers" \
   "$GI_TMP/internal" \
+  "$GI_TMP/coverage/report" \
+  "$GI_TMP/coverage/smsv2/reject-tests" \
+  "$GI_TMP/coverage/unrelated" \
   "$GI_TMP/docs/superpowers"
 : >"$GI_TMP/vendor/modules.txt"
 : >"$GI_TMP/src/vendor/chat-ui/index.ts"
@@ -1491,6 +1494,11 @@ mkdir -p \
 : >"$GI_TMP/terraform-provider-xcsh"
 : >"$GI_TMP/internal/terraform-provider-xcsh"
 : >"$GI_TMP/superpowers.txt"
+: >"$GI_TMP/coverage/report/index.html"
+: >"$GI_TMP/coverage/smsv2/main.tf"
+: >"$GI_TMP/coverage/smsv2/reject-tests/invalid.tftest.hcl"
+: >"$GI_TMP/coverage/smsv2/terraform.tfstate"
+: >"$GI_TMP/coverage/unrelated/output.json"
 ln -s /tmp/example-venv "$GI_TMP/.venv"
 
 # A top-level vendor/ tree must still be ignored — that is the rule's purpose.
@@ -1579,6 +1587,31 @@ if git -C "$GI_TMP" check-ignore -q internal/terraform-provider-xcsh; then
     "the provider-binary rule must be root-anchored"
 else
   pass "8.11 nested terraform-provider-xcsh remains trackable"
+fi
+
+for report_path in coverage/report/index.html coverage/unrelated/output.json; do
+  if git -C "$GI_TMP" check-ignore -q "$report_path"; then
+    pass "8.12 generated coverage output remains ignored ($report_path)"
+  else
+    fail "8.12 generated coverage output remains ignored ($report_path)" \
+      "$report_path is unexpectedly trackable"
+  fi
+done
+
+for harness_path in coverage/smsv2/main.tf coverage/smsv2/reject-tests/invalid.tftest.hcl; do
+  if git -C "$GI_TMP" check-ignore -q "$harness_path"; then
+    fail "8.13 MCN SMSv2 harness source is trackable ($harness_path)" \
+      "$harness_path still requires git add -f"
+  else
+    pass "8.13 MCN SMSv2 harness source is trackable ($harness_path)"
+  fi
+done
+
+if git -C "$GI_TMP" check-ignore -q coverage/smsv2/terraform.tfstate; then
+  pass "8.14 Terraform state remains ignored inside the SMSv2 harness"
+else
+  fail "8.14 Terraform state remains ignored inside the SMSv2 harness" \
+    "the harness exception bypasses the fleet Terraform-state rule"
 fi
 
 rm -rf "$GI_TMP"
