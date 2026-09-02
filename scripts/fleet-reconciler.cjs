@@ -184,6 +184,55 @@ async function activeGovernancePrs(api, owner, inventory) {
   return active;
 }
 
+async function listAll(api, endpoint, operationName) {
+  const separator = endpoint.includes('?') ? '&' : '?';
+  const items = [];
+  for (let page = 1; ; page += 1) {
+    const batch = await api.request(`${endpoint}${separator}per_page=100&page=${page}`, {
+      operationName: `${operationName} page ${page}`,
+    });
+    if (!Array.isArray(batch)) fail(`${operationName} returned malformed pagination data`);
+    items.push(...batch);
+    if (batch.length < 100) return items;
+  }
+}
+
+function reconciliationMarker(body) {
+  return body?.match(/<!-- governance-reconciler source=[0-9a-f]{40} desired-tree=[0-9a-f]{64} -->/)?.[0];
+}
+
+async function closeMergedReconciliationIssues(api, owner, repo, mode) {
+  const issues = await listAll(
+    api,
+    `repos/${owner}/${repo}/issues?state=open`,
+    `list open reconciliation issues for ${repo}`,
+  );
+  const trackers = issues.filter((issue) =>
+    !issue.pull_request && issue.title?.startsWith('Governance reconciliation @ ') && reconciliationMarker(issue.body));
+  if (!trackers.length) return [];
+  const pulls = await listAll(
+    api,
+    `repos/${owner}/${repo}/pulls?state=closed&sort=updated&direction=desc`,
+    `list completed reconciliation PRs for ${repo}`,
+  );
+  const closed = [];
+  for (const issue of trackers) {
+    const note = reconciliationMarker(issue.body);
+    const closingPattern = new RegExp(`^Closes #${issue.number}$`, 'm');
+    const merged = pulls.find((pr) => pr.merged_at && pr.base?.ref === 'main' &&
+      isReconciliationBranch(pr.head?.ref) && pr.body?.includes(note) && closingPattern.test(pr.body));
+    if (!merged) continue;
+    if (mode !== 'dry-run')
+      await api.request(`repos/${owner}/${repo}/issues/${issue.number}`, {
+        method: 'PATCH',
+        body: { state: 'closed', state_reason: 'completed' },
+        operationName: `close delivered reconciliation issue ${repo}#${issue.number}`,
+      });
+    closed.push({ issue: issue.number, pull: merged.number, status: mode === 'dry-run' ? 'would-close' : 'closed' });
+  }
+  return closed;
+}
+
 async function enableManagedAutoMerge(api, repo, pullRequestId) {
   await api.request('graphql', {
     method: 'POST',
@@ -314,7 +363,8 @@ async function reconcileContent(options) {
     const changes = contentDiff(tree, desired);
     const desiredTree = require('node:crypto').createHash('sha256').update(JSON.stringify(desired)).digest('hex');
     if (!changes.length) {
-      result.repositories.push({ repo, status: 'noop' });
+      const reconciledIssues = await closeMergedReconciliationIssues(api, owner, repo, mode);
+      result.repositories.push({ repo, status: 'noop', reconciledIssues });
       continue;
     }
     const outcome = await createContentPr(api, {
@@ -586,6 +636,7 @@ module.exports = {
   assertAttestableRecovery,
   contentDiff,
   branchName,
+  closeMergedReconciliationIssues,
   currentProtection,
   desiredEntries,
   desiredProtection,

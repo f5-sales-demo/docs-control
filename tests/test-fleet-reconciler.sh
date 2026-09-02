@@ -5,7 +5,7 @@ node - "$root/scripts/fleet-reconciler.cjs" <<'NODE'
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, branchName, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, reconcileContent, reconciliationBranchPrefix, requireSha, settingsDelta, validateManifest} = require(process.argv[2]);
+const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, branchName, closeMergedReconciliationIssues, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, reconcileContent, reconciliationBranchPrefix, requireSha, settingsDelta, validateManifest} = require(process.argv[2]);
 (async () => {
 const sha = 'a'.repeat(40);
 const makeManifest = (files, absent_paths = []) => ({schema_version:2,source_commit:sha,files,absent_paths,state_digest:manifestStateDigest(files,absent_paths)});
@@ -71,6 +71,20 @@ assert.throws(() => assertAttestableRecovery({...renameRecovery,files:[{filename
 const calls=[]; const headers=[]; let now=0; const api = new ApiQueue({token:'x', now:()=>now, sleep:async(ms)=>{calls.push(ms); now += ms;}, fetch:async(_url, request)=>{headers.push(request.headers); return new Response('{}',{status:200,headers:{etag:'"fleet"'}});}});
 await api.request('one',{method:'POST'}); now=10; await api.request('two',{method:'PATCH'}); assert.deepEqual(calls,[990]);
 await api.request('read'); await api.request('read'); assert.equal(headers.at(-1)['if-none-match'], '"fleet"');
+const trackerWrites=[];
+const trackerApi={request:async(route, options={})=>{
+  if (options.method === 'PATCH') { trackerWrites.push({route,body:options.body}); return {number:12}; }
+  if (route.includes('/issues?')) return [{number:12,title:`Governance reconciliation @ ${sha.slice(0,12)}`,body:`<!-- governance-reconciler source=${sha} desired-tree=${'d'.repeat(64)} -->`,pull_request:null}];
+  if (route.includes('/pulls?')) return [{number:13,merged_at:'2026-09-01T00:00:00Z',base:{ref:'main'},head:{ref:`governance/reconcile-${sha.slice(0,12)}-one`},body:`<!-- governance-reconciler source=${sha} desired-tree=${'d'.repeat(64)} -->\n\nCloses #12`}];
+  throw new Error(`unexpected route ${route}`);
+}};
+assert.deepEqual(await closeMergedReconciliationIssues(trackerApi,'f5','one','full'),[{issue:12,pull:13,status:'closed'}]);
+assert.deepEqual(trackerWrites,[{route:'repos/f5/one/issues/12',body:{state:'closed',state_reason:'completed'}}]);
+trackerWrites.length=0;
+assert.deepEqual(await closeMergedReconciliationIssues(trackerApi,'f5','one','dry-run'),[{issue:12,pull:13,status:'would-close'}]);
+assert.deepEqual(trackerWrites,[]);
+const unmergedApi={request:async(route)=>route.includes('/issues?') ? [{number:12,title:`Governance reconciliation @ ${sha.slice(0,12)}`,body:`<!-- governance-reconciler source=${sha} desired-tree=${'d'.repeat(64)} -->`}] : [{number:13,merged_at:null,base:{ref:'main'},head:{ref:`governance/reconcile-${sha.slice(0,12)}-one`},body:`Closes #12`} ]};
+assert.deepEqual(await closeMergedReconciliationIssues(unmergedApi,'f5','one','full'),[]);
 const writes=[];
 const fleetApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.MAX_SAFE_INTEGER, fetch:async(url, request) => {
   const route = String(url); const method = request.method; if (method !== 'GET') writes.push(route);

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# ruff: noqa: ANN001, ANN201, ANN204, D102, D103, D107, EM101, EM102, PERF401, PLR2004, RUF100, TC003, TRY003, TRY301
+# ruff: noqa: ANN001, ANN201, ANN204, D102, D103, D107, EM101, EM102, PERF401, PLC0415, PLR2004, RUF100, TC003, TRY003, TRY301
 # pylint: disable=invalid-name,too-many-branches,too-many-locals,too-many-statements
 """Verify a declarative GitHub backlog-consolidation contract without mutation."""
 
@@ -541,7 +541,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parse_args(sys.argv[1:] if argv is None else argv)
+    raw_args = sys.argv[1:] if argv is None else argv
+    if raw_args and raw_args[0] in {"collect", "verify", "verify-live"}:
+        from fleet_backlog_inventory import main as fleet_main
+
+        return fleet_main(raw_args)
+    args = parse_args(raw_args)
     try:
         policy = load_json(args.policy)
         if args.snapshot:

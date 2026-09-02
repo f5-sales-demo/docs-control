@@ -19,20 +19,26 @@ image release process, workstation provisioning, pilot procedure, and incident r
 
 ## Backlog consolidation verification
 
-The dated policy in
-[backlog-consolidation-2026-08-30.json](.github/config/backlog-consolidation-2026-08-30.json)
-records the accepted issue, transfer, relationship, pull request, and branch state from
-[#1902](https://github.com/f5-sales-demo/docs-control/issues/1902). Verify current GitHub state
-without making changes:
+The schema-v2 inventory in
+[backlog-inventory-2026-09-01.json](.github/config/backlog-inventory-2026-09-01.json)
+records every open issue and pull request across the exact governed catalog for
+[#1953](https://github.com/f5-sales-demo/docs-control/issues/1953). It includes empty repositories,
+timestamps, labels, native workstream relationships, pull-request heads, changed paths, checks,
+dependencies, evidence, and dispositions.
 
 ```bash
-python3 scripts/verify_backlog_consolidation.py
+python3 scripts/verify_backlog_consolidation.py verify \
+  --inventory .github/config/backlog-inventory-2026-09-01.json
+python3 scripts/verify_backlog_consolidation.py verify-live \
+  --inventory .github/config/backlog-inventory-2026-09-01.json
 ```
 
-The command uses the authenticated `gh` CLI and fails closed on API errors, malformed data, or
-policy drift. To capture live input for later diagnosis, add `--write-snapshot <path>`. To replay
-that input without network access, use `--snapshot <path>`. Update the versioned policy deliberately
-when accepted backlog state changes; do not weaken checks to accommodate unexplained drift.
+`verify` is offline. `verify-live` uses the authenticated `gh` CLI and fails closed on pagination
+errors, catalog or item drift, concurrent timestamp/head changes, incomplete taxonomy, malformed
+responses, or missing relationships. Refresh the dated record deliberately with `collect --output
+<path>` only after accepted lifecycle changes. The schema-v1 audit from
+[#1902](https://github.com/f5-sales-demo/docs-control/issues/1902) remains available through the
+legacy no-subcommand interface.
 
 ## License
 
