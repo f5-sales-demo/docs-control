@@ -1839,18 +1839,57 @@ else
 fi
 
 # ════════════════════════════════════════════════════════════════════
-# SECTION 16: managed Gitleaks configuration has no escape hatches
+# SECTION 16: managed Gitleaks configuration and Azure identifier guard
 # ════════════════════════════════════════════════════════════════════
 echo ""
-echo "=== Section 16: unsuppressed Gitleaks configuration ==="
+echo "=== Section 16: Gitleaks configuration and Azure identifiers ==="
 
-EXPECTED_GITLEAKS_CONFIG=$'title = "Fleet default Gitleaks rules"\n\n[extend]\nuseDefault = true'
-if [ "$(cat "$REPO_ROOT/.gitleaks.toml")" = "$EXPECTED_GITLEAKS_CONFIG" ]; then
-  pass "16.1 managed Gitleaks config uses defaults without allowlists or baselines"
+if grep -Fq 'useDefault = true' "$REPO_ROOT/.gitleaks.toml" &&
+  ! grep -Eq '^[[:space:]]*path[[:space:]]*=|^[[:space:]]*paths[[:space:]]*=' "$REPO_ROOT/.gitleaks.toml"; then
+  pass "16.1 managed Gitleaks config extends defaults without path suppression"
 else
-  fail "16.1 managed Gitleaks config uses defaults without allowlists or baselines" \
-    "the config contains an escape hatch or does not enable the default rules"
+  fail "16.1 managed Gitleaks config extends defaults without path suppression" \
+    "the config disables default rules or suppresses repository paths"
 fi
+
+GITLEAKS_TMP=$(mktemp -d)
+mkdir -p "$GITLEAKS_TMP/live" "$GITLEAKS_TMP/placeholder"
+LIVE_GUID="12345678-1234-1234-1234-123456789""abc"
+cat >"$GITLEAKS_TMP/live/identifiers.txt" <<EOF
+subscription_id = "$LIVE_GUID"
+az account set --subscription $LIVE_GUID
+AZURE_SUBSCRIPTION_ID=$LIVE_GUID
+scope=/subscriptions/$LIVE_GUID/resourceGroups/example
+EOF
+cat >"$GITLEAKS_TMP/placeholder/identifiers.txt" <<'EOF'
+subscription_id = "00000000-0000-0000-0000-000000000000"
+az account set --subscription 00000000-0000-0000-0000-000000000000
+AZURE_SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000000
+scope=/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/example
+scope=/subscriptions/00000000-0000-4000-8000-123456789abc/resourceGroups/example
+EOF
+
+if gitleaks detect --no-git --source "$GITLEAKS_TMP/live" \
+  --config "$REPO_ROOT/.gitleaks.toml" --exit-code 42 --report-format json \
+  --report-path "$GITLEAKS_TMP/report.json" >/dev/null 2>&1 && false; then
+  fail "16.2 Azure subscription assignment is rejected" "gitleaks unexpectedly passed"
+elif [ "$?" -eq 42 ] && jq -e \
+  '[.[] | select(.RuleID == "azure-subscription-id")] | length == 4' \
+  "$GITLEAKS_TMP/report.json" >/dev/null; then
+  pass "16.2 Azure subscription assignment is rejected"
+else
+  fail "16.2 Azure subscription assignment is rejected" \
+    "the managed rule did not report the synthetic identifier"
+fi
+
+if gitleaks detect --no-git --source "$GITLEAKS_TMP/placeholder" \
+  --config "$REPO_ROOT/.gitleaks.toml" >/dev/null 2>&1; then
+  pass "16.3 documented synthetic subscription placeholders are accepted"
+else
+  fail "16.3 documented synthetic subscription placeholders are accepted" \
+    "the managed rule rejected a documented placeholder"
+fi
+rm -rf "$GITLEAKS_TMP"
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 17: one-job ephemeral jobs never require privileged repair
