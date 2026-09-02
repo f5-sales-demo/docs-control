@@ -107,6 +107,42 @@ class InventoryTests(unittest.TestCase):
         self.assertTrue(any("catalog drift" in problem for problem in problems))
         self.assertTrue(any("duplicate issue" in problem for problem in problems))
 
+    def test_title_purpose_precedes_incidental_body_terms(self):
+        taxonomy = MODULE.infer_taxonomy(
+            "origin-server",
+            "ci: use immutable Node toolchain",
+            "Verification found 0 vulnerabilities.",
+            [],
+        )
+        self.assertEqual(
+            taxonomy,
+            {"area": "dependencies", "lifecycle": "active", "priority": "p1"},
+        )
+
+    def test_dependency_update_title_precedes_release_policy_body(self):
+        taxonomy = MODULE.infer_taxonomy(
+            "starlight-mega-menu",
+            "chore(deps): update npm-minor-patch",
+            "Translation changes are deferred until a major release.",
+            [],
+        )
+        self.assertEqual(
+            taxonomy,
+            {"area": "dependencies", "lifecycle": "active", "priority": "p1"},
+        )
+
+    def test_api_contract_title_precedes_documentation_scope(self):
+        taxonomy = MODULE.infer_taxonomy(
+            "mcn",
+            "fix(terraform): pin the published provider and API contract",
+            "Update all governed English and locale technical literals.",
+            [],
+        )
+        self.assertEqual(
+            taxonomy,
+            {"area": "api-contracts", "lifecycle": "active", "priority": "p1"},
+        )
+
     def test_taxonomy_cardinality_is_exact(self):
         self.inventory["repositories"][0]["issues"][0]["labels"].append(
             "status:blocked"

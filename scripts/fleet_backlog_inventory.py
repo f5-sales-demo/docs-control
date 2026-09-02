@@ -147,7 +147,6 @@ def infer_area(repository: str, title: str, body: str, labels: list[str]) -> str
     existing = _one_label(labels, "area:", AREAS)
     if existing:
         return existing
-    text = f"{title} {body}".lower()
     rules = [
         ("i18n", r"\bi18n\b|translat|locale"),
         (
@@ -157,11 +156,11 @@ def infer_area(repository: str, title: str, body: str, labels: list[str]) -> str
         ("runners", r"\brunner|\baks\b|\barc\b|kubernetes|container-build|socketless"),
         (
             "dependencies",
-            r"renovate|dependabot|dependenc|supply.chain|lockfile|package update",
+            r"chore\(deps\)|renovate|dependabot|dependenc|supply.chain|lockfile|package update|toolchain|\bnode\b",
         ),
         (
             "api-contracts",
-            r"api spec|openapi|terraform provider|provider contract|schema contract|sdk",
+            r"api spec|api contract|openapi|terraform|provider contract|schema contract|sdk",
         ),
         ("ai-automation", r"antigravity|claude|\bai\b|reviewer"),
         ("linting", r"lint|ruff|biome|markdownlint|clippy|pre-commit"),
@@ -170,9 +169,10 @@ def infer_area(repository: str, title: str, body: str, labels: list[str]) -> str
         ("developer-tooling", r"release|cli|devcontainer|tooling|build|test|packag"),
         ("governance", r"govern|reconcil|managed.sync|policy|catalog|backlog"),
     ]
-    for area, pattern in rules:
-        if re.search(pattern, text):
-            return area
+    for text in (title.lower(), body.lower()):
+        for area, pattern in rules:
+            if re.search(pattern, text):
+                return area
     repo_defaults = {
         "docs-control": "governance",
         "api-specs": "api-contracts",
@@ -202,7 +202,9 @@ def infer_taxonomy(
     priority = next((label for label in labels if label in PRIORITIES), None)
     text = f"{title} {body}".lower()
     if not lifecycle:
-        if title.startswith("Governance reconciliation @"):
+        if title.lower().startswith("chore(deps):"):
+            lifecycle = "active"
+        elif title.startswith("Governance reconciliation @"):
             lifecycle = "resolved"
         elif re.search(r"defer|readiness gate|major.release", text) or area == "i18n":
             lifecycle = "deferred"
