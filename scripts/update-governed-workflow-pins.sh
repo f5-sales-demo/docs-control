@@ -11,6 +11,7 @@ base_oid=""
 head_oid=""
 workflow_list=""
 work=""
+pin_issue_number=""
 
 is_sha() {
   printf '%s' "$1" | grep -qE '^[0-9a-f]{40}$'
@@ -119,6 +120,251 @@ read_pin_refs() {
   read_paginated_array \
     "repos/${repository}/git/matching-refs/heads/sync/governed-workflow-pins-?per_page=100" \
     "$1"
+}
+
+read_pin_issues() {
+  read_paginated_array \
+    "repos/${repository}/issues?state=all&per_page=100" "$1"
+}
+
+write_pin_issue_body() {
+  local destination="$1"
+  printf '%s\n' \
+    "<!-- governed-workflow-pin:${target_revision} -->" \
+    "## Problem" \
+    "" \
+    "The governed reusable-workflow callers must move to one verified immutable docs-control revision without bypassing the repository linked-issue policy." \
+    "" \
+    "## Scope" \
+    "" \
+    "- Target revision: \`${target_revision}\`" \
+    "- Protected-main base: \`${base_oid}\`" \
+    "- Automation branch: \`${branch}\`" \
+    "- Update only governed caller workflow pins and the governed-workflow receipt." \
+    "" \
+    "## Acceptance Criteria" \
+    "" \
+    "- [ ] Every changed caller references the exact target revision." \
+    "- [ ] The target reusable workflow blobs match the protected-main implementations." \
+    "- [ ] The pull request contains one exact current-base commit and closes this issue." \
+    "- [ ] Required checks pass and squash auto-merge completes." \
+    >"$destination"
+}
+
+write_pin_pr_body() {
+  local destination="$1"
+  printf '%s\n' \
+    "Automated immutable governed-workflow pin rollout." \
+    "" \
+    "Target revision: \`${target_revision}\`" \
+    "Protected-main base: \`${base_oid}\`" \
+    "" \
+    "Closes #${pin_issue_number}" \
+    >"$destination"
+}
+
+verify_pin_issue_marker() {
+  local number="$1" expected_revision="$2" issue_json marker
+  marker="<!-- governed-workflow-pin:${expected_revision} -->"
+  if ! issue_json=$(gh issue view "$number" --repo "$repository" \
+    --json number,state,stateReason,body); then
+    echo "::error::could not verify governed pin issue marker" >&2
+    return 1
+  fi
+  if ! printf '%s' "$issue_json" | jq -e \
+    --argjson number "$number" --arg marker "$marker" '
+      .number == $number and (.body | type == "string") and
+      ((.body | split($marker) | length) == 2) and
+      ([.body | scan("<!-- governed-workflow-pin:[0-9a-f]{40} -->")] | length) == 1
+    ' >/dev/null; then
+    echo "::error::governed pin issue does not own the exact target marker" >&2
+    return 1
+  fi
+}
+
+reconcile_pin_issue() {
+  local issues marker rows count number state state_reason body_file issue_url
+  pin_issue_number=""
+  marker="<!-- governed-workflow-pin:${target_revision} -->"
+  if ! issues=$(mktemp "$work/issues.XXXXXX"); then
+    echo "::error::could not allocate governed pin issue inventory" >&2
+    return 1
+  fi
+  if ! read_pin_issues "$issues"; then
+    rm -f "$issues"
+    return 1
+  fi
+  if ! jq -e '
+    all(.[];
+      (.number | type == "number" and . >= 1 and . == floor) and
+      (.state == "open" or .state == "closed") and
+      (.state_reason == null or .state_reason == "completed" or
+        .state_reason == "not_planned" or .state_reason == "reopened") and
+      (.body == null or (.body | type == "string")) and
+      ((has("pull_request") | not) or (.pull_request | type == "object")))
+  ' "$issues" >/dev/null; then
+    echo "::error::governed pin issue inventory is malformed" >&2
+    rm -f "$issues"
+    return 1
+  fi
+  if ! rows=$(jq -r --arg marker "$marker" '
+    .[] | select(has("pull_request") | not) |
+    select((.body // "") | contains($marker)) |
+    [.number, .state, (.state_reason // "")] | @tsv
+  ' "$issues"); then
+    echo "::error::could not select governed pin issue owner" >&2
+    rm -f "$issues"
+    return 1
+  fi
+  count=$(printf '%s\n' "$rows" | awk 'NF {count++} END {print count+0}')
+  if [ "$count" -gt 1 ]; then
+    echo "::error::multiple issues claim the governed pin target marker" >&2
+    rm -f "$issues"
+    return 1
+  fi
+  body_file="$work/pin-issue-body"
+  write_pin_issue_body "$body_file"
+  if [ "$count" -eq 0 ]; then
+    if ! issue_url=$(gh issue create --repo "$repository" \
+      --title "chore(governance): roll workflow pins to ${target_revision:0:12}" \
+      --body-file "$body_file"); then
+      echo "::error::could not create governed pin issue" >&2
+      rm -f "$issues"
+      return 1
+    fi
+    number="${issue_url##*/}"
+    if ! printf '%s' "$number" | grep -qE '^[1-9][0-9]*$'; then
+      echo "::error::could not resolve governed pin issue number" >&2
+      rm -f "$issues"
+      return 1
+    fi
+  else
+    IFS=$'\t' read -r number state state_reason <<<"$rows"
+    if ! jq -e --argjson number "$number" --arg marker "$marker" '
+      .[] | select(.number == $number) |
+      (.body | type == "string") and
+      ((.body | split($marker) | length) == 2) and
+      ([.body | scan("<!-- governed-workflow-pin:[0-9a-f]{40} -->")] | length) == 1
+    ' "$issues" >/dev/null; then
+      echo "::error::governed pin issue marker is ambiguous" >&2
+      rm -f "$issues"
+      return 1
+    fi
+    if [ "$state" = closed ] && [ "$state_reason" = not_planned ]; then
+      if ! gh issue reopen "$number" --repo "$repository" >/dev/null; then
+        echo "::error::could not reopen governed pin retry issue" >&2
+        rm -f "$issues"
+        return 1
+      fi
+    elif [ "$state" != open ]; then
+      echo "::error::refusing to reuse a completed governed pin issue" >&2
+      rm -f "$issues"
+      return 1
+    fi
+    if ! gh issue edit "$number" --repo "$repository" --body-file "$body_file" >/dev/null; then
+      echo "::error::could not refresh governed pin issue receipts" >&2
+      rm -f "$issues"
+      return 1
+    fi
+  fi
+  rm -f "$issues"
+  pin_issue_number="$number"
+  verify_pin_issue_marker "$pin_issue_number" "$target_revision"
+}
+
+close_pin_issue_not_planned() {
+  local number="$1" expected_revision="$2" reason="$3" issue_json
+  if ! verify_pin_issue_marker "$number" "$expected_revision"; then return 1; fi
+  if ! issue_json=$(gh issue view "$number" --repo "$repository" \
+    --json number,state,stateReason,body); then
+    echo "::error::could not inspect governed pin issue before cleanup" >&2
+    return 1
+  fi
+  if printf '%s' "$issue_json" | jq -e \
+    '.state == "CLOSED" and .stateReason == "NOT_PLANNED"' >/dev/null; then
+    return 0
+  fi
+  if ! printf '%s' "$issue_json" | jq -e '.state == "OPEN"' >/dev/null; then
+    echo "::error::refusing to mutate an unexpectedly completed governed pin issue" >&2
+    return 1
+  fi
+  if ! gh issue close "$number" --repo "$repository" --reason "not planned" \
+    --comment "$reason" >/dev/null; then
+    echo "::error::could not close governed pin issue during cleanup" >&2
+    return 1
+  fi
+}
+
+close_pin_issue_for_branch() {
+  local retired_branch="$1" issues rows count number revision
+  if ! issues=$(mktemp "$work/retired-issues.XXXXXX"); then return 1; fi
+  if ! read_pin_issues "$issues"; then
+    rm -f "$issues"
+    return 1
+  fi
+  if ! jq -e 'all(.[]; (.number | type == "number") and
+    (.body == null or (.body | type == "string")))' "$issues" >/dev/null; then
+    echo "::error::retired governed pin issue inventory is malformed" >&2
+    rm -f "$issues"
+    return 1
+  fi
+  if ! rows=$(jq -r --arg branch "Automation branch: \`${retired_branch}\`" '
+    .[] | select(has("pull_request") | not) |
+    select((.body // "") | contains($branch)) |
+    [.number, ((.body // "") | capture("<!-- governed-workflow-pin:(?<sha>[0-9a-f]{40}) -->").sha)] | @tsv
+  ' "$issues"); then
+    echo "::error::could not select retired governed pin issue" >&2
+    rm -f "$issues"
+    return 1
+  fi
+  count=$(printf '%s\n' "$rows" | awk 'NF {count++} END {print count+0}')
+  if [ "$count" -gt 1 ]; then
+    echo "::error::multiple issues claim the retired governed pin branch" >&2
+    rm -f "$issues"
+    return 1
+  fi
+  rm -f "$issues"
+  if [ "$count" -eq 0 ]; then return 0; fi
+  IFS=$'\t' read -r number revision <<<"$rows"
+  close_pin_issue_not_planned "$number" "$revision" \
+    "Superseded by a newer exact governed-workflow pin rollout."
+}
+
+ensure_pin_pr_link() {
+  local pr_number="$1" expected_body_file pr_json
+  expected_body_file="$work/pin-pr-body"
+  write_pin_pr_body "$expected_body_file"
+  if ! pr_json=$(gh pr view "$pr_number" --repo "$repository" \
+    --json body,closingIssuesReferences); then
+    echo "::error::could not inspect governed pin PR issue link" >&2
+    return 1
+  fi
+  if ! printf '%s' "$pr_json" | jq -e --arg body "$(cat "$expected_body_file")" \
+    --argjson issue "$pin_issue_number" '
+      .body == $body and (.closingIssuesReferences | type == "array") and
+      (.closingIssuesReferences | length) == 1 and
+      .closingIssuesReferences[0].number == $issue
+    ' >/dev/null; then
+    if ! gh pr edit "$pr_number" --repo "$repository" \
+      --body-file "$expected_body_file" >/dev/null; then
+      echo "::error::could not repair governed pin PR issue link" >&2
+      return 1
+    fi
+  fi
+  if ! pr_json=$(gh pr view "$pr_number" --repo "$repository" \
+    --json body,closingIssuesReferences); then
+    echo "::error::could not verify governed pin PR issue link" >&2
+    return 1
+  fi
+  if ! printf '%s' "$pr_json" | jq -e --arg body "$(cat "$expected_body_file")" \
+    --argjson issue "$pin_issue_number" '
+      .body == $body and (.closingIssuesReferences | type == "array") and
+      (.closingIssuesReferences | length) == 1 and
+      .closingIssuesReferences[0].number == $issue
+    ' >/dev/null; then
+    echo "::error::governed pin PR does not close the exact generated issue" >&2
+    return 1
+  fi
 }
 
 delete_remote_branch() {
@@ -296,6 +542,10 @@ reconcile_pin_prs() {
   fi
   while IFS=$'\t' read -r number ref expected_oid; do
     [ -n "$number" ] || continue
+    if ! close_pin_issue_for_branch "$ref"; then
+      rm -f "$prs" "$refs" "$retired_prs" "$retired_refs"
+      return 1
+    fi
     if ! gh pr close "$number" --repo "$repository" \
       --comment "Superseded by a newer exact governed-workflow pin."; then
       echo "::error::could not close superseded governed pin PR" >&2
@@ -319,6 +569,10 @@ reconcile_pin_prs() {
     [ -n "$ref" ] || continue
     full_ref="$ref"
     ref="${ref#refs/heads/}"
+    if ! close_pin_issue_for_branch "$ref"; then
+      rm -f "$prs" "$refs" "$retired_prs" "$retired_refs"
+      return 1
+    fi
     if ! delete_remote_branch "$ref" "$expected_oid"; then
       rm -f "$prs" "$refs"
       return 1
@@ -553,6 +807,12 @@ cleanup_current_owner() {
     --comment "Closed because protected main advanced before exact merge."; then
     return 1
   fi
+  if [ -n "$pin_issue_number" ]; then
+    if ! close_pin_issue_not_planned "$pin_issue_number" "$target_revision" \
+      "Closed because protected main advanced or a newer rollout superseded this attempt."; then
+      return 1
+    fi
+  fi
   delete_remote_branch "$branch" "$head_oid"
 }
 
@@ -618,6 +878,7 @@ main() {
     echo "Governed callers already use docs-control@$target_revision"
     return 0
   fi
+  if ! reconcile_pin_issue; then return 1; fi
   if ! git commit -m "chore(governance): roll reusable workflow pins"; then
     return 1
   fi
@@ -627,13 +888,19 @@ main() {
   assert_target_current "$base_oid"
   target_rc=$?
   set -e
-  if [ "$target_rc" -eq 75 ]; then return 0; fi
+  if [ "$target_rc" -eq 75 ]; then
+    cleanup_current_owner
+    return 0
+  fi
   [ "$target_rc" -eq 0 ] || return "$target_rc"
   set +e
   reconcile_pin_prs
   target_rc=$?
   set -e
-  if [ "$target_rc" -eq 75 ]; then return 0; fi
+  if [ "$target_rc" -eq 75 ]; then
+    cleanup_current_owner
+    return 0
+  fi
   [ "$target_rc" -eq 0 ] || return "$target_rc"
 
   if ! git push -u origin "$branch"; then
@@ -664,12 +931,13 @@ main() {
   pr_number="$reconciled_pin_pr_number"
   created_pr_number=""
   if [ -z "$pr_number" ]; then
+    write_pin_pr_body "$work/pin-pr-body"
     if ! pr_url=$(gh pr create \
       --repo "$repository" \
       --base main \
       --head "$branch" \
       --title "chore(governance): roll reusable workflow pins" \
-      --body "Automated immutable pin update to docs-control@$target_revision."); then
+      --body-file "$work/pin-pr-body"); then
       echo "::error::could not create governed pin PR" >&2
       return 1
     fi
@@ -724,6 +992,7 @@ main() {
     echo "::error::governed pin PR contains unexpected base, history, or files" >&2
     return 1
   fi
+  if ! ensure_pin_pr_link "$pr_number"; then return 1; fi
   if ! assert_strict_protection; then return 1; fi
 
   set +e
