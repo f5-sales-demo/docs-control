@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: ANN001, ANN204, D101, D102, D103, D107, EM101, EM102, PERF401, PIE810, SIM102, TRY003
+# pylint: disable=too-many-lines
 """Collect and verify the governed fleet backlog without mutating GitHub."""
 
 from __future__ import annotations
@@ -823,7 +824,7 @@ def collect(  # pylint: disable=too-many-locals,too-many-statements
     }
 
 
-def validate(  # pylint: disable=too-many-locals,too-many-branches
+def validate(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     inventory: dict[str, Any], catalog_path: Path
 ) -> list[str]:
     problems: list[str] = []
