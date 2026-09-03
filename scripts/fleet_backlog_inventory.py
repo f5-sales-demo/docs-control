@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: ANN001, ANN204, D101, D102, D103, D107, EM101, EM102, PERF401, PIE810, SIM102, TRY003
+# pylint: disable=too-many-lines
 """Collect and verify the governed fleet backlog without mutating GitHub."""
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ SCHEMA_VERSION = 2
 OWNER = "f5-sales-demo"
 LIFECYCLES = {"active", "blocked", "deferred", "tracking", "resolved", "superseded"}
 PRIORITIES = {"p0", "p1", "p2", "p3"}
+EXECUTION_WAVES = set(range(8))
 AREAS = {
     "governance",
     "runners",
@@ -33,7 +35,7 @@ AREAS = {
     "linting",
 }
 WORKSTREAMS = {
-    "governance": 1954,
+    "governance": 1953,
     "runners": 1955,
     "ci": 1955,
     "dependencies": 1956,
@@ -47,6 +49,271 @@ WORKSTREAMS = {
     "product": 1961,
 }
 CONTROL_ISSUES = {1953, *WORKSTREAMS.values()}
+PROGRAM_DECISIONS = [
+    "clean-break: remove superseded interfaces and implementations without compatibility aliases, fallbacks, migrations, or parallel legacy paths",
+    "release: coordinate public breaking changes in the next major release and validate consumers against exact producer release candidates",
+    "history: never rewrite published Git history or force-push; retain the documented residual secret-history risk",
+    "translations: merge regenerated locales only from the stable release/vN.0.0 English baseline",
+    "ownership: exclude externally owned terraform-provider-xcsh#1387 and mcn#635 from implementation",
+    "delegation: leave mcn#646, mcn#647, and mcn#648 SMSv2 work untouched for its dedicated developer session",
+]
+
+# Explicit decisions from docs-control#1953 take precedence over legacy labels and
+# title/body heuristics. Keys use # for issues and ! for pull requests.
+ITEM_POLICY: dict[str, dict[str, Any]] = {
+    "api-specs#1141": {
+        "area": "api-contracts",
+        "lifecycle": "active",
+        "priority": "p1",
+        "wave": 3,
+    },
+    "api-specs-enriched#1648": {
+        "area": "api-contracts",
+        "lifecycle": "active",
+        "priority": "p1",
+        "wave": 3,
+    },
+    "api-specs-enriched#422": {
+        "gate": "authorized live tenant and cloud credentials for CRUD verification",
+        "wave": 5,
+    },
+    "csd#355": {"gate": "authentic dark-theme capture and human brand acceptance"},
+    "csd#356": {"gate": "authentic dark-theme capture and human brand acceptance"},
+    "csd#357": {"gate": "authentic dark-theme capture and human brand acceptance"},
+    "devcontainer#777": {
+        "lifecycle": "active",
+        "priority": "p0",
+        "wave": 1,
+        "disposition": "remove-optional-integration",
+    },
+    "devcontainer#778": {
+        "lifecycle": "active",
+        "priority": "p1",
+        "wave": 1,
+        "disposition": "remove-optional-integration",
+    },
+    "devcontainer#781": {
+        "lifecycle": "active",
+        "priority": "p1",
+        "wave": 1,
+        "disposition": "upgrade-essential-remove-optional",
+    },
+    "devcontainer#783": {
+        "lifecycle": "active",
+        "priority": "p1",
+        "wave": 1,
+        "disposition": "remove-optional-integration",
+    },
+    "docs-control#803": {
+        "lifecycle": "active",
+        "priority": "p0",
+        "wave": 1,
+        "disposition": "evidence-close-no-history-rewrite",
+    },
+    "docs-control#878": {"lifecycle": "active", "priority": "p0", "wave": 1},
+    "docs-control#1167": {
+        "lifecycle": "active",
+        "priority": "p1",
+        "wave": 1,
+        "gate": "live Remote Antigravity/A2A UAT requires a separate explicit user request",
+    },
+    "docs-control#1646": {"lifecycle": "active", "priority": "p0", "wave": 0},
+    "docs-control#720": {
+        "gate": "organization-owner authority for GitHub App and ruleset application",
+        "wave": 5,
+    },
+    "devcontainer#988": {
+        "lifecycle": "blocked",
+        "priority": "p1",
+        "gate": "Linux ARM64 builder hardware for image build and omp --help",
+        "wave": 5,
+    },
+    "dns#502": {
+        "area": "product",
+        "lifecycle": "blocked",
+        "priority": "p1",
+        "wave": 5,
+        "gate": "live DNS environment and credentials",
+    },
+    "mcn#646": {
+        "area": "api-contracts",
+        "lifecycle": "active",
+        "priority": "p1",
+        "wave": 3,
+        "gate": "disposable SMSv2 tenant evidence before merge",
+        "disposition": "delegated-external-session",
+    },
+    "mcn#647": {
+        "area": "api-contracts",
+        "lifecycle": "active",
+        "priority": "p1",
+        "wave": 3,
+        "gate": "disposable SMSv2 tenant evidence before merge",
+        "disposition": "delegated-external-session",
+    },
+    "mcn#648": {
+        "area": "api-contracts",
+        "lifecycle": "active",
+        "priority": "p0",
+        "wave": 3,
+        "gate": "disposable SMSv2 tenant evidence before merge",
+        "disposition": "delegated-external-session",
+    },
+    "mcn#702": {
+        "lifecycle": "active",
+        "priority": "p0",
+        "wave": 1,
+        "gate": "Azure maintenance window for live application",
+    },
+    "marketplace#1194": {
+        "gate": "authorized published-tenant API credentials",
+        "wave": 5,
+    },
+    "mcn#635": {
+        "gate": "externally owned by another developer; no implementation authorized",
+        "wave": 5,
+        "disposition": "externally-owned-excluded",
+    },
+    "mcn#694": {
+        "gate": "live CE appliance certificate replacement authority and window",
+        "wave": 5,
+    },
+    "mcn#973": {
+        "gate": "authorized MCN live environment and full-showcase acceptance evidence",
+        "wave": 5,
+    },
+    "starlight-llms-txt#610": {"lifecycle": "active", "priority": "p1", "wave": 2},
+    "starlight-llms-txt#611": {"lifecycle": "active", "priority": "p1", "wave": 2},
+    "starlight-llms-txt#612": {"lifecycle": "active", "priority": "p1", "wave": 2},
+    "starlight-llms-txt#613": {
+        "lifecycle": "superseded",
+        "priority": "p3",
+        "wave": 2,
+        "disposition": "close-duplicate-of-612",
+    },
+    "starlight-mega-menu#100": {
+        "area": "dependencies",
+        "lifecycle": "active",
+        "priority": "p1",
+        "wave": 2,
+    },
+    "webapp-api-protection#198": {
+        "area": "product",
+        "lifecycle": "blocked",
+        "priority": "p1",
+        "wave": 5,
+        "gate": "live aggregation environment",
+    },
+    "terraform-provider-xcsh#1387": {
+        "gate": "externally owned by another developer; no implementation authorized",
+        "wave": 5,
+        "disposition": "externally-owned-excluded",
+    },
+    "terraform-provider-xcsh#1461": {
+        "gate": "published hermetic runner-image evidence",
+        "wave": 5,
+    },
+    "terraform-provider-xcsh#1462": {
+        "gate": "authorized live draft-release sealing workflow",
+        "wave": 5,
+    },
+    "terraform-provider-xcsh#1885": {
+        "area": "api-contracts",
+        "lifecycle": "active",
+        "priority": "p1",
+        "wave": 3,
+    },
+    "terraform-provider-xcsh!1895": {
+        "area": "api-contracts",
+        "lifecycle": "active",
+        "priority": "p1",
+        "wave": 3,
+        "disposition": "continue-exact-head",
+    },
+    "webapp-api-protection#193": {
+        "gate": "authorized live Azure CDN environment and deployment credentials",
+        "wave": 5,
+    },
+    "xcsh#3611": {
+        "area": "product",
+        "lifecycle": "active",
+        "priority": "p1",
+        "wave": 4,
+    },
+    "xcsh#1480": {
+        "lifecycle": "blocked",
+        "priority": "p1",
+        "gate": "authorized live console browser-automation environment",
+        "wave": 5,
+    },
+    "xcsh#1975": {
+        "gate": "authorized live benchmark environment and credentials",
+        "wave": 5,
+    },
+    "xcsh#1995": {
+        "gate": "authorized live tenant for sequential origin-pool benchmark reproduction",
+        "wave": 5,
+    },
+    "xcsh#2007": {
+        "gate": "Apple signing/notarization identity and managed MDM Mac evidence",
+        "wave": 5,
+    },
+    "xcsh#2363": {
+        "gate": "upstream Babel 7 support window; review Babel 8 in Q1 2027",
+        "wave": 2,
+    },
+    "xcsh#3221": {
+        "lifecycle": "superseded",
+        "priority": "p3",
+        "wave": 4,
+        "disposition": "evidence-close-superseded-by-docs-control-1953",
+    },
+    "xcsh#3458": {
+        "gate": "available compute runner pool and organization workflow authority",
+        "wave": 5,
+    },
+    "xcsh-chrome-extension#10": {
+        "area": "product",
+        "lifecycle": "active",
+        "priority": "p2",
+        "wave": 4,
+        "disposition": "evidence-close-v1.1.0",
+    },
+}
+
+for _repository, _issues in {
+    "docs-builder": [1256],
+    "docs-theme": [1425, 1426],
+    "i18n-core": [485],
+    "starlight-mega-menu": [332, 333, 334],
+    "terraform-provider-xcsh": [1972],
+    "vscode-xcsh": [1531, 1532, 1533],
+    "xcsh-action": [190],
+}.items():
+    for _number in _issues:
+        ITEM_POLICY[f"{_repository}#{_number}"] = {
+            "lifecycle": "active",
+            "priority": "p1",
+            "wave": 2,
+        }
+
+for _repository, _pulls in {
+    "docs-builder": [1248],
+    "docs-theme": [1423, 1424],
+    "i18n-core": [480],
+    "starlight-llms-txt": [600, 604, 605],
+    "starlight-mega-menu": [324, 325, 328],
+    "terraform-provider-xcsh": [1962],
+    "vscode-xcsh": [1522, 1523, 1526],
+    "xcsh-action": [187],
+}.items():
+    for _number in _pulls:
+        ITEM_POLICY[f"{_repository}!{_number}"] = {
+            "lifecycle": "superseded",
+            "priority": "p1",
+            "wave": 2,
+            "disposition": "supersede-and-rebuild",
+        }
 CONTINUE_PRS = {
     "api-specs-enriched": {1687, 1657},
     "mcn": {1067},
@@ -229,6 +496,53 @@ def infer_taxonomy(
     return {"lifecycle": lifecycle, "priority": priority, "area": area}
 
 
+def execution_policy(
+    repository: str,
+    number: int,
+    taxonomy: dict[str, str],
+    *,
+    pull: bool,
+) -> dict[str, Any]:
+    key = f"{repository}{'!' if pull else '#'}{number}"
+    override = ITEM_POLICY.get(key, {})
+    resolved = {**taxonomy}
+    for field in ("lifecycle", "priority", "area"):
+        if field in override:
+            resolved[field] = override[field]
+    if "wave" in override:
+        wave = override["wave"]
+    elif resolved["lifecycle"] == "deferred" and resolved["area"] == "i18n":
+        wave = 7
+    elif resolved["lifecycle"] == "blocked":
+        wave = 5
+    else:
+        wave = {
+            "governance": 0,
+            "runners": 0,
+            "ci": 0,
+            "security": 1,
+            "dependencies": 2,
+            "api-contracts": 3,
+            "docs-publishing": 4,
+            "developer-tooling": 4,
+            "product": 4,
+            "ai-automation": 4,
+            "linting": 4,
+            "i18n": 7,
+        }[resolved["area"]]
+    return {
+        "taxonomy": resolved,
+        "execution_wave": wave,
+        "gate": override.get("gate")
+        or (
+            "stable release/vN.0.0 English baseline"
+            if resolved["lifecycle"] == "deferred" and resolved["area"] == "i18n"
+            else None
+        ),
+        "disposition": override.get("disposition"),
+    }
+
+
 def _dependencies(text: str) -> list[str]:
     urls = re.findall(
         r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(?:issues|pull)/[0-9]+",
@@ -324,6 +638,8 @@ def collect(  # pylint: disable=too-many-locals,too-many-statements
             labels = _labels(raw)
             body = raw.get("body") or ""
             taxonomy = infer_taxonomy(repository, raw["title"], body, labels)
+            policy = execution_policy(repository, number, taxonomy, pull=False)
+            taxonomy = policy["taxonomy"]
             parent = client.get(
                 f"repos/{full_name}/issues/{number}/parent", missing_ok=True
             )
@@ -350,7 +666,10 @@ def collect(  # pylint: disable=too-many-locals,too-many-statements
                     "parent": parent_ref,
                     "dependencies": _dependencies(body),
                     "evidence": [raw["html_url"]],
-                    "disposition": _disposition(
+                    "execution_wave": policy["execution_wave"],
+                    "gate": policy["gate"],
+                    "disposition": policy["disposition"]
+                    or _disposition(
                         repository, number, raw["title"], taxonomy, pull=False
                     ),
                 }
@@ -408,6 +727,8 @@ def collect(  # pylint: disable=too-many-locals,too-many-statements
                     "priority": "p3",
                     "area": "governance",
                 }
+            policy = execution_policy(repository, number, taxonomy, pull=True)
+            taxonomy = policy["taxonomy"]
             checks = [
                 {
                     "name": check.get("name"),
@@ -453,7 +774,10 @@ def collect(  # pylint: disable=too-many-locals,too-many-statements
                     ),
                     "dependencies": _dependencies(body),
                     "evidence": [raw["html_url"]],
-                    "disposition": _disposition(
+                    "execution_wave": policy["execution_wave"],
+                    "gate": policy["gate"],
+                    "disposition": policy["disposition"]
+                    or _disposition(
                         repository,
                         number,
                         raw["title"],
@@ -480,6 +804,7 @@ def collect(  # pylint: disable=too-many-locals,too-many-statements
     digest = hashlib.sha256("\n".join(names).encode()).hexdigest()
     return {
         "schema_version": SCHEMA_VERSION,
+        "phase": "classified",
         "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "catalog": {
             "source": str(catalog_path),
@@ -488,6 +813,7 @@ def collect(  # pylint: disable=too-many-locals,too-many-statements
         },
         "control": {
             "program": f"{OWNER}/docs-control#1953",
+            "decisions": PROGRAM_DECISIONS,
             "workstreams": {
                 key: f"{OWNER}/docs-control#{value}"
                 for key, value in sorted(WORKSTREAMS.items())
@@ -498,12 +824,15 @@ def collect(  # pylint: disable=too-many-locals,too-many-statements
     }
 
 
-def validate(  # pylint: disable=too-many-locals,too-many-branches
+def validate(  # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     inventory: dict[str, Any], catalog_path: Path
 ) -> list[str]:
     problems: list[str] = []
     if inventory.get("schema_version") != SCHEMA_VERSION:
         raise InventoryError(f"inventory schema_version must be {SCHEMA_VERSION}")
+    phase = inventory.get("phase", "classified")
+    if phase not in {"pre-mutation", "classified"}:
+        raise InventoryError("inventory phase must be pre-mutation or classified")
     expected_names = catalog_names(catalog_path)
     repositories = inventory.get("repositories")
     if not isinstance(repositories, list):
@@ -542,6 +871,15 @@ def validate(  # pylint: disable=too-many-locals,too-many-branches
                 ):
                     if not isinstance(item.get(field), str) or not item[field]:
                         problems.append(f"{name}#{item['number']} missing {field}")
+                wave = item.get("execution_wave")
+                if wave not in EXECUTION_WAVES:
+                    problems.append(
+                        f"{name}#{item['number']} has invalid execution wave"
+                    )
+                if "gate" not in item or not (
+                    item["gate"] is None or isinstance(item["gate"], str)
+                ):
+                    problems.append(f"{name}#{item['number']} has malformed gate")
                 taxonomy = item.get("taxonomy")
                 if (
                     not isinstance(taxonomy, dict)
@@ -578,7 +916,7 @@ def validate(  # pylint: disable=too-many-locals,too-many-branches
                         or label.startswith("area:")
                         or label in PRIORITIES
                     }
-                    if actual_taxonomy != expected:
+                    if phase == "classified" and actual_taxonomy != expected:
                         problems.append(
                             f"{name}#{item['number']} taxonomy labels are {sorted(actual_taxonomy)}, expected {sorted(expected)}"
                         )
@@ -588,7 +926,9 @@ def validate(  # pylint: disable=too-many-locals,too-many-branches
                         name == f"{OWNER}/docs-control"
                         and item["number"] in CONTROL_ISSUES
                     ):
-                        if item.get("parent") != item.get("workstream"):
+                        if phase == "classified" and item.get("parent") != item.get(
+                            "workstream"
+                        ):
                             problems.append(
                                 f"{name}#{item['number']} is not a native sub-issue of its workstream"
                             )

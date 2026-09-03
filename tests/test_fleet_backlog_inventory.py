@@ -63,6 +63,8 @@ class InventoryTests(unittest.TestCase):
                             "evidence": [
                                 "https://github.com/f5-sales-demo/example/issues/1"
                             ],
+                            "execution_wave": 4,
+                            "gate": None,
                             "disposition": "execute",
                         }
                     ],
@@ -89,6 +91,8 @@ class InventoryTests(unittest.TestCase):
                             "evidence": [
                                 "https://github.com/f5-sales-demo/example/pull/2"
                             ],
+                            "execution_wave": 4,
+                            "gate": None,
                             "disposition": "execute",
                         }
                     ],
@@ -144,12 +148,48 @@ class InventoryTests(unittest.TestCase):
             {"area": "api-contracts", "lifecycle": "active", "priority": "p1"},
         )
 
+    def test_program_policy_overrides_incidental_lint_wording(self):
+        inferred = MODULE.infer_taxonomy(
+            "xcsh",
+            "feat(model): browse models by authenticated provider",
+            "Run lint and type checks after implementing provider tabs.",
+            [],
+        )
+        policy = MODULE.execution_policy("xcsh", 3611, inferred, pull=False)
+        self.assertEqual(
+            policy["taxonomy"],
+            {"area": "product", "lifecycle": "active", "priority": "p1"},
+        )
+        self.assertEqual(policy["execution_wave"], 4)
+
+    def test_stale_dependency_pull_is_superseded_in_wave_two(self):
+        policy = MODULE.execution_policy(
+            "docs-theme",
+            1424,
+            {"area": "dependencies", "lifecycle": "deferred", "priority": "p3"},
+            pull=True,
+        )
+        self.assertEqual(policy["taxonomy"]["lifecycle"], "superseded")
+        self.assertEqual(policy["disposition"], "supersede-and-rebuild")
+        self.assertEqual(policy["execution_wave"], 2)
+
+    def test_execution_wave_and_gate_are_required(self):
+        del self.inventory["repositories"][0]["issues"][0]["execution_wave"]
+        problems = MODULE.validate(self.inventory, self.catalog)
+        self.assertTrue(any("execution wave" in problem for problem in problems))
+
     def test_taxonomy_cardinality_is_exact(self):
         self.inventory["repositories"][0]["issues"][0]["labels"].append(
             "status:blocked"
         )
         problems = MODULE.validate(self.inventory, self.catalog)
         self.assertTrue(any("taxonomy labels" in problem for problem in problems))
+
+    def test_pre_mutation_inventory_preserves_unapplied_taxonomy(self):
+        self.inventory["phase"] = "pre-mutation"
+        self.inventory["repositories"][0]["issues"][0]["labels"] = []
+        self.inventory["repositories"][0]["issues"][0]["parent"] = None
+        self.assertEqual(MODULE.validate(self.inventory, self.catalog), [])
 
     def test_missing_native_relationship_is_reported(self):
         self.inventory["repositories"][0]["issues"][0]["parent"] = None
