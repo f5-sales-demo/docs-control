@@ -2,7 +2,7 @@
   "catalog": {
     "repository_count": 39,
     "sha256": "ca9da8c07833d477b0a48e52c0afe89ab5d551e83c2bb8aef23b8d389c9f82fd",
-    "source": "/data/robin-GIT/docs-control/.worktrees/codex/1994-refresh-after-patch-release-20260903T200900Z/.github/config/self-hosted-runner-policy.json"
+    "source": "/data/robin-GIT/docs-control/.worktrees/codex/1996-settled-inventory-20260903T202300Z/.github/config/self-hosted-runner-policy.json"
   },
   "control": {
     "decisions": [
@@ -29,7 +29,7 @@
       "security": "f5-sales-demo/docs-control#1957"
     }
   },
-  "generated_at": "2026-09-03T20:20:58.308198Z",
+  "generated_at": "2026-09-03T20:43:21.322233Z",
   "phase": "classified",
   "repositories": [
     {
@@ -1326,7 +1326,7 @@
           "workstream": "f5-sales-demo/docs-control#1955"
         }
       ],
-      "updated_at": "2026-09-03T20:04:11Z",
+      "updated_at": "2026-09-03T20:27:33Z",
       "url": "https://github.com/f5-sales-demo/docs-control"
     },
     {
@@ -2391,7 +2391,7 @@
           "workstream": "f5-sales-demo/docs-control#1958"
         }
       ],
-      "updated_at": "2026-09-03T18:28:15Z",
+      "updated_at": "2026-09-03T20:40:31Z",
       "url": "https://github.com/f5-sales-demo/terraform-provider-xcsh"
     },
     {
@@ -2663,67 +2663,11 @@
           "updated_at": "2026-09-03T15:09:01Z",
           "url": "https://github.com/f5-sales-demo/xcsh/issues/3614",
           "workstream": "f5-sales-demo/docs-control#1957"
-        },
-        {
-          "created_at": "2026-09-03T17:34:09Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/xcsh/issues/3641"
-          ],
-          "execution_wave": 0,
-          "gate": null,
-          "labels": [
-            "area:governance",
-            "bug",
-            "p1",
-            "status:active"
-          ],
-          "node_id": "I_kwDOR9dB188AAAABPkOZ4g",
-          "number": 3641,
-          "parent": "f5-sales-demo/docs-control#1953",
-          "taxonomy": {
-            "area": "governance",
-            "lifecycle": "active",
-            "priority": "p1"
-          },
-          "title": "fix(api-catalog): make DNS Zone CRUD discovery and RRset payloads deterministic",
-          "updated_at": "2026-09-03T18:52:08Z",
-          "url": "https://github.com/f5-sales-demo/xcsh/issues/3641",
-          "workstream": "f5-sales-demo/docs-control#1953"
-        },
-        {
-          "created_at": "2026-09-03T19:40:50Z",
-          "dependencies": [],
-          "disposition": "execute",
-          "evidence": [
-            "https://github.com/f5-sales-demo/xcsh/issues/3647"
-          ],
-          "execution_wave": 4,
-          "gate": null,
-          "labels": [
-            "area:product",
-            "bug",
-            "p1",
-            "status:active"
-          ],
-          "node_id": "I_kwDOR9dB188AAAABPlUwpQ",
-          "number": 3647,
-          "parent": "f5-sales-demo/docs-control#1961",
-          "taxonomy": {
-            "area": "product",
-            "lifecycle": "active",
-            "priority": "p1"
-          },
-          "title": "fix(agent): harden Anthropic eager todo arguments",
-          "updated_at": "2026-09-03T20:18:33Z",
-          "url": "https://github.com/f5-sales-demo/xcsh/issues/3647",
-          "workstream": "f5-sales-demo/docs-control#1961"
         }
       ],
       "name": "f5-sales-demo/xcsh",
       "pull_requests": [],
-      "updated_at": "2026-09-03T18:40:30Z",
+      "updated_at": "2026-09-03T20:39:33Z",
       "url": "https://github.com/f5-sales-demo/xcsh"
     },
     {
@@ -2747,7 +2691,7 @@
   ],
   "schema_version": 2,
   "summary": {
-    "open_issues": 53,
+    "open_issues": 51,
     "open_pull_requests": 4
   }
 }
