@@ -73,6 +73,8 @@ for mapping in \
   'scripts/parse-translation-trigger.sh|scripts/parse-translation-trigger.sh' \
   'tests/test-antigravity-translate-staged.sh|tests/test-antigravity-translate-staged.sh' \
   'workflows/antigravity-translate.yml|.github/workflows/antigravity-translate.yml' \
+  'scripts/agy-pre-push-review.sh|scripts/agy-pre-push-review.sh' \
+  'tests/test-agy-pre-push-review.sh|tests/test-agy-pre-push-review.sh' \
   '.agents/skills/i18n-translate/SKILL.md|.agents/skills/i18n-translate/SKILL.md'; do
   asset=${mapping%%|*}
   absent=${mapping#*|}
@@ -87,13 +89,9 @@ for mapping in \
 done
 
 MANAGED_REVIEW_FILES=(
-  scripts/agy-pre-push-review.sh
-  scripts/agy-review.sh
-  scripts/agy-review-output.schema.json
   scripts/run-with-progress.sh
   scripts/translation-release-policy.sh
   scripts/validate-translations.sh
-  tests/test-agy-pre-push-review.sh
   tests/test-translation-release-policy.sh
   tests/test-validate-translations.sh
 )
@@ -106,6 +104,21 @@ for asset in "${MANAGED_REVIEW_FILES[@]}"; do
     pass "$asset is managed and protected"
   else
     fail "$asset is managed and protected" "catalog or protection entry is missing"
+  fi
+done
+
+for asset in scripts/agy-review.sh scripts/agy-review-output.schema.json; do
+  if [ -f "$REPO_ROOT/$asset" ] &&
+    jq -e --arg asset "$asset" '.protected_files | index($asset) != null' \
+      "$GOVERNANCE" >/dev/null &&
+    jq -e --arg asset "$asset" \
+      '.managed_files.files | all(.src != $asset and .dest != $asset)' \
+      "$REPO_SETTINGS" >/dev/null &&
+    jq -e --arg asset "$asset" '.managed_files.absent_files | index($asset) != null' \
+      "$REPO_SETTINGS" >/dev/null; then
+    pass "$asset is protected locally and absent downstream"
+  else
+    fail "$asset is protected locally and absent downstream" "review boundary is incorrect"
   fi
 done
 

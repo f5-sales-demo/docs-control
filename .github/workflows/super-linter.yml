@@ -933,10 +933,6 @@ jobs:
         if: hashFiles('tests/test-antigravity-suspension.sh') != ''
         run: bash tests/test-antigravity-suspension.sh
 
-      - name: Run Antigravity pre-push review test
-        if: hashFiles('tests/test-agy-pre-push-review.sh') != ''
-        run: bash tests/test-agy-pre-push-review.sh
-
       - name: Run translation release-policy test
         if: hashFiles('tests/test-translation-release-policy.sh') != ''
         run: bash tests/test-translation-release-policy.sh
