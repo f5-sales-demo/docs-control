@@ -128,6 +128,14 @@ ITEM_POLICY: dict[str, dict[str, Any]] = {
         "gate": "Linux ARM64 builder hardware for image build and omp --help",
         "wave": 5,
     },
+    "i18n-core!488": {
+        "area": "developer-tooling",
+        "lifecycle": "deferred",
+        "priority": "p2",
+        "gate": "f5-sales-demo-release App installation, branch bypass, RELEASE_APP_ID, and RELEASE_APP_PRIVATE_KEY readiness",
+        "wave": 5,
+        "disposition": "deferred-external-release-app-readiness",
+    },
     "dns#502": {
         "area": "product",
         "lifecycle": "blocked",
@@ -219,16 +227,19 @@ ITEM_POLICY: dict[str, dict[str, Any]] = {
     },
     "terraform-provider-xcsh#1885": {
         "area": "api-contracts",
-        "lifecycle": "active",
+        "lifecycle": "deferred",
         "priority": "p1",
         "wave": 3,
+        "gate": "next monthly benchmark window; benchmark work is intentionally deferred by the organization owner",
+        "disposition": "deferred-next-month-benchmark",
     },
     "terraform-provider-xcsh!1895": {
         "area": "api-contracts",
-        "lifecycle": "active",
+        "lifecycle": "deferred",
         "priority": "p1",
         "wave": 3,
-        "disposition": "continue-exact-head",
+        "gate": "next monthly benchmark window; benchmark work is intentionally deferred by the organization owner",
+        "disposition": "deferred-next-month-benchmark",
     },
     "webapp-api-protection#193": {
         "gate": "authorized live Azure CDN environment and deployment credentials",
@@ -317,7 +328,6 @@ for _repository, _pulls in {
 CONTINUE_PRS = {
     "api-specs-enriched": {1687, 1657},
     "mcn": {1067},
-    "terraform-provider-xcsh": {1895},
 }
 REBUILD_PRS = {
     "api-specs": {1118},
@@ -340,7 +350,17 @@ class GitHub:
     def get(
         self, endpoint: str, *, paginate: bool = False, missing_ok: bool = False
     ) -> Any:
-        command = ["gh", "api"]
+        # Parent/sub-issue endpoints are only available in the current REST API
+        # version.  Pin the request version so an older gh default cannot turn
+        # an established cross-repository workstream relationship into a 404.
+        command = [
+            "gh",
+            "api",
+            "-H",
+            "Accept: application/vnd.github+json",
+            "-H",
+            "X-GitHub-Api-Version: 2026-03-10",
+        ]
         if paginate:
             command.extend(["--paginate", "--slurp"])
         command.append(endpoint)
@@ -543,6 +563,26 @@ def execution_policy(
     }
 
 
+def archived_execution_policy() -> dict[str, Any]:
+    """Classify retained work in an owner-decommissioned archive.
+
+    Archived repositories remain in the fixed fleet catalog, but GitHub makes
+    their issues and pull requests read-only. Their historical labels cannot be
+    repaired through the normal governed lifecycle, so record the explicit
+    organization-owner decommission blocker instead.
+    """
+    return {
+        "taxonomy": {
+            "lifecycle": "blocked",
+            "priority": "p3",
+            "area": "developer-tooling",
+        },
+        "execution_wave": 5,
+        "gate": "repository archived by organization owner during decommission; unarchive required to resume",
+        "disposition": "archived-decommission",
+    }
+
+
 def _dependencies(text: str) -> list[str]:
     urls = re.findall(
         r"https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/(?:issues|pull)/[0-9]+",
@@ -605,7 +645,14 @@ def collect(  # pylint: disable=too-many-locals,too-many-statements
     for full_name in names:
         repository = full_name.split("/", 1)[1]
         repo_raw = client.get(f"repos/{full_name}")
-        _required(repo_raw, ("html_url", "default_branch", "updated_at"), full_name)
+        _required(
+            repo_raw,
+            ("html_url", "default_branch", "updated_at", "archived"),
+            full_name,
+        )
+        if not isinstance(repo_raw["archived"], bool):
+            raise InventoryError(f"archived flag must be boolean for {full_name}")
+        repository_archived = repo_raw["archived"]
         raw_items = client.get(
             f"repos/{full_name}/issues?state=open&per_page=100", paginate=True
         )
@@ -639,6 +686,8 @@ def collect(  # pylint: disable=too-many-locals,too-many-statements
             body = raw.get("body") or ""
             taxonomy = infer_taxonomy(repository, raw["title"], body, labels)
             policy = execution_policy(repository, number, taxonomy, pull=False)
+            if repository_archived:
+                policy = archived_execution_policy()
             taxonomy = policy["taxonomy"]
             parent = client.get(
                 f"repos/{full_name}/issues/{number}/parent", missing_ok=True
@@ -728,6 +777,8 @@ def collect(  # pylint: disable=too-many-locals,too-many-statements
                     "area": "governance",
                 }
             policy = execution_policy(repository, number, taxonomy, pull=True)
+            if repository_archived:
+                policy = archived_execution_policy()
             taxonomy = policy["taxonomy"]
             checks = [
                 {
@@ -797,6 +848,7 @@ def collect(  # pylint: disable=too-many-locals,too-many-statements
                 "url": repo_raw["html_url"],
                 "default_branch": repo_raw["default_branch"],
                 "updated_at": repo_raw["updated_at"],
+                "archived": repository_archived,
                 "issues": issues,
                 "pull_requests": pulls,
             }
@@ -848,6 +900,10 @@ def validate(  # pylint: disable=too-many-locals,too-many-branches,too-many-stat
         if not isinstance(repo, dict):
             raise InventoryError("repository entry must be an object")
         name = repo.get("name", "unknown")
+        archived = repo.get("archived", False)
+        if not isinstance(archived, bool):
+            problems.append(f"repository {name} archived must be boolean")
+            archived = False
         for kind, key in (("issue", "issues"), ("pull request", "pull_requests")):
             items = repo.get(key)
             if not isinstance(items, list):
@@ -916,7 +972,11 @@ def validate(  # pylint: disable=too-many-locals,too-many-branches,too-many-stat
                         or label.startswith("area:")
                         or label in PRIORITIES
                     }
-                    if phase == "classified" and actual_taxonomy != expected:
+                    if (
+                        phase == "classified"
+                        and not archived
+                        and actual_taxonomy != expected
+                    ):
                         problems.append(
                             f"{name}#{item['number']} taxonomy labels are {sorted(actual_taxonomy)}, expected {sorted(expected)}"
                         )
@@ -926,8 +986,10 @@ def validate(  # pylint: disable=too-many-locals,too-many-branches,too-many-stat
                         name == f"{OWNER}/docs-control"
                         and item["number"] in CONTROL_ISSUES
                     ):
-                        if phase == "classified" and item.get("parent") != item.get(
-                            "workstream"
+                        if (
+                            phase == "classified"
+                            and not archived
+                            and item.get("parent") != item.get("workstream")
                         ):
                             problems.append(
                                 f"{name}#{item['number']} is not a native sub-issue of its workstream"

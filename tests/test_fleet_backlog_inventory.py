@@ -173,6 +173,70 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(policy["disposition"], "supersede-and-rebuild")
         self.assertEqual(policy["execution_wave"], 2)
 
+    def test_provider_compute_benchmark_is_deferred_to_next_month(self):
+        issue = MODULE.execution_policy(
+            "terraform-provider-xcsh",
+            1885,
+            {"area": "api-contracts", "lifecycle": "active", "priority": "p1"},
+            pull=False,
+        )
+        pull = MODULE.execution_policy(
+            "terraform-provider-xcsh",
+            1895,
+            {"area": "api-contracts", "lifecycle": "active", "priority": "p1"},
+            pull=True,
+        )
+        for policy in (issue, pull):
+            self.assertEqual(policy["taxonomy"]["lifecycle"], "deferred")
+            self.assertEqual(policy["disposition"], "deferred-next-month-benchmark")
+            self.assertIn("next monthly benchmark window", policy["gate"])
+        self.assertNotIn(
+            1895, MODULE.CONTINUE_PRS.get("terraform-provider-xcsh", set())
+        )
+
+    def test_i18n_release_identity_waits_for_its_external_readiness_gate(self):
+        policy = MODULE.execution_policy(
+            "i18n-core",
+            488,
+            {"area": "developer-tooling", "lifecycle": "active", "priority": "p2"},
+            pull=True,
+        )
+        self.assertEqual(policy["taxonomy"]["lifecycle"], "deferred")
+        self.assertEqual(
+            policy["disposition"], "deferred-external-release-app-readiness"
+        )
+        self.assertIn("f5-sales-demo-release App", policy["gate"])
+
+    def test_archived_repository_policy_records_owner_decommission(self):
+        policy = MODULE.archived_execution_policy()
+        self.assertEqual(
+            policy["taxonomy"],
+            {
+                "area": "developer-tooling",
+                "lifecycle": "blocked",
+                "priority": "p3",
+            },
+        )
+        self.assertEqual(policy["disposition"], "archived-decommission")
+        self.assertIn("organization owner", policy["gate"])
+
+    def test_archived_repository_allows_historical_read_only_labels(self):
+        self.inventory["repositories"][0]["archived"] = True
+        issue = self.inventory["repositories"][0]["issues"][0]
+        issue["taxonomy"] = {
+            "area": "developer-tooling",
+            "lifecycle": "blocked",
+            "priority": "p3",
+        }
+        issue["execution_wave"] = 5
+        issue["gate"] = (
+            "repository archived by organization owner during decommission; "
+            "unarchive required to resume"
+        )
+        issue["disposition"] = "archived-decommission"
+        issue["parent"] = None
+        self.assertEqual(MODULE.validate(self.inventory, self.catalog), [])
+
     def test_execution_wave_and_gate_are_required(self):
         del self.inventory["repositories"][0]["issues"][0]["execution_wave"]
         problems = MODULE.validate(self.inventory, self.catalog)
@@ -212,6 +276,17 @@ class InventoryTests(unittest.TestCase):
 
         with self.assertRaisesRegex(MODULE.InventoryError, "pagination was malformed"):
             MODULE.GitHub(runner=runner).get("repos/x/y/issues", paginate=True)
+
+    def test_github_client_pins_current_api_version_for_sub_issues(self):
+        calls: list[list[str]] = []
+
+        def runner(command, **_kwargs):
+            calls.append(command)
+            return subprocess.CompletedProcess(command, 0, stdout="{}", stderr="")
+
+        MODULE.GitHub(runner=runner).get("repos/x/y/issues/1/parent", missing_ok=True)
+        self.assertIn("Accept: application/vnd.github+json", calls[0])
+        self.assertIn("X-GitHub-Api-Version: 2026-03-10", calls[0])
 
     def test_taxonomy_apply_dry_run_is_non_mutating(self):
         class Writer:
