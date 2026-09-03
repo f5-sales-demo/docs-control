@@ -646,7 +646,9 @@ def collect(  # pylint: disable=too-many-locals,too-many-statements
         repository = full_name.split("/", 1)[1]
         repo_raw = client.get(f"repos/{full_name}")
         _required(
-            repo_raw, ("html_url", "default_branch", "updated_at", "archived"), full_name
+            repo_raw,
+            ("html_url", "default_branch", "updated_at", "archived"),
+            full_name,
         )
         if not isinstance(repo_raw["archived"], bool):
             raise InventoryError(f"archived flag must be boolean for {full_name}")
@@ -970,7 +972,11 @@ def validate(  # pylint: disable=too-many-locals,too-many-branches,too-many-stat
                         or label.startswith("area:")
                         or label in PRIORITIES
                     }
-                    if phase == "classified" and not archived and actual_taxonomy != expected:
+                    if (
+                        phase == "classified"
+                        and not archived
+                        and actual_taxonomy != expected
+                    ):
                         problems.append(
                             f"{name}#{item['number']} taxonomy labels are {sorted(actual_taxonomy)}, expected {sorted(expected)}"
                         )
@@ -980,8 +986,10 @@ def validate(  # pylint: disable=too-many-locals,too-many-branches,too-many-stat
                         name == f"{OWNER}/docs-control"
                         and item["number"] in CONTROL_ISSUES
                     ):
-                        if phase == "classified" and not archived and item.get("parent") != item.get(
-                            "workstream"
+                        if (
+                            phase == "classified"
+                            and not archived
+                            and item.get("parent") != item.get("workstream")
                         ):
                             problems.append(
                                 f"{name}#{item['number']} is not a native sub-issue of its workstream"
