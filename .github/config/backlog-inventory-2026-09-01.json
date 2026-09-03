@@ -2,7 +2,7 @@
   "catalog": {
     "repository_count": 39,
     "sha256": "ca9da8c07833d477b0a48e52c0afe89ab5d551e83c2bb8aef23b8d389c9f82fd",
-    "source": "/data/robin-GIT/docs-control/.worktrees/codex/1989-defer-compute-benchmark-inventory-20260903T153100Z/.github/config/self-hosted-runner-policy.json"
+    "source": "/data/robin-GIT/docs-control/.worktrees/codex/1992-settle-backlog-inventory-20260903T195700Z/.github/config/self-hosted-runner-policy.json"
   },
   "control": {
     "decisions": [
@@ -29,7 +29,7 @@
       "security": "f5-sales-demo/docs-control#1957"
     }
   },
-  "generated_at": "2026-09-03T19:54:58.515094Z",
+  "generated_at": "2026-09-03T20:07:02.491850Z",
   "phase": "classified",
   "repositories": [
     {
@@ -1408,7 +1408,7 @@
           "workstream": "f5-sales-demo/docs-control#1955"
         }
       ],
-      "updated_at": "2026-09-03T19:51:35Z",
+      "updated_at": "2026-09-03T20:04:11Z",
       "url": "https://github.com/f5-sales-demo/docs-control"
     },
     {
