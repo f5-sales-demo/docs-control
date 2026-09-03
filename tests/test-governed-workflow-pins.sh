@@ -227,6 +227,67 @@ if [[ "$*" == api\ repos/*/pulls\?state=open* ]]; then
   printf '[[]]\n'
   exit 0
 fi
+if [[ "$*" == api\ repos/*/issues\?state=all* ]]; then
+  if [ -f "$FAKE_STATE/issues-response" ]; then
+    cat "$FAKE_STATE/issues-response"
+  else
+    printf '[[]]\n'
+  fi
+  exit 0
+fi
+if [[ "$*" == issue\ create* ]]; then
+  body_file=""
+  while [ "$#" -gt 0 ]; do
+    if [ "$1" = --body-file ]; then body_file="$2"; break; fi
+    shift
+  done
+  test -n "$body_file" || exit 64
+  cp "$body_file" "$FAKE_STATE/created-issue-body"
+  touch "$FAKE_STATE/issue-created"
+  printf 'https://github.com/f5-sales-demo/docs-control/issues/77\n'
+  exit 0
+fi
+if [[ "$*" == issue\ view* ]]; then
+  if [ -f "$FAKE_STATE/issue-view-response" ]; then
+    cat "$FAKE_STATE/issue-view-response"
+  elif [ -f "$FAKE_STATE/issue-created" ]; then
+    jq -n --argjson number 77 --rawfile body "$FAKE_STATE/created-issue-body" \
+      '{number: $number, state: "OPEN", stateReason: null, body: $body}'
+  elif [ -f "$FAKE_STATE/issues-response" ]; then
+    jq '.[0][0] | {number, state: (.state | ascii_upcase),
+      stateReason: ((.state_reason // null) | if . == null then null else ascii_upcase end), body}' \
+      "$FAKE_STATE/issues-response"
+  else
+    exit 64
+  fi
+  exit 0
+fi
+if [[ "$*" == issue\ reopen* ]]; then
+  touch "$FAKE_STATE/issue-reopened"
+  exit 0
+fi
+if [[ "$*" == issue\ edit* ]]; then
+  touch "$FAKE_STATE/issue-edited"
+  exit 0
+fi
+if [[ "$*" == issue\ close* ]]; then
+  touch "$FAKE_STATE/issue-closed"
+  exit 0
+fi
+if [[ "$*" == pr\ edit* ]]; then
+  touch "$FAKE_STATE/pr-edited"
+  exit 0
+fi
+if [[ "$*" == pr\ view* ]]; then
+  if [ -f "$FAKE_STATE/pr-edited" ] && [ -f "$FAKE_STATE/pr-view-after-edit" ]; then
+    cat "$FAKE_STATE/pr-view-after-edit"
+  elif [ -f "$FAKE_STATE/pr-view-response" ]; then
+    cat "$FAKE_STATE/pr-view-response"
+  else
+    exit 64
+  fi
+  exit 0
+fi
 if [[ "$*" == api\ repos/*/git/matching-refs/heads/sync/governed-workflow-pins-* ]]; then
   if [ "${FAKE_OLD_REF:-}" = 1 ] && [ ! -f "$FAKE_STATE/old-ref-deleted" ]; then
     printf '[[{"ref":"refs/heads/sync/governed-workflow-pins-aaaaaaaaaaaa-1-1","object":{"sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}]]\n'
@@ -300,6 +361,124 @@ exec "$REAL_MKTEMP_COMMAND" "$@"
 EOF
 chmod +x "$BEHAVIOR/bin/git" "$BEHAVIOR/bin/gh" "$BEHAVIOR/bin/sleep" \
   "$BEHAVIOR/bin/jq" "$BEHAVIOR/bin/mktemp"
+
+TARGET_SHA=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+BASE_SHA=1111111111111111111111111111111111111111
+
+reset_issue_fakes() {
+  rm -f "$BEHAVIOR/state"/{created-issue-body,issue-created,issue-reopened,issue-edited,issue-closed,pr-edited,pr-view-response,pr-view-after-edit,issue-view-response}
+  printf '[[]]\n' >"$BEHAVIOR/state/issues-response"
+  : >"$BEHAVIOR/commands"
+}
+
+check "a non-empty rollout creates one detailed marker-keyed issue" \
+  bash -c '
+    reset_issue_fakes() { rm -f "$1/state"/{created-issue-body,issue-created,issue-reopened,issue-edited}; printf "[[]]\n" >"$1/state/issues-response"; : >"$1/commands"; }
+    reset_issue_fakes "$2"
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    source "$1"
+    repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    reconcile_pin_issue && test "$pin_issue_number" = 77 && test -f "$FAKE_STATE/issue-created" &&
+      grep -q -- "--paginate --slurp" "$FAKE_COMMAND_LOG" &&
+      grep -Fq "<!-- governed-workflow-pin:$3 -->" "$FAKE_STATE/created-issue-body" &&
+      grep -Fq "Target revision: \`$3\`" "$FAKE_STATE/created-issue-body" &&
+      grep -Fq "Protected-main base: \`$4\`" "$FAKE_STATE/created-issue-body" &&
+      grep -Fq "## Acceptance Criteria" "$FAKE_STATE/created-issue-body"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
+check "one open marker match is reused and refreshed without creating a duplicate" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    : >"$FAKE_COMMAND_LOG"; rm -f "$FAKE_STATE"/{issue-created,issue-reopened,issue-edited}
+    jq -cn --arg marker "<!-- governed-workflow-pin:$3 -->" \
+      "[[{number: 42, state: \"open\", state_reason: null, body: \$marker}]]" >"$FAKE_STATE/issues-response"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    reconcile_pin_issue && test "$pin_issue_number" = 42 && test -f "$FAKE_STATE/issue-edited" &&
+      test ! -f "$FAKE_STATE/issue-created" && test ! -f "$FAKE_STATE/issue-reopened"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
+check "one not-planned marker match is safely reopened for retry" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    : >"$FAKE_COMMAND_LOG"; rm -f "$FAKE_STATE"/{issue-created,issue-reopened,issue-edited}
+    jq -cn --arg marker "<!-- governed-workflow-pin:$3 -->" \
+      "[[{number: 42, state: \"closed\", state_reason: \"not_planned\", body: \$marker}]]" >"$FAKE_STATE/issues-response"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    reconcile_pin_issue && test "$pin_issue_number" = 42 &&
+      test -f "$FAKE_STATE/issue-reopened" && test -f "$FAKE_STATE/issue-edited"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
+check "completed marker matches and duplicate marker owners fail closed" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    : >"$FAKE_COMMAND_LOG"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    jq -cn --arg marker "<!-- governed-workflow-pin:$3 -->" \
+      "[[{number: 42, state: \"closed\", state_reason: \"completed\", body: \$marker}]]" >"$FAKE_STATE/issues-response"
+    ! reconcile_pin_issue &&
+    jq -cn --arg marker "<!-- governed-workflow-pin:$3 -->" \
+      "[[{number: 42, state: \"open\", state_reason: null, body: \$marker}, {number: 43, state: \"open\", state_reason: null, body: \$marker}]]" >"$FAKE_STATE/issues-response" &&
+    ! reconcile_pin_issue && ! grep -Eq "issue (create|reopen|edit)" "$FAKE_COMMAND_LOG"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
+check "malformed paginated issue inventory fails before mutation" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    printf "{}\n" >"$FAKE_STATE/issues-response"; : >"$FAKE_COMMAND_LOG"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    ! reconcile_pin_issue && ! grep -Eq "issue (create|reopen|edit)" "$FAKE_COMMAND_LOG"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
+check "an existing rollout PR is repaired and its exact closing issue is verified" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    : >"$FAKE_COMMAND_LOG"; rm -f "$FAKE_STATE/pr-edited"
+    jq -cn "{body: \"legacy\", closingIssuesReferences: []}" >"$FAKE_STATE/pr-view-response"
+    body=$(printf "Automated immutable governed-workflow pin rollout.\\n\\nTarget revision: \`%s\`\\nProtected-main base: \`%s\`\\n\\nCloses #42" "$3" "$4")
+    jq -cn --arg body "$body" "{body: \$body, closingIssuesReferences: [{number: 42}]}" >"$FAKE_STATE/pr-view-after-edit"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; pin_issue_number=42
+    ensure_pin_pr_link 10 && test -f "$FAKE_STATE/pr-edited"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
+check "a rollout PR with the wrong closing reference fails verification" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    : >"$FAKE_COMMAND_LOG"; touch "$FAKE_STATE/pr-edited"
+    body=$(printf "Automated immutable governed-workflow pin rollout.\\n\\nTarget revision: \`%s\`\\nProtected-main base: \`%s\`\\n\\nCloses #42" "$3" "$4")
+    jq -cn --arg body "$body" "{body: \$body, closingIssuesReferences: [{number: 41}]}" >"$FAKE_STATE/pr-view-after-edit"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; pin_issue_number=42
+    ! ensure_pin_pr_link 10
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
+check "cleanup verifies the marker before closing an automation issue as not planned" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    : >"$FAKE_COMMAND_LOG"; rm -f "$FAKE_STATE/issue-closed"
+    jq -cn --arg marker "<!-- governed-workflow-pin:$3 -->" \
+      "{number: 42, state: \"OPEN\", stateReason: null, body: \$marker}" >"$FAKE_STATE/issue-view-response"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"; target_revision="$3"
+    close_pin_issue_not_planned 42 "$3" "superseded" && test -f "$FAKE_STATE/issue-closed"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA"
+
+check "supersession locates an issue by its exact recorded automation branch" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    : >"$FAKE_COMMAND_LOG"; rm -f "$FAKE_STATE"/{issue-closed,issue-view-response}
+    body=$(printf "<!-- governed-workflow-pin:%s -->\\nAutomation branch: \`%s\`" "$3" "$4")
+    jq -cn --arg body "$body" "[[{number: 42, state: \"open\", state_reason: null, body: \$body}]]" >"$FAKE_STATE/issues-response"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    close_pin_issue_for_branch "$4" && test -f "$FAKE_STATE/issue-closed"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" \
+  sync/governed-workflow-pins-bbbbbbbbbbbb-1-1
+
+reset_issue_fakes
 
 check "failed main fetch cannot pass against a stale local tracking ref" \
   bash -c '
@@ -582,7 +761,8 @@ check "no-op updater still reconciles canceled-run orphan refs" \
     export PATH="$3:$PATH" FAKE_COMMAND_LOG="$4/commands" FAKE_STATE="$4/state" FAKE_OLD_REF=1
     export GITHUB_REPOSITORY=f5-sales-demo/docs-control GITHUB_RUN_ID=2 GITHUB_RUN_ATTEMPT=1
     export REQUESTED_REVISION="$5"
-    "$1" && test -f "$FAKE_STATE/old-ref-deleted" && ! grep -q "pr create" "$FAKE_COMMAND_LOG"
+    "$1" && test -f "$FAKE_STATE/old-ref-deleted" &&
+      ! grep -Eq "(pr|issue) create" "$FAKE_COMMAND_LOG"
   ' _ "$ROLLOUT_SCRIPT" "$NOOP_REPO" "$NOOP_BIN" "$BEHAVIOR" "$NOOP_TARGET"
 
 check "base movement defers before a stale updater branch can proceed" \
