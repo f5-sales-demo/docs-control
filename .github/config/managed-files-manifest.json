@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "2adafb89bb0d7d974bf80e5ddb42562f3865ed7d",
+  "source_commit": "01c37c8ba32a89fdd2477c26ab9c5b237d1e36e1",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "d14cee6a0596c1f7142d5dc9429192adcc414019",
-      "size": 8565,
+      "sha": "289e4a1099ffbb4e210b9a80ae5581ec6d201ad4",
+      "size": 8486,
       "mode": "100644"
     },
     {
@@ -311,27 +311,6 @@
       "mode": "100644"
     },
     {
-      "path": "scripts/agy-pre-push-review.sh",
-      "src": "scripts/agy-pre-push-review.sh",
-      "sha": "7cef2680a37b0cc4da910e0c55e8e06f42f04f74",
-      "size": 554,
-      "mode": "100755"
-    },
-    {
-      "path": "scripts/agy-review-output.schema.json",
-      "src": "scripts/agy-review-output.schema.json",
-      "sha": "d62142757a48bec62ecf6a038f91de28ea2250ba",
-      "size": 1414,
-      "mode": "100644"
-    },
-    {
-      "path": "scripts/agy-review.sh",
-      "src": "scripts/agy-review.sh",
-      "sha": "bf8cd03cc8fcd127be3e44848f5e04cb51fc6627",
-      "size": 18337,
-      "mode": "100755"
-    },
-    {
       "path": "scripts/audit-runner-workflows.py",
       "src": "scripts/audit-runner-workflows.py",
       "sha": "eb6690ea34097df247107b83a9cb4a4822a2c24b",
@@ -409,13 +388,6 @@
       "mode": "100755"
     },
     {
-      "path": "tests/test-agy-pre-push-review.sh",
-      "src": "tests/test-agy-pre-push-review.sh",
-      "sha": "7b2f944450a3512ab270a612dd2a1229d80e9745",
-      "size": 19077,
-      "mode": "100755"
-    },
-    {
       "path": "tests/test-check-pii.sh",
       "src": "tests/test-check-pii.sh",
       "sha": "e4f053268f2888e12cab8f1d934030170f09c160",
@@ -481,10 +453,14 @@
     ".github/workflows/dependabot-auto-merge.yml",
     ".github/workflows/enforce-repo-settings.yml",
     "actionlint.yml",
+    "scripts/agy-pre-push-review.sh",
+    "scripts/agy-review-output.schema.json",
+    "scripts/agy-review.sh",
     "scripts/antigravity-translate-staged.sh",
     "scripts/parse-translation-trigger.sh",
     "scripts/workflow-security-validator.py",
+    "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:247d1f47e0e33daec18f3679599c51dbb37bb72edcaf7f1fb6fe58280254f806"
+  "state_digest": "sha256:0c94e3b1b0bf730c0b314db7124a560102d9bae7c359fd7009bcb2736edebf74"
 }
