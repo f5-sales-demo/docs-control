@@ -19,18 +19,22 @@ image release process, workstation provisioning, pilot procedure, and incident r
 
 ## Backlog consolidation verification
 
-The schema-v2 inventory in
-[backlog-inventory-2026-09-01.json](.github/config/backlog-inventory-2026-09-01.json)
-records every open issue and pull request across the exact governed catalog for
+The schema-v2 pre-mutation inventory in
+[backlog-inventory-2026-09-02.json](.github/config/backlog-inventory-2026-09-02.json)
+records the live 82-issue/16-pull-request baseline across the exact governed catalog for
 [#1953](https://github.com/f5-sales-demo/docs-control/issues/1953). It includes empty repositories,
 timestamps, labels, native workstream relationships, pull-request heads, changed paths, checks,
-dependencies, evidence, and dispositions.
+dependencies, evidence, execution waves, explicit live gates, dispositions, and the program's
+clean-break release decisions. A pre-mutation record preserves observed labels and relationships
+while recording the reviewed target taxonomy; classified inventories require those values to match.
 
 ```bash
 python3 scripts/verify_backlog_consolidation.py verify \
-  --inventory .github/config/backlog-inventory-2026-09-01.json
-python3 scripts/verify_backlog_consolidation.py verify-live \
-  --inventory .github/config/backlog-inventory-2026-09-01.json
+  --inventory .github/config/backlog-inventory-2026-09-02.json
+python3 scripts/fleet_backlog_inventory.py collect \
+  --output /tmp/backlog-inventory-classified.json
+python3 scripts/fleet_backlog_inventory.py verify-live \
+  --inventory /tmp/backlog-inventory-classified.json
 ```
 
 `verify` is offline. `verify-live` uses the authenticated `gh` CLI and fails closed on pagination
