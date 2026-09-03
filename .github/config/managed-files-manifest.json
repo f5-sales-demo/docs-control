@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "01c37c8ba32a89fdd2477c26ab9c5b237d1e36e1",
+  "source_commit": "4233d09493adcc41c704864f18c6120fb38577fe",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -117,21 +117,21 @@
     {
       "path": ".github/workflows/antigravity-review.yml",
       "src": "workflows/antigravity-review.yml",
-      "sha": "e14b83d0e6636c8f2ecb2d282225b590137129c2",
+      "sha": "f72dc10ce04125890449a6110762be35fa9acdf7",
       "size": 1309,
       "mode": "100644"
     },
     {
       "path": ".github/workflows/auto-merge.yml",
       "src": "workflows/auto-merge.yml",
-      "sha": "7a568d511b7df64e2f761653ddf6844a46a95e04",
+      "sha": "c0338aaada9930d36f27f63941fb4d4dd95587cb",
       "size": 3422,
       "mode": "100644"
     },
     {
       "path": ".github/workflows/github-pages-deploy.yml",
       "src": "workflows/github-pages-deploy.yml",
-      "sha": "2767eae21aa17767642c90a4057b7416b3b2a3cd",
+      "sha": "23de5c724c193e0d6e6bf162534cb09cbf8b9a96",
       "size": 965,
       "mode": "100644"
     },
@@ -152,7 +152,7 @@
     {
       "path": ".github/workflows/super-linter.yml",
       "src": "workflows/super-linter.yml",
-      "sha": "5e0b897963e53f9ab9e6af482750a004c919c89e",
+      "sha": "fb137079c0dce290108a6aa271e97a71216e829a",
       "size": 5331,
       "mode": "100644"
     },
@@ -462,5 +462,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:0c94e3b1b0bf730c0b314db7124a560102d9bae7c359fd7009bcb2736edebf74"
+  "state_digest": "sha256:69b4278efd11950107af475df3b0261307581da5ef2e2e3c7c8db6d79227fd0e"
 }
