@@ -114,12 +114,8 @@ echo "=== Section 3: managed-file governance covers Codex surfaces ==="
 MANAGED_PATHS="AGENTS.md
 .agents/skills/demo-components/SKILL.md
 .agents/skills/demo-components/agents/openai.yaml
-scripts/agy-pre-push-review.sh
-scripts/agy-review.sh
-scripts/agy-review-output.schema.json
 scripts/translation-release-policy.sh
 scripts/validate-translations.sh
-tests/test-agy-pre-push-review.sh
 tests/test-translation-release-policy.sh
 tests/test-validate-translations.sh"
 
@@ -149,6 +145,23 @@ while IFS= read -r path; do
     fail "$path is distributed fleet-wide" "found in a repository skip list"
   fi
 done <<<"$MANAGED_PATHS"
+
+for path in \
+  scripts/agy-pre-push-review.sh \
+  scripts/agy-review.sh \
+  scripts/agy-review-output.schema.json \
+  tests/test-agy-pre-push-review.sh; do
+  if jq -e --arg path "$path" \
+    '.managed_files.files | all(.dest != $path and .src != $path)' \
+    "$REPO_SETTINGS" >/dev/null &&
+    jq -e --arg path "$path" '.managed_files.absent_files | index($path) != null' \
+      "$REPO_SETTINGS" >/dev/null; then
+    pass "$path is excluded from managed rollout and deleted downstream"
+  else
+    fail "$path is excluded from managed rollout and deleted downstream" \
+      "managed or missing from absent_files"
+  fi
+done
 
 assert_contains "$MANIFEST_WORKFLOW" "- 'AGENTS.md'" "manifest rebuild watches AGENTS.md"
 assert_contains "$MANIFEST_WORKFLOW" "- '.agents/**'" "manifest rebuild watches shared skills"

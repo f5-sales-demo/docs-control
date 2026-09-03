@@ -97,10 +97,6 @@
       "devcontainer": {
         "unit": [
           {
-            "path": "tests/test-agy-pre-push-review.sh",
-            "args": []
-          },
-          {
             "path": "tests/test-check-pii.sh",
             "args": []
           },
@@ -174,9 +170,13 @@
       ".github/workflows/dependabot-auto-merge.yml",
       ".github/workflows/enforce-repo-settings.yml",
       "actionlint.yml",
+      "scripts/agy-pre-push-review.sh",
+      "scripts/agy-review-output.schema.json",
+      "scripts/agy-review.sh",
       "scripts/antigravity-translate-staged.sh",
       "scripts/parse-translation-trigger.sh",
       "scripts/workflow-security-validator.py",
+      "tests/test-agy-pre-push-review.sh",
       "tests/test-antigravity-translate-staged.sh"
     ],
     "skip_files": {
@@ -420,18 +420,6 @@
         "dest": "scripts/locale-lint.sh"
       },
       {
-        "src": "scripts/agy-pre-push-review.sh",
-        "dest": "scripts/agy-pre-push-review.sh"
-      },
-      {
-        "src": "scripts/agy-review.sh",
-        "dest": "scripts/agy-review.sh"
-      },
-      {
-        "src": "scripts/agy-review-output.schema.json",
-        "dest": "scripts/agy-review-output.schema.json"
-      },
-      {
         "src": "scripts/run-with-progress.sh",
         "dest": "scripts/run-with-progress.sh"
       },
@@ -474,10 +462,6 @@
       {
         "src": "tests/test-lint-mdx-prose.sh",
         "dest": "tests/test-lint-mdx-prose.sh"
-      },
-      {
-        "src": "tests/test-agy-pre-push-review.sh",
-        "dest": "tests/test-agy-pre-push-review.sh"
       },
       {
         "src": "tests/test-github-api-resilience.sh",
