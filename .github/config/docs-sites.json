@@ -135,6 +135,7 @@
     "label": "xcsh",
     "url": "https://f5-sales-demo.github.io/xcsh/llms-full.txt",
     "description": "AI-powered development environment and CLI tool",
+    "rebuild_dispatch": false,
     "badges": [{ "name": "CI", "workflow": "ci.yml" }]
   },
   {
