@@ -156,7 +156,7 @@ import sys
 policy = json.load(open(sys.argv[1], encoding="utf-8"))
 assert policy["schema_version"] == 5
 provider = "f5-sales-demo/terraform-provider-xcsh"
-digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:2a0243be5404daa0f52bae16384f53dbc04554e31406ed0db45152d92f6187e1"
+digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:d9bbc99d7576b6e6d8ad3a83b3b0a4cbdcb39b63c3733f8b740624aff0f9afd0"
 assert policy["arc_attestations"] == {
     "terraform-provider-xcsh-d8": {
         "label": "managed-socketless",

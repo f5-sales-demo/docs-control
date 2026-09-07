@@ -18,6 +18,7 @@ jobs:
       - name: Verify socketless standard profile
         run: |
           set -euo pipefail
+          test "$(zig version)" = "0.15.2"
           cli=do"cker"
           if command -v "$cli" >/dev/null 2>&1; then
             echo "::error::standard runner unexpectedly includes the Docker CLI"
@@ -35,6 +36,7 @@ jobs:
       - name: Verify Docker-enabled build profile
         run: |
           set -euo pipefail
+          test "$(zig version)" = "0.15.2"
           test -S /run/docker.sock
           docker version --format "client={{.Client.Version}} server={{.Server.Version}}"
           docker buildx version
