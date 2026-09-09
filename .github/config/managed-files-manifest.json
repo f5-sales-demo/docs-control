@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "506e28c2dc6f621466f00a0c1ea451708d668008",
+  "source_commit": "e2fa2bf8734563c6196dfb6f903e0ab3ba9f2624",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -103,15 +103,15 @@
     {
       "path": ".github/actionlint.yaml",
       "src": ".github/actionlint.yaml",
-      "sha": "a8ade420bf44149ebc8698fbdc761ef4beceb878",
-      "size": 1592,
+      "sha": "40ba5f5d026582341ffb0f81d1d7aced2d27beb0",
+      "size": 1658,
       "mode": "100644"
     },
     {
       "path": ".github/config/self-hosted-runner-policy.json",
       "src": ".github/config/self-hosted-runner-policy.json",
-      "sha": "4047a27ec1be9ac1538a4d3f37b5bb0db0cd02da",
-      "size": 37837,
+      "sha": "8d5a63b7bfbd6af836a1be31bbe9b2c3b7873936",
+      "size": 39918,
       "mode": "100644"
     },
     {
@@ -313,8 +313,8 @@
     {
       "path": "scripts/audit-runner-workflows.py",
       "src": "scripts/audit-runner-workflows.py",
-      "sha": "eb6690ea34097df247107b83a9cb4a4822a2c24b",
-      "size": 35267,
+      "sha": "0541a3672183340f9b724650a6f7174c8f7dcd0a",
+      "size": 36114,
       "mode": "100755"
     },
     {
@@ -383,8 +383,8 @@
     {
       "path": "scripts/workflow_security_validator.py",
       "src": "scripts/workflow_security_validator.py",
-      "sha": "47256345571e5bb0ecc0ffd524489a220108e527",
-      "size": 45816,
+      "sha": "22f8023e6ebdce0fb506e11ea96d8bc93ef3a312",
+      "size": 46628,
       "mode": "100755"
     },
     {
@@ -462,5 +462,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:d9b3426b5f81d66436df80814e1e39b30962bf75e2d10ba5eea6960486fe91cf"
+  "state_digest": "sha256:048964a556ed0cb12ec0cb6b509e5d6ca2b8c121317e1b9b2b3cdf927fac8e18"
 }
