@@ -262,6 +262,16 @@ ARC_SHARED_CONTRACTS = (
         },
     ),
 )
+XCSH_CANDIDATE_SCALE_SETS = {
+    "compute-bun-candidate": {
+        "label": "xcsh-compute-bun-candidate",
+        "attestation": "xcsh-compute-bun-candidate",
+    },
+    "compute-f32-candidate": {
+        "label": "xcsh-compute-f32-candidate",
+        "attestation": "xcsh-compute-f32-candidate",
+    },
+}
 RESERVED_ARC_LABELS = frozenset(
     {
         "api-specs-enriched-compute",
@@ -272,6 +282,8 @@ RESERVED_ARC_LABELS = frozenset(
         "terraform-provider-xcsh-compute",
         "xcsh-container-build",
         "xcsh-compute",
+        "xcsh-compute-bun-candidate",
+        "xcsh-compute-f32-candidate",
         "xcsh-socketless",
     }
 )
@@ -283,6 +295,16 @@ def expected_arc_scale_sets(repository):
         if repository in cohort:
             return contract
     return None
+
+
+def arc_scale_sets_match_contract(repository, scale_sets):
+    """Accept the stable contract or xcsh's exact temporary benchmark extension."""
+    expected = expected_arc_scale_sets(repository)
+    if scale_sets == expected:
+        return True
+    if repository != XCSH_REPOSITORY or expected is None:
+        return False
+    return scale_sets == {**expected, **XCSH_CANDIDATE_SCALE_SETS}
 
 
 class PolicyError(ValueError):
@@ -466,7 +488,7 @@ def repository_runner_routes(
                 raise PolicyError(f"duplicate ARC scale set label: {label}")
             profiles_by_label[label] = profile
         expected = expected_arc_scale_sets(repository)
-        if expected is not None and scale_sets != expected:
+        if expected is not None and not arc_scale_sets_match_contract(repository, scale_sets):
             raise PolicyError(
                 f"{repository} ARC scale-set contract is invalid"
             )

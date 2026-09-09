@@ -474,11 +474,17 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
             "676d9ff1789084e33bc92eac08d247c1d9f3be4fa3ed594ba7a68c7644783e9e"
         )
+        candidate = (
+            "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
+            "677d9bed3a37222c0fe912c035395e56919c4ae80f09d14e4bcb77098335032c"
+        )
         for profile in ("ubuntu-24.04", "ubuntu-24.04-secondary", "automation"):
             self.assertEqual(standard, raw["profiles"][profile]["image"])
         self.assertEqual(container_build, raw["profiles"]["container-build"]["image"])
-        for attestation in raw["arc_attestations"].values():
-            self.assertEqual(standard, attestation["image"])
+        for name in ("terraform-provider-xcsh-d8", "terraform-provider-xcsh-d16"):
+            self.assertEqual(standard, raw["arc_attestations"][name]["image"])
+        for name in ("xcsh-compute-bun-candidate", "xcsh-compute-f32-candidate"):
+            self.assertEqual(candidate, raw["arc_attestations"][name]["image"])
 
         pilot = (ROOT / ".github/workflows/runner-profile-pilot.yml").read_text(
             encoding="utf-8"

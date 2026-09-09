@@ -439,6 +439,26 @@ class EphemeralRunnerTests(unittest.TestCase):
         with self.assertRaisesRegex(MODULE.FleetError, "attestation is malformed"):
             MODULE.FleetPolicy(self.policy_path)
 
+    def test_policy_accepts_only_exact_xcsh_candidate_routes(self):
+        source = ROOT / ".github/config/self-hosted-runner-policy.json"
+        policy = MODULE.FleetPolicy(source)
+        expected = MODULE.expected_arc_scale_sets("f5-sales-demo/xcsh")
+        self.assertEqual(
+            {**expected, **MODULE.XCSH_CANDIDATE_SCALE_SETS},
+            policy.arc_scale_sets["f5-sales-demo/xcsh"],
+        )
+
+        raw = json.loads(source.read_text(encoding="utf-8"))
+        raw["repositories"]["f5-sales-demo/xcsh"]["runner"]["arc_scale_sets"][
+            "extra-candidate"
+        ] = {
+            "label": "xcsh-extra-candidate",
+            "profile": "ubuntu-24.04",
+        }
+        self.policy_path.write_text(json.dumps(raw), encoding="utf-8")
+        with self.assertRaisesRegex(MODULE.FleetError, "contract is invalid"):
+            MODULE.FleetPolicy(self.policy_path)
+
     def test_policy_rejects_podman_era_profile_fields(self):
         profile = self.policy_data["profiles"]["ubuntu-24.04"]
         profile["container_socket"] = profile.pop("docker_socket")

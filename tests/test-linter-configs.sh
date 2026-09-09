@@ -71,6 +71,8 @@ expected = sorted([
     "terraform-provider-xcsh-compute",
     "xcsh-container-build",
     "xcsh-compute",
+    "xcsh-compute-bun-candidate",
+    "xcsh-compute-f32-candidate",
     "xcsh-socketless",
     "docs-container-build",
     "docs-socketless",
@@ -156,7 +158,9 @@ import sys
 policy = json.load(open(sys.argv[1], encoding="utf-8"))
 assert policy["schema_version"] == 5
 provider = "f5-sales-demo/terraform-provider-xcsh"
+xcsh = "f5-sales-demo/xcsh"
 digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:d9bbc99d7576b6e6d8ad3a83b3b0a4cbdcb39b63c3733f8b740624aff0f9afd0"
+candidate_digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:677d9bed3a37222c0fe912c035395e56919c4ae80f09d14e4bcb77098335032c"
 assert policy["arc_attestations"] == {
     "terraform-provider-xcsh-d8": {
         "label": "managed-socketless",
@@ -178,13 +182,53 @@ assert policy["arc_attestations"] == {
         "docker_socket": False,
         "repositories": [provider],
     },
+    "xcsh-compute-bun-candidate": {
+        "label": "xcsh-compute-bun-candidate",
+        "runner_profile": "compute-bun-candidate",
+        "image": candidate_digest,
+        "vm_size": "Standard_D16ads_v5",
+        "cpu_limit": 15,
+        "memory_limit_bytes": 56 * 1024**3,
+        "docker_socket": False,
+        "repositories": [xcsh],
+    },
+    "xcsh-compute-f32-candidate": {
+        "label": "xcsh-compute-f32-candidate",
+        "runner_profile": "compute-f32-candidate",
+        "image": candidate_digest,
+        "vm_size": "Standard_F32s_v2",
+        "cpu_limit": 15,
+        "memory_limit_bytes": 30 * 1024**3,
+        "docker_socket": False,
+        "repositories": [xcsh],
+    },
 }
 assert policy["restricted_routes"] == {
     "terraform-provider-xcsh-compute": [{
         "repository": provider,
         "workflow": ".github/workflows/workload-benchmark.yml",
         "job": "benchmark-d16",
-    }]
+    }],
+    "xcsh-compute-bun-candidate": [
+        {
+            "repository": xcsh,
+            "workflow": ".github/workflows/compute-benchmark.yml",
+            "job": job,
+        }
+        for job in (
+            "d16-software-candidate",
+            "d16-hardware-baseline",
+            "d16-burst",
+        )
+    ],
+    "xcsh-compute-f32-candidate": [
+        {
+            "repository": xcsh,
+            "workflow": ".github/workflows/compute-benchmark.yml",
+            "job": job,
+        }
+        for job in ("f32-hardware-candidate", "f32-burst")
+    ],
 }
 provider_routes = policy["repositories"][provider]["runner"]["arc_scale_sets"]
 assert provider_routes["socketless"] == {

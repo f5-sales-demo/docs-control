@@ -177,6 +177,49 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             }
         }
 
+    @classmethod
+    def xcsh_candidate_contract(cls):
+        repository = "f5-sales-demo/xcsh"
+        digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:" + "a" * 64
+        runner = cls.xcsh_arc_runner()
+        runner["arc_scale_sets"].update(validator.XCSH_CANDIDATE_SCALE_SETS)
+        attestations = {
+            "xcsh-compute-bun-candidate": {
+                "label": "xcsh-compute-bun-candidate",
+                "runner_profile": "compute-bun-candidate",
+                "image": digest,
+                "vm_size": "Standard_D16ads_v5",
+                "cpu_limit": 15,
+                "memory_limit_bytes": 56 * 1024**3,
+                "docker_socket": False,
+                "repositories": [repository],
+            },
+            "xcsh-compute-f32-candidate": {
+                "label": "xcsh-compute-f32-candidate",
+                "runner_profile": "compute-f32-candidate",
+                "image": digest,
+                "vm_size": "Standard_F32s_v2",
+                "cpu_limit": 15,
+                "memory_limit_bytes": 30 * 1024**3,
+                "docker_socket": False,
+                "repositories": [repository],
+            },
+        }
+        restricted = {
+            label: [
+                {
+                    "repository": repository,
+                    "workflow": ".github/workflows/compute-benchmark.yml",
+                    "job": job,
+                }
+            ]
+            for label, job in (
+                ("xcsh-compute-bun-candidate", "d16-software-candidate"),
+                ("xcsh-compute-f32-candidate", "f32-hardware-candidate"),
+            )
+        }
+        return runner, attestations, restricted
+
     @staticmethod
     def managed_arc_runner():
         return {
@@ -318,6 +361,39 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                 "ubuntu-24.04",
                 "f5-sales-demo/terraform-provider-xcsh",
                 cross_repo,
+                restricted,
+            )
+
+    def test_xcsh_candidate_contract_is_exact_and_temporary(self):
+        runner, attestations, restricted = self.xcsh_candidate_contract()
+        routes = validator.repository_runner_routes(
+            {"runner": runner},
+            self.policy["profiles"],
+            "ubuntu-24.04",
+            "f5-sales-demo/xcsh",
+            attestations,
+            restricted,
+        )
+        self.assertEqual(
+            "ubuntu-24.04",
+            validator.resolve_route("xcsh-compute-bun-candidate", routes),
+        )
+        self.assertEqual(
+            "ubuntu-24.04",
+            validator.resolve_route("xcsh-compute-f32-candidate", routes),
+        )
+        drifted = copy.deepcopy(runner)
+        drifted["arc_scale_sets"]["extra-candidate"] = {
+            "label": "xcsh-extra-candidate",
+            "profile": "ubuntu-24.04",
+        }
+        with self.assertRaisesRegex(validator.PolicyError, "contract is invalid"):
+            validator.repository_runner_routes(
+                {"runner": drifted},
+                self.policy["profiles"],
+                "ubuntu-24.04",
+                "f5-sales-demo/xcsh",
+                attestations,
                 restricted,
             )
 
