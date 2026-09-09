@@ -94,6 +94,26 @@
       "memory_limit_bytes": 60129542144,
       "docker_socket": false,
       "repositories": ["f5-sales-demo/terraform-provider-xcsh"]
+    },
+    "xcsh-compute-bun-candidate": {
+      "label": "xcsh-compute-bun-candidate",
+      "runner_profile": "compute-bun-candidate",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:677d9bed3a37222c0fe912c035395e56919c4ae80f09d14e4bcb77098335032c",
+      "vm_size": "Standard_D16ads_v5",
+      "cpu_limit": 15,
+      "memory_limit_bytes": 60129542144,
+      "docker_socket": false,
+      "repositories": ["f5-sales-demo/xcsh"]
+    },
+    "xcsh-compute-f32-candidate": {
+      "label": "xcsh-compute-f32-candidate",
+      "runner_profile": "compute-f32-candidate",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:677d9bed3a37222c0fe912c035395e56919c4ae80f09d14e4bcb77098335032c",
+      "vm_size": "Standard_F32s_v2",
+      "cpu_limit": 15,
+      "memory_limit_bytes": 32212254720,
+      "docker_socket": false,
+      "repositories": ["f5-sales-demo/xcsh"]
     }
   },
   "restricted_routes": {
@@ -102,6 +122,35 @@
         "repository": "f5-sales-demo/terraform-provider-xcsh",
         "workflow": ".github/workflows/workload-benchmark.yml",
         "job": "benchmark-d16"
+      }
+    ],
+    "xcsh-compute-bun-candidate": [
+      {
+        "repository": "f5-sales-demo/xcsh",
+        "workflow": ".github/workflows/compute-benchmark.yml",
+        "job": "d16-software-candidate"
+      },
+      {
+        "repository": "f5-sales-demo/xcsh",
+        "workflow": ".github/workflows/compute-benchmark.yml",
+        "job": "d16-hardware-baseline"
+      },
+      {
+        "repository": "f5-sales-demo/xcsh",
+        "workflow": ".github/workflows/compute-benchmark.yml",
+        "job": "d16-burst"
+      }
+    ],
+    "xcsh-compute-f32-candidate": [
+      {
+        "repository": "f5-sales-demo/xcsh",
+        "workflow": ".github/workflows/compute-benchmark.yml",
+        "job": "f32-hardware-candidate"
+      },
+      {
+        "repository": "f5-sales-demo/xcsh",
+        "workflow": ".github/workflows/compute-benchmark.yml",
+        "job": "f32-burst"
       }
     ]
   },
@@ -1038,6 +1087,14 @@
           "compute": {
             "label": "xcsh-compute",
             "profile": "ubuntu-24.04"
+          },
+          "compute-bun-candidate": {
+            "label": "xcsh-compute-bun-candidate",
+            "attestation": "xcsh-compute-bun-candidate"
+          },
+          "compute-f32-candidate": {
+            "label": "xcsh-compute-f32-candidate",
+            "attestation": "xcsh-compute-f32-candidate"
           }
         }
       }

@@ -52,6 +52,8 @@ self-hosted-runner:
     - xcsh-action
     - xcsh-chrome-extension
     - xcsh-compute
+    - xcsh-compute-bun-candidate
+    - xcsh-compute-f32-candidate
     - xcsh-container-build
     - xcsh-socketless
 

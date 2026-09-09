@@ -102,6 +102,50 @@ class WorkflowAuditTests(unittest.TestCase):
         }
         self.write_policy()
 
+    def use_xcsh_candidate_routes(self):
+        self.use_xcsh_arc_routes()
+        repository = "f5-sales-demo/xcsh"
+        digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:" + "a" * 64
+        self.data["repositories"][repository]["runner"]["arc_scale_sets"].update(
+            MODULE.XCSH_CANDIDATE_SCALE_SETS
+        )
+        self.data["arc_attestations"] = {
+            "xcsh-compute-bun-candidate": {
+                "label": "xcsh-compute-bun-candidate",
+                "runner_profile": "compute-bun-candidate",
+                "image": digest,
+                "vm_size": "Standard_D16ads_v5",
+                "cpu_limit": 15,
+                "memory_limit_bytes": 56 * 1024**3,
+                "docker_socket": False,
+                "repositories": [repository],
+            },
+            "xcsh-compute-f32-candidate": {
+                "label": "xcsh-compute-f32-candidate",
+                "runner_profile": "compute-f32-candidate",
+                "image": digest,
+                "vm_size": "Standard_F32s_v2",
+                "cpu_limit": 15,
+                "memory_limit_bytes": 30 * 1024**3,
+                "docker_socket": False,
+                "repositories": [repository],
+            },
+        }
+        self.data["restricted_routes"] = {
+            label: [
+                {
+                    "repository": repository,
+                    "workflow": ".github/workflows/compute-benchmark.yml",
+                    "job": job,
+                }
+            ]
+            for label, job in (
+                ("xcsh-compute-bun-candidate", "d16-software-candidate"),
+                ("xcsh-compute-f32-candidate", "f32-hardware-candidate"),
+            )
+        }
+        self.write_policy()
+
     def use_provider_attested_routes(self):
         repository = "f5-sales-demo/terraform-provider-xcsh"
         digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:" + "a" * 64
@@ -193,6 +237,27 @@ class WorkflowAuditTests(unittest.TestCase):
         self.assertTrue(
             any("not allowlisted" in item for item in self.audit(repository))
         )
+
+    def test_xcsh_candidate_contract_is_exact_and_temporary(self):
+        self.use_xcsh_candidate_routes()
+        MODULE.validate_arc_attestations(self.data)
+        routes = MODULE.repository_routes(self.data, "f5-sales-demo/xcsh")
+        self.assertEqual(
+            "ubuntu-24.04",
+            routes["profiles_by_label"]["xcsh-compute-bun-candidate"],
+        )
+        self.assertEqual(
+            "ubuntu-24.04",
+            routes["profiles_by_label"]["xcsh-compute-f32-candidate"],
+        )
+        self.data["repositories"]["f5-sales-demo/xcsh"]["runner"]["arc_scale_sets"][
+            "extra-candidate"
+        ] = {
+            "label": "xcsh-extra-candidate",
+            "profile": "ubuntu-24.04",
+        }
+        with self.assertRaisesRegex(MODULE.AuditError, "contract is invalid"):
+            MODULE.repository_routes(self.data, "f5-sales-demo/xcsh")
 
     def test_attested_compute_accepts_only_canonical_fork_safe_expression(self):
         self.use_provider_attested_routes()
