@@ -28,6 +28,30 @@ BENCHMARK_TRUST_GUARD = (
     "github.event.label.name == 'compute-benchmark-approved' && "
     "github.event.pull_request.head.repo.full_name == github.repository"
 )
+HARDWARE_BENCHMARK_TRUST_GUARD = (
+    "github.event_name == 'pull_request' && "
+    "github.event.action == 'labeled' && "
+    "(github.event.label.name == 'compute-benchmark-approved' || "
+    "github.event.label.name == 'compute-hardware-approved') && "
+    "github.event.pull_request.head.repo.full_name == github.repository"
+)
+HARDWARE_AFTER_SOFTWARE_BENCHMARK_TRUST_GUARD = (
+    "always() && "
+    + HARDWARE_BENCHMARK_TRUST_GUARD
+    + " && needs.release-native-fixtures.result == 'success' && "
+    "(github.event.label.name == 'compute-hardware-approved' || "
+    "needs.d16-software-candidate.result == 'success')"
+)
+XCSH_HARDWARE_BENCHMARK_GUARDS = {
+    ("xcsh-compute-bun-candidate", "d16-hardware-baseline"): (
+        HARDWARE_AFTER_SOFTWARE_BENCHMARK_TRUST_GUARD
+    ),
+    ("xcsh-compute-bun-candidate", "d16-burst"): HARDWARE_BENCHMARK_TRUST_GUARD,
+    ("xcsh-compute-f32-candidate", "f32-hardware-candidate"): (
+        HARDWARE_BENCHMARK_TRUST_GUARD
+    ),
+    ("xcsh-compute-f32-candidate", "f32-burst"): HARDWARE_BENCHMARK_TRUST_GUARD,
+}
 TRUSTED_COMPUTE_ROUTE_EXPRESSIONS = {
     "terraform-provider-xcsh-compute": (
         "${{ github.event.pull_request.head.repo.full_name == github.repository && "
@@ -294,6 +318,17 @@ class AuditError(ValueError):
 
 def workflow_on(value):
     return value.get("on", value.get(True)) if isinstance(value, dict) else None
+
+
+def benchmark_trust_guard_is_allowed(repository, relative, job_id, route_label, guard):
+    """Keep the hardware-only label scoped to xcsh's temporary candidate jobs."""
+    if guard == BENCHMARK_TRUST_GUARD:
+        return True
+    return (
+        repository == XCSH_REPOSITORY
+        and relative == ".github/workflows/compute-benchmark.yml"
+        and XCSH_HARDWARE_BENCHMARK_GUARDS.get((route_label, job_id)) == guard
+    )
 
 
 def load_policy(path, repository):
@@ -811,7 +846,13 @@ def audit_job(  # noqa: PLR0917
                 errors.append(
                     f"{relative}/{job_id}: restricted runner route is not allowlisted",
                 )
-            if runs_on == route_label and job.get("if") != BENCHMARK_TRUST_GUARD:
+            if runs_on == route_label and not benchmark_trust_guard_is_allowed(
+                repository,
+                relative,
+                job_id,
+                route_label,
+                job.get("if"),
+            ):
                 errors.append(
                     f"{relative}/{job_id}: direct restricted route requires the exact same-repository benchmark guard",
                 )

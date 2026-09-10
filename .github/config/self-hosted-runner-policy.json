@@ -252,6 +252,12 @@
           "reason": "catalog publishing uses the hosted GitHub environment"
         }
       },
+      ".github/workflows/compute-benchmark.yml": {
+        "release-native-fixtures": {
+          "runs_on": "matrix",
+          "reason": "release qualification fixtures require native hosted Linux ARM64 and Windows platforms"
+        }
+      },
       ".github/workflows/deploy-office-pane.yml": {
         "deploy": {
           "runs_on": "ubuntu-latest",

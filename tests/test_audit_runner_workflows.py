@@ -220,6 +220,14 @@ class WorkflowAuditTests(unittest.TestCase):
         path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
         self.assertEqual(self.audit(repository), [])
 
+        workflow["jobs"]["benchmark-d16"]["if"] = MODULE.HARDWARE_BENCHMARK_TRUST_GUARD
+        path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+        self.assertTrue(
+            any("benchmark guard" in item for item in self.audit(repository))
+        )
+
+        workflow["jobs"]["benchmark-d16"]["if"] = MODULE.BENCHMARK_TRUST_GUARD
+
         workflow["jobs"]["benchmark-d16"].pop("if")
         path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
         self.assertTrue(
@@ -258,6 +266,57 @@ class WorkflowAuditTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(MODULE.AuditError, "contract is invalid"):
             MODULE.repository_routes(self.data, "f5-sales-demo/xcsh")
+
+    def test_xcsh_candidate_routes_accept_only_exact_hardware_guards(self):
+        self.use_xcsh_candidate_routes()
+        repository = "f5-sales-demo/xcsh"
+        workflow_path = ".github/workflows/compute-benchmark.yml"
+        self.data["restricted_routes"] = {
+            "xcsh-compute-bun-candidate": [
+                {
+                    "repository": repository,
+                    "workflow": workflow_path,
+                    "job": "d16-hardware-baseline",
+                }
+            ],
+            "xcsh-compute-f32-candidate": [
+                {
+                    "repository": repository,
+                    "workflow": workflow_path,
+                    "job": "f32-hardware-candidate",
+                }
+            ],
+        }
+        self.write_policy()
+        workflow = {
+            "name": "Hardware benchmark",
+            "on": {"pull_request": {"types": ["labeled"]}},
+            "jobs": {
+                "d16-hardware-baseline": {
+                    "if": MODULE.HARDWARE_AFTER_SOFTWARE_BENCHMARK_TRUST_GUARD,
+                    "runs-on": "xcsh-compute-bun-candidate",
+                    "steps": [{"run": True}],
+                },
+                "f32-hardware-candidate": {
+                    "if": MODULE.HARDWARE_BENCHMARK_TRUST_GUARD,
+                    "runs-on": "xcsh-compute-f32-candidate",
+                    "steps": [{"run": True}],
+                },
+            },
+        }
+        path = self.root / workflow_path
+        path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+        self.assertEqual(self.audit(repository), [])
+
+        workflow["jobs"]["f32-hardware-candidate"]["if"] = (
+            MODULE.HARDWARE_BENCHMARK_TRUST_GUARD.replace(
+                "compute-hardware-approved", "unapproved-label"
+            )
+        )
+        path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+        self.assertTrue(
+            any("benchmark guard" in item for item in self.audit(repository))
+        )
 
     def test_attested_compute_accepts_only_canonical_fork_safe_expression(self):
         self.use_provider_attested_routes()
@@ -1226,6 +1285,25 @@ jobs:
             {
                 "runs_on": "matrix",
                 "reason": "Zig verification requires native macOS and Windows toolchains",
+            },
+        )
+
+    def test_xcsh_compute_benchmark_hosted_matrix_exception_is_exact(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        exception = policy["hosted_exceptions"]["f5-sales-demo/xcsh"][
+            ".github/workflows/compute-benchmark.yml"
+        ]
+        self.assertEqual(
+            exception,
+            {
+                "release-native-fixtures": {
+                    "runs_on": "matrix",
+                    "reason": "release qualification fixtures require native hosted Linux ARM64 and Windows platforms",
+                }
             },
         )
 
