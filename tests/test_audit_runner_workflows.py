@@ -1271,21 +1271,17 @@ jobs:
             },
         )
 
-    def test_xcsh_setup_zig_hosted_matrix_exception_is_exact(self):
+    def test_xcsh_ci_has_no_stale_setup_zig_hosted_exception(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
                 encoding="utf-8"
             )
         )
-        exception = policy["hosted_exceptions"]["f5-sales-demo/xcsh"][
-            ".github/workflows/ci.yml"
-        ]["setup-zig"]
-        self.assertEqual(
-            exception,
-            {
-                "runs_on": "matrix",
-                "reason": "Zig verification requires native macOS and Windows toolchains",
-            },
+        self.assertNotIn(
+            "setup-zig",
+            policy["hosted_exceptions"]["f5-sales-demo/xcsh"][
+                ".github/workflows/ci.yml"
+            ],
         )
 
     def test_xcsh_compute_benchmark_hosted_matrix_exception_is_exact(self):

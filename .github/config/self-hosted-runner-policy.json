@@ -227,10 +227,6 @@
           "runs_on": "matrix",
           "reason": "native builds require hosted platform-specific toolchains"
         },
-        "setup-zig": {
-          "runs_on": "matrix",
-          "reason": "Zig verification requires native macOS and Windows toolchains"
-        },
         "build-sign-macos": {
           "runs_on": "matrix",
           "reason": "Apple signing and notarization require macOS"
