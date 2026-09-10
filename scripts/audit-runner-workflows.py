@@ -28,6 +28,8 @@ BENCHMARK_TRUST_GUARD = (
     "github.event.label.name == 'compute-benchmark-approved' && "
     "github.event.pull_request.head.repo.full_name == github.repository"
 )
+# Keep these exact strings stable across downstream Ruff line lengths.
+# fmt: off
 HARDWARE_BENCHMARK_TRUST_GUARD = (
     "github.event_name == 'pull_request' && "
     "github.event.action == 'labeled' && "
@@ -52,6 +54,7 @@ XCSH_HARDWARE_BENCHMARK_GUARDS = {
     ),
     ("xcsh-compute-f32-candidate", "f32-burst"): HARDWARE_BENCHMARK_TRUST_GUARD,
 }
+# fmt: on
 TRUSTED_COMPUTE_ROUTE_EXPRESSIONS = {
     "terraform-provider-xcsh-compute": (
         "${{ github.event.pull_request.head.repo.full_name == github.repository && "
