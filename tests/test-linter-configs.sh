@@ -303,12 +303,12 @@ assert "skip-dirs" not in config, "root-level skip-dirs is ignored by Trivy 0.71
 scan = config.get("scan")
 assert isinstance(scan, dict), "Trivy scan configuration must be a mapping"
 skip_dirs = scan.get("skip-dirs", [])
-assert skip_dirs == [".mypy_cache", ".ruff_cache", ".pytest_cache", "target"]
+assert skip_dirs == [".mypy_cache", ".ruff_cache", ".pytest_cache", "**/target"]
 PY
   pass "2.5 Trivy skips generated cache and Rust target trees"
 else
   fail "2.5 Trivy skips generated cache and Rust target trees" \
-    "scan.skip-dirs must contain the four ephemeral trees in canonical order"
+    "scan.skip-dirs must contain the three cache roots and every nested Rust target tree in canonical order"
 fi
 
 # ═════════════════════════════════════════════════════════════════
