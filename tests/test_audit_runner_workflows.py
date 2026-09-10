@@ -288,7 +288,7 @@ class WorkflowAuditTests(unittest.TestCase):
             ],
         }
         self.write_policy()
-        workflow = {
+        workflow: dict[str, Any] = {
             "name": "Hardware benchmark",
             "on": {"pull_request": {"types": ["labeled"]}},
             "jobs": {
