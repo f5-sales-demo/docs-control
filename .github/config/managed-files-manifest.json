@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "8e536a55a223f1fe13b0d938f7b09c2bd71d016f",
+  "source_commit": "b8f77fe52d517b06f13de9b11bc84d629175809c",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -432,8 +432,8 @@
     {
       "path": "trivy.yaml",
       "src": "trivy.yaml",
-      "sha": "2bd9c62ad0f3eb16300cc4c2f08a99227f5bc59e",
-      "size": 780,
+      "sha": "086d0c75e0760a0896dd6e90efc627e312509e7f",
+      "size": 798,
       "mode": "100644"
     },
     {
@@ -462,5 +462,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:093acaa3262c9c97db1f62f7472b321f9a5896a787f5d02d8697a1ff914aaf8f"
+  "state_digest": "sha256:325cfc2101c2cf334aaa04fc9dddadbb5a66503a101a0b9d20b8437d0e65ef62"
 }
