@@ -227,10 +227,6 @@
           "runs_on": "matrix",
           "reason": "native builds require hosted platform-specific toolchains"
         },
-        "setup-zig": {
-          "runs_on": "matrix",
-          "reason": "Zig verification requires native macOS and Windows toolchains"
-        },
         "build-sign-macos": {
           "runs_on": "matrix",
           "reason": "Apple signing and notarization require macOS"
@@ -250,6 +246,12 @@
         "update-console-catalog": {
           "runs_on": "ubuntu-22.04",
           "reason": "catalog publishing uses the hosted GitHub environment"
+        }
+      },
+      ".github/workflows/compute-benchmark.yml": {
+        "release-native-fixtures": {
+          "runs_on": "matrix",
+          "reason": "release qualification fixtures require native hosted Linux ARM64 and Windows platforms"
         }
       },
       ".github/workflows/deploy-office-pane.yml": {
