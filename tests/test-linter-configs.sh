@@ -71,7 +71,7 @@ expected = sorted([
     "terraform-provider-xcsh-compute",
     "xcsh-container-build",
     "xcsh-compute",
-    "xcsh-compute-bun-candidate",
+    "xcsh-compute-d16-candidate",
     "xcsh-compute-f32-candidate",
     "xcsh-socketless",
     "docs-container-build",
@@ -160,7 +160,7 @@ assert policy["schema_version"] == 5
 provider = "f5-sales-demo/terraform-provider-xcsh"
 xcsh = "f5-sales-demo/xcsh"
 digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:d9bbc99d7576b6e6d8ad3a83b3b0a4cbdcb39b63c3733f8b740624aff0f9afd0"
-candidate_digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:677d9bed3a37222c0fe912c035395e56919c4ae80f09d14e4bcb77098335032c"
+candidate_digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:9e8fd4ad6b2b0be434521f0a6700a70154a3aea070332cbc10ba1200b657be01"
 assert policy["arc_attestations"] == {
     "terraform-provider-xcsh-d8": {
         "label": "managed-socketless",
@@ -182,9 +182,9 @@ assert policy["arc_attestations"] == {
         "docker_socket": False,
         "repositories": [provider],
     },
-    "xcsh-compute-bun-candidate": {
-        "label": "xcsh-compute-bun-candidate",
-        "runner_profile": "compute-bun-candidate",
+    "xcsh-compute-d16-candidate": {
+        "label": "xcsh-compute-d16-candidate",
+        "runner_profile": "compute-d16-candidate",
         "image": candidate_digest,
         "vm_size": "Standard_D16ads_v5",
         "cpu_limit": 15,
@@ -209,16 +209,18 @@ assert policy["restricted_routes"] == {
         "workflow": ".github/workflows/workload-benchmark.yml",
         "job": "benchmark-d16",
     }],
-    "xcsh-compute-bun-candidate": [
+    "xcsh-compute-d16-candidate": [
         {
             "repository": xcsh,
             "workflow": ".github/workflows/compute-benchmark.yml",
             "job": job,
         }
         for job in (
-            "d16-software-candidate",
-            "d16-hardware-baseline",
-            "d16-burst",
+            "workload",
+            "dag-control",
+            "dag-candidate-native",
+            "dag-candidate-rust",
+            "dag-candidate-typescript",
         )
     ],
     "xcsh-compute-f32-candidate": [
@@ -227,7 +229,7 @@ assert policy["restricted_routes"] == {
             "workflow": ".github/workflows/compute-benchmark.yml",
             "job": job,
         }
-        for job in ("f32-hardware-candidate", "f32-burst")
+        for job in ("workload",)
     ],
 }
 provider_routes = policy["repositories"][provider]["runner"]["arc_scale_sets"]

@@ -183,9 +183,9 @@ ARC_SHARED_CONTRACTS = (
     ),
 )
 XCSH_CANDIDATE_SCALE_SETS = {
-    "compute-bun-candidate": {
-        "label": "xcsh-compute-bun-candidate",
-        "attestation": "xcsh-compute-bun-candidate",
+    "compute-d16-candidate": {
+        "label": "xcsh-compute-d16-candidate",
+        "attestation": "xcsh-compute-d16-candidate",
     },
     "compute-f32-candidate": {
         "label": "xcsh-compute-f32-candidate",
@@ -202,7 +202,7 @@ RESERVED_ARC_LABELS = frozenset(
         "terraform-provider-xcsh-compute",
         "xcsh-container-build",
         "xcsh-compute",
-        "xcsh-compute-bun-candidate",
+        "xcsh-compute-d16-candidate",
         "xcsh-compute-f32-candidate",
         "xcsh-socketless",
     }
