@@ -109,6 +109,9 @@ XCSH_CANDIDATE_RESTRICTED_GRANTS = {
         "xcsh-compute-f32-candidate",
     )
 }
+# fmt: off
+XCSH_CANDIDATE_GRANT_IDENTITIES = frozenset().union(*XCSH_CANDIDATE_RESTRICTED_GRANTS.values())
+# fmt: on
 DOCS_ICONS_REPOSITORY = "f5-sales-demo/docs-icons"
 DOCS_SOCKETLESS_ROUTE_EXPRESSION = "${{ github.repository == 'f5-sales-demo/docs-icons' && 'docs-socketless' || 'managed-socketless' }}"  # fmt: skip
 DOCS_SOCKETLESS_ROUTE_LABELS = {DOCS_ICONS_REPOSITORY: "docs-socketless"}
@@ -872,26 +875,18 @@ def audit_job(  # noqa: PLR0917
             runs_on,
             workflow,
         )
-        candidate_identities = set().union(*XCSH_CANDIDATE_RESTRICTED_GRANTS.values())
-        if (
-            identity in candidate_identities
-            and runs_on != XCSH_MANUAL_COMPUTE_ROUTE_EXPRESSION
-        ):
-            errors.append(
-                f"{relative}/{job_id}: xcsh candidate job requires the exact manual route expression"
-            )
-        if (
-            runs_on == XCSH_MANUAL_COMPUTE_ROUTE_EXPRESSION
-            and dynamic_route_labels is None
-        ):
-            errors.append(
-                f"{relative}/{job_id}: xcsh manual route requires its exact workflow_dispatch job context"
-            )
+        is_candidate_job = identity in XCSH_CANDIDATE_GRANT_IDENTITIES
+        is_manual_route = runs_on == XCSH_MANUAL_COMPUTE_ROUTE_EXPRESSION
+        if is_candidate_job and not is_manual_route:
+            message = "xcsh candidate job requires the exact manual route expression"
+            errors.append(f"{relative}/{job_id}: {message}")
+        if is_manual_route and dynamic_route_labels is None:
+            message = "xcsh manual route requires its workflow_dispatch job context"
+            errors.append(f"{relative}/{job_id}: {message}")
         resolved_profile = profile_for_route(runs_on, profiles, routes, repository)
         if dynamic_route_labels is not None:
-            dynamic_profiles = {
-                routes["profiles_by_label"].get(label) for label in dynamic_route_labels
-            }
+            profiles_by_label = routes["profiles_by_label"]
+            dynamic_profiles = set(map(profiles_by_label.get, dynamic_route_labels))
             if None not in dynamic_profiles and len(dynamic_profiles) == 1:
                 resolved_profile = next(iter(dynamic_profiles))
         if resolved_profile is None:
@@ -904,9 +899,8 @@ def audit_job(  # noqa: PLR0917
             errors.append(
                 f"{relative}/{job_id}: runs-on must use the canonical repository route, got {runs_on!r}",
             )
-        route_labels = dynamic_route_labels or frozenset(
-            {canonical_route_label(runs_on, repository)}
-        )
+        canonical_label = canonical_route_label(runs_on, repository)
+        route_labels = dynamic_route_labels or frozenset({canonical_label})
         for route_label in route_labels:
             grants = routes.get("restricted_grants", {}).get(route_label)
             if grants is None:
