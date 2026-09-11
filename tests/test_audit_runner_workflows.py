@@ -110,9 +110,9 @@ class WorkflowAuditTests(unittest.TestCase):
             MODULE.XCSH_CANDIDATE_SCALE_SETS
         )
         self.data["arc_attestations"] = {
-            "xcsh-compute-bun-candidate": {
-                "label": "xcsh-compute-bun-candidate",
-                "runner_profile": "compute-bun-candidate",
+            "xcsh-compute-d16-candidate": {
+                "label": "xcsh-compute-d16-candidate",
+                "runner_profile": "compute-d16-candidate",
                 "image": digest,
                 "vm_size": "Standard_D16ads_v5",
                 "cpu_limit": 15,
@@ -134,15 +134,13 @@ class WorkflowAuditTests(unittest.TestCase):
         self.data["restricted_routes"] = {
             label: [
                 {
-                    "repository": repository,
-                    "workflow": ".github/workflows/compute-benchmark.yml",
+                    "repository": grant_repository,
+                    "workflow": workflow,
                     "job": job,
                 }
+                for grant_repository, workflow, job in sorted(grants)
             ]
-            for label, job in (
-                ("xcsh-compute-bun-candidate", "d16-software-candidate"),
-                ("xcsh-compute-f32-candidate", "f32-hardware-candidate"),
-            )
+            for label, grants in MODULE.XCSH_CANDIDATE_RESTRICTED_GRANTS.items()
         }
         self.write_policy()
 
@@ -220,7 +218,7 @@ class WorkflowAuditTests(unittest.TestCase):
         path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
         self.assertEqual(self.audit(repository), [])
 
-        workflow["jobs"]["benchmark-d16"]["if"] = MODULE.HARDWARE_BENCHMARK_TRUST_GUARD
+        workflow["jobs"]["benchmark-d16"]["if"] = "github.event_name == 'push'"
         path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
         self.assertTrue(
             any("benchmark guard" in item for item in self.audit(repository))
@@ -252,7 +250,7 @@ class WorkflowAuditTests(unittest.TestCase):
         routes = MODULE.repository_routes(self.data, "f5-sales-demo/xcsh")
         self.assertEqual(
             "ubuntu-24.04",
-            routes["profiles_by_label"]["xcsh-compute-bun-candidate"],
+            routes["profiles_by_label"]["xcsh-compute-d16-candidate"],
         )
         self.assertEqual(
             "ubuntu-24.04",
@@ -267,56 +265,50 @@ class WorkflowAuditTests(unittest.TestCase):
         with self.assertRaisesRegex(MODULE.AuditError, "contract is invalid"):
             MODULE.repository_routes(self.data, "f5-sales-demo/xcsh")
 
-    def test_xcsh_candidate_routes_accept_only_exact_hardware_guards(self):
+    def test_xcsh_candidate_routes_accept_only_exact_manual_dispatch(self):
         self.use_xcsh_candidate_routes()
         repository = "f5-sales-demo/xcsh"
         workflow_path = ".github/workflows/compute-benchmark.yml"
-        self.data["restricted_routes"] = {
-            "xcsh-compute-bun-candidate": [
-                {
-                    "repository": repository,
-                    "workflow": workflow_path,
-                    "job": "d16-hardware-baseline",
-                }
-            ],
-            "xcsh-compute-f32-candidate": [
-                {
-                    "repository": repository,
-                    "workflow": workflow_path,
-                    "job": "f32-hardware-candidate",
-                }
-            ],
-        }
-        self.write_policy()
         workflow: dict[str, Any] = {
-            "name": "Hardware benchmark",
-            "on": {"pull_request": {"types": ["labeled"]}},
+            "name": "Manual compute qualification",
+            "on": {"workflow_dispatch": {"inputs": {}}},
             "jobs": {
-                "d16-hardware-baseline": {
-                    "if": MODULE.HARDWARE_AFTER_SOFTWARE_BENCHMARK_TRUST_GUARD,
-                    "runs-on": "xcsh-compute-bun-candidate",
+                job_id: {
+                    "runs-on": MODULE.XCSH_MANUAL_COMPUTE_ROUTE_EXPRESSION,
                     "steps": [{"run": True}],
-                },
-                "f32-hardware-candidate": {
-                    "if": MODULE.HARDWARE_BENCHMARK_TRUST_GUARD,
-                    "runs-on": "xcsh-compute-f32-candidate",
-                    "steps": [{"run": True}],
-                },
+                }
+                for job_id in MODULE.XCSH_MANUAL_COMPUTE_ROUTE_LABELS
             },
         }
         path = self.root / workflow_path
         path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
         self.assertEqual(self.audit(repository), [])
 
-        workflow["jobs"]["f32-hardware-candidate"]["if"] = (
-            MODULE.HARDWARE_BENCHMARK_TRUST_GUARD.replace(
-                "compute-hardware-approved", "unapproved-label"
-            )
-        )
+        workflow["jobs"]["workload"]["runs-on"] = "${{ needs.route.outputs.label }}"
         path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
         self.assertTrue(
-            any("benchmark guard" in item for item in self.audit(repository))
+            any("exact manual route" in item for item in self.audit(repository))
         )
+
+        workflow["jobs"]["workload"]["runs-on"] = (
+            MODULE.XCSH_MANUAL_COMPUTE_ROUTE_EXPRESSION
+        )
+        workflow["on"] = {"pull_request": {}}
+        path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
+        self.assertTrue(
+            any("workflow_dispatch" in item for item in self.audit(repository))
+        )
+
+        self.data["restricted_routes"]["xcsh-compute-f32-candidate"].append(
+            {
+                "repository": repository,
+                "workflow": workflow_path,
+                "job": "dag-control",
+            }
+        )
+        self.write_policy()
+        with self.assertRaisesRegex(MODULE.AuditError, "candidate grants"):
+            MODULE.repository_routes(self.data, repository)
 
     def test_attested_compute_accepts_only_canonical_fork_safe_expression(self):
         self.use_provider_attested_routes()
@@ -1271,20 +1263,25 @@ jobs:
             },
         )
 
-    def test_xcsh_ci_has_no_stale_setup_zig_hosted_exception(self):
+    def test_xcsh_ci_has_exact_image_runtime_hosted_exception(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
                 encoding="utf-8"
             )
         )
-        self.assertNotIn(
-            "setup-zig",
-            policy["hosted_exceptions"]["f5-sales-demo/xcsh"][
-                ".github/workflows/ci.yml"
-            ],
+        exceptions = policy["hosted_exceptions"]["f5-sales-demo/xcsh"][
+            ".github/workflows/ci.yml"
+        ]
+        self.assertNotIn("setup-zig", exceptions)
+        self.assertEqual(
+            exceptions["image-runtime"],
+            {
+                "runs_on": "matrix",
+                "reason": "image runtime qualification requires hosted platform-specific environments",
+            },
         )
 
-    def test_xcsh_compute_benchmark_hosted_matrix_exception_is_exact(self):
+    def test_xcsh_compute_benchmark_hosted_summary_exceptions_are_exact(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
                 encoding="utf-8"
@@ -1296,10 +1293,14 @@ jobs:
         self.assertEqual(
             exception,
             {
-                "release-native-fixtures": {
-                    "runs_on": "matrix",
-                    "reason": "release qualification fixtures require native hosted Linux ARM64 and Windows platforms",
-                }
+                "dag-control-summary": {
+                    "runs_on": "ubuntu-24.04",
+                    "reason": "DAG control summary uses the hosted GitHub API environment",
+                },
+                "dag-candidate-summary": {
+                    "runs_on": "ubuntu-24.04",
+                    "reason": "DAG candidate summary uses the hosted GitHub API environment",
+                },
             },
         )
 

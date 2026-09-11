@@ -28,33 +28,6 @@ BENCHMARK_TRUST_GUARD = (
     "github.event.label.name == 'compute-benchmark-approved' && "
     "github.event.pull_request.head.repo.full_name == github.repository"
 )
-# Keep these exact strings stable across downstream Ruff line lengths.
-# fmt: off
-HARDWARE_BENCHMARK_TRUST_GUARD = (
-    "github.event_name == 'pull_request' && "
-    "github.event.action == 'labeled' && "
-    "(github.event.label.name == 'compute-benchmark-approved' || "
-    "github.event.label.name == 'compute-hardware-approved') && "
-    "github.event.pull_request.head.repo.full_name == github.repository"
-)
-HARDWARE_AFTER_SOFTWARE_BENCHMARK_TRUST_GUARD = (
-    "always() && "
-    + HARDWARE_BENCHMARK_TRUST_GUARD
-    + " && needs.release-native-fixtures.result == 'success' && "
-    "(github.event.label.name == 'compute-hardware-approved' || "
-    "needs.d16-software-candidate.result == 'success')"
-)
-XCSH_HARDWARE_BENCHMARK_GUARDS = {
-    ("xcsh-compute-bun-candidate", "d16-hardware-baseline"): (
-        HARDWARE_AFTER_SOFTWARE_BENCHMARK_TRUST_GUARD
-    ),
-    ("xcsh-compute-bun-candidate", "d16-burst"): HARDWARE_BENCHMARK_TRUST_GUARD,
-    ("xcsh-compute-f32-candidate", "f32-hardware-candidate"): (
-        HARDWARE_BENCHMARK_TRUST_GUARD
-    ),
-    ("xcsh-compute-f32-candidate", "f32-burst"): HARDWARE_BENCHMARK_TRUST_GUARD,
-}
-# fmt: on
 TRUSTED_COMPUTE_ROUTE_EXPRESSIONS = {
     "terraform-provider-xcsh-compute": (
         "${{ github.event.pull_request.head.repo.full_name == github.repository && "
@@ -110,6 +83,32 @@ CANONICAL_SUPER_LINTER_INPUTS = {
 }
 # fmt: on
 XCSH_REPOSITORY = "f5-sales-demo/xcsh"
+XCSH_COMPUTE_WORKFLOW = ".github/workflows/compute-benchmark.yml"
+XCSH_MANUAL_COMPUTE_ROUTE_EXPRESSION = "${{ needs.prepare.outputs.runner_label }}"
+XCSH_MANUAL_COMPUTE_ROUTE_LABELS = {
+    "workload": frozenset(
+        {
+            "xcsh-compute",
+            "xcsh-compute-d16-candidate",
+            "xcsh-compute-f32-candidate",
+        }
+    ),
+    "dag-control": frozenset({"xcsh-compute-d16-candidate"}),
+    "dag-candidate-native": frozenset({"xcsh-compute-d16-candidate"}),
+    "dag-candidate-rust": frozenset({"xcsh-compute-d16-candidate"}),
+    "dag-candidate-typescript": frozenset({"xcsh-compute-d16-candidate"}),
+}
+XCSH_CANDIDATE_RESTRICTED_GRANTS = {
+    label: frozenset(
+        (XCSH_REPOSITORY, XCSH_COMPUTE_WORKFLOW, job_id)
+        for job_id, labels in XCSH_MANUAL_COMPUTE_ROUTE_LABELS.items()
+        if label in labels
+    )
+    for label in (
+        "xcsh-compute-d16-candidate",
+        "xcsh-compute-f32-candidate",
+    )
+}
 DOCS_ICONS_REPOSITORY = "f5-sales-demo/docs-icons"
 DOCS_SOCKETLESS_ROUTE_EXPRESSION = "${{ github.repository == 'f5-sales-demo/docs-icons' && 'docs-socketless' || 'managed-socketless' }}"  # fmt: skip
 DOCS_SOCKETLESS_ROUTE_LABELS = {DOCS_ICONS_REPOSITORY: "docs-socketless"}
@@ -271,9 +270,9 @@ ARC_SHARED_CONTRACTS = (
     ),
 )
 XCSH_CANDIDATE_SCALE_SETS = {
-    "compute-bun-candidate": {
-        "label": "xcsh-compute-bun-candidate",
-        "attestation": "xcsh-compute-bun-candidate",
+    "compute-d16-candidate": {
+        "label": "xcsh-compute-d16-candidate",
+        "attestation": "xcsh-compute-d16-candidate",
     },
     "compute-f32-candidate": {
         "label": "xcsh-compute-f32-candidate",
@@ -290,7 +289,7 @@ RESERVED_ARC_LABELS = frozenset(
         "terraform-provider-xcsh-compute",
         "xcsh-container-build",
         "xcsh-compute",
-        "xcsh-compute-bun-candidate",
+        "xcsh-compute-d16-candidate",
         "xcsh-compute-f32-candidate",
         "xcsh-socketless",
     }
@@ -315,6 +314,27 @@ def arc_scale_sets_match_contract(repository, scale_sets):
     return scale_sets == {**expected, **XCSH_CANDIDATE_SCALE_SETS}
 
 
+def validate_xcsh_candidate_grants(repository, scale_sets, restricted_routes):
+    """Require the exact manual-job grant set for each xcsh candidate label."""
+    expected_scale_sets = expected_arc_scale_sets(repository)
+    candidate_contract = (
+        repository == XCSH_REPOSITORY
+        and expected_scale_sets is not None
+        and scale_sets == {**expected_scale_sets, **XCSH_CANDIDATE_SCALE_SETS}
+    )
+    if not candidate_contract:
+        return
+    for label, expected in XCSH_CANDIDATE_RESTRICTED_GRANTS.items():
+        grants = (restricted_routes or {}).get(label, [])
+        actual = {
+            (grant.get("repository"), grant.get("workflow"), grant.get("job"))
+            for grant in grants
+            if isinstance(grant, dict)
+        }
+        if actual != expected:
+            raise AuditError(f"xcsh candidate grants are invalid for {label}")
+
+
 class AuditError(ValueError):
     """A deterministic workflow policy violation."""
 
@@ -324,14 +344,9 @@ def workflow_on(value):
 
 
 def benchmark_trust_guard_is_allowed(repository, relative, job_id, route_label, guard):
-    """Keep the hardware-only label scoped to xcsh's temporary candidate jobs."""
-    if guard == BENCHMARK_TRUST_GUARD:
-        return True
-    return (
-        repository == XCSH_REPOSITORY
-        and relative == ".github/workflows/compute-benchmark.yml"
-        and XCSH_HARDWARE_BENCHMARK_GUARDS.get((route_label, job_id)) == guard
-    )
+    """Require the generic same-repository guard for direct restricted routes."""
+    del repository, relative, job_id, route_label
+    return guard == BENCHMARK_TRUST_GUARD
 
 
 def load_policy(path, repository):
@@ -510,6 +525,11 @@ def repository_routes(policy, repository):
             scale_sets,
         ):
             raise AuditError(f"{repository} ARC scale-set contract is invalid")
+        validate_xcsh_candidate_grants(
+            repository,
+            scale_sets,
+            policy.get("restricted_routes"),
+        )
         if expected is None:
             leaked = set(profiles_by_label) & RESERVED_ARC_LABELS
             if leaked:
@@ -564,6 +584,20 @@ def canonical_route_label(value, repository):
         if value == expression:
             return label
     return value
+
+
+def trusted_dynamic_route_labels(repository, relative, job_id, runs_on, workflow):
+    """Resolve the one manual xcsh route expression in its exact job context."""
+    triggers = workflow_on(workflow)
+    if (
+        repository != XCSH_REPOSITORY
+        or relative != XCSH_COMPUTE_WORKFLOW
+        or runs_on != XCSH_MANUAL_COMPUTE_ROUTE_EXPRESSION
+        or not isinstance(triggers, dict)
+        or set(triggers) != {"workflow_dispatch"}
+    ):
+        return None
+    return XCSH_MANUAL_COMPUTE_ROUTE_LABELS.get(job_id)
 
 
 def profile_for_route(runs_on, profiles, routes, repository):
@@ -830,7 +864,36 @@ def audit_job(  # noqa: PLR0917
             errors.append(f"{relative}/{job_id}: hosted exception reason is incomplete")
     else:
         profile = default_profile
+        identity = (repository, relative, job_id)
+        dynamic_route_labels = trusted_dynamic_route_labels(
+            repository,
+            relative,
+            job_id,
+            runs_on,
+            workflow,
+        )
+        candidate_identities = set().union(*XCSH_CANDIDATE_RESTRICTED_GRANTS.values())
+        if (
+            identity in candidate_identities
+            and runs_on != XCSH_MANUAL_COMPUTE_ROUTE_EXPRESSION
+        ):
+            errors.append(
+                f"{relative}/{job_id}: xcsh candidate job requires the exact manual route expression"
+            )
+        if (
+            runs_on == XCSH_MANUAL_COMPUTE_ROUTE_EXPRESSION
+            and dynamic_route_labels is None
+        ):
+            errors.append(
+                f"{relative}/{job_id}: xcsh manual route requires its exact workflow_dispatch job context"
+            )
         resolved_profile = profile_for_route(runs_on, profiles, routes, repository)
+        if dynamic_route_labels is not None:
+            dynamic_profiles = {
+                routes["profiles_by_label"].get(label) for label in dynamic_route_labels
+            }
+            if None not in dynamic_profiles and len(dynamic_profiles) == 1:
+                resolved_profile = next(iter(dynamic_profiles))
         if resolved_profile is None:
             definition_context = repository, relative, job_id, runs_on
             resolved_profile = reusable_definition_profile(*definition_context)
@@ -841,10 +904,13 @@ def audit_job(  # noqa: PLR0917
             errors.append(
                 f"{relative}/{job_id}: runs-on must use the canonical repository route, got {runs_on!r}",
             )
-        route_label = canonical_route_label(runs_on, repository)
-        grants = routes.get("restricted_grants", {}).get(route_label)
-        if grants is not None:
-            identity = (repository, relative, job_id)
+        route_labels = dynamic_route_labels or frozenset(
+            {canonical_route_label(runs_on, repository)}
+        )
+        for route_label in route_labels:
+            grants = routes.get("restricted_grants", {}).get(route_label)
+            if grants is None:
+                continue
             if identity not in grants:
                 errors.append(
                     f"{relative}/{job_id}: restricted runner route is not allowlisted",

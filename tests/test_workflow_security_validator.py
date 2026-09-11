@@ -184,9 +184,9 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         runner = cls.xcsh_arc_runner()
         runner["arc_scale_sets"].update(validator.XCSH_CANDIDATE_SCALE_SETS)
         attestations = {
-            "xcsh-compute-bun-candidate": {
-                "label": "xcsh-compute-bun-candidate",
-                "runner_profile": "compute-bun-candidate",
+            "xcsh-compute-d16-candidate": {
+                "label": "xcsh-compute-d16-candidate",
+                "runner_profile": "compute-d16-candidate",
                 "image": digest,
                 "vm_size": "Standard_D16ads_v5",
                 "cpu_limit": 15,
@@ -208,15 +208,13 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         restricted = {
             label: [
                 {
-                    "repository": repository,
-                    "workflow": ".github/workflows/compute-benchmark.yml",
+                    "repository": grant_repository,
+                    "workflow": workflow,
                     "job": job,
                 }
+                for grant_repository, workflow, job in sorted(grants)
             ]
-            for label, job in (
-                ("xcsh-compute-bun-candidate", "d16-software-candidate"),
-                ("xcsh-compute-f32-candidate", "f32-hardware-candidate"),
-            )
+            for label, grants in validator.XCSH_CANDIDATE_RESTRICTED_GRANTS.items()
         }
         return runner, attestations, restricted
 
@@ -326,9 +324,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             [(workflow_path, "benchmark-d16", ["jobs", "benchmark-d16", "runs-on"])],
             validate_current(),
         )
-        workflow["jobs"]["benchmark-d16"]["if"] = (
-            validator.HARDWARE_BENCHMARK_TRUST_GUARD
-        )
+        workflow["jobs"]["benchmark-d16"]["if"] = "github.event_name == 'push'"
         with self.assertRaisesRegex(validator.PolicyError, "benchmark guard"):
             validate_current()
         workflow["jobs"]["benchmark-d16"]["if"] = validator.BENCHMARK_TRUST_GUARD
@@ -382,7 +378,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         )
         self.assertEqual(
             "ubuntu-24.04",
-            validator.resolve_route("xcsh-compute-bun-candidate", routes),
+            validator.resolve_route("xcsh-compute-d16-candidate", routes),
         )
         self.assertEqual(
             "ubuntu-24.04",
@@ -403,41 +399,20 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                 restricted,
             )
 
-    def test_xcsh_candidate_routes_accept_only_exact_hardware_guards(self):
+    def test_xcsh_candidate_routes_accept_only_exact_manual_dispatch(self):
         repository = "f5-sales-demo/xcsh"
         workflow_path = ".github/workflows/compute-benchmark.yml"
-        runner, attestations, _ = self.xcsh_candidate_contract()
-        restricted = {
-            "xcsh-compute-bun-candidate": [
-                {
-                    "repository": repository,
-                    "workflow": workflow_path,
-                    "job": "d16-hardware-baseline",
-                }
-            ],
-            "xcsh-compute-f32-candidate": [
-                {
-                    "repository": repository,
-                    "workflow": workflow_path,
-                    "job": "f32-hardware-candidate",
-                }
-            ],
-        }
+        runner, attestations, restricted = self.xcsh_candidate_contract()
         workflow = {
-            "name": "Hardware benchmark",
-            "on": {"pull_request": {"types": ["labeled"]}},
+            "name": "Manual compute qualification",
+            "on": {"workflow_dispatch": {"inputs": {}}},
             "permissions": {},
             "jobs": {
-                "d16-hardware-baseline": {
-                    "if": validator.HARDWARE_AFTER_SOFTWARE_BENCHMARK_TRUST_GUARD,
-                    "runs-on": "xcsh-compute-bun-candidate",
+                job_id: {
+                    "runs-on": validator.XCSH_MANUAL_COMPUTE_ROUTE_EXPRESSION,
                     "steps": [{"run": True}],
-                },
-                "f32-hardware-candidate": {
-                    "if": validator.HARDWARE_BENCHMARK_TRUST_GUARD,
-                    "runs-on": "xcsh-compute-f32-candidate",
-                    "steps": [{"run": True}],
-                },
+                }
+                for job_id in validator.XCSH_MANUAL_COMPUTE_ROUTE_LABELS
             },
         }
         path = self.root / workflow_path
@@ -456,13 +431,26 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                 [], self.root, repository, self.policy_path, self.governance_path
             )
 
-        self.assertEqual(2, len(validate_current()))
-        workflow["jobs"]["f32-hardware-candidate"]["if"] = (
-            validator.HARDWARE_BENCHMARK_TRUST_GUARD.replace(
-                "compute-hardware-approved", "unapproved-label"
-            )
+        self.assertEqual(5, len(validate_current()))
+        workflow["jobs"]["workload"]["runs-on"] = "${{ needs.route.outputs.label }}"
+        with self.assertRaisesRegex(validator.PolicyError, "exact manual route"):
+            validate_current()
+        workflow["jobs"]["workload"]["runs-on"] = (
+            validator.XCSH_MANUAL_COMPUTE_ROUTE_EXPRESSION
         )
-        with self.assertRaisesRegex(validator.PolicyError, "benchmark guard"):
+        workflow["on"] = {"pull_request": {}}
+        with self.assertRaisesRegex(validator.PolicyError, "workflow_dispatch"):
+            validate_current()
+
+        workflow["on"] = {"workflow_dispatch": {"inputs": {}}}
+        policy["restricted_routes"]["xcsh-compute-f32-candidate"].append(
+            {
+                "repository": repository,
+                "workflow": workflow_path,
+                "job": "dag-control",
+            }
+        )
+        with self.assertRaisesRegex(validator.PolicyError, "candidate grants"):
             validate_current()
 
     def test_managed_arc_labels_are_exact_and_cohort_bound(self):

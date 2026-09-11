@@ -95,10 +95,10 @@
       "docker_socket": false,
       "repositories": ["f5-sales-demo/terraform-provider-xcsh"]
     },
-    "xcsh-compute-bun-candidate": {
-      "label": "xcsh-compute-bun-candidate",
-      "runner_profile": "compute-bun-candidate",
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:677d9bed3a37222c0fe912c035395e56919c4ae80f09d14e4bcb77098335032c",
+    "xcsh-compute-d16-candidate": {
+      "label": "xcsh-compute-d16-candidate",
+      "runner_profile": "compute-d16-candidate",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:9e8fd4ad6b2b0be434521f0a6700a70154a3aea070332cbc10ba1200b657be01",
       "vm_size": "Standard_D16ads_v5",
       "cpu_limit": 15,
       "memory_limit_bytes": 60129542144,
@@ -108,7 +108,7 @@
     "xcsh-compute-f32-candidate": {
       "label": "xcsh-compute-f32-candidate",
       "runner_profile": "compute-f32-candidate",
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:677d9bed3a37222c0fe912c035395e56919c4ae80f09d14e4bcb77098335032c",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:9e8fd4ad6b2b0be434521f0a6700a70154a3aea070332cbc10ba1200b657be01",
       "vm_size": "Standard_F32s_v2",
       "cpu_limit": 15,
       "memory_limit_bytes": 32212254720,
@@ -124,33 +124,38 @@
         "job": "benchmark-d16"
       }
     ],
-    "xcsh-compute-bun-candidate": [
+    "xcsh-compute-d16-candidate": [
       {
         "repository": "f5-sales-demo/xcsh",
         "workflow": ".github/workflows/compute-benchmark.yml",
-        "job": "d16-software-candidate"
+        "job": "workload"
       },
       {
         "repository": "f5-sales-demo/xcsh",
         "workflow": ".github/workflows/compute-benchmark.yml",
-        "job": "d16-hardware-baseline"
+        "job": "dag-control"
       },
       {
         "repository": "f5-sales-demo/xcsh",
         "workflow": ".github/workflows/compute-benchmark.yml",
-        "job": "d16-burst"
+        "job": "dag-candidate-native"
+      },
+      {
+        "repository": "f5-sales-demo/xcsh",
+        "workflow": ".github/workflows/compute-benchmark.yml",
+        "job": "dag-candidate-rust"
+      },
+      {
+        "repository": "f5-sales-demo/xcsh",
+        "workflow": ".github/workflows/compute-benchmark.yml",
+        "job": "dag-candidate-typescript"
       }
     ],
     "xcsh-compute-f32-candidate": [
       {
         "repository": "f5-sales-demo/xcsh",
         "workflow": ".github/workflows/compute-benchmark.yml",
-        "job": "f32-hardware-candidate"
-      },
-      {
-        "repository": "f5-sales-demo/xcsh",
-        "workflow": ".github/workflows/compute-benchmark.yml",
-        "job": "f32-burst"
+        "job": "workload"
       }
     ]
   },
@@ -223,6 +228,10 @@
         }
       },
       ".github/workflows/ci.yml": {
+        "image-runtime": {
+          "runs_on": "matrix",
+          "reason": "image runtime qualification requires hosted platform-specific environments"
+        },
         "native": {
           "runs_on": "matrix",
           "reason": "native builds require hosted platform-specific toolchains"
@@ -249,9 +258,13 @@
         }
       },
       ".github/workflows/compute-benchmark.yml": {
-        "release-native-fixtures": {
-          "runs_on": "matrix",
-          "reason": "release qualification fixtures require native hosted Linux ARM64 and Windows platforms"
+        "dag-control-summary": {
+          "runs_on": "ubuntu-24.04",
+          "reason": "DAG control summary uses the hosted GitHub API environment"
+        },
+        "dag-candidate-summary": {
+          "runs_on": "ubuntu-24.04",
+          "reason": "DAG candidate summary uses the hosted GitHub API environment"
         }
       },
       ".github/workflows/deploy-office-pane.yml": {
@@ -1090,9 +1103,9 @@
             "label": "xcsh-compute",
             "profile": "ubuntu-24.04"
           },
-          "compute-bun-candidate": {
-            "label": "xcsh-compute-bun-candidate",
-            "attestation": "xcsh-compute-bun-candidate"
+          "compute-d16-candidate": {
+            "label": "xcsh-compute-d16-candidate",
+            "attestation": "xcsh-compute-d16-candidate"
           },
           "compute-f32-candidate": {
             "label": "xcsh-compute-f32-candidate",
