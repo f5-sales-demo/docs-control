@@ -159,8 +159,7 @@ policy = json.load(open(sys.argv[1], encoding="utf-8"))
 assert policy["schema_version"] == 5
 provider = "f5-sales-demo/terraform-provider-xcsh"
 xcsh = "f5-sales-demo/xcsh"
-digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:d9bbc99d7576b6e6d8ad3a83b3b0a4cbdcb39b63c3733f8b740624aff0f9afd0"
-candidate_digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:9e8fd4ad6b2b0be434521f0a6700a70154a3aea070332cbc10ba1200b657be01"
+digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca"
 assert policy["arc_attestations"] == {
     "terraform-provider-xcsh-d8": {
         "label": "managed-socketless",
@@ -185,7 +184,7 @@ assert policy["arc_attestations"] == {
     "xcsh-compute-d16-candidate": {
         "label": "xcsh-compute-d16-candidate",
         "runner_profile": "compute-d16-candidate",
-        "image": candidate_digest,
+        "image": digest,
         "vm_size": "Standard_D16ads_v5",
         "cpu_limit": 15,
         "memory_limit_bytes": 56 * 1024**3,
@@ -195,7 +194,7 @@ assert policy["arc_attestations"] == {
     "xcsh-compute-f32-candidate": {
         "label": "xcsh-compute-f32-candidate",
         "runner_profile": "compute-f32-candidate",
-        "image": candidate_digest,
+        "image": digest,
         "vm_size": "Standard_F32s_v2",
         "cpu_limit": 15,
         "memory_limit_bytes": 30 * 1024**3,
