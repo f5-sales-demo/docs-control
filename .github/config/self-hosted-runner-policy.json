@@ -24,7 +24,7 @@
   },
   "profiles": {
     "ubuntu-24.04": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:d9bbc99d7576b6e6d8ad3a83b3b0a4cbdcb39b63c3733f8b740624aff0f9afd0",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca",
       "labels": ["ubuntu-24.04"],
       "memory": "8g",
       "cpus": "4",
@@ -34,7 +34,7 @@
       "docker_socket": false
     },
     "ubuntu-24.04-secondary": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:d9bbc99d7576b6e6d8ad3a83b3b0a4cbdcb39b63c3733f8b740624aff0f9afd0",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca",
       "labels": ["ubuntu-24.04"],
       "memory": "8g",
       "cpus": "4",
@@ -44,7 +44,7 @@
       "docker_socket": false
     },
     "automation": {
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:d9bbc99d7576b6e6d8ad3a83b3b0a4cbdcb39b63c3733f8b740624aff0f9afd0",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca",
       "labels": ["automation"],
       "memory": "8g",
       "cpus": "4",
@@ -78,7 +78,7 @@
     "terraform-provider-xcsh-d8": {
       "label": "managed-socketless",
       "runner_profile": "socketless",
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:d9bbc99d7576b6e6d8ad3a83b3b0a4cbdcb39b63c3733f8b740624aff0f9afd0",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca",
       "vm_size": "Standard_D8ads_v5",
       "cpu_limit": 7,
       "memory_limit_bytes": 30064771072,
@@ -88,7 +88,7 @@
     "terraform-provider-xcsh-d16": {
       "label": "terraform-provider-xcsh-compute",
       "runner_profile": "compute",
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:d9bbc99d7576b6e6d8ad3a83b3b0a4cbdcb39b63c3733f8b740624aff0f9afd0",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca",
       "vm_size": "Standard_D16ads_v5",
       "cpu_limit": 15,
       "memory_limit_bytes": 60129542144,
@@ -98,7 +98,7 @@
     "xcsh-compute-d16-candidate": {
       "label": "xcsh-compute-d16-candidate",
       "runner_profile": "compute-d16-candidate",
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:9e8fd4ad6b2b0be434521f0a6700a70154a3aea070332cbc10ba1200b657be01",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca",
       "vm_size": "Standard_D16ads_v5",
       "cpu_limit": 15,
       "memory_limit_bytes": 60129542144,
@@ -108,7 +108,7 @@
     "xcsh-compute-f32-candidate": {
       "label": "xcsh-compute-f32-candidate",
       "runner_profile": "compute-f32-candidate",
-      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:9e8fd4ad6b2b0be434521f0a6700a70154a3aea070332cbc10ba1200b657be01",
+      "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca",
       "vm_size": "Standard_F32s_v2",
       "cpu_limit": 15,
       "memory_limit_bytes": 32212254720,

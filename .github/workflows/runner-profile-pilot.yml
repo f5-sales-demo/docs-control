@@ -18,7 +18,7 @@ jobs:
       - name: Verify socketless standard profile
         run: |
           set -euo pipefail
-          test "$(zig version)" = "0.15.2"
+          verify-runner-tools standard
           cli=do"cker"
           if command -v "$cli" >/dev/null 2>&1; then
             echo "::error::standard runner unexpectedly includes the Docker CLI"

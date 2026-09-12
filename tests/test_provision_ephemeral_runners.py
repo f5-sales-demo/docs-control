@@ -460,7 +460,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 )
             )
 
-    def test_zig_runner_image_promotion_is_complete_and_pilot_verified(self):
+    def test_xcsh_toolchain_image_promotion_is_complete_and_pilot_verified(self):
         raw = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
                 encoding="utf-8"
@@ -468,28 +468,23 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         )
         standard = (
             "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
-            "d9bbc99d7576b6e6d8ad3a83b3b0a4cbdcb39b63c3733f8b740624aff0f9afd0"
+            "1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca"
         )
         container_build = (
             "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
             "676d9ff1789084e33bc92eac08d247c1d9f3be4fa3ed594ba7a68c7644783e9e"
         )
-        candidate = (
-            "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
-            "9e8fd4ad6b2b0be434521f0a6700a70154a3aea070332cbc10ba1200b657be01"
-        )
         for profile in ("ubuntu-24.04", "ubuntu-24.04-secondary", "automation"):
             self.assertEqual(standard, raw["profiles"][profile]["image"])
         self.assertEqual(container_build, raw["profiles"]["container-build"]["image"])
-        for name in ("terraform-provider-xcsh-d8", "terraform-provider-xcsh-d16"):
-            self.assertEqual(standard, raw["arc_attestations"][name]["image"])
-        for name in ("xcsh-compute-d16-candidate", "xcsh-compute-f32-candidate"):
-            self.assertEqual(candidate, raw["arc_attestations"][name]["image"])
+        for attestation in raw["arc_attestations"].values():
+            self.assertEqual(standard, attestation["image"])
 
         pilot = (ROOT / ".github/workflows/runner-profile-pilot.yml").read_text(
             encoding="utf-8"
         )
-        self.assertEqual(2, pilot.count('test "$(zig version)" = "0.15.2"'))
+        self.assertIn("verify-runner-tools standard", pilot)
+        self.assertEqual(1, pilot.count('test "$(zig version)" = "0.15.2"'))
 
     def test_production_inventory_is_fully_arc_managed(self):
         policy = MODULE.active_policy()
