@@ -71,7 +71,7 @@ expected = sorted([
     "terraform-provider-xcsh-compute",
     "xcsh-container-build",
     "xcsh-compute",
-    "xcsh-compute-d16-candidate",
+    "xcsh-compute-16-vcpu-candidate",
     "xcsh-compute-f32-candidate",
     "xcsh-socketless",
     "docs-container-build",
@@ -181,9 +181,9 @@ assert policy["arc_attestations"] == {
         "docker_socket": False,
         "repositories": [provider],
     },
-    "xcsh-compute-d16-candidate": {
-        "label": "xcsh-compute-d16-candidate",
-        "runner_profile": "compute-d16-candidate",
+    "xcsh-compute-16-vcpu-candidate": {
+        "label": "xcsh-compute-16-vcpu-candidate",
+        "runner_profile": "compute-16-vcpu-candidate",
         "image": digest,
         "vm_size": "Standard_D16ads_v5",
         "cpu_limit": 15,
@@ -208,7 +208,7 @@ assert policy["restricted_routes"] == {
         "workflow": ".github/workflows/workload-benchmark.yml",
         "job": "benchmark-d16",
     }],
-    "xcsh-compute-d16-candidate": [
+    "xcsh-compute-16-vcpu-candidate": [
         {
             "repository": xcsh,
             "workflow": ".github/workflows/compute-benchmark.yml",

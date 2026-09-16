@@ -95,9 +95,9 @@
       "docker_socket": false,
       "repositories": ["f5-sales-demo/terraform-provider-xcsh"]
     },
-    "xcsh-compute-d16-candidate": {
-      "label": "xcsh-compute-d16-candidate",
-      "runner_profile": "compute-d16-candidate",
+    "xcsh-compute-16-vcpu-candidate": {
+      "label": "xcsh-compute-16-vcpu-candidate",
+      "runner_profile": "compute-16-vcpu-candidate",
       "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca",
       "vm_size": "Standard_D16ads_v5",
       "cpu_limit": 15,
@@ -124,7 +124,7 @@
         "job": "benchmark-d16"
       }
     ],
-    "xcsh-compute-d16-candidate": [
+    "xcsh-compute-16-vcpu-candidate": [
       {
         "repository": "f5-sales-demo/xcsh",
         "workflow": ".github/workflows/compute-benchmark.yml",
@@ -1161,9 +1161,9 @@
             "label": "xcsh-compute",
             "profile": "ubuntu-24.04"
           },
-          "compute-d16-candidate": {
-            "label": "xcsh-compute-d16-candidate",
-            "attestation": "xcsh-compute-d16-candidate"
+          "compute-16-vcpu-candidate": {
+            "label": "xcsh-compute-16-vcpu-candidate",
+            "attestation": "xcsh-compute-16-vcpu-candidate"
           },
           "compute-f32-candidate": {
             "label": "xcsh-compute-f32-candidate",
