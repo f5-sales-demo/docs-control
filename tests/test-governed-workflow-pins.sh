@@ -152,6 +152,10 @@ missing = [name for name in sorted(called) if f".github/workflows/{name}" not in
 required = (
     "scripts/update-governed-workflow-pins.sh",
     "REPO_SETTINGS_TOKEN",
+    "GH_LINK_READ_TOKEN",
+    "pull-requests: read",
+    "GH_LINK_READ_TOKEN: ${{ github.token }}",
+    "GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}",
 )
 missing.extend(token for token in required if token not in workflow)
 if "push --force" in workflow or "push -f" in workflow:
@@ -180,6 +184,15 @@ EOF
 cat >"$BEHAVIOR/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$FAKE_COMMAND_LOG"
+if [[ "$*" == pr\ view*closingIssuesReferences* ]] &&
+  [ -n "${FAKE_REQUIRED_LINK_READ_TOKEN:-}" ]; then
+  if [ "${GH_TOKEN:-}" != "$FAKE_REQUIRED_LINK_READ_TOKEN" ]; then exit 65; fi
+  touch "$FAKE_STATE/link-read-token-used"
+fi
+if [[ "$*" == pr\ edit* ]] && [ -n "${FAKE_REQUIRED_WRITE_TOKEN:-}" ]; then
+  if [ "${GH_TOKEN:-}" != "$FAKE_REQUIRED_WRITE_TOKEN" ]; then exit 66; fi
+  touch "$FAKE_STATE/write-token-used"
+fi
 if [[ "$*" == api\ repos/*/pulls\?state=open* ]]; then
   count_file="$FAKE_STATE/inventory-count"
   count=0
@@ -373,6 +386,7 @@ chmod +x "$BEHAVIOR/bin/git" "$BEHAVIOR/bin/gh" "$BEHAVIOR/bin/sleep" \
 
 TARGET_SHA=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 BASE_SHA=1111111111111111111111111111111111111111
+export GH_LINK_READ_TOKEN=synthetic-link-read-token
 
 reset_issue_fakes() {
   rm -f "$BEHAVIOR/state"/{created-issue-body,issue-created,issue-reopened,issue-edited,issue-closed,pr-edited,pr-view-response,pr-view-after-edit,issue-view-response}
@@ -466,6 +480,23 @@ check "an existing rollout PR is repaired and its exact closing issue is verifie
     source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
     target_revision="$3"; base_oid="$4"; pin_issue_number=42
     ensure_pin_pr_link 10 && test -f "$FAKE_STATE/pr-edited"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
+check "closing issue reads use the least-privilege token while repair retains the write token" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export GH_TOKEN=synthetic-write-token GH_LINK_READ_TOKEN=synthetic-link-read-token
+    export FAKE_REQUIRED_LINK_READ_TOKEN=synthetic-link-read-token
+    export FAKE_REQUIRED_WRITE_TOKEN=synthetic-write-token
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE"/{pr-edited,link-read-token-used,write-token-used}
+    jq -cn "{body: \"legacy\", closingIssuesReferences: []}" >"$FAKE_STATE/pr-view-response"
+    body=$(printf "Automated immutable governed-workflow pin rollout.\\n\\nTarget revision: \`%s\`\\nProtected-main base: \`%s\`\\n\\nCloses #42" "$3" "$4")
+    jq -cn --arg body "$body" "{body: \$body, closingIssuesReferences: [{number: 42}]}" >"$FAKE_STATE/pr-view-after-edit"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; pin_issue_number=42
+    ensure_pin_pr_link 10 && test -f "$FAKE_STATE/link-read-token-used" &&
+      test -f "$FAKE_STATE/write-token-used"
   ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
 
 check "closing issue relationship settles after bounded API lag" \

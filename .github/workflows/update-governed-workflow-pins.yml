@@ -32,6 +32,7 @@ jobs:
     environment: repository-settings
     permissions:
       contents: read # check out the protected governance source
+      pull-requests: read # resolve linked issues through the workflow token
     steps:
       - name: Checkout docs-control
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -43,6 +44,7 @@ jobs:
       - name: Roll governed callers forward
         env:
           GH_TOKEN: ${{ secrets.REPO_SETTINGS_TOKEN }}
+          GH_LINK_READ_TOKEN: ${{ github.token }}
           REQUESTED_REVISION: ${{ inputs.revision }}
         run: |
           gh auth setup-git

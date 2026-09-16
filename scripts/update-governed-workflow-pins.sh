@@ -163,6 +163,16 @@ write_pin_pr_body() {
     >"$destination"
 }
 
+read_pin_pr_link() {
+  local pr_number="$1"
+  if [ -z "${GH_LINK_READ_TOKEN:-}" ]; then
+    echo "::error::governed pin PR relationship read token is unavailable" >&2
+    return 1
+  fi
+  GH_TOKEN="$GH_LINK_READ_TOKEN" gh pr view "$pr_number" --repo "$repository" \
+    --json body,closingIssuesReferences
+}
+
 verify_pin_issue_marker() {
   local number="$1" expected_revision="$2" issue_json marker
   marker="<!-- governed-workflow-pin:${expected_revision} -->"
@@ -335,8 +345,7 @@ ensure_pin_pr_link() {
   local pr_number="$1" expected_body_file pr_json delay
   expected_body_file="$work/pin-pr-body"
   write_pin_pr_body "$expected_body_file"
-  if ! pr_json=$(gh pr view "$pr_number" --repo "$repository" \
-    --json body,closingIssuesReferences); then
+  if ! pr_json=$(read_pin_pr_link "$pr_number"); then
     echo "::error::could not inspect governed pin PR issue link" >&2
     return 1
   fi
@@ -378,8 +387,7 @@ ensure_pin_pr_link() {
   # reconciliation; malformed or foreign relationships still fail immediately.
   for delay in 1 2 4 8 16 16 16; do
     sleep "$delay"
-    if ! pr_json=$(gh pr view "$pr_number" --repo "$repository" \
-      --json body,closingIssuesReferences); then
+    if ! pr_json=$(read_pin_pr_link "$pr_number"); then
       echo "::error::could not verify governed pin PR issue link" >&2
       return 1
     fi
