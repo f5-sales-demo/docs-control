@@ -92,14 +92,14 @@ XCSH_MANUAL_COMPUTE_ROUTE_LABELS = {
     "workload": frozenset(
         {
             "xcsh-compute",
-            "xcsh-compute-d16-candidate",
+            "xcsh-compute-16-vcpu-candidate",
             "xcsh-compute-f32-candidate",
         }
     ),
-    "dag-control": frozenset({"xcsh-compute-d16-candidate"}),
-    "dag-candidate-native": frozenset({"xcsh-compute-d16-candidate"}),
-    "dag-candidate-rust": frozenset({"xcsh-compute-d16-candidate"}),
-    "dag-candidate-typescript": frozenset({"xcsh-compute-d16-candidate"}),
+    "dag-control": frozenset({"xcsh-compute-16-vcpu-candidate"}),
+    "dag-candidate-native": frozenset({"xcsh-compute-16-vcpu-candidate"}),
+    "dag-candidate-rust": frozenset({"xcsh-compute-16-vcpu-candidate"}),
+    "dag-candidate-typescript": frozenset({"xcsh-compute-16-vcpu-candidate"}),
 }
 XCSH_CANDIDATE_RESTRICTED_GRANTS = {
     label: frozenset(
@@ -108,7 +108,7 @@ XCSH_CANDIDATE_RESTRICTED_GRANTS = {
         if label in labels
     )
     for label in (
-        "xcsh-compute-d16-candidate",
+        "xcsh-compute-16-vcpu-candidate",
         "xcsh-compute-f32-candidate",
     )
 }
@@ -280,9 +280,9 @@ ARC_SHARED_CONTRACTS = (
     ),
 )
 XCSH_CANDIDATE_SCALE_SETS = {
-    "compute-d16-candidate": {
-        "label": "xcsh-compute-d16-candidate",
-        "attestation": "xcsh-compute-d16-candidate",
+    "compute-16-vcpu-candidate": {
+        "label": "xcsh-compute-16-vcpu-candidate",
+        "attestation": "xcsh-compute-16-vcpu-candidate",
     },
     "compute-f32-candidate": {
         "label": "xcsh-compute-f32-candidate",
@@ -299,7 +299,7 @@ RESERVED_ARC_LABELS = frozenset(
         "terraform-provider-xcsh-compute",
         "xcsh-container-build",
         "xcsh-compute",
-        "xcsh-compute-d16-candidate",
+        "xcsh-compute-16-vcpu-candidate",
         "xcsh-compute-f32-candidate",
         "xcsh-socketless",
     }
