@@ -1185,10 +1185,28 @@ jobs:
         self.assertEqual(
             exception,
             {
+                ".github/workflows/attest-manifest-linked-issue.yml": {
+                    "attest": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "manifest receipt attestation requires available hosted release automation",
+                    }
+                },
+                ".github/workflows/build-managed-files-manifest.yml": {
+                    "build": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "manifest publication requires available hosted release automation",
+                    }
+                },
                 ".github/workflows/require-linked-issue.yml": {
                     "validate-pull-request": {
                         "runs_on": "ubuntu-latest",
                         "reason": "read-only pull request policy for runner governance changes",
+                    }
+                },
+                ".github/workflows/reconcile-fleet-content.yml": {
+                    "reconcile": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "managed content reconciliation requires available hosted release automation",
                     }
                 },
                 ".github/workflows/super-linter.yml": {
@@ -1205,6 +1223,12 @@ jobs:
                         "reason": "credential-free governance shell and unit tests",
                     },
                 },
+                ".github/workflows/update-governed-workflow-pins.yml": {
+                    "update": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "governed pin publication requires available hosted release automation",
+                    }
+                },
                 ".github/workflows/workflow-security-audit.yml": {
                     "workflow-security-audit": {
                         "runs_on": "ubuntu-latest",
@@ -1213,6 +1237,17 @@ jobs:
                 },
             },
         )
+
+        for workflow_name, job_name in {
+            "attest-manifest-linked-issue.yml": "attest",
+            "build-managed-files-manifest.yml": "build",
+            "reconcile-fleet-content.yml": "reconcile",
+            "update-governed-workflow-pins.yml": "update",
+        }.items():
+            workflow = yaml.safe_load(
+                (ROOT / ".github/workflows" / workflow_name).read_text(encoding="utf-8")
+            )
+            self.assertEqual(workflow["jobs"][job_name]["runs-on"], "ubuntu-latest")
         self.assertNotIn(
             ".github/workflows/require-linked-issue.yml",
             policy["hosted_exceptions"]["f5-sales-demo/xcsh"],
