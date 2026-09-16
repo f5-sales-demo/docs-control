@@ -164,13 +164,59 @@ write_pin_pr_body() {
 }
 
 read_pin_pr_link() {
-  local pr_number="$1"
+  local pr_number="$1" owner name query response
   if [ -z "${GH_LINK_READ_TOKEN:-}" ]; then
     echo "::error::governed pin PR relationship read token is unavailable" >&2
     return 1
   fi
-  GH_TOKEN="$GH_LINK_READ_TOKEN" gh pr view "$pr_number" --repo "$repository" \
-    --json body,closingIssuesReferences
+  case "$repository" in
+  */*)
+    owner="${repository%%/*}"
+    name="${repository#*/}"
+    ;;
+  *)
+    echo "::error::governed pin repository identity is invalid" >&2
+    return 1
+    ;;
+  esac
+  if [ -z "$owner" ] || [ -z "$name" ] || [[ "$name" == */* ]] ||
+    printf '%s\n%s\n' "$owner" "$name" | grep -qvE '^[A-Za-z0-9_.-]+$'; then
+    echo "::error::governed pin repository identity is invalid" >&2
+    return 1
+  fi
+  query='query($owner: String!, $name: String!, $number: Int!) {
+    repository(owner: $owner, name: $name) {
+      pullRequest(number: $number) {
+        body
+        closingIssuesReferences(first: 2) {
+          nodes { number }
+          pageInfo { hasNextPage }
+        }
+      }
+    }
+  }'
+  if ! response=$(GH_TOKEN="$GH_LINK_READ_TOKEN" gh api graphql \
+    -f query="$query" -f owner="$owner" -f name="$name" -F number="$pr_number"); then
+    return 1
+  fi
+  if ! printf '%s' "$response" | jq -e '
+    type == "object" and (has("errors") | not) and
+    (.data.repository.pullRequest | type == "object") and
+    (.data.repository.pullRequest.body | type == "string") and
+    (.data.repository.pullRequest.closingIssuesReferences.nodes | type == "array") and
+    (.data.repository.pullRequest.closingIssuesReferences.pageInfo.hasNextPage == false) and
+    (.data.repository.pullRequest.closingIssuesReferences.nodes | length) <= 2 and
+    all(.data.repository.pullRequest.closingIssuesReferences.nodes[];
+      type == "object" and (.number | type == "number") and
+      (.number | isfinite and (. == floor)))
+  ' >/dev/null 2>&1; then
+    echo "::error::governed pin PR relationship query response is malformed" >&2
+    return 1
+  fi
+  printf '%s' "$response" | jq -c '
+    .data.repository.pullRequest |
+    {body, closingIssuesReferences: .closingIssuesReferences.nodes}
+  '
 }
 
 verify_pin_issue_marker() {
