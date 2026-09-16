@@ -757,13 +757,13 @@ else
     "workflow_call.rust_edition must default to edition 2021"
 fi
 
-if [ "$(grep -Fc "runs-on: \${{ inputs.socketless_runner_label || 'managed-socketless' }}" "$SL_YML")" -eq 2 ] &&
-  [ "$(grep -Fc "runs-on: \${{ inputs.container_build_runner_label || 'managed-container-build' }}" "$SL_YML")" -eq 1 ] &&
+if [ "$(grep -Fc "runs-on: \${{ inputs.socketless_runner_label || 'ubuntu-latest' }}" "$SL_YML")" -eq 2 ] &&
+  [ "$(grep -Fc "runs-on: \${{ inputs.container_build_runner_label || 'ubuntu-24.04' }}" "$SL_YML")" -eq 1 ] &&
   ! grep -Fq 'fromJSON(format(' "$SL_YML"; then
-  pass "5e.1a direct and reusable lint use only current ARC labels"
+  pass "5e.1a direct governance lint defaults to hosted runners"
 else
-  fail "5e.1a direct and reusable lint use only current ARC labels" \
-    "remove retired five-label runner fallbacks and default all three jobs to managed ARC labels"
+  fail "5e.1a direct governance lint defaults to hosted runners" \
+    "default the three credential-free jobs to exact hosted runner labels"
 fi
 
 RUST_EDITION_STEP=$(awk '/- name: Validate Rust edition input/,/- name: Run Super-Linter/' "$SL_YML")

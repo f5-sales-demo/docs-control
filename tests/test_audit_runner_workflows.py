@@ -518,12 +518,12 @@ jobs:
                 },
             ),
             ".github/workflows/super-linter.yml": (
-                "managed-socketless",
-                "managed-container-build",
+                "ubuntu-latest",
+                "ubuntu-24.04",
                 {
-                    "trust-gate": MODULE.ARC_SOCKET_EXPR,
-                    "lint": MODULE.BUILD_EXPR,
-                    "shell-unit-tests": MODULE.ARC_SOCKET_EXPR,
+                    "trust-gate": MODULE.HOSTED_SOCKET_EXPR,
+                    "lint": MODULE.HOSTED_BUILD_EXPR,
+                    "shell-unit-tests": MODULE.HOSTED_SOCKET_EXPR,
                 },
             ),
         }
@@ -549,21 +549,12 @@ jobs:
         self.assertNotIn("docker run --rm --pull always", pages)
 
     def test_reusable_definition_routes_are_exact(self):
-        self.assertEqual(
-            MODULE.reusable_definition_profile(
-                "f5-sales-demo/docs-control",
-                ".github/workflows/super-linter.yml",
-                "lint",
-                MODULE.BUILD_EXPR,
-            ),
-            "container-build",
-        )
         self.assertIsNone(
             MODULE.reusable_definition_profile(
                 "f5-sales-demo/docs-control",
                 ".github/workflows/super-linter.yml",
                 "lint",
-                MODULE.CONTAINER_ROUTE_EXPRESSION,
+                MODULE.BUILD_EXPR,
             )
         )
 
@@ -1199,6 +1190,20 @@ jobs:
                         "runs_on": "ubuntu-latest",
                         "reason": "read-only pull request policy for runner governance changes",
                     }
+                },
+                ".github/workflows/super-linter.yml": {
+                    "trust-gate": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "credential-free trust validation for governance pull requests",
+                    },
+                    "lint": {
+                        "runs_on": "ubuntu-24.04",
+                        "reason": "credential-free governance lint with hosted Docker",
+                    },
+                    "shell-unit-tests": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "credential-free governance shell and unit tests",
+                    },
                 },
                 ".github/workflows/workflow-security-audit.yml": {
                     "workflow-security-audit": {

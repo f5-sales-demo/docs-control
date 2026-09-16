@@ -199,6 +199,20 @@
           "reason": "read-only pull request policy for runner governance changes"
         }
       },
+      ".github/workflows/super-linter.yml": {
+        "trust-gate": {
+          "runs_on": "ubuntu-latest",
+          "reason": "credential-free trust validation for governance pull requests"
+        },
+        "lint": {
+          "runs_on": "ubuntu-24.04",
+          "reason": "credential-free governance lint with hosted Docker"
+        },
+        "shell-unit-tests": {
+          "runs_on": "ubuntu-latest",
+          "reason": "credential-free governance shell and unit tests"
+        }
+      },
       ".github/workflows/workflow-security-audit.yml": {
         "workflow-security-audit": {
           "runs_on": "ubuntu-latest",

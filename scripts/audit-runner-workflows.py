@@ -77,6 +77,8 @@ CONTAINER_ROUTE_EXPRESSION = (
 )
 ARC_SOCKET_EXPR = "${{ inputs.socketless_runner_label || 'managed-socketless' }}"
 BUILD_EXPR = "${{ inputs.container_build_runner_label || 'managed-container-build' }}"
+HOSTED_SOCKET_EXPR = "${{ inputs.socketless_runner_label || 'ubuntu-latest' }}"
+HOSTED_BUILD_EXPR = "${{ inputs.container_build_runner_label || 'ubuntu-24.04' }}"
 # fmt: off
 CANONICAL_SUPER_LINTER_INPUTS = {
     "socketless_runner_label": "${{ github.repository == 'f5-sales-demo/xcsh' && 'xcsh-socketless' || 'managed-socketless' }}",
@@ -148,18 +150,6 @@ REUSABLE_DEFINITION_ROUTES = {
     (".github/workflows/github-pages-deploy.yml", "deploy"): (
         "ubuntu-24.04",
         SOCKETLESS_ROUTE_EXPRESSION,
-    ),
-    (".github/workflows/super-linter.yml", "trust-gate"): (
-        "ubuntu-24.04",
-        ARC_SOCKET_EXPR,
-    ),
-    (".github/workflows/super-linter.yml", "lint"): (
-        "container-build",
-        BUILD_EXPR,
-    ),
-    (".github/workflows/super-linter.yml", "shell-unit-tests"): (
-        "ubuntu-24.04",
-        ARC_SOCKET_EXPR,
     ),
 }
 
@@ -598,6 +588,8 @@ def canonical_route_label(value, repository):
     """Resolve only exact governed scalar or fork-safe compute expressions."""
     value = tuple(value) if isinstance(value, list) else value
     value = canonical_caller_label(value, repository)
+    if value in {HOSTED_SOCKET_EXPR, HOSTED_BUILD_EXPR}:
+        return "ubuntu-latest" if value == HOSTED_SOCKET_EXPR else "ubuntu-24.04"
     if value == RELEASE_CHAIN_LINKED_ISSUE_ROUTE_EXPRESSION:
         if repository in RELEASE_CHAIN_REPOSITORIES:
             return "ubuntu-latest"
