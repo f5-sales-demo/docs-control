@@ -5,7 +5,7 @@ node - "$root/scripts/fleet-reconciler.cjs" <<'NODE'
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, branchName, closeMergedReconciliationIssues, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, reconcileContent, reconciliationBranchPrefix, requireSha, settingsDelta, validateManifest} = require(process.argv[2]);
+const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, branchName, closeMergedReconciliationIssues, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, reconcileContent, reconciliationBranchPrefix, requireSha, retireSupersededContentPrs, settingsDelta, validateManifest} = require(process.argv[2]);
 (async () => {
 const sha = 'a'.repeat(40);
 const makeManifest = (files, absent_paths = []) => ({schema_version:2,source_commit:sha,files,absent_paths,state_digest:manifestStateDigest(files,absent_paths)});
@@ -85,6 +85,86 @@ assert.deepEqual(await closeMergedReconciliationIssues(trackerApi,'f5','one','dr
 assert.deepEqual(trackerWrites,[]);
 const unmergedApi={request:async(route)=>route.includes('/issues?') ? [{number:12,title:`Governance reconciliation @ ${sha.slice(0,12)}`,body:`<!-- governance-reconciler source=${sha} desired-tree=${'d'.repeat(64)} -->`}] : [{number:13,merged_at:null,base:{ref:'main'},head:{ref:`governance/reconcile-${sha.slice(0,12)}-one`},body:`Closes #12`} ]};
 assert.deepEqual(await closeMergedReconciliationIssues(unmergedApi,'f5','one','full'),[]);
+
+const oldSha='9'.repeat(40);
+const desiredTree='d'.repeat(64);
+const oldNote=`<!-- governance-reconciler source=${oldSha} desired-tree=${desiredTree} -->`;
+const oldBranch=branchName(oldSha,'one');
+const stalePr={
+  number:13,
+  title:issueTitleForTest(oldSha),
+  body:`${oldNote}\n\nCloses #12`,
+  base:{ref:'main'},
+  head:{ref:oldBranch,sha:'8'.repeat(40),repo:{full_name:'f5/one'}},
+  user:{login:'automation'},
+};
+const staleIssue={
+  number:12,
+  title:issueTitleForTest(oldSha),
+  body:`${oldNote}\n\nCentral reconciliation of managed files.`,
+  state:'open',
+  user:{login:'automation'},
+};
+function issueTitleForTest(source) { return `Governance reconciliation @ ${source.slice(0,12)}`; }
+function retirementFixture({pr=stalePr,issue=staleIssue,compareStatus='ahead'}={}) {
+  const writes=[];
+  const api={request:async(route,options={})=>{
+    if (options.method && options.method !== 'GET') {
+      writes.push({route,method:options.method,body:options.body});
+      return {};
+    }
+    if (route.includes('/pulls?state=open')) return [pr];
+    if (route.endsWith('/pulls/13/commits?per_page=100&page=1')) {
+      const source=pr.body.match(/source=([0-9a-f]{40})/)[1];
+      return [{sha:pr.head.sha,parents:[{sha:'7'.repeat(40)}],commit:{message:managedCommitMessage(source)}}];
+    }
+    if (route.endsWith('/pulls/13/commits?per_page=100&page=2')) return [];
+    if (route.endsWith('/issues/12')) return issue;
+    if (route.includes(`/compare/${oldSha}...${sha}`)) return {
+      status:compareStatus,
+      ahead_by:compareStatus === 'ahead' ? 1 : 0,
+      behind_by:compareStatus === 'behind' ? 1 : 0,
+      merge_base_commit:{sha:compareStatus === 'ahead' ? oldSha : '6'.repeat(40)},
+    };
+    throw new Error(`unexpected retirement route ${route}`);
+  }};
+  return {api,writes};
+}
+const retirementOptions={owner:'f5',sourceRepository:'f5/docs-control',sourceSha:sha,repos:['one'],mode:'full'};
+let retirement=retirementFixture();
+assert.deepEqual(await retireSupersededContentPrs({...retirementOptions,api:retirement.api,mode:'dry-run'}),[
+  {repo:'one',pull:13,issue:12,sourceSha:oldSha,status:'would-retire'},
+]);
+assert.deepEqual(retirement.writes,[]);
+retirement=retirementFixture();
+assert.deepEqual(await retireSupersededContentPrs({...retirementOptions,api:retirement.api}),[
+  {repo:'one',pull:13,issue:12,sourceSha:oldSha,status:'retired'},
+]);
+assert.deepEqual(retirement.writes,[
+  {route:'repos/f5/one/pulls/13',method:'PATCH',body:{state:'closed'}},
+  {route:`repos/f5/one/git/refs/heads/${oldBranch}`,method:'DELETE',body:undefined},
+  {route:'repos/f5/one/issues/12',method:'PATCH',body:{state:'closed',state_reason:'not_planned'}},
+]);
+retirement=retirementFixture({pr:{...stalePr,head:{...stalePr.head,repo:{full_name:'attacker/one'}}}});
+await assert.rejects(retireSupersededContentPrs({...retirementOptions,api:retirement.api}),/ownership metadata is invalid/);
+assert.deepEqual(retirement.writes,[]);
+retirement=retirementFixture({pr:{...stalePr,body:`${stalePr.body}\n${oldNote}`}});
+await assert.rejects(retireSupersededContentPrs({...retirementOptions,api:retirement.api}),/ownership metadata is invalid/);
+assert.deepEqual(retirement.writes,[]);
+retirement=retirementFixture({issue:{...staleIssue,body:`${oldNote}\n\nCentral reconciliation of somebody else.`}});
+await assert.rejects(retireSupersededContentPrs({...retirementOptions,api:retirement.api}),/tracker issue is invalid/);
+assert.deepEqual(retirement.writes,[]);
+retirement=retirementFixture({compareStatus:'behind'});
+await assert.rejects(retireSupersededContentPrs({...retirementOptions,api:retirement.api}),/not an ancestor/);
+assert.deepEqual(retirement.writes,[]);
+const currentNote=`<!-- governance-reconciler source=${sha} desired-tree=${desiredTree} -->`;
+const currentPr={...stalePr,title:issueTitleForTest(sha),body:`${currentNote}\n\nCloses #12`,head:{...stalePr.head,ref:branchName(sha,'one')}};
+const currentIssue={...staleIssue,title:issueTitleForTest(sha),body:`${currentNote}\n\nCentral reconciliation of managed files.`};
+retirement=retirementFixture({pr:currentPr,issue:currentIssue});
+assert.deepEqual(await retireSupersededContentPrs({...retirementOptions,api:retirement.api}),[
+  {repo:'one',pull:13,issue:12,sourceSha:sha,status:'current'},
+]);
+assert.deepEqual(retirement.writes,[]);
 const writes=[];
 const fleetApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.MAX_SAFE_INTEGER, fetch:async(url, request) => {
   const route = String(url); const method = request.method; if (method !== 'GET') writes.push(route);
@@ -116,7 +196,18 @@ const recoveryApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.M
   let data={};
   if (route.includes('/pulls?state=open&per_page=100')) {
     const repo=route.match(/repos\/f5\/([^/]+)/)[1];
-    data=['one','two'].includes(repo) ? [{head:{ref:branchName(sha, repo)}}] : [];
+    data=['one','two'].includes(repo) ? [{
+      number:1,
+      title:issueTitleForTest(sha),
+      body:`${recoveryNote}\n\nCloses #1`,
+      base:{ref:'main'},
+      head:{ref:branchName(sha, repo),sha,repo:{full_name:`f5/${repo}`}},
+      user:{login:'automation'},
+    }] : [];
+  } else if (route.includes('/pulls/1/commits?')) {
+    data=[{sha,parents:[{sha:'7'.repeat(40)}],commit:{message:managedCommitMessage(sha)}}];
+  } else if (route.endsWith('/issues/1')) {
+    data={number:1,title:issueTitleForTest(sha),body:`${recoveryNote}\n\nCentral reconciliation of managed files.`,state:'open',user:{login:'automation'}};
   } else if (route.includes('/pulls?state=open&head=')) {
     const repo=route.match(/repos\/f5\/([^/]+)/)[1];
     data=['one','two'].includes(repo) ? [{number:1,node_id:'P',base:{ref:'main'},body:`${recoveryNote}\n\nCloses #1`,head:{sha}}] : [];

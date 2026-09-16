@@ -10,11 +10,7 @@ const { GitHubRetryDeferredError, requestGitHubApi } = require('./github-api-res
 
 const SHA = /^[0-9a-f]{40}$/;
 const MODES = new Set(['dry-run', 'pilot', 'full']);
-const BRANCH_PREFIXES = new Set([
-  'governance/reconcile',
-  'governance/bootstrap',
-  'governance/sync-managed-files',
-]);
+const BRANCH_PREFIXES = new Set(['governance/reconcile', 'governance/bootstrap', 'governance/sync-managed-files']);
 const ACTIVE_PR_LIMIT = 2;
 const WRITE_GAP_MS = 1000;
 
@@ -38,37 +34,63 @@ function repositoryApplies(entry, repo, skipFiles) {
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (value && typeof value === 'object')
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+    return `{${Object.keys(value)
+      .sort()
+      .map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`)
+      .join(',')}}`;
   return JSON.stringify(value);
 }
 function manifestStateDigest(files, absentPaths) {
-  return `sha256:${crypto.createHash('sha256').update(canonicalJson({ files, absent_paths: absentPaths })).digest('hex')}`;
+  return `sha256:${crypto
+    .createHash('sha256')
+    .update(canonicalJson({ files, absent_paths: absentPaths }))
+    .digest('hex')}`;
 }
 function validateManifest(config, manifest) {
-  if (!manifest || manifest.schema_version !== 2 || !SHA.test(manifest.source_commit || '') ||
-      !Array.isArray(manifest.files) || !Array.isArray(manifest.absent_paths) ||
-      typeof manifest.state_digest !== 'string') fail('managed manifest schema version 2 is required');
+  if (
+    !manifest ||
+    manifest.schema_version !== 2 ||
+    !SHA.test(manifest.source_commit || '') ||
+    !Array.isArray(manifest.files) ||
+    !Array.isArray(manifest.absent_paths) ||
+    typeof manifest.state_digest !== 'string'
+  )
+    fail('managed manifest schema version 2 is required');
   const configFiles = config.managed_files?.files || [];
   const configPaths = configFiles.map((entry) => entry.dest).sort();
   const manifestPaths = manifest.files.map((entry) => entry?.path);
   const configAbsent = [...(config.managed_files?.absent_files || [])].sort();
-  const safePath = (value) => typeof value === 'string' && /^[A-Za-z0-9._/-]+$/.test(value) &&
-    !value.startsWith('/') && value.split('/').every((part) => part && part !== '.' && part !== '..');
-  if (JSON.stringify(manifestPaths) !== JSON.stringify([...manifestPaths].sort()) ||
-      new Set(manifestPaths).size !== manifestPaths.length ||
-      JSON.stringify(manifest.absent_paths) !== JSON.stringify([...manifest.absent_paths].sort()) ||
-      new Set(manifest.absent_paths).size !== manifest.absent_paths.length ||
-      manifestPaths.some((entry) => !safePath(entry)) || manifest.absent_paths.some((entry) => !safePath(entry)) ||
-      manifestPaths.some((entry) => manifest.absent_paths.includes(entry)))
+  const safePath = (value) =>
+    typeof value === 'string' &&
+    /^[A-Za-z0-9._/-]+$/.test(value) &&
+    !value.startsWith('/') &&
+    value.split('/').every((part) => part && part !== '.' && part !== '..');
+  if (
+    JSON.stringify(manifestPaths) !== JSON.stringify([...manifestPaths].sort()) ||
+    new Set(manifestPaths).size !== manifestPaths.length ||
+    JSON.stringify(manifest.absent_paths) !== JSON.stringify([...manifest.absent_paths].sort()) ||
+    new Set(manifest.absent_paths).size !== manifest.absent_paths.length ||
+    manifestPaths.some((entry) => !safePath(entry)) ||
+    manifest.absent_paths.some((entry) => !safePath(entry)) ||
+    manifestPaths.some((entry) => manifest.absent_paths.includes(entry))
+  )
     fail('managed manifest present and absent paths must be sorted and unique');
-  if (JSON.stringify(configPaths) !== JSON.stringify(manifestPaths) ||
-      JSON.stringify(configAbsent) !== JSON.stringify(manifest.absent_paths))
+  if (
+    JSON.stringify(configPaths) !== JSON.stringify(manifestPaths) ||
+    JSON.stringify(configAbsent) !== JSON.stringify(manifest.absent_paths)
+  )
     fail('managed configuration and manifest paths disagree');
   const source = new Map(configFiles.map((entry) => [entry.dest, entry.src]));
   for (const receipt of manifest.files) {
-    if (!receipt || JSON.stringify(Object.keys(receipt).sort()) !== JSON.stringify(['mode', 'path', 'sha', 'size', 'src']) ||
-        source.get(receipt.path) !== receipt.src || !SHA.test(receipt.sha || '') ||
-        !['100644', '100755'].includes(receipt.mode) || !Number.isSafeInteger(receipt.size) || receipt.size < 0)
+    if (
+      !receipt ||
+      JSON.stringify(Object.keys(receipt).sort()) !== JSON.stringify(['mode', 'path', 'sha', 'size', 'src']) ||
+      source.get(receipt.path) !== receipt.src ||
+      !SHA.test(receipt.sha || '') ||
+      !['100644', '100755'].includes(receipt.mode) ||
+      !Number.isSafeInteger(receipt.size) ||
+      receipt.size < 0
+    )
       fail(`invalid manifest receipt for ${receipt?.path || 'unknown path'}`);
   }
   if (manifest.state_digest !== manifestStateDigest(manifest.files, manifest.absent_paths))
@@ -111,7 +133,7 @@ function branchName(sourceSha, repo, prefix = 'governance/sync-managed-files') {
     // Downstream developer-owned governance guards recognize this exact form.
     // The repository-derived positive number makes the ref deterministic without
     // exposing an arbitrary caller-controlled suffix.
-    const repositoryId = (crypto.createHash('sha256').update(repo).digest().readUInt32BE(0) || 1);
+    const repositoryId = crypto.createHash('sha256').update(repo).digest().readUInt32BE(0) || 1;
     return `${approvedPrefix}-${sourceSha.slice(0, 12)}-${repositoryId}-1`;
   }
   return `${approvedPrefix}-${sourceSha.slice(0, 12)}-${repo}`;
@@ -173,13 +195,13 @@ class ApiQueue {
   }
 }
 
-async function activeGovernancePrs(api, owner, inventory) {
+async function activeGovernancePrs(api, owner, inventory, retired = new Set()) {
   let active = 0;
   for (const repo of inventory) {
     const prs = await api.request(`repos/${owner}/${repo}/pulls?state=open&per_page=100`, {
       operationName: `list reconciliation PRs for ${repo}`,
     });
-    active += prs.filter((pr) => isReconciliationBranch(pr.head?.ref)).length;
+    active += prs.filter((pr) => isReconciliationBranch(pr.head?.ref) && !retired.has(`${repo}#${pr.number}`)).length;
   }
   return active;
 }
@@ -201,14 +223,139 @@ function reconciliationMarker(body) {
   return body?.match(/<!-- governance-reconciler source=[0-9a-f]{40} desired-tree=[0-9a-f]{64} -->/)?.[0];
 }
 
+function reconciliationOwnership(pr, owner, repo) {
+  const match =
+    typeof pr?.body === 'string' &&
+    pr.body.match(
+      /^<!-- governance-reconciler source=([0-9a-f]{40}) desired-tree=([0-9a-f]{64}) -->\n\nCloses #([1-9][0-9]*)$/,
+    );
+  if (!match) fail(`reconciliation PR ownership metadata is invalid for ${repo}`);
+  const [, sourceSha, desiredTree, issueText] = match;
+  const issue = Number(issueText);
+  const expectedBranches = [...BRANCH_PREFIXES].map((prefix) => branchName(sourceSha, repo, prefix));
+  if (
+    !Number.isSafeInteger(issue) ||
+    issue < 1 ||
+    !Number.isSafeInteger(pr.number) ||
+    pr.number < 1 ||
+    typeof pr.user?.login !== 'string' ||
+    !pr.user.login ||
+    pr.title !== issueTitle(sourceSha) ||
+    pr.base?.ref !== 'main' ||
+    pr.head?.repo?.full_name !== `${owner}/${repo}` ||
+    !SHA.test(pr.head?.sha || '') ||
+    !expectedBranches.includes(pr.head?.ref)
+  )
+    fail(`reconciliation PR ownership metadata is invalid for ${repo}`);
+  return { sourceSha, desiredTree, issue, branch: pr.head.ref, headSha: pr.head.sha };
+}
+
+async function retireSupersededContentPrs({ api, owner, sourceRepository, sourceSha, repos, mode }) {
+  requireSha(sourceSha);
+  const sourceParts = sourceRepository?.split('/') || [];
+  if (
+    sourceParts.length !== 2 ||
+    sourceParts[0] !== owner ||
+    sourceParts.some((part) => !/^[A-Za-z0-9_.-]+$/.test(part))
+  )
+    fail('managed source repository is invalid');
+  if (!MODES.has(mode)) fail('mode must be dry-run, pilot, or full');
+  const verified = [];
+  const comparisons = new Map();
+  for (const repo of repos) {
+    const pulls = await listAll(api, `repos/${owner}/${repo}/pulls?state=open`, `list reconciliation PRs for ${repo}`);
+    const current = [];
+    for (const pr of pulls.filter((entry) => isReconciliationBranch(entry.head?.ref))) {
+      const ownership = reconciliationOwnership(pr, owner, repo);
+      const commits = await listAll(
+        api,
+        `repos/${owner}/${repo}/pulls/${pr.number}/commits`,
+        `verify reconciliation commit for ${repo}#${pr.number}`,
+      );
+      if (
+        commits.length !== 1 ||
+        commits[0]?.sha !== ownership.headSha ||
+        commits[0]?.parents?.length !== 1 ||
+        commits[0]?.commit?.message !== managedCommitMessage(ownership.sourceSha)
+      )
+        fail(`reconciliation PR commit is invalid for ${repo}#${pr.number}`);
+      const issue = await api.request(`repos/${owner}/${repo}/issues/${ownership.issue}`, {
+        operationName: `verify reconciliation tracker for ${repo}#${pr.number}`,
+      });
+      const expectedIssueBody = `${marker(ownership.sourceSha, ownership.desiredTree)}\n\nCentral reconciliation of managed files.`;
+      if (
+        issue?.number !== ownership.issue ||
+        issue?.pull_request ||
+        issue?.state !== 'open' ||
+        issue?.user?.login !== pr.user.login ||
+        issue?.title !== issueTitle(ownership.sourceSha) ||
+        issue?.body !== expectedIssueBody
+      )
+        fail(`reconciliation tracker issue is invalid for ${repo}#${pr.number}`);
+      if (ownership.sourceSha === sourceSha) {
+        current.push(pr.number);
+        verified.push({ repo, pull: pr.number, issue: ownership.issue, sourceSha, status: 'current' });
+        continue;
+      }
+      let comparison = comparisons.get(ownership.sourceSha);
+      if (!comparison) {
+        comparison = await api.request(`repos/${sourceRepository}/compare/${ownership.sourceSha}...${sourceSha}`, {
+          operationName: `verify superseded reconciliation source ${ownership.sourceSha}`,
+        });
+        comparisons.set(ownership.sourceSha, comparison);
+      }
+      if (
+        comparison?.status !== 'ahead' ||
+        !Number.isSafeInteger(comparison.ahead_by) ||
+        comparison.ahead_by < 1 ||
+        comparison.behind_by !== 0 ||
+        comparison.merge_base_commit?.sha !== ownership.sourceSha
+      )
+        fail(`reconciliation source ${ownership.sourceSha} is not an ancestor of ${sourceSha}`);
+      verified.push({
+        repo,
+        pull: pr.number,
+        issue: ownership.issue,
+        sourceSha: ownership.sourceSha,
+        branch: ownership.branch,
+        status: mode === 'dry-run' ? 'would-retire' : 'retired',
+      });
+    }
+    if (current.length > 1) fail(`multiple current reconciliation PRs exist for ${repo}`);
+  }
+  if (mode !== 'dry-run') {
+    for (const item of verified.filter((entry) => entry.status === 'retired')) {
+      await api.request(`repos/${owner}/${item.repo}/pulls/${item.pull}`, {
+        method: 'PATCH',
+        body: { state: 'closed' },
+        operationName: `close superseded reconciliation PR ${item.repo}#${item.pull}`,
+      });
+      await api.request(`repos/${owner}/${item.repo}/git/refs/heads/${item.branch}`, {
+        method: 'DELETE',
+        operationName: `delete superseded reconciliation branch for ${item.repo}#${item.pull}`,
+      });
+      await api.request(`repos/${owner}/${item.repo}/issues/${item.issue}`, {
+        method: 'PATCH',
+        body: { state: 'closed', state_reason: 'not_planned' },
+        operationName: `close superseded reconciliation tracker ${item.repo}#${item.issue}`,
+      });
+    }
+  }
+  return verified.map(({ branch: _branch, ...item }) => item);
+}
+
 async function closeMergedReconciliationIssues(api, owner, repo, mode) {
   const issues = await listAll(
     api,
     `repos/${owner}/${repo}/issues?state=open`,
     `list open reconciliation issues for ${repo}`,
   );
-  const trackers = issues.filter((issue) =>
-    !issue.pull_request && issue.title?.startsWith('Governance reconciliation @ ') && reconciliationMarker(issue.body));
+  const trackers = issues.filter(
+    (issue) =>
+      !issue.pull_request &&
+      issue.title?.startsWith('Governance reconciliation @ ') &&
+      reconciliationMarker(issue.body),
+  );
   if (!trackers.length) return [];
   const pulls = await listAll(
     api,
@@ -219,8 +366,14 @@ async function closeMergedReconciliationIssues(api, owner, repo, mode) {
   for (const issue of trackers) {
     const note = reconciliationMarker(issue.body);
     const closingPattern = new RegExp(`^Closes #${issue.number}$`, 'm');
-    const merged = pulls.find((pr) => pr.merged_at && pr.base?.ref === 'main' &&
-      isReconciliationBranch(pr.head?.ref) && pr.body?.includes(note) && closingPattern.test(pr.body));
+    const merged = pulls.find(
+      (pr) =>
+        pr.merged_at &&
+        pr.base?.ref === 'main' &&
+        isReconciliationBranch(pr.head?.ref) &&
+        pr.body?.includes(note) &&
+        closingPattern.test(pr.body),
+    );
     if (!merged) continue;
     if (mode !== 'dry-run')
       await api.request(`repos/${owner}/${repo}/issues/${issue.number}`, {
@@ -249,10 +402,12 @@ function assertAttestableRecovery({ pr, note, changes, files, headTree, desired 
   if (pr.base?.ref !== 'main' || !pr.body?.includes(note) || !/^Closes #[1-9][0-9]*$/m.test(pr.body))
     fail('recovered reconciliation PR metadata is invalid');
   const expectedPaths = changes.map((change) => change.path).sort();
-  const actualPaths = files.flatMap((file) => [
-    file.filename,
-    ...(file.status === 'renamed' && typeof file.previous_filename === 'string' ? [file.previous_filename] : []),
-  ]).sort();
+  const actualPaths = files
+    .flatMap((file) => [
+      file.filename,
+      ...(file.status === 'renamed' && typeof file.previous_filename === 'string' ? [file.previous_filename] : []),
+    ])
+    .sort();
   if (JSON.stringify(actualPaths) !== JSON.stringify(expectedPaths))
     fail('recovered reconciliation PR contains unexpected paths');
   if (contentDiff(headTree, desired).length)
@@ -350,8 +505,19 @@ async function reconcileContent(options) {
   if (!MODES.has(mode)) fail('mode must be dry-run, pilot, or full');
   reconciliationBranchPrefix(branchPrefix);
   const repos = parseSelection(selection, inventory);
-  const result = { sourceSha, mode, repositories: [], deferred: false };
-  let active = await activeGovernancePrs(api, owner, inventory);
+  const retiredOwners = await retireSupersededContentPrs({
+    api,
+    owner,
+    sourceRepository: config.managed_files?.source_repo || `${owner}/docs-control`,
+    sourceSha,
+    repos,
+    mode,
+  });
+  const retired = new Set(
+    retiredOwners.filter((entry) => entry.status === 'retired').map((entry) => `${entry.repo}#${entry.pull}`),
+  );
+  const result = { sourceSha, mode, retiredOwners, repositories: [], deferred: false };
+  let active = await activeGovernancePrs(api, owner, inventory, retired);
   for (const repo of repos) {
     const main = await api.request(`repos/${owner}/${repo}/commits/main`, {
       operationName: `read protected main for ${repo}`,
@@ -646,6 +812,7 @@ module.exports = {
   parseSelection,
   reconcileContent,
   reconcileSettings,
+  retireSupersededContentPrs,
   repositoryApplies,
   requireSha,
   settingsDelta,
