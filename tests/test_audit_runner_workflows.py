@@ -1278,6 +1278,35 @@ jobs:
             },
         )
 
+    def test_mcn_terraform_jobs_are_exact_hosted_exceptions(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        exception = policy["hosted_exceptions"]["f5-sales-demo/mcn"]
+        self.assertEqual(
+            exception[".github/workflows/terraform.yml"],
+            {
+                "validate": {
+                    "runs_on": "ubuntu-latest",
+                    "reason": "credential-free Terraform validation for the AWS and KVM showcase",
+                },
+                "coverage-smsv2": {
+                    "runs_on": "ubuntu-latest",
+                    "reason": "credential-free provider contract validation for the AWS and KVM showcase",
+                },
+            },
+        )
+        self.assertEqual(
+            set(exception),
+            {
+                ".github/workflows/require-linked-issue.yml",
+                ".github/workflows/terraform.yml",
+                ".github/workflows/workflow-security-audit.yml",
+            },
+        )
+
     def test_vscode_xcsh_hosted_exceptions_are_only_native_and_release_boundaries(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(

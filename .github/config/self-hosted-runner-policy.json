@@ -559,6 +559,16 @@
           "reason": "read-only AWS and KVM release-chain pull request policy"
         }
       },
+      ".github/workflows/terraform.yml": {
+        "validate": {
+          "runs_on": "ubuntu-latest",
+          "reason": "credential-free Terraform validation for the AWS and KVM showcase"
+        },
+        "coverage-smsv2": {
+          "runs_on": "ubuntu-latest",
+          "reason": "credential-free provider contract validation for the AWS and KVM showcase"
+        }
+      },
       ".github/workflows/workflow-security-audit.yml": {
         "workflow-security-audit": {
           "runs_on": "ubuntu-latest",
