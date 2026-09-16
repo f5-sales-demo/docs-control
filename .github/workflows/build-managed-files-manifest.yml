@@ -64,7 +64,7 @@ concurrency:
 jobs:
   build:
     name: Build managed-files manifest
-    runs-on: managed-socketless
+    runs-on: ubuntu-latest
     environment: repository-settings
     permissions:
       contents: read # check out the protected governance source
