@@ -199,7 +199,8 @@ reconcile_pin_issue() {
       (.number | type == "number" and . >= 1 and . == floor) and
       (.state == "open" or .state == "closed") and
       (.state_reason == null or .state_reason == "completed" or
-        .state_reason == "not_planned" or .state_reason == "reopened") and
+        .state_reason == "not_planned" or .state_reason == "duplicate" or
+        .state_reason == "reopened") and
       (.body == null or (.body | type == "string")) and
       ((has("pull_request") | not) or (.pull_request | type == "object")))
   ' "$issues" >/dev/null; then
