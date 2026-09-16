@@ -801,7 +801,7 @@ else
     "GITHUB_ACTIONS_CONFIG_FILE must select .github/actionlint.yaml"
 fi
 
-if grep -qF 'Run actionlint 1.7.12 directly from' "$SL_YML" &&
+if grep -qF 'install the same pinned version on hosted runners' "$SL_YML" &&
   grep -qF 'ACTIONLINT_VERSION: v1.7.12' "$SL_YML" &&
   grep -qF 'go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"' "$SL_YML" &&
   grep -qF 'actionlint -config-file .github/actionlint.yaml' "$SL_YML" &&
