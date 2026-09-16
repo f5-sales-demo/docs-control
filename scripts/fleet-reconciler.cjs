@@ -250,8 +250,37 @@ function reconciliationOwnership(pr, owner, repo) {
   return { sourceSha, desiredTree, issue, branch: pr.head.ref, headSha: pr.head.sha };
 }
 
-async function retireSupersededContentPrs({ api, owner, sourceRepository, sourceSha, repos, mode }) {
-  requireSha(sourceSha);
+async function verifyReconciliationOwner(api, owner, repo, pr) {
+  const ownership = reconciliationOwnership(pr, owner, repo);
+  const commits = await listAll(
+    api,
+    `repos/${owner}/${repo}/pulls/${pr.number}/commits`,
+    `verify reconciliation commit for ${repo}#${pr.number}`,
+  );
+  if (
+    commits.length !== 1 ||
+    commits[0]?.sha !== ownership.headSha ||
+    commits[0]?.parents?.length !== 1 ||
+    commits[0]?.commit?.message !== managedCommitMessage(ownership.sourceSha)
+  )
+    fail(`reconciliation PR commit is invalid for ${repo}#${pr.number}`);
+  const issue = await api.request(`repos/${owner}/${repo}/issues/${ownership.issue}`, {
+    operationName: `verify reconciliation tracker for ${repo}#${pr.number}`,
+  });
+  const expectedIssueBody = `${marker(ownership.sourceSha, ownership.desiredTree)}\n\nCentral reconciliation of managed files.`;
+  if (
+    issue?.number !== ownership.issue ||
+    issue?.pull_request ||
+    issue?.state !== 'open' ||
+    issue?.user?.login !== pr.user.login ||
+    issue?.title !== issueTitle(ownership.sourceSha) ||
+    issue?.body !== expectedIssueBody
+  )
+    fail(`reconciliation tracker issue is invalid for ${repo}#${pr.number}`);
+  return ownership;
+}
+
+function validateSourceRepository(owner, sourceRepository) {
   const sourceParts = sourceRepository?.split('/') || [];
   if (
     sourceParts.length !== 2 ||
@@ -259,6 +288,11 @@ async function retireSupersededContentPrs({ api, owner, sourceRepository, source
     sourceParts.some((part) => !/^[A-Za-z0-9_.-]+$/.test(part))
   )
     fail('managed source repository is invalid');
+}
+
+async function retireSupersededContentPrs({ api, owner, sourceRepository, sourceSha, repos, mode }) {
+  requireSha(sourceSha);
+  validateSourceRepository(owner, sourceRepository);
   if (!MODES.has(mode)) fail('mode must be dry-run, pilot, or full');
   const verified = [];
   const comparisons = new Map();
@@ -266,32 +300,7 @@ async function retireSupersededContentPrs({ api, owner, sourceRepository, source
     const pulls = await listAll(api, `repos/${owner}/${repo}/pulls?state=open`, `list reconciliation PRs for ${repo}`);
     const current = [];
     for (const pr of pulls.filter((entry) => isReconciliationBranch(entry.head?.ref))) {
-      const ownership = reconciliationOwnership(pr, owner, repo);
-      const commits = await listAll(
-        api,
-        `repos/${owner}/${repo}/pulls/${pr.number}/commits`,
-        `verify reconciliation commit for ${repo}#${pr.number}`,
-      );
-      if (
-        commits.length !== 1 ||
-        commits[0]?.sha !== ownership.headSha ||
-        commits[0]?.parents?.length !== 1 ||
-        commits[0]?.commit?.message !== managedCommitMessage(ownership.sourceSha)
-      )
-        fail(`reconciliation PR commit is invalid for ${repo}#${pr.number}`);
-      const issue = await api.request(`repos/${owner}/${repo}/issues/${ownership.issue}`, {
-        operationName: `verify reconciliation tracker for ${repo}#${pr.number}`,
-      });
-      const expectedIssueBody = `${marker(ownership.sourceSha, ownership.desiredTree)}\n\nCentral reconciliation of managed files.`;
-      if (
-        issue?.number !== ownership.issue ||
-        issue?.pull_request ||
-        issue?.state !== 'open' ||
-        issue?.user?.login !== pr.user.login ||
-        issue?.title !== issueTitle(ownership.sourceSha) ||
-        issue?.body !== expectedIssueBody
-      )
-        fail(`reconciliation tracker issue is invalid for ${repo}#${pr.number}`);
+      const ownership = await verifyReconciliationOwner(api, owner, repo, pr);
       if (ownership.sourceSha === sourceSha) {
         current.push(pr.number);
         verified.push({ repo, pull: pr.number, issue: ownership.issue, sourceSha, status: 'current' });
@@ -342,6 +351,78 @@ async function retireSupersededContentPrs({ api, owner, sourceRepository, source
     }
   }
   return verified.map(({ branch: _branch, ...item }) => item);
+}
+
+async function retireCurrentContentPrs({
+  api,
+  owner,
+  sourceRepository,
+  sourceSha,
+  inventory,
+  selection,
+  mode,
+  config,
+  manifest,
+}) {
+  requireSha(sourceSha);
+  validateSourceRepository(owner, sourceRepository);
+  if (!['dry-run', 'full'].includes(mode)) fail('retire-only mode must be dry-run or full');
+  if (typeof selection !== 'string' || !selection.length)
+    fail('retire-only requires an explicit non-empty repository selection');
+  const repos = parseSelection(selection, inventory);
+  validateManifest(config, manifest);
+  if (manifest.source_commit !== sourceSha) fail('retire-only source must match the managed manifest source');
+  const sourceCommit = await api.request(`repos/${sourceRepository}/commits/${sourceSha}`, {
+    operationName: `verify managed source ${sourceSha}`,
+  });
+  if (sourceCommit?.sha !== sourceSha) fail(`managed source ${sourceSha} could not be verified`);
+
+  const verified = [];
+  for (const repo of repos) {
+    const pulls = await listAll(api, `repos/${owner}/${repo}/pulls?state=open`, `list reconciliation PRs for ${repo}`);
+    const candidates = pulls.filter((entry) => isReconciliationBranch(entry.head?.ref));
+    if (candidates.length !== 1) fail(`retire-only requires exactly one reconciliation PR for ${repo}`);
+    const pr = candidates[0];
+    const ownership = await verifyReconciliationOwner(api, owner, repo, pr);
+    if (ownership.sourceSha !== sourceSha) fail(`retire-only reconciliation source mismatch for ${repo}#${pr.number}`);
+    const desired = desiredEntries(config, manifest, repo);
+    const desiredTree = crypto.createHash('sha256').update(JSON.stringify(desired)).digest('hex');
+    if (ownership.desiredTree !== desiredTree) fail(`retire-only desired tree mismatch for ${repo}#${pr.number}`);
+    verified.push({
+      repo,
+      pull: pr.number,
+      issue: ownership.issue,
+      sourceSha,
+      branch: ownership.branch,
+      status: mode === 'dry-run' ? 'would-retire' : 'retired',
+    });
+  }
+
+  if (mode === 'full') {
+    for (const item of verified) {
+      await api.request(`repos/${owner}/${item.repo}/pulls/${item.pull}`, {
+        method: 'PATCH',
+        body: { state: 'closed' },
+        operationName: `close current reconciliation PR ${item.repo}#${item.pull}`,
+      });
+      await api.request(`repos/${owner}/${item.repo}/git/refs/heads/${item.branch}`, {
+        method: 'DELETE',
+        operationName: `delete current reconciliation branch for ${item.repo}#${item.pull}`,
+      });
+      await api.request(`repos/${owner}/${item.repo}/issues/${item.issue}`, {
+        method: 'PATCH',
+        body: { state: 'closed', state_reason: 'not_planned' },
+        operationName: `close current reconciliation tracker ${item.repo}#${item.issue}`,
+      });
+    }
+  }
+
+  return {
+    sourceSha,
+    mode,
+    operation: 'retire-only',
+    repositories: verified.map(({ branch: _branch, ...item }) => item),
+  };
 }
 
 async function closeMergedReconciliationIssues(api, owner, repo, mode) {
@@ -759,6 +840,7 @@ async function reconcileSettings(options) {
 async function main() {
   const mode = process.env.RECONCILE_MODE || 'full';
   const kind = process.env.RECONCILE_KIND || 'content';
+  const operation = process.env.RECONCILE_OPERATION || 'reconcile';
   const root = process.env.GITHUB_WORKSPACE || process.cwd();
   const token = process.env.GH_TOKEN;
   if (!token) fail('GH_TOKEN is required (GitHub App installation token preferred)');
@@ -770,23 +852,37 @@ async function main() {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, '.github/config/managed-files-manifest.json')));
   const owner = (process.env.GITHUB_REPOSITORY || 'f5-sales-demo/docs-control').split('/')[0];
   const api = new ApiQueue({ token });
+  if (!['reconcile', 'retire-only'].includes(operation)) fail('content reconciliation operation is invalid');
+  if (kind === 'settings' && operation !== 'reconcile') fail('settings reconciliation does not support retire-only');
   const result =
     kind === 'settings'
       ? await reconcileSettings({ api, owner, inventory, config, selection: process.env.REPOSITORIES, mode })
-      : await reconcileContent({
-          api,
-          owner,
-          sourceSha,
-          mode,
-          inventory,
-          config,
-          manifest,
-          sourceRoot: root,
-          selection: process.env.REPOSITORIES,
-          branchPrefix: reconciliationBranchPrefix(
-            process.env.RECONCILE_BRANCH_PREFIX || 'governance/sync-managed-files',
-          ),
-        });
+      : operation === 'retire-only'
+        ? await retireCurrentContentPrs({
+            api,
+            owner,
+            sourceRepository: config.managed_files?.source_repo || `${owner}/docs-control`,
+            sourceSha,
+            inventory,
+            selection: process.env.REPOSITORIES,
+            mode,
+            config,
+            manifest,
+          })
+        : await reconcileContent({
+            api,
+            owner,
+            sourceSha,
+            mode,
+            inventory,
+            config,
+            manifest,
+            sourceRoot: root,
+            selection: process.env.REPOSITORIES,
+            branchPrefix: reconciliationBranchPrefix(
+              process.env.RECONCILE_BRANCH_PREFIX || 'governance/sync-managed-files',
+            ),
+          });
   console.log(JSON.stringify(result, null, 2));
 }
 if (require.main === module)
@@ -812,6 +908,7 @@ module.exports = {
   parseSelection,
   reconcileContent,
   reconcileSettings,
+  retireCurrentContentPrs,
   retireSupersededContentPrs,
   repositoryApplies,
   requireSha,
