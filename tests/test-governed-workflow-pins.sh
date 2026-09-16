@@ -166,6 +166,28 @@ PY
 
 check "roll-forward script exists and is executable" test -x "$ROLLOUT_SCRIPT"
 
+check "generated governed-pin PR body has exact bytes without a trailing newline" \
+  bash -c '
+    source "$1"
+    work="$2"; target_revision="$3"; base_oid="$4"; pin_issue_number=42
+    write_pin_pr_body "$2/pin-pr-body-exact"
+    python3 - "$2/pin-pr-body-exact" <<'"'"'PY'"'"'
+from pathlib import Path
+import sys
+
+body = Path(sys.argv[1]).read_bytes()
+expected = (
+    b"Automated immutable governed-workflow pin rollout.\n\n"
+    b"Target revision: `bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb`\n"
+    b"Protected-main base: `1111111111111111111111111111111111111111`\n\n"
+    b"Closes #42"
+)
+raise SystemExit(0 if body == expected else 1)
+PY
+  ' _ "$ROLLOUT_SCRIPT" "$WORK" \
+  bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
+  1111111111111111111111111111111111111111
+
 BEHAVIOR="$WORK/behavior"
 mkdir -p "$BEHAVIOR/bin" "$BEHAVIOR/state"
 REAL_JQ_COMMAND=$(command -v jq)

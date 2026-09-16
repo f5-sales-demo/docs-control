@@ -153,14 +153,15 @@ write_pin_issue_body() {
 
 write_pin_pr_body() {
   local destination="$1"
-  printf '%s\n' \
-    "Automated immutable governed-workflow pin rollout." \
-    "" \
-    "Target revision: \`${target_revision}\`" \
-    "Protected-main base: \`${base_oid}\`" \
-    "" \
-    "Closes #${pin_issue_number}" \
-    >"$destination"
+  {
+    printf '%s\n' \
+      "Automated immutable governed-workflow pin rollout." \
+      "" \
+      "Target revision: \`${target_revision}\`" \
+      "Protected-main base: \`${base_oid}\`" \
+      ""
+    printf '%s' "Closes #${pin_issue_number}"
+  } >"$destination"
 }
 
 read_pin_pr_link() {
