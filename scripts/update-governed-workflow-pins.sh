@@ -332,7 +332,7 @@ close_pin_issue_for_branch() {
 }
 
 ensure_pin_pr_link() {
-  local pr_number="$1" expected_body_file pr_json
+  local pr_number="$1" expected_body_file pr_json delay
   expected_body_file="$work/pin-pr-body"
   write_pin_pr_body "$expected_body_file"
   if ! pr_json=$(gh pr view "$pr_number" --repo "$repository" \
@@ -340,32 +340,74 @@ ensure_pin_pr_link() {
     echo "::error::could not inspect governed pin PR issue link" >&2
     return 1
   fi
-  if ! printf '%s' "$pr_json" | jq -e --arg body "$(cat "$expected_body_file")" \
+  if ! printf '%s' "$pr_json" | jq -e '
+    type == "object" and (.body | type == "string") and
+    (.closingIssuesReferences | type == "array") and
+    all(.closingIssuesReferences[];
+      type == "object" and (.number | type == "number") and
+      (.number | isfinite and (. == floor)))
+  ' >/dev/null 2>&1; then
+    echo "::error::governed pin PR issue link response is malformed" >&2
+    return 1
+  fi
+  if printf '%s' "$pr_json" | jq -e --arg body "$(cat "$expected_body_file")" \
     --argjson issue "$pin_issue_number" '
       .body == $body and (.closingIssuesReferences | type == "array") and
       (.closingIssuesReferences | length) == 1 and
       .closingIssuesReferences[0].number == $issue
     ' >/dev/null; then
-    if ! gh pr edit "$pr_number" --repo "$repository" \
-      --body-file "$expected_body_file" >/dev/null; then
-      echo "::error::could not repair governed pin PR issue link" >&2
+    return 0
+  fi
+  if ! printf '%s' "$pr_json" | jq -e --argjson issue "$pin_issue_number" '
+    (.closingIssuesReferences | length) == 0 or
+    ((.closingIssuesReferences | length) == 1 and
+      .closingIssuesReferences[0].number == $issue)
+  ' >/dev/null; then
+    echo "::error::governed pin PR has a foreign or duplicate closing issue" >&2
+    return 1
+  fi
+
+  if ! gh pr edit "$pr_number" --repo "$repository" \
+    --body-file "$expected_body_file" >/dev/null; then
+    echo "::error::could not repair governed pin PR issue link" >&2
+    return 1
+  fi
+
+  for delay in 1 2 4 4 4; do
+    sleep "$delay"
+    if ! pr_json=$(gh pr view "$pr_number" --repo "$repository" \
+      --json body,closingIssuesReferences); then
+      echo "::error::could not verify governed pin PR issue link" >&2
       return 1
     fi
-  fi
-  if ! pr_json=$(gh pr view "$pr_number" --repo "$repository" \
-    --json body,closingIssuesReferences); then
-    echo "::error::could not verify governed pin PR issue link" >&2
-    return 1
-  fi
-  if ! printf '%s' "$pr_json" | jq -e --arg body "$(cat "$expected_body_file")" \
-    --argjson issue "$pin_issue_number" '
-      .body == $body and (.closingIssuesReferences | type == "array") and
-      (.closingIssuesReferences | length) == 1 and
-      .closingIssuesReferences[0].number == $issue
+    if ! printf '%s' "$pr_json" | jq -e '
+      type == "object" and (.body | type == "string") and
+      (.closingIssuesReferences | type == "array") and
+      all(.closingIssuesReferences[];
+        type == "object" and (.number | type == "number") and
+        (.number | isfinite and (. == floor)))
+    ' >/dev/null 2>&1; then
+      echo "::error::governed pin PR issue link response is malformed" >&2
+      return 1
+    fi
+    if printf '%s' "$pr_json" | jq -e --arg body "$(cat "$expected_body_file")" \
+      --argjson issue "$pin_issue_number" '
+        .body == $body and (.closingIssuesReferences | length) == 1 and
+        .closingIssuesReferences[0].number == $issue
+      ' >/dev/null; then
+      return 0
+    fi
+    if ! printf '%s' "$pr_json" | jq -e --argjson issue "$pin_issue_number" '
+      (.closingIssuesReferences | length) == 0 or
+      ((.closingIssuesReferences | length) == 1 and
+        .closingIssuesReferences[0].number == $issue)
     ' >/dev/null; then
-    echo "::error::governed pin PR does not close the exact generated issue" >&2
-    return 1
-  fi
+      echo "::error::governed pin PR has a foreign or duplicate closing issue" >&2
+      return 1
+    fi
+  done
+  echo "::error::governed pin PR issue link did not settle after bounded retries" >&2
+  return 1
 }
 
 delete_remote_branch() {
