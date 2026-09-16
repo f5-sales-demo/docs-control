@@ -184,9 +184,9 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         runner = cls.xcsh_arc_runner()
         runner["arc_scale_sets"].update(validator.XCSH_CANDIDATE_SCALE_SETS)
         attestations = {
-            "xcsh-compute-d16-candidate": {
-                "label": "xcsh-compute-d16-candidate",
-                "runner_profile": "compute-d16-candidate",
+            "xcsh-compute-16-vcpu-candidate": {
+                "label": "xcsh-compute-16-vcpu-candidate",
+                "runner_profile": "compute-16-vcpu-candidate",
                 "image": digest,
                 "vm_size": "Standard_D16ads_v5",
                 "cpu_limit": 15,
@@ -378,7 +378,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
         )
         self.assertEqual(
             "ubuntu-24.04",
-            validator.resolve_route("xcsh-compute-d16-candidate", routes),
+            validator.resolve_route("xcsh-compute-16-vcpu-candidate", routes),
         )
         self.assertEqual(
             "ubuntu-24.04",

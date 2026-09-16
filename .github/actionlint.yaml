@@ -52,7 +52,7 @@ self-hosted-runner:
     - xcsh-action
     - xcsh-chrome-extension
     - xcsh-compute
-    - xcsh-compute-d16-candidate
+    - xcsh-compute-16-vcpu-candidate
     - xcsh-compute-f32-candidate
     - xcsh-container-build
     - xcsh-socketless
