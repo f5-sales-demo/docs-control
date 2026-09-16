@@ -280,7 +280,16 @@ if [[ "$*" == pr\ edit* ]]; then
 fi
 if [[ "$*" == pr\ view* ]]; then
   if [ -f "$FAKE_STATE/pr-edited" ] && [ -f "$FAKE_STATE/pr-view-after-edit" ]; then
-    cat "$FAKE_STATE/pr-view-after-edit"
+    count_file="$FAKE_STATE/pr-link-read-count"
+    count=0
+    [ ! -f "$count_file" ] || count=$(cat "$count_file")
+    count=$((count + 1))
+    printf '%s\n' "$count" >"$count_file"
+    if [ "$count" -le "${FAKE_PR_LINK_LAG_READS:-0}" ]; then
+      cat "$FAKE_STATE/pr-view-response"
+    else
+      cat "$FAKE_STATE/pr-view-after-edit"
+    fi
   elif [ -f "$FAKE_STATE/pr-view-response" ]; then
     cat "$FAKE_STATE/pr-view-response"
   else
@@ -459,15 +468,61 @@ check "an existing rollout PR is repaired and its exact closing issue is verifie
     ensure_pin_pr_link 10 && test -f "$FAKE_STATE/pr-edited"
   ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
 
+check "closing issue relationship settles after bounded API lag" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_PR_LINK_LAG_READS=2
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE"/{pr-link-read-count,sleep-count}
+    touch "$FAKE_STATE/pr-edited"
+    jq -cn "{body: \"legacy\", closingIssuesReferences: []}" >"$FAKE_STATE/pr-view-response"
+    body=$(printf "Automated immutable governed-workflow pin rollout.\\n\\nTarget revision: \`%s\`\\nProtected-main base: \`%s\`\\n\\nCloses #42" "$3" "$4")
+    jq -cn --arg body "$body" "{body: \$body, closingIssuesReferences: [{number: 42}]}" >"$FAKE_STATE/pr-view-after-edit"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; pin_issue_number=42
+    ensure_pin_pr_link 10 && test "$(cat "$FAKE_STATE/pr-link-read-count")" -eq 3 &&
+      test "$(grep "^sleep " "$FAKE_COMMAND_LOG" | cut -d " " -f 2 | paste -sd, -)" = "1,2"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
+check "closing issue relationship fails after bounded settling is exhausted" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_PR_LINK_LAG_READS=99
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE"/{pr-link-read-count,sleep-count}
+    touch "$FAKE_STATE/pr-edited"
+    jq -cn "{body: \"legacy\", closingIssuesReferences: []}" >"$FAKE_STATE/pr-view-response"
+    body=$(printf "Automated immutable governed-workflow pin rollout.\\n\\nTarget revision: \`%s\`\\nProtected-main base: \`%s\`\\n\\nCloses #42" "$3" "$4")
+    jq -cn --arg body "$body" "{body: \$body, closingIssuesReferences: [{number: 42}]}" >"$FAKE_STATE/pr-view-after-edit"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; pin_issue_number=42
+    ! ensure_pin_pr_link 10 && test "$(cat "$FAKE_STATE/pr-link-read-count")" -eq 6 &&
+      test "$(grep "^sleep " "$FAKE_COMMAND_LOG" | cut -d " " -f 2 | paste -sd, -)" = "1,2,4,4,4"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
+check "a malformed PR link response fails before mutation" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE"/{pr-edited,pr-link-read-count,sleep-count}
+    jq -cn "{body: 42, closingIssuesReferences: []}" >"$FAKE_STATE/pr-view-response"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; pin_issue_number=42
+    ! ensure_pin_pr_link 10 && ! grep -q "^pr edit " "$FAKE_COMMAND_LOG" &&
+      ! grep -q "^sleep " "$FAKE_COMMAND_LOG"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
 check "a rollout PR with the wrong closing reference fails verification" \
   bash -c '
     export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
     : >"$FAKE_COMMAND_LOG"; touch "$FAKE_STATE/pr-edited"
+    rm -f "$FAKE_STATE/pr-link-read-count" "$FAKE_STATE/sleep-count"
     body=$(printf "Automated immutable governed-workflow pin rollout.\\n\\nTarget revision: \`%s\`\\nProtected-main base: \`%s\`\\n\\nCloses #42" "$3" "$4")
     jq -cn --arg body "$body" "{body: \$body, closingIssuesReferences: [{number: 41}]}" >"$FAKE_STATE/pr-view-after-edit"
     source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
     target_revision="$3"; base_oid="$4"; pin_issue_number=42
-    ! ensure_pin_pr_link 10
+    ! ensure_pin_pr_link 10 && ! grep -q "^pr edit " "$FAKE_COMMAND_LOG" &&
+      ! grep -q "^sleep " "$FAKE_COMMAND_LOG"
   ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
 
 check "cleanup verifies the marker before closing an automation issue as not planned" \
