@@ -5,7 +5,7 @@ node - "$root/scripts/fleet-reconciler.cjs" <<'NODE'
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, branchName, closeMergedReconciliationIssues, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, reconcileContent, reconciliationBranchPrefix, requireSha, retireSupersededContentPrs, settingsDelta, validateManifest} = require(process.argv[2]);
+const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, branchName, closeMergedReconciliationIssues, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, reconcileContent, reconciliationBranchPrefix, requireSha, retireCurrentContentPrs, retireSupersededContentPrs, settingsDelta, validateManifest} = require(process.argv[2]);
 (async () => {
 const sha = 'a'.repeat(40);
 const makeManifest = (files, absent_paths = []) => ({schema_version:2,source_commit:sha,files,absent_paths,state_digest:manifestStateDigest(files,absent_paths)});
@@ -165,6 +165,127 @@ assert.deepEqual(await retireSupersededContentPrs({...retirementOptions,api:reti
   {repo:'one',pull:13,issue:12,sourceSha:sha,status:'current'},
 ]);
 assert.deepEqual(retirement.writes,[]);
+
+function currentRetirementFixture({invalidRepo,missingRepo,duplicateRepo,foreignRepo,wrongBaseRepo,wrongSourceRepo,wrongTreeRepo,wrongIssueRepo}={}) {
+  const writes=[];
+  const requested=[];
+  const api={request:async(route,options={})=>{
+    requested.push(route);
+    if (options.method && options.method !== 'GET') {
+      writes.push({route,method:options.method,body:options.body});
+      return {};
+    }
+    if (route === `repos/f5/docs-control/commits/${sha}`) return {sha};
+    const repo=route.match(/repos\/f5\/([^/]+)/)?.[1];
+    const number=repo === 'one' ? 13 : 23;
+    const issueNumber=repo === 'one' ? 12 : 22;
+    const expectedDesired=desiredEntries(config, manifest, repo);
+    const expectedTree=require('node:crypto').createHash('sha256').update(JSON.stringify(expectedDesired)).digest('hex');
+    const ownerSource=repo === wrongSourceRepo ? oldSha : sha;
+    const ownerTree=repo === wrongTreeRepo ? 'e'.repeat(64) : expectedTree;
+    const note=`<!-- governance-reconciler source=${ownerSource} desired-tree=${ownerTree} -->`;
+    const pr={
+      number,
+      title:issueTitleForTest(ownerSource),
+      body:`${note}\n\nCloses #${issueNumber}`,
+      base:{ref:repo === wrongBaseRepo ? 'release' : 'main'},
+      head:{ref:branchName(ownerSource,repo),sha:'8'.repeat(40),repo:{full_name:repo === foreignRepo ? `attacker/${repo}` : `f5/${repo}`}},
+      user:{login:'automation'},
+    };
+    if (repo === invalidRepo) pr.body=`${note}\n${note}\n\nCloses #${issueNumber}`;
+    if (route.includes('/pulls?state=open')) {
+      if (repo === missingRepo) return [];
+      return repo === duplicateRepo ? [pr,{...pr,number:number + 1}] : [pr];
+    }
+    if (route.includes(`/pulls/${number}/commits?per_page=100&page=1`)) {
+      return [{sha:pr.head.sha,parents:[{sha:'7'.repeat(40)}],commit:{message:managedCommitMessage(ownerSource)}}];
+    }
+    if (route.includes(`/pulls/${number}/commits?per_page=100&page=2`)) return [];
+    if (route.endsWith(`/issues/${issueNumber}`)) return {
+      number:repo === wrongIssueRepo ? issueNumber + 1 : issueNumber,
+      title:issueTitleForTest(ownerSource),
+      body:`${note}\n\nCentral reconciliation of managed files.`,
+      state:'open',
+      user:{login:'automation'},
+    };
+    throw new Error(`unexpected current retirement route ${route}`);
+  }};
+  return {api,writes,requested};
+}
+const currentRetirementOptions={
+  owner:'f5',
+  sourceRepository:'f5/docs-control',
+  sourceSha:sha,
+  inventory:['one','two'],
+  selection:'one,two',
+  mode:'full',
+  config,
+  manifest,
+};
+let currentRetirement=currentRetirementFixture();
+assert.deepEqual(
+  await retireCurrentContentPrs({...currentRetirementOptions,api:currentRetirement.api,mode:'dry-run'}),
+  {
+    sourceSha:sha,
+    mode:'dry-run',
+    operation:'retire-only',
+    repositories:[
+      {repo:'one',pull:13,issue:12,sourceSha:sha,status:'would-retire'},
+      {repo:'two',pull:23,issue:22,sourceSha:sha,status:'would-retire'},
+    ],
+  },
+);
+assert.deepEqual(currentRetirement.writes,[]);
+assert.equal(currentRetirement.requested.some((route)=>route.includes('/commits/main')),false);
+currentRetirement=currentRetirementFixture();
+assert.deepEqual(
+  (await retireCurrentContentPrs({...currentRetirementOptions,api:currentRetirement.api})).repositories.map((entry)=>entry.status),
+  ['retired','retired'],
+);
+assert.deepEqual(currentRetirement.writes,[
+  {route:'repos/f5/one/pulls/13',method:'PATCH',body:{state:'closed'}},
+  {route:`repos/f5/one/git/refs/heads/${branchName(sha,'one')}`,method:'DELETE',body:undefined},
+  {route:'repos/f5/one/issues/12',method:'PATCH',body:{state:'closed',state_reason:'not_planned'}},
+  {route:'repos/f5/two/pulls/23',method:'PATCH',body:{state:'closed'}},
+  {route:`repos/f5/two/git/refs/heads/${branchName(sha,'two')}`,method:'DELETE',body:undefined},
+  {route:'repos/f5/two/issues/22',method:'PATCH',body:{state:'closed',state_reason:'not_planned'}},
+]);
+currentRetirement=currentRetirementFixture({invalidRepo:'two'});
+await assert.rejects(
+  retireCurrentContentPrs({...currentRetirementOptions,api:currentRetirement.api}),
+  /ownership metadata is invalid/,
+);
+assert.deepEqual(currentRetirement.writes,[]);
+for (const [fixture,pattern] of [
+  [{missingRepo:'two'},/exactly one reconciliation PR/],
+  [{duplicateRepo:'two'},/exactly one reconciliation PR/],
+  [{foreignRepo:'two'},/ownership metadata is invalid/],
+  [{wrongBaseRepo:'two'},/ownership metadata is invalid/],
+  [{wrongSourceRepo:'two'},/source mismatch/],
+  [{wrongTreeRepo:'two'},/desired tree mismatch/],
+  [{wrongIssueRepo:'two'},/tracker issue is invalid/],
+]) {
+  currentRetirement=currentRetirementFixture(fixture);
+  await assert.rejects(
+    retireCurrentContentPrs({...currentRetirementOptions,api:currentRetirement.api}),
+    pattern,
+  );
+  assert.deepEqual(currentRetirement.writes,[]);
+}
+currentRetirement=currentRetirementFixture();
+await assert.rejects(
+  retireCurrentContentPrs({...currentRetirementOptions,api:currentRetirement.api,selection:''}),
+  /explicit non-empty repository selection/,
+);
+assert.deepEqual(currentRetirement.requested,[]);
+await assert.rejects(
+  retireCurrentContentPrs({...currentRetirementOptions,api:currentRetirement.api,mode:'pilot'}),
+  /mode must be dry-run or full/,
+);
+await assert.rejects(
+  retireCurrentContentPrs({...currentRetirementOptions,api:currentRetirement.api,manifest:{...manifest,source_commit:oldSha}}),
+  /source must match the managed manifest source/,
+);
 const writes=[];
 const fleetApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.MAX_SAFE_INTEGER, fetch:async(url, request) => {
   const route = String(url); const method = request.method; if (method !== 'GET') writes.push(route);
@@ -225,6 +346,9 @@ const workflow = fs.readFileSync(path.join(path.dirname(process.argv[2]), '..', 
 assert.match(workflow, /^  group: fleet-content-reconciler-v2$/m);
 assert.match(workflow, /^  cancel-in-progress: false$/m);
 assert.doesNotMatch(workflow, /^  group: fleet-content-reconciler$/m);
+assert.match(workflow, /^      operation:$/m);
+assert.match(workflow, /^        options: \[reconcile, retire-only\]$/m);
+assert.match(workflow, /^          RECONCILE_OPERATION: \$\{\{ inputs\.operation \|\| 'reconcile' \}\}$/m);
 console.log('[OK] fleet reconciler contracts');
 })().catch((error) => { console.error(error); process.exit(1); });
 NODE

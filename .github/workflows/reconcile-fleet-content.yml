@@ -20,8 +20,14 @@ on:
         default: dry-run
         type: choice
         options: [dry-run, pilot, full]
+      operation:
+        description: Reconcile content or retire exact selected current owners without replacement.
+        required: false
+        default: reconcile
+        type: choice
+        options: [reconcile, retire-only]
       repositories:
-        description: Optional comma-separated downstream repository names.
+        description: Optional comma-separated downstream repositories; required for retire-only.
         required: false
         type: string
 
@@ -75,5 +81,6 @@ jobs:
           SOURCE_SHA: ${{ inputs.source_sha }}
           RECONCILE_MODE: ${{ inputs.mode || 'full' }}
           RECONCILE_KIND: content
+          RECONCILE_OPERATION: ${{ inputs.operation || 'reconcile' }}
           REPOSITORIES: ${{ inputs.repositories }}
         run: node scripts/fleet-reconciler.cjs
