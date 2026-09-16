@@ -116,6 +116,22 @@ XCSH_CANDIDATE_GRANT_IDENTITIES = frozenset().union(*XCSH_CANDIDATE_RESTRICTED_G
 DOCS_ICONS_REPOSITORY = "f5-sales-demo/docs-icons"
 DOCS_SOCKETLESS_ROUTE_EXPRESSION = "${{ github.repository == 'f5-sales-demo/docs-icons' && 'docs-socketless' || 'managed-socketless' }}"  # fmt: skip
 DOCS_SOCKETLESS_ROUTE_LABELS = {DOCS_ICONS_REPOSITORY: "docs-socketless"}
+RELEASE_CHAIN_REPOSITORIES = frozenset(
+    {
+        "f5-sales-demo/api-specs-enriched",
+        "f5-sales-demo/marketplace",
+        "f5-sales-demo/mcn",
+        "f5-sales-demo/terraform-provider-xcsh",
+    }
+)
+RELEASE_CHAIN_LINKED_ISSUE_ROUTE_EXPRESSION = (
+    "${{ (github.repository == 'f5-sales-demo/api-specs-enriched' || "
+    "github.repository == 'f5-sales-demo/marketplace' || "
+    "github.repository == 'f5-sales-demo/mcn' || "
+    "github.repository == 'f5-sales-demo/terraform-provider-xcsh') && "
+    "'ubuntu-latest' || (github.repository == 'f5-sales-demo/docs-icons' && "
+    "'docs-socketless' || 'managed-socketless') }}"
+)
 REUSABLE_RUNNER_WORKFLOWS = {
     "f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml",
     "f5-sales-demo/docs-control/.github/workflows/super-linter.yml",
@@ -582,6 +598,10 @@ def canonical_route_label(value, repository):
     """Resolve only exact governed scalar or fork-safe compute expressions."""
     value = tuple(value) if isinstance(value, list) else value
     value = canonical_caller_label(value, repository)
+    if value == RELEASE_CHAIN_LINKED_ISSUE_ROUTE_EXPRESSION:
+        if repository in RELEASE_CHAIN_REPOSITORIES:
+            return "ubuntu-latest"
+        return DOCS_SOCKETLESS_ROUTE_LABELS.get(repository, "managed-socketless")
     if value == DOCS_SOCKETLESS_ROUTE_EXPRESSION:
         return DOCS_SOCKETLESS_ROUTE_LABELS.get(repository, "managed-socketless")
     for label, expression in TRUSTED_COMPUTE_ROUTE_EXPRESSIONS.items():
@@ -854,12 +874,13 @@ def audit_job(  # noqa: PLR0917
     exception = exception_for(exceptions, relative, job_id)
     if exception is not None:
         allowed = exception.get("runs_on") if isinstance(exception, dict) else None
+        resolved_runs_on = canonical_route_label(runs_on, repository)
         if allowed == "matrix":
             if not isinstance(runs_on, str) or "matrix." not in runs_on:
                 errors.append(
                     f"{relative}/{job_id}: hosted exception requires matrix runs-on",
                 )
-        elif runs_on != allowed:
+        elif resolved_runs_on != allowed:
             errors.append(
                 f"{relative}/{job_id}: hosted runs-on {runs_on!r} does not match {allowed!r}",
             )

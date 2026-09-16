@@ -1158,23 +1158,48 @@ jobs:
         self.write_policy()
         self.assertEqual(self.audit(), [])
 
-    def test_linked_issue_has_no_retired_hosted_exception(self):
+    def test_linked_issue_hosted_exceptions_are_exact_for_release_chain(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
                 encoding="utf-8"
             )
         )
         self.assertEqual(set(policy["hosted_exceptions"]), set(policy["repositories"]))
+        release_chain = {
+            "f5-sales-demo/api-specs-enriched",
+            "f5-sales-demo/marketplace",
+            "f5-sales-demo/mcn",
+            "f5-sales-demo/terraform-provider-xcsh",
+        }
         for repository in policy["repositories"]:
-            self.assertNotIn(
-                ".github/workflows/require-linked-issue.yml",
-                policy["hosted_exceptions"][repository],
-                repository,
-            )
+            exception = policy["hosted_exceptions"][repository]
+            if repository in release_chain:
+                self.assertEqual(
+                    exception[".github/workflows/require-linked-issue.yml"],
+                    {
+                        "check-linked-issues": {
+                            "runs_on": "ubuntu-latest",
+                            "reason": "read-only AWS and KVM release-chain pull request policy",
+                        }
+                    },
+                    repository,
+                )
+            elif repository != "f5-sales-demo/docs-control":
+                self.assertNotIn(
+                    ".github/workflows/require-linked-issue.yml",
+                    exception,
+                    repository,
+                )
         exception = policy["hosted_exceptions"]["f5-sales-demo/docs-control"]
         self.assertEqual(
             exception,
             {
+                ".github/workflows/require-linked-issue.yml": {
+                    "validate-pull-request": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "read-only pull request policy for runner governance changes",
+                    }
+                },
                 ".github/workflows/workflow-security-audit.yml": {
                     "workflow-security-audit": {
                         "runs_on": "ubuntu-latest",
@@ -1198,6 +1223,12 @@ jobs:
         self.assertEqual(
             exception,
             {
+                ".github/workflows/require-linked-issue.yml": {
+                    "check-linked-issues": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "read-only AWS and KVM release-chain pull request policy",
+                    }
+                },
                 ".github/workflows/workflow-security-audit.yml": {
                     "workflow-security-audit": {
                         "runs_on": "ubuntu-latest",
@@ -1333,6 +1364,26 @@ jobs:
         self.assertEqual(
             exception,
             {
+                ".github/workflows/acc-tests.yml": {
+                    "mock-tests": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "credential-free provider mock acceptance tests",
+                    },
+                    "compare-results": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "credential-free provider mock result comparison",
+                    },
+                    "summary": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "credential-free provider acceptance result summary",
+                    },
+                },
+                ".github/workflows/require-linked-issue.yml": {
+                    "check-linked-issues": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "read-only AWS and KVM release-chain pull request policy",
+                    }
+                },
                 ".github/workflows/_build-test.yml": {
                     "build": {
                         "runs_on": "ubuntu-latest",
@@ -1382,6 +1433,23 @@ jobs:
 class DocsConditionalRouteTests(unittest.TestCase):
     def test_resolves_docs_socketless_route_by_repository(self):
         expression = MODULE.DOCS_SOCKETLESS_ROUTE_EXPRESSION
+        self.assertEqual(
+            MODULE.canonical_route_label(expression, "f5-sales-demo/docs-icons"),
+            "docs-socketless",
+        )
+        self.assertEqual(
+            MODULE.canonical_route_label(expression, "f5-sales-demo/nginx"),
+            "managed-socketless",
+        )
+
+    def test_resolves_release_chain_linked_issue_route_by_repository(self):
+        expression = MODULE.RELEASE_CHAIN_LINKED_ISSUE_ROUTE_EXPRESSION
+        for repository in MODULE.RELEASE_CHAIN_REPOSITORIES:
+            self.assertEqual(
+                MODULE.canonical_route_label(expression, repository),
+                "ubuntu-latest",
+                repository,
+            )
         self.assertEqual(
             MODULE.canonical_route_label(expression, "f5-sales-demo/docs-icons"),
             "docs-socketless",
