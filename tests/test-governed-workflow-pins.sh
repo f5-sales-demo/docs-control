@@ -193,6 +193,36 @@ if [[ "$*" == pr\ edit* ]] && [ -n "${FAKE_REQUIRED_WRITE_TOKEN:-}" ]; then
   if [ "${GH_TOKEN:-}" != "$FAKE_REQUIRED_WRITE_TOKEN" ]; then exit 66; fi
   touch "$FAKE_STATE/write-token-used"
 fi
+if [[ "$*" == api\ graphql*closingIssuesReferences* ]]; then
+  if [ -n "${FAKE_REQUIRED_LINK_READ_TOKEN:-}" ] &&
+    [ "${GH_TOKEN:-}" != "$FAKE_REQUIRED_LINK_READ_TOKEN" ]; then exit 65; fi
+  touch "$FAKE_STATE/link-read-token-used"
+  if [ "${FAKE_REQUIRE_EXACT_LINK_GRAPHQL:-}" = 1 ]; then
+    [[ "$*" == *'closingIssuesReferences(first: 2)'* ]] || exit 67
+    [[ "$*" == *'pageInfo { hasNextPage }'* ]] || exit 68
+  fi
+  response_file="$FAKE_STATE/pr-view-response"
+  if [ -f "$FAKE_STATE/pr-edited" ] && [ -f "$FAKE_STATE/pr-view-after-edit" ]; then
+    count_file="$FAKE_STATE/pr-link-read-count"
+    count=0
+    [ ! -f "$count_file" ] || count=$(cat "$count_file")
+    count=$((count + 1))
+    printf '%s\n' "$count" >"$count_file"
+    if [ "$count" -gt "${FAKE_PR_LINK_LAG_READS:-0}" ]; then
+      response_file="$FAKE_STATE/pr-view-after-edit"
+    fi
+  fi
+  "$REAL_JQ_COMMAND" -c '
+    {data: {repository: {pullRequest: {
+      body: .body,
+      closingIssuesReferences: {
+        nodes: .closingIssuesReferences,
+        pageInfo: {hasNextPage: false}
+      }
+    }}}}
+  ' "$response_file"
+  exit 0
+fi
 if [[ "$*" == api\ repos/*/pulls\?state=open* ]]; then
   count_file="$FAKE_STATE/inventory-count"
   count=0
@@ -292,6 +322,10 @@ if [[ "$*" == pr\ edit* ]]; then
   exit 0
 fi
 if [[ "$*" == pr\ view* ]]; then
+  if [ "${FAKE_PR_VIEW_LINK_EMPTY:-}" = 1 ]; then
+    cat "$FAKE_STATE/pr-view-response"
+    exit 0
+  fi
   if [ -f "$FAKE_STATE/pr-edited" ] && [ -f "$FAKE_STATE/pr-view-after-edit" ]; then
     count_file="$FAKE_STATE/pr-link-read-count"
     count=0
@@ -497,6 +531,24 @@ check "closing issue reads use the least-privilege token while repair retains th
     target_revision="$3"; base_oid="$4"; pin_issue_number=42
     ensure_pin_pr_link 10 && test -f "$FAKE_STATE/link-read-token-used" &&
       test -f "$FAKE_STATE/write-token-used"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
+check "closing issue verification uses the proven exact GraphQL query instead of gh pr view" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export GH_TOKEN=synthetic-write-token GH_LINK_READ_TOKEN=synthetic-link-read-token
+    export FAKE_REQUIRED_LINK_READ_TOKEN=synthetic-link-read-token
+    export FAKE_REQUIRED_WRITE_TOKEN=synthetic-write-token
+    export FAKE_REQUIRE_EXACT_LINK_GRAPHQL=1 FAKE_PR_VIEW_LINK_EMPTY=1
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE"/{pr-edited,link-read-token-used,write-token-used}
+    jq -cn "{body: \"legacy\", closingIssuesReferences: []}" >"$FAKE_STATE/pr-view-response"
+    body=$(printf "Automated immutable governed-workflow pin rollout.\\n\\nTarget revision: \`%s\`\\nProtected-main base: \`%s\`\\n\\nCloses #42" "$3" "$4")
+    jq -cn --arg body "$body" "{body: \$body, closingIssuesReferences: [{number: 42}]}" >"$FAKE_STATE/pr-view-after-edit"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; pin_issue_number=42
+    ensure_pin_pr_link 10 && grep -q "^api graphql " "$FAKE_COMMAND_LOG" &&
+      ! grep -q "^pr view " "$FAKE_COMMAND_LOG" && test -f "$FAKE_STATE/write-token-used"
   ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
 
 check "closing issue relationship settles after bounded API lag" \
