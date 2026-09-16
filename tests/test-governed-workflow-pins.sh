@@ -411,6 +411,19 @@ check "one not-planned marker match is safely reopened for retry" \
       test -f "$FAKE_STATE/issue-reopened" && test -f "$FAKE_STATE/issue-edited"
   ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
 
+check "an unrelated duplicate issue is valid terminal inventory" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    : >"$FAKE_COMMAND_LOG"; rm -f "$FAKE_STATE"/{issue-created,issue-reopened,issue-edited}
+    jq -cn '\''[[{number: 1408, state: "closed", state_reason: "duplicate", body: "unrelated"}]]'\'' \
+      >"$FAKE_STATE/issues-response"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; branch=sync/governed-workflow-pins-bbbbbbbbbbbb-2-1
+    reconcile_pin_issue && test "$pin_issue_number" = 77 &&
+      test -f "$FAKE_STATE/issue-created" && test ! -f "$FAKE_STATE/issue-reopened" &&
+      rm -f "$FAKE_STATE/issue-created" "$FAKE_STATE/created-issue-body"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
 check "completed marker matches and duplicate marker owners fail closed" \
   bash -c '
     export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
