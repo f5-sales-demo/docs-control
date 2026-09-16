@@ -28,7 +28,7 @@ concurrency:
 jobs:
   update:
     name: Update governed workflow pins
-    runs-on: managed-socketless
+    runs-on: ubuntu-latest
     environment: repository-settings
     permissions:
       contents: read # check out the protected governance source

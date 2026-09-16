@@ -193,6 +193,12 @@
       }
     },
     "f5-sales-demo/docs-control": {
+      ".github/workflows/build-managed-files-manifest.yml": {
+        "build": {
+          "runs_on": "ubuntu-latest",
+          "reason": "manifest publication requires available hosted release automation"
+        }
+      },
       ".github/workflows/require-linked-issue.yml": {
         "validate-pull-request": {
           "runs_on": "ubuntu-latest",
@@ -211,6 +217,12 @@
         "shell-unit-tests": {
           "runs_on": "ubuntu-latest",
           "reason": "credential-free governance shell and unit tests"
+        }
+      },
+      ".github/workflows/update-governed-workflow-pins.yml": {
+        "update": {
+          "runs_on": "ubuntu-latest",
+          "reason": "governed pin publication requires available hosted release automation"
         }
       },
       ".github/workflows/workflow-security-audit.yml": {
