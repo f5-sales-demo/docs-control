@@ -1245,9 +1245,7 @@ jobs:
             "update-governed-workflow-pins.yml": "update",
         }.items():
             workflow = yaml.safe_load(
-                (ROOT / ".github/workflows" / workflow_name).read_text(
-                    encoding="utf-8"
-                )
+                (ROOT / ".github/workflows" / workflow_name).read_text(encoding="utf-8")
             )
             self.assertEqual(workflow["jobs"][job_name]["runs-on"], "ubuntu-latest")
         self.assertNotIn(
