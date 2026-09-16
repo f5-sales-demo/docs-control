@@ -757,13 +757,13 @@ else
     "workflow_call.rust_edition must default to edition 2021"
 fi
 
-if [ "$(grep -Fc "runs-on: \${{ inputs.socketless_runner_label || 'managed-socketless' }}" "$SL_YML")" -eq 2 ] &&
-  [ "$(grep -Fc "runs-on: \${{ inputs.container_build_runner_label || 'managed-container-build' }}" "$SL_YML")" -eq 1 ] &&
+if [ "$(grep -Fc "runs-on: \${{ inputs.socketless_runner_label || 'ubuntu-latest' }}" "$SL_YML")" -eq 2 ] &&
+  [ "$(grep -Fc "runs-on: \${{ inputs.container_build_runner_label || 'ubuntu-24.04' }}" "$SL_YML")" -eq 1 ] &&
   ! grep -Fq 'fromJSON(format(' "$SL_YML"; then
-  pass "5e.1a direct and reusable lint use only current ARC labels"
+  pass "5e.1a direct governance lint defaults to hosted runners"
 else
-  fail "5e.1a direct and reusable lint use only current ARC labels" \
-    "remove retired five-label runner fallbacks and default all three jobs to managed ARC labels"
+  fail "5e.1a direct governance lint defaults to hosted runners" \
+    "default the three credential-free jobs to exact hosted runner labels"
 fi
 
 RUST_EDITION_STEP=$(awk '/- name: Validate Rust edition input/,/- name: Run Super-Linter/' "$SL_YML")
@@ -801,7 +801,9 @@ else
     "GITHUB_ACTIONS_CONFIG_FILE must select .github/actionlint.yaml"
 fi
 
-if grep -qF 'Run actionlint 1.7.12 directly from' "$SL_YML" &&
+if grep -qF 'install the same pinned version on hosted runners' "$SL_YML" &&
+  grep -qF 'ACTIONLINT_VERSION: v1.7.12' "$SL_YML" &&
+  grep -qF 'go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"' "$SL_YML" &&
   grep -qF 'actionlint -config-file .github/actionlint.yaml' "$SL_YML" &&
   ! grep -qF 'rhysd/actionlint@' "$SL_YML" &&
   ! grep -qF -- '--volume "$GITHUB_WORKSPACE:/repo:ro"' "$SL_YML" &&

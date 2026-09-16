@@ -15,7 +15,7 @@ jobs:
   validate-pull-request:
     if: github.event.pull_request.head.repo.full_name == github.repository
     name: ${{ startsWith(github.event.pull_request.head.ref, 'sync/manifest-') && 'Validate manifest receipt candidate' || 'Check linked issues' }}
-    runs-on: managed-socketless
+    runs-on: ubuntu-latest
     permissions:
       pull-requests: read # inspect the current pull request
       contents: read # inspect manifest candidate ancestry

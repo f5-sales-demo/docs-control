@@ -19,15 +19,15 @@ on:
         default: false
 
       socketless_runner_label:
-        description: Policy-approved repository-scoped ARC socketless label
+        description: Policy-approved socketless or hosted runner label
         required: false
         type: string
-        default: 'managed-socketless'
+        default: 'ubuntu-latest'
       container_build_runner_label:
-        description: Policy-approved repository-scoped ARC container-build label
+        description: Policy-approved Docker-capable or hosted runner label
         required: false
         type: string
-        default: 'managed-container-build'
+        default: 'ubuntu-24.04'
 permissions: {}
 
 concurrency:
@@ -40,16 +40,16 @@ concurrency:
 jobs:
   trust-gate:
     name: Trust Docker-capable job
-    runs-on: ${{ inputs.socketless_runner_label || 'managed-socketless' }}
+    runs-on: ${{ inputs.socketless_runner_label || 'ubuntu-latest' }}
     permissions: {}
     steps:
       - name: Reject untrusted or unsupported events
         env:
-          CONTAINER_BUILD_RUNNER_LABEL: ${{ inputs.container_build_runner_label || 'managed-container-build' }}
+          CONTAINER_BUILD_RUNNER_LABEL: ${{ inputs.container_build_runner_label || 'ubuntu-24.04' }}
           EVENT_NAME: ${{ github.event_name }}
           HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
           REPOSITORY: ${{ github.repository }}
-          SOCKETLESS_RUNNER_LABEL: ${{ inputs.socketless_runner_label || 'managed-socketless' }}
+          SOCKETLESS_RUNNER_LABEL: ${{ inputs.socketless_runner_label || 'ubuntu-latest' }}
         run: |
           set -euo pipefail
           if [[ -z "$SOCKETLESS_RUNNER_LABEL" || -z "$CONTAINER_BUILD_RUNNER_LABEL" ]]; then
@@ -82,7 +82,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: ${{ inputs.container_build_runner_label || 'managed-container-build' }}
+    runs-on: ${{ inputs.container_build_runner_label || 'ubuntu-24.04' }}
     # Scoped to what the linter needs: read code/packages, write commit statuses
     # and PR annotations. The shell-unit-tests job below gets contents:read only.
     permissions:
@@ -366,8 +366,22 @@ jobs:
           done
 
       # Super-Linter v8.7.0's bundled actionlint can deadlock while analyzing
-      # the large managed sync workflow. Run actionlint 1.7.12 directly from
-      # the immutable container-build runner image.
+      # the large managed sync workflow. Use the preinstalled immutable runner
+      # tool when present and install the same pinned version on hosted runners.
+      - name: Install actionlint
+        env:
+          ACTIONLINT_VERSION: v1.7.12
+        run: |
+          set -euo pipefail
+          if command -v actionlint >/dev/null 2>&1; then
+            actionlint -version
+            exit 0
+          fi
+          install_dir="$RUNNER_TEMP/actionlint-bin"
+          install -d -m 0755 "$install_dir"
+          GOBIN="$install_dir" go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"
+          echo "$install_dir" >> "$GITHUB_PATH"
+
       - name: Run native actionlint
         run: |
           set -euo pipefail
@@ -375,6 +389,7 @@ jobs:
 
       - name: Start Super-Linter profiler
         id: super_linter_profile_start
+        if: runner.environment == 'self-hosted'
         continue-on-error: true
         env:
           SUPER_LINTER_IMAGE: ghcr.io/super-linter/super-linter:v8.7.0
@@ -554,7 +569,7 @@ jobs:
 
       - name: Finalize Super-Linter profile
         id: super_linter_profile
-        if: always()
+        if: always() && runner.environment == 'self-hosted'
         continue-on-error: true
         env:
           SUPER_LINTER_OUTCOME: ${{ steps.super_linter.outcome }}
@@ -613,7 +628,7 @@ jobs:
 
       - name: Upload Super-Linter profile
         id: super_linter_profile_upload
-        if: always()
+        if: always() && runner.environment == 'self-hosted'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: workload-profile-super-linter
@@ -624,16 +639,21 @@ jobs:
       - name: Preserve Super-Linter conclusion
         if: always()
         env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
           PROFILE_START_OUTCOME: ${{ steps.super_linter_profile_start.outcome }}
           SUPER_LINTER_OUTCOME: ${{ steps.super_linter.outcome }}
           PROFILE_FINALIZE_OUTCOME: ${{ steps.super_linter_profile.outcome }}
           PROFILE_UPLOAD_OUTCOME: ${{ steps.super_linter_profile_upload.outcome }}
         run: |
-          if [[ "$PROFILE_START_OUTCOME" != success ||
-            "$SUPER_LINTER_OUTCOME" != success ||
+          if [[ "$SUPER_LINTER_OUTCOME" != success ]]; then
+            echo "::error::Super-Linter failed"
+            exit 1
+          fi
+          if [[ "$RUNNER_ENVIRONMENT" == self-hosted &&
+            ("$PROFILE_START_OUTCOME" != success ||
             "$PROFILE_FINALIZE_OUTCOME" != success ||
-            "$PROFILE_UPLOAD_OUTCOME" != success ]]; then
-            echo "::error::Super-Linter or its required profiling evidence failed"
+            "$PROFILE_UPLOAD_OUTCOME" != success) ]]; then
+            echo "::error::Required self-hosted profiling evidence failed"
             exit 1
           fi
 
@@ -832,7 +852,7 @@ jobs:
 
   shell-unit-tests:
     name: Shell Unit Tests
-    runs-on: ${{ inputs.socketless_runner_label || 'managed-socketless' }}
+    runs-on: ${{ inputs.socketless_runner_label || 'ubuntu-latest' }}
     permissions:
       contents: read
     steps:

@@ -28,6 +28,7 @@ assert workflow["jobs"]["lint"]["permissions"] == {
 steps = workflow["jobs"]["lint"]["steps"]
 by_name = {step.get("name"): step for step in steps}
 required = (
+    "Install actionlint",
     "Start Super-Linter profiler",
     "Run Super-Linter",
     "Finalize Super-Linter profile",
@@ -42,7 +43,17 @@ assert set(required) <= by_name.keys()
 order = [next(i for i, step in enumerate(steps) if step.get("name") == name) for name in required]
 assert order == sorted(order)
 
+install_actionlint = by_name["Install actionlint"]
+assert install_actionlint["env"] == {"ACTIONLINT_VERSION": "v1.7.12"}
+for fragment in (
+    "command -v actionlint",
+    'go install "github.com/rhysd/actionlint/cmd/actionlint@${ACTIONLINT_VERSION}"',
+    'echo "$install_dir" >> "$GITHUB_PATH"',
+):
+    assert fragment in install_actionlint["run"]
+
 start = by_name["Start Super-Linter profiler"]
+assert start["if"] == "runner.environment == 'self-hosted'"
 assert start.get("continue-on-error") is True
 assert start["env"] == {
     "SUPER_LINTER_IMAGE": "ghcr.io/super-linter/super-linter:v8.7.0",
@@ -66,7 +77,7 @@ assert "IGNORE_GITIGNORED_FILES" not in lint.get("env", {})
 
 finalize = by_name["Finalize Super-Linter profile"]
 assert finalize["id"] == "super_linter_profile"
-assert finalize["if"] == "always()"
+assert finalize["if"] == "always() && runner.environment == 'self-hosted'"
 assert finalize.get("continue-on-error") is True
 for fragment in (
     "docker-action-profile.schema.json",
@@ -79,7 +90,7 @@ for fragment in (
 
 upload = by_name["Upload Super-Linter profile"]
 assert upload["id"] == "super_linter_profile_upload"
-assert upload["if"] == "always()"
+assert upload["if"] == "always() && runner.environment == 'self-hosted'"
 assert upload["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
 assert upload["with"] == {
     "name": "workload-profile-super-linter",
@@ -91,28 +102,52 @@ assert upload["with"] == {
 gate = by_name["Preserve Super-Linter conclusion"]
 assert gate["if"] == "always()"
 assert gate["env"] == {
+    "RUNNER_ENVIRONMENT": "${{ runner.environment }}",
     "PROFILE_START_OUTCOME": "${{ steps.super_linter_profile_start.outcome }}",
     "SUPER_LINTER_OUTCOME": "${{ steps.super_linter.outcome }}",
     "PROFILE_FINALIZE_OUTCOME": "${{ steps.super_linter_profile.outcome }}",
     "PROFILE_UPLOAD_OUTCOME": "${{ steps.super_linter_profile_upload.outcome }}",
 }
-for name in gate["env"]:
+for name in (
+    "PROFILE_START_OUTCOME",
+    "SUPER_LINTER_OUTCOME",
+    "PROFILE_FINALIZE_OUTCOME",
+    "PROFILE_UPLOAD_OUTCOME",
+):
     assert f'"${name}" != success' in gate["run"]
 assert "exit 1" in gate["run"]
 
-base_env = os.environ | {name: "success" for name in gate["env"]}
+self_hosted_env = os.environ | {name: "success" for name in gate["env"]}
+self_hosted_env["RUNNER_ENVIRONMENT"] = "self-hosted"
 assert subprocess.run(
-    ["bash", "-c", gate["run"]], env=base_env, capture_output=True, check=False
+    ["bash", "-c", gate["run"]],
+    env=self_hosted_env,
+    capture_output=True,
+    check=False,
 ).returncode == 0
-for failed_outcome in gate["env"]:
-    failure_env = base_env | {failed_outcome: "failure"}
+for failed_outcome in (
+    "PROFILE_START_OUTCOME",
+    "SUPER_LINTER_OUTCOME",
+    "PROFILE_FINALIZE_OUTCOME",
+    "PROFILE_UPLOAD_OUTCOME",
+):
+    failure_env = self_hosted_env | {failed_outcome: "failure"}
     assert subprocess.run(
         ["bash", "-c", gate["run"]],
         env=failure_env,
         capture_output=True,
         check=False,
     ).returncode != 0
-cancelled_env = base_env | {"SUPER_LINTER_OUTCOME": "cancelled"}
+hosted_env = self_hosted_env | {
+    "RUNNER_ENVIRONMENT": "github-hosted",
+    "PROFILE_START_OUTCOME": "skipped",
+    "PROFILE_FINALIZE_OUTCOME": "skipped",
+    "PROFILE_UPLOAD_OUTCOME": "skipped",
+}
+assert subprocess.run(
+    ["bash", "-c", gate["run"]], env=hosted_env, capture_output=True, check=False
+).returncode == 0
+cancelled_env = hosted_env | {"SUPER_LINTER_OUTCOME": "cancelled"}
 assert subprocess.run(
     ["bash", "-c", gate["run"]], env=cancelled_env, capture_output=True, check=False
 ).returncode != 0
