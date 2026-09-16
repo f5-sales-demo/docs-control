@@ -484,6 +484,22 @@ check "closing issue relationship settles after bounded API lag" \
       test "$(grep "^sleep " "$FAKE_COMMAND_LOG" | cut -d " " -f 2 | paste -sd, -)" = "1,2"
   ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
 
+check "closing issue relationship covers observed extended API lag" \
+  bash -c '
+    export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
+    export FAKE_PR_LINK_LAG_READS=6
+    : >"$FAKE_COMMAND_LOG"
+    rm -f "$FAKE_STATE"/{pr-link-read-count,sleep-count}
+    touch "$FAKE_STATE/pr-edited"
+    jq -cn "{body: \"legacy\", closingIssuesReferences: []}" >"$FAKE_STATE/pr-view-response"
+    body=$(printf "Automated immutable governed-workflow pin rollout.\n\nTarget revision: \`%s\`\nProtected-main base: \`%s\`\n\nCloses #42" "$3" "$4")
+    jq -cn --arg body "$body" "{body: \$body, closingIssuesReferences: [{number: 42}]}" >"$FAKE_STATE/pr-view-after-edit"
+    source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
+    target_revision="$3"; base_oid="$4"; pin_issue_number=42
+    ensure_pin_pr_link 10 && test "$(cat "$FAKE_STATE/pr-link-read-count")" -eq 7 &&
+      test "$(grep "^sleep " "$FAKE_COMMAND_LOG" | cut -d " " -f 2 | paste -sd, -)" = "1,2,4,8,16,16"
+  ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
+
 check "closing issue relationship fails after bounded settling is exhausted" \
   bash -c '
     export PATH="$2/bin:$PATH" FAKE_COMMAND_LOG="$2/commands" FAKE_STATE="$2/state"
@@ -496,8 +512,8 @@ check "closing issue relationship fails after bounded settling is exhausted" \
     jq -cn --arg body "$body" "{body: \$body, closingIssuesReferences: [{number: 42}]}" >"$FAKE_STATE/pr-view-after-edit"
     source "$1"; repository=f5-sales-demo/docs-control; work="$2/state"
     target_revision="$3"; base_oid="$4"; pin_issue_number=42
-    ! ensure_pin_pr_link 10 && test "$(cat "$FAKE_STATE/pr-link-read-count")" -eq 6 &&
-      test "$(grep "^sleep " "$FAKE_COMMAND_LOG" | cut -d " " -f 2 | paste -sd, -)" = "1,2,4,4,4"
+    ! ensure_pin_pr_link 10 && test "$(cat "$FAKE_STATE/pr-link-read-count")" -eq 8 &&
+      test "$(grep "^sleep " "$FAKE_COMMAND_LOG" | cut -d " " -f 2 | paste -sd, -)" = "1,2,4,8,16,16,16"
   ' _ "$ROLLOUT_SCRIPT" "$BEHAVIOR" "$TARGET_SHA" "$BASE_SHA"
 
 check "a malformed PR link response fails before mutation" \

@@ -373,7 +373,10 @@ ensure_pin_pr_link() {
     return 1
   fi
 
-  for delay in 1 2 4 4 4; do
+  # GitHub's closingIssuesReferences index can lag the accepted PR body write.
+  # Keep retries bounded while covering the 20+ second delay observed in live
+  # reconciliation; malformed or foreign relationships still fail immediately.
+  for delay in 1 2 4 8 16 16 16; do
     sleep "$delay"
     if ! pr_json=$(gh pr view "$pr_number" --repo "$repository" \
       --json body,closingIssuesReferences); then
