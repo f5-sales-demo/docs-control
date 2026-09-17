@@ -291,8 +291,8 @@
           "reason": "Apple signing and notarization require macOS"
         },
         "verify-homebrew-install": {
-          "runs_on": "macos-14",
-          "reason": "Homebrew release verification requires macOS"
+          "runs_on": "matrix",
+          "reason": "Homebrew cask release verification requires Apple silicon and Intel macOS"
         }
       },
       ".github/workflows/console-catalog-drift.yml": {
