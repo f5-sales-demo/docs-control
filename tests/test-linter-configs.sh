@@ -1822,11 +1822,20 @@ assert setup["uses"] == audit_setup["uses"]
 assert setup["with"] == {"version": audit_setup["with"]["version"]}
 assert setup["with"]["version"] == "0.8.24"
 assert setup["if"] == "hashFiles('tests/test-workflow-security-validator-integration.sh') != ''"
+
+terraform_setup_index = next(
+    i for i, step in enumerate(steps)
+    if step.get("name") == "Setup Terraform for consumer shell tests"
+)
+terraform_setup = steps[terraform_setup_index]
+assert terraform_setup_index < integration_index
+assert terraform_setup["uses"] == "hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd"
+assert terraform_setup["with"] == {"terraform_version": "1.16.3"}
 PY
-  pass "14.3 workflow-security integration installs an immutable uv toolchain first"
+  pass "14.3 shell tests install immutable uv and Terraform toolchains first"
 else
-  fail "14.3 workflow-security integration installs an immutable uv toolchain first" \
-    "setup-uv must be pinned, versioned, guarded, and ordered before the integration test"
+  fail "14.3 shell tests install immutable uv and Terraform toolchains first" \
+    "setup-uv and setup-terraform must be pinned, versioned, and ordered before consumer tests"
 fi
 
 # One workflow_call default is resolved to an immutable digest after registry
