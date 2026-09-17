@@ -295,6 +295,12 @@
           "reason": "Homebrew cask release verification requires Apple silicon and Intel macOS"
         }
       },
+      ".github/workflows/release-homebrew-backfill.yml": {
+        "verify-homebrew-install": {
+          "runs_on": "matrix",
+          "reason": "Homebrew cask release verification requires Apple silicon and Intel macOS"
+        }
+      },
       ".github/workflows/console-catalog-drift.yml": {
         "drift-guard": {
           "runs_on": "ubuntu-22.04",
