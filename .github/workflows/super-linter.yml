@@ -861,6 +861,14 @@ jobs:
         with:
           persist-credentials: false
 
+      # Consumer shell suites enforce their declared Terraform floor. Keep the
+      # runner toolchain explicit and immutable rather than relying on a
+      # preinstalled hosted-runner version.
+      - name: Setup Terraform for consumer shell tests
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: 1.16.3
+
       # These tests guard docs-control's own fleet-sync machinery. They
       # live only in docs-control; consumer repos that pin this workflow
       # via `workflow_call` do not carry the scripts. Each step has its
