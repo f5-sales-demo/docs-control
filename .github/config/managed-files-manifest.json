@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "b7667f6a67a2a241206c65b4194bffea551d5c3c",
+  "source_commit": "e7b9769f960c3b2be541f80b84b9099968135c23",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -383,8 +383,8 @@
     {
       "path": "scripts/workflow_security_validator.py",
       "src": "scripts/workflow_security_validator.py",
-      "sha": "86b2e510ea1f360b514985d4dc5838cecfd56c04",
-      "size": 51230,
+      "sha": "44318deda52226fb17101ca68122f5becd9fe56d",
+      "size": 51220,
       "mode": "100755"
     },
     {
@@ -462,5 +462,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:eeb9da54e1d0d275034977823e96ac2981f9ada4f17c0a40ab7e2eb24d7ca5d4"
+  "state_digest": "sha256:d7d50556eb639446a4fa5bf54d373d277a2b4b01a9660870250a1e45e8c16d47"
 }
