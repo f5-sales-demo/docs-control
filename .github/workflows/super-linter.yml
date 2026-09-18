@@ -904,6 +904,10 @@ jobs:
         if: hashFiles('tests/test-linter-configs.sh') != ''
         run: bash tests/test-linter-configs.sh
 
+      - name: Run multi-cloud-networking identity test
+        if: hashFiles('tests/test-multi-cloud-networking-identity.sh') != ''
+        run: bash tests/test-multi-cloud-networking-identity.sh
+
       - name: Run Super-Linter profile contract test
         if: hashFiles('tests/test-super-linter-profile.sh') != ''
         run: bash tests/test-super-linter-profile.sh

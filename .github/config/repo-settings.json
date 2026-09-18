@@ -566,7 +566,7 @@
       "nginx": ["governance"],
       "observability": ["governance"],
       "was": ["governance"],
-      "mcn": ["governance"],
+      "multi-cloud-networking": ["governance"],
       "cdn": ["governance"],
       "bot-standard": ["governance"],
       "bot-advanced": ["governance"],

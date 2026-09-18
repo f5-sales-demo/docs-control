@@ -37,7 +37,7 @@ for file in "$managed" "$central"; do
 done
 require_literal "$central" '    runs-on: ubuntu-latest' \
   'central linked-issue workflow uses credential-free hosted execution'
-for repository in api-specs-enriched marketplace mcn terraform-provider-xcsh; do
+for repository in api-specs-enriched marketplace multi-cloud-networking terraform-provider-xcsh; do
   require_literal "$managed" "f5-sales-demo/$repository" \
     "managed linked-issue caller names release-chain repository $repository"
 done
@@ -115,7 +115,7 @@ reject_literal "$attestor" 'actions/checkout' 'attestor does not execute pull re
 if jq -e '[.hosted_exceptions | to_entries[] |
   select(.value[".github/workflows/require-linked-issue.yml"] != null) | .key] |
   sort == (["f5-sales-demo/api-specs-enriched", "f5-sales-demo/docs-control",
-    "f5-sales-demo/marketplace", "f5-sales-demo/mcn",
+    "f5-sales-demo/marketplace", "f5-sales-demo/multi-cloud-networking",
     "f5-sales-demo/terraform-provider-xcsh"] | sort)' \
   "$REPO_ROOT/.github/config/self-hosted-runner-policy.json" >/dev/null; then
   pass 'fleet runner policy limits linked-issue hosted exceptions to the release chain and its control plane'

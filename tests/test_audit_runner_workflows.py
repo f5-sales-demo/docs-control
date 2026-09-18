@@ -1159,7 +1159,7 @@ jobs:
         release_chain = {
             "f5-sales-demo/api-specs-enriched",
             "f5-sales-demo/marketplace",
-            "f5-sales-demo/mcn",
+            "f5-sales-demo/multi-cloud-networking",
             "f5-sales-demo/terraform-provider-xcsh",
         }
         for repository in policy["repositories"]:
@@ -1278,13 +1278,13 @@ jobs:
             },
         )
 
-    def test_mcn_terraform_jobs_are_exact_hosted_exceptions(self):
+    def test_multi_cloud_networking_terraform_jobs_are_exact_hosted_exceptions(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
                 encoding="utf-8"
             )
         )
-        exception = policy["hosted_exceptions"]["f5-sales-demo/mcn"]
+        exception = policy["hosted_exceptions"]["f5-sales-demo/multi-cloud-networking"]
         self.assertEqual(
             exception[".github/workflows/terraform.yml"],
             {

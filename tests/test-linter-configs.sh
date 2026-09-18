@@ -705,12 +705,12 @@ else
     "Shell Unit Tests is absent from self_contexts"
 fi
 
-MCN_CONTEXTS=$(jq -c '.repo_overrides.mcn.additional_contexts // []' "$REPO_SETTINGS")
-if echo "$MCN_CONTEXTS" | jq -e 'index("lint / Shell Unit Tests") == null' >/dev/null; then
-  pass "7e.3 mcn does not duplicate the uniform base context"
+MULTI_CLOUD_NETWORKING_CONTEXTS=$(jq -c '.repo_overrides["multi-cloud-networking"].additional_contexts // []' "$REPO_SETTINGS")
+if echo "$MULTI_CLOUD_NETWORKING_CONTEXTS" | jq -e 'index("lint / Shell Unit Tests") == null' >/dev/null; then
+  pass "7e.3 multi-cloud-networking does not duplicate the uniform base context"
 else
-  fail "7e.3 mcn does not duplicate the uniform base context" \
-    "remove the obsolete mcn-only Shell Unit Tests override"
+  fail "7e.3 multi-cloud-networking does not duplicate the uniform base context" \
+    "remove the obsolete multi-cloud-networking-only Shell Unit Tests override"
 fi
 
 REQUIRED_CONTEXT_VERIFIER="$REPO_ROOT/scripts/verify-required-contexts.sh"

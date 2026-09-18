@@ -558,7 +558,7 @@
         }
       }
     },
-    "f5-sales-demo/mcn": {
+    "f5-sales-demo/multi-cloud-networking": {
       ".github/workflows/require-linked-issue.yml": {
         "check-linked-issues": {
           "runs_on": "ubuntu-latest",
@@ -1038,7 +1038,7 @@
         }
       }
     },
-    "f5-sales-demo/mcn": {
+    "f5-sales-demo/multi-cloud-networking": {
       "runner": {
         "arc_scale_sets": {
           "socketless": {
