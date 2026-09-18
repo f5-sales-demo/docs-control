@@ -1528,7 +1528,9 @@ mkdir -p \
   "$GI_TMP/coverage/report" \
   "$GI_TMP/coverage/smsv2/reject-tests" \
   "$GI_TMP/coverage/unrelated" \
-  "$GI_TMP/docs/superpowers"
+  "$GI_TMP/docs/superpowers" \
+  "$GI_TMP/terraform/aws" \
+  "$GI_TMP/terraform/example"
 : >"$GI_TMP/vendor/modules.txt"
 : >"$GI_TMP/src/vendor/chat-ui/index.ts"
 : >"$GI_TMP/bun.lock"
@@ -1546,6 +1548,8 @@ mkdir -p \
 : >"$GI_TMP/coverage/smsv2/reject-tests/invalid.tftest.hcl"
 : >"$GI_TMP/coverage/smsv2/terraform.tfstate"
 : >"$GI_TMP/coverage/unrelated/output.json"
+: >"$GI_TMP/terraform/aws/.terraform.lock.hcl"
+: >"$GI_TMP/terraform/example/.terraform.lock.hcl"
 ln -s /tmp/example-venv "$GI_TMP/.venv"
 
 # A top-level vendor/ tree must still be ignored — that is the rule's purpose.
@@ -1659,6 +1663,20 @@ if git -C "$GI_TMP" check-ignore -q coverage/smsv2/terraform.tfstate; then
 else
   fail "8.14 Terraform state remains ignored inside the SMSv2 harness" \
     "the harness exception bypasses the fleet Terraform-state rule"
+fi
+
+if git -C "$GI_TMP" check-ignore -q terraform/aws/.terraform.lock.hcl; then
+  fail "8.15 AWS SMSv2 provider lockfile remains trackable" \
+    "terraform/aws/.terraform.lock.hcl still requires git add -f"
+else
+  pass "8.15 AWS SMSv2 provider lockfile remains trackable"
+fi
+
+if git -C "$GI_TMP" check-ignore -q terraform/example/.terraform.lock.hcl; then
+  pass "8.16 unrelated Terraform lockfiles remain ignored"
+else
+  fail "8.16 unrelated Terraform lockfiles remain ignored" \
+    "the AWS exception is broader than the intended repository-relative path"
 fi
 
 rm -rf "$GI_TMP"
