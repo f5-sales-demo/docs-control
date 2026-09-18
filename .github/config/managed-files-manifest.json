@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "7e36ce58455e1f1c697ac6032dc95e1de4a2eb3d",
+  "source_commit": "039e6984147277962e820ca683895cba6e7859bc",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "289e4a1099ffbb4e210b9a80ae5581ec6d201ad4",
-      "size": 8486,
+      "sha": "3d6a7cd9d97f15f71eda04d219770ecd4e334c1b",
+      "size": 8505,
       "mode": "100644"
     },
     {
@@ -103,15 +103,15 @@
     {
       "path": ".github/actionlint.yaml",
       "src": ".github/actionlint.yaml",
-      "sha": "6ac142c8c61786d083ad6e39b69aa9d3e1686cec",
-      "size": 1662,
+      "sha": "ce02a7e1af323f63c56009b8b9ac8591d2a85a23",
+      "size": 1681,
       "mode": "100644"
     },
     {
       "path": ".github/config/self-hosted-runner-policy.json",
       "src": ".github/config/self-hosted-runner-policy.json",
-      "sha": "9c887ae23f30611a1ee8fae496460f48939414c5",
-      "size": 44177,
+      "sha": "d316fd4688feae2cc3bc39a4caa1516451b4c716",
+      "size": 44215,
       "mode": "100644"
     },
     {
@@ -138,8 +138,8 @@
     {
       "path": ".github/workflows/require-linked-issue.yml",
       "src": "workflows/require-linked-issue.yml",
-      "sha": "06a6363a302be7790133f0992610e569962f88f2",
-      "size": 4166,
+      "sha": "b677b611b706b738c7a990f92797cee62b59ede4",
+      "size": 4185,
       "mode": "100644"
     },
     {
@@ -313,8 +313,8 @@
     {
       "path": "scripts/audit-runner-workflows.py",
       "src": "scripts/audit-runner-workflows.py",
-      "sha": "96a782738f081f1b8c48ab1af487fbb2729843f9",
-      "size": 41364,
+      "sha": "aa83f70a0e413a2968302652261ca60373b93e5d",
+      "size": 41421,
       "mode": "100755"
     },
     {
@@ -383,8 +383,8 @@
     {
       "path": "scripts/workflow_security_validator.py",
       "src": "scripts/workflow_security_validator.py",
-      "sha": "02bec9ddbe1ac10ab1e5cc9e7783eef2bb8d4911",
-      "size": 51211,
+      "sha": "86b2e510ea1f360b514985d4dc5838cecfd56c04",
+      "size": 51230,
       "mode": "100755"
     },
     {
@@ -411,8 +411,8 @@
     {
       "path": "tests/test-lint-mdx-prose.sh",
       "src": "tests/test-lint-mdx-prose.sh",
-      "sha": "2182f113bceff4c54a69b973c45445e1e382d605",
-      "size": 9157,
+      "sha": "382849779e6ad92645a3d3283f85ac693ae7fbf9",
+      "size": 9176,
       "mode": "100755"
     },
     {
@@ -462,5 +462,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:bbdf631fd9773f8e716eaefeac9e6070f5266f7c49a971370ce34d7186c76588"
+  "state_digest": "sha256:0bd9a1035335c9cae47ae361719b9e7c6370d462dd9e1517040aa14cb11c47a7"
 }
