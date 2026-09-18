@@ -13,7 +13,7 @@ on:
         default: 'docs'
         type: string
       builder-image:
-        description: 'Approved builder Docker image selector'
+        description: 'Approved builder Docker image selector (latest or immutable digest)'
         required: false
         default: 'ghcr.io/f5-sales-demo/docs-builder:latest'
         type: string
@@ -142,13 +142,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve latest documentation builder
+      - name: Resolve approved documentation builder
         id: builder
         env:
           REQUESTED_IMAGE: ${{ inputs.builder-image }}
         run: |
-          if [[ ! "$REQUESTED_IMAGE" =~ ^ghcr\.io/f5-sales-demo/docs-builder:latest$ ]]; then
-            echo "::error::builder-image must be ghcr.io/f5-sales-demo/docs-builder:latest"
+          if [[ ! "$REQUESTED_IMAGE" =~ ^ghcr\.io/f5-sales-demo/docs-builder(:latest|@sha256:[0-9a-f]{64})$ ]]; then
+            echo "::error::builder-image must be ghcr.io/f5-sales-demo/docs-builder:latest or an approved immutable digest"
             exit 1
           fi
 
@@ -159,6 +159,10 @@ jobs:
           )
           if [[ ! "$RESOLVED_BUILDER_IMAGE" =~ ^ghcr\.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$ ]]; then
             echo "::error::builder-image did not resolve to exactly one approved repository digest"
+            exit 1
+          fi
+          if [[ "$REQUESTED_IMAGE" == *@sha256:* && "$RESOLVED_BUILDER_IMAGE" != "$REQUESTED_IMAGE" ]]; then
+            echo "::error::builder-image resolved to a digest other than the requested immutable identity"
             exit 1
           fi
           echo "builder_image=$RESOLVED_BUILDER_IMAGE" >> "$GITHUB_OUTPUT"

@@ -1856,16 +1856,20 @@ else
     "setup-uv and setup-terraform must be pinned, versioned, and ordered before consumer tests"
 fi
 
-# One workflow_call default is resolved to an immutable digest after registry
-# authentication; there is no runtime fallback or historical digest pin.
+# The default latest selector is resolved to an immutable digest after registry
+# authentication. Release-controlled callers may instead provide one approved
+# immutable docs-builder digest, which must be preserved exactly; there is no
+# runtime fallback or historical digest pin.
 if [ "$(grep -cF "default: '$EXPECTED_BUILDER'" "$PAGES_WORKFLOW")" = "1" ] &&
+  grep -qF '^ghcr\.io/f5-sales-demo/docs-builder(:latest|@sha256:[0-9a-f]{64})$' "$PAGES_WORKFLOW" &&
   grep -qF '^ghcr\.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$' "$PAGES_WORKFLOW" &&
+  grep -qF 'if [[ "$REQUESTED_IMAGE" == *@sha256:* && "$RESOLVED_BUILDER_IMAGE" != "$REQUESTED_IMAGE" ]]; then' "$PAGES_WORKFLOW" &&
   grep -qF '${{ steps.builder.outputs.builder_image }}' "$PAGES_WORKFLOW" &&
   ! grep -Eq '905d2398|inputs\.builder-image \|\|' "$PAGES_WORKFLOW"; then
-  pass "14.4 latest documentation builder resolves to an approved immutable identity"
+  pass "14.4 approved documentation builder selectors resolve to immutable identities"
 else
-  fail "14.4 latest documentation builder resolves to an approved immutable identity" \
-    "expected latest selection, approved digest validation, and no historical fallback"
+  fail "14.4 approved documentation builder selectors resolve to immutable identities" \
+    "expected latest-or-immutable selection, exact digest validation, and no historical fallback"
 fi
 
 # ════════════════════════════════════════════════════════════════════
