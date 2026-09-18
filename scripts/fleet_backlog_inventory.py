@@ -54,8 +54,8 @@ PROGRAM_DECISIONS = [
     "release: coordinate public breaking changes in the next major release and validate consumers against exact producer release candidates",
     "history: never rewrite published Git history or force-push; retain the documented residual secret-history risk",
     "translations: merge regenerated locales only from the stable release/vN.0.0 English baseline",
-    "ownership: exclude externally owned terraform-provider-xcsh#1387 and mcn#635 from implementation",
-    "delegation: leave mcn#646, mcn#647, and mcn#648 SMSv2 work untouched for its dedicated developer session",
+    "ownership: exclude externally owned terraform-provider-xcsh#1387 and multi-cloud-networking#635 from implementation",
+    "delegation: leave multi-cloud-networking#646, multi-cloud-networking#647, and multi-cloud-networking#648 SMSv2 work untouched for its dedicated developer session",
 ]
 
 # Explicit decisions from docs-control#1953 take precedence over legacy labels and
@@ -143,7 +143,7 @@ ITEM_POLICY: dict[str, dict[str, Any]] = {
         "wave": 5,
         "gate": "live DNS environment and credentials",
     },
-    "mcn#646": {
+    "multi-cloud-networking#646": {
         "area": "api-contracts",
         "lifecycle": "active",
         "priority": "p1",
@@ -151,7 +151,7 @@ ITEM_POLICY: dict[str, dict[str, Any]] = {
         "gate": "disposable SMSv2 tenant evidence before merge",
         "disposition": "delegated-external-session",
     },
-    "mcn#647": {
+    "multi-cloud-networking#647": {
         "area": "api-contracts",
         "lifecycle": "active",
         "priority": "p1",
@@ -159,7 +159,7 @@ ITEM_POLICY: dict[str, dict[str, Any]] = {
         "gate": "disposable SMSv2 tenant evidence before merge",
         "disposition": "delegated-external-session",
     },
-    "mcn#648": {
+    "multi-cloud-networking#648": {
         "area": "api-contracts",
         "lifecycle": "active",
         "priority": "p0",
@@ -167,7 +167,7 @@ ITEM_POLICY: dict[str, dict[str, Any]] = {
         "gate": "disposable SMSv2 tenant evidence before merge",
         "disposition": "delegated-external-session",
     },
-    "mcn#702": {
+    "multi-cloud-networking#702": {
         "lifecycle": "active",
         "priority": "p0",
         "wave": 1,
@@ -177,16 +177,16 @@ ITEM_POLICY: dict[str, dict[str, Any]] = {
         "gate": "authorized published-tenant API credentials",
         "wave": 5,
     },
-    "mcn#635": {
+    "multi-cloud-networking#635": {
         "gate": "externally owned by another developer; no implementation authorized",
         "wave": 5,
         "disposition": "externally-owned-excluded",
     },
-    "mcn#694": {
+    "multi-cloud-networking#694": {
         "gate": "live CE appliance certificate replacement authority and window",
         "wave": 5,
     },
-    "mcn#973": {
+    "multi-cloud-networking#973": {
         "gate": "authorized MCN live environment and full-showcase acceptance evidence",
         "wave": 5,
     },
@@ -327,12 +327,12 @@ for _repository, _pulls in {
         }
 CONTINUE_PRS = {
     "api-specs-enriched": {1687, 1657},
-    "mcn": {1067},
+    "multi-cloud-networking": {1067},
 }
 REBUILD_PRS = {
     "api-specs": {1118},
     "marketplace": {1084},
-    "mcn": {814},
+    "multi-cloud-networking": {814},
     "terraform-provider-xcsh": {1761, 1762},
     "webapp-api-protection": {315},
     "xcsh": {3350},

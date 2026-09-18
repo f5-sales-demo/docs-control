@@ -122,14 +122,14 @@ RELEASE_CHAIN_REPOSITORIES = frozenset(
     {
         "f5-sales-demo/api-specs-enriched",
         "f5-sales-demo/marketplace",
-        "f5-sales-demo/mcn",
+        "f5-sales-demo/multi-cloud-networking",
         "f5-sales-demo/terraform-provider-xcsh",
     }
 )
 RELEASE_CHAIN_LINKED_ISSUE_ROUTE_EXPRESSION = (
     "${{ (github.repository == 'f5-sales-demo/api-specs-enriched' || "
     "github.repository == 'f5-sales-demo/marketplace' || "
-    "github.repository == 'f5-sales-demo/mcn' || "
+    "github.repository == 'f5-sales-demo/multi-cloud-networking' || "
     "github.repository == 'f5-sales-demo/terraform-provider-xcsh') && "
     "'ubuntu-latest' || (github.repository == 'f5-sales-demo/docs-icons' && "
     "'docs-socketless' || 'managed-socketless') }}"
@@ -186,7 +186,7 @@ MANAGED_ARC_COHORT = frozenset(
         "docs-control",
         "marketplace",
         "marketplace-claude-code",
-        "mcn",
+        "multi-cloud-networking",
         "nginx",
         "observability",
         "origin-server",

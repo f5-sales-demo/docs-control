@@ -138,7 +138,7 @@ class InventoryTests(unittest.TestCase):
 
     def test_api_contract_title_precedes_documentation_scope(self):
         taxonomy = MODULE.infer_taxonomy(
-            "mcn",
+            "multi-cloud-networking",
             "fix(terraform): pin the published provider and API contract",
             "Update all governed English and locale technical literals.",
             [],

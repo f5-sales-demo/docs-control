@@ -34,7 +34,7 @@ self-hosted-runner:
     - managed-socketless
     - marketplace
     - marketplace-claude-code
-    - mcn
+    - multi-cloud-networking
     - nginx
     - observability
     - origin-server

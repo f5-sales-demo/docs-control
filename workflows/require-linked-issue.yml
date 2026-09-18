@@ -22,7 +22,7 @@ jobs:
     runs-on: >-
       ${{ (github.repository == 'f5-sales-demo/api-specs-enriched' ||
       github.repository == 'f5-sales-demo/marketplace' ||
-      github.repository == 'f5-sales-demo/mcn' ||
+      github.repository == 'f5-sales-demo/multi-cloud-networking' ||
       github.repository == 'f5-sales-demo/terraform-provider-xcsh') &&
       'ubuntu-latest' || (github.repository == 'f5-sales-demo/docs-icons' &&
       'docs-socketless' || 'managed-socketless') }}
