@@ -521,6 +521,12 @@
       }
     },
     "f5-sales-demo/docs-theme": {
+      ".github/workflows/release.yml": {
+        "release": {
+          "runs_on": "ubuntu-latest",
+          "reason": "npm provenance requires a GitHub-hosted publishing environment"
+        }
+      },
       ".github/workflows/workflow-security-audit.yml": {
         "workflow-security-audit": {
           "runs_on": "ubuntu-latest",

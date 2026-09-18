@@ -1253,6 +1253,31 @@ jobs:
             policy["hosted_exceptions"]["f5-sales-demo/xcsh"],
         )
 
+    def test_docs_theme_provenance_release_is_an_exact_hosted_exception(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        exception = policy["hosted_exceptions"]["f5-sales-demo/docs-theme"]
+        self.assertEqual(
+            exception,
+            {
+                ".github/workflows/release.yml": {
+                    "release": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "npm provenance requires a GitHub-hosted publishing environment",
+                    }
+                },
+                ".github/workflows/workflow-security-audit.yml": {
+                    "workflow-security-audit": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "read-only pull request workflow security audit",
+                    }
+                },
+            },
+        )
+
     def test_api_specs_enriched_hosted_audit_exception_is_exact(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
