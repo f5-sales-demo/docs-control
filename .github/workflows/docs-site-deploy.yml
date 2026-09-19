@@ -18,3 +18,7 @@ jobs:
       id-token: write # authenticate the Pages deployment
     with:
       content-ref: ${{ github.sha }}
+      # docs-control is itself ARC-governed; do not fall back to the
+      # repository-name labels that do not exist for this control-plane repo.
+      socketless_runner_label: managed-socketless
+      container_build_runner_label: managed-container-build

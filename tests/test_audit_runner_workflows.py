@@ -548,6 +548,18 @@ jobs:
         self.assertIn("docker run --rm --pull=never", pages)
         self.assertNotIn("docker run --rm --pull always", pages)
 
+    def test_docs_control_pages_caller_uses_managed_arc_labels(self):
+        workflow = yaml.safe_load(
+            (ROOT / ".github/workflows/docs-site-deploy.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        inputs = workflow["jobs"]["docs"]["with"]
+        self.assertEqual("managed-socketless", inputs["socketless_runner_label"])
+        self.assertEqual(
+            "managed-container-build", inputs["container_build_runner_label"]
+        )
+
     def test_reusable_definition_routes_are_exact(self):
         self.assertIsNone(
             MODULE.reusable_definition_profile(
