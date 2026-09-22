@@ -1265,6 +1265,27 @@ jobs:
             policy["hosted_exceptions"]["f5-sales-demo/xcsh"],
         )
 
+    def test_marketplace_herdr_installer_is_an_exact_hosted_exception(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        exception = policy["hosted_exceptions"]["f5-sales-demo/marketplace"]
+        self.assertEqual(
+            exception[".github/workflows/herdr-installer.yml"],
+            {
+                "unix": {
+                    "runs_on": "matrix",
+                    "reason": "native Herdr installation requires Linux and macOS hosted environments",
+                },
+                "windows": {
+                    "runs_on": "windows-latest",
+                    "reason": "native Herdr installation requires a Windows hosted environment",
+                },
+            },
+        )
+
     def test_docs_theme_provenance_release_is_an_exact_hosted_exception(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
