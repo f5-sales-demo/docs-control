@@ -1286,6 +1286,23 @@ jobs:
             },
         )
 
+    def test_xcsh_npm_oidc_publish_is_an_exact_hosted_exception(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        exception = policy["hosted_exceptions"]["f5-sales-demo/xcsh"][
+            ".github/workflows/ci.yml"
+        ]["publish-npm"]
+        self.assertEqual(
+            exception,
+            {
+                "runs_on": "ubuntu-22.04",
+                "reason": "npm OIDC publishing requires a GitHub-hosted environment",
+            },
+        )
+
     def test_docs_theme_provenance_release_is_an_exact_hosted_exception(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
