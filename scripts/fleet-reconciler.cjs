@@ -586,20 +586,34 @@ async function reconcileContent(options) {
   if (!MODES.has(mode)) fail('mode must be dry-run, pilot, or full');
   reconciliationBranchPrefix(branchPrefix);
   const repos = parseSelection(selection, inventory);
+  const archived = new Set();
+  for (const repo of inventory) {
+    const metadata = await api.request(`repos/${owner}/${repo}`, {
+      operationName: `read archive state for ${repo}`,
+    });
+    if (typeof metadata?.archived !== 'boolean') fail(`archive state is missing for ${repo}`);
+    if (metadata.archived) archived.add(repo);
+  }
+  const activeInventory = inventory.filter((repo) => !archived.has(repo));
+  const writableRepos = repos.filter((repo) => !archived.has(repo));
   const retiredOwners = await retireSupersededContentPrs({
     api,
     owner,
     sourceRepository: config.managed_files?.source_repo || `${owner}/docs-control`,
     sourceSha,
-    repos,
+    repos: writableRepos,
     mode,
   });
   const retired = new Set(
     retiredOwners.filter((entry) => entry.status === 'retired').map((entry) => `${entry.repo}#${entry.pull}`),
   );
   const result = { sourceSha, mode, retiredOwners, repositories: [], deferred: false };
-  let active = await activeGovernancePrs(api, owner, inventory, retired);
+  let active = await activeGovernancePrs(api, owner, activeInventory, retired);
   for (const repo of repos) {
+    if (archived.has(repo)) {
+      result.repositories.push({ repo, status: 'skipped-archived' });
+      continue;
+    }
     const main = await api.request(`repos/${owner}/${repo}/commits/main`, {
       operationName: `read protected main for ${repo}`,
     });
