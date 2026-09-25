@@ -1549,6 +1549,7 @@ mkdir -p \
 : >"$GI_TMP/coverage/smsv2/terraform.tfstate"
 : >"$GI_TMP/coverage/unrelated/output.json"
 : >"$GI_TMP/terraform/aws/.terraform.lock.hcl"
+: >"$GI_TMP/terraform/.terraform.lock.hcl"
 : >"$GI_TMP/terraform/example/.terraform.lock.hcl"
 ln -s /tmp/example-venv "$GI_TMP/.venv"
 
@@ -1672,11 +1673,18 @@ else
   pass "8.15 AWS SMSv2 provider lockfile remains trackable"
 fi
 
-if git -C "$GI_TMP" check-ignore -q terraform/example/.terraform.lock.hcl; then
-  pass "8.16 unrelated Terraform lockfiles remain ignored"
+if git -C "$GI_TMP" check-ignore -q terraform/.terraform.lock.hcl; then
+  fail "8.16 unified-root Terraform lockfile remains trackable" \
+    "terraform/.terraform.lock.hcl still requires git add -f"
 else
-  fail "8.16 unrelated Terraform lockfiles remain ignored" \
-    "the AWS exception is broader than the intended repository-relative path"
+  pass "8.16 unified-root Terraform lockfile remains trackable"
+fi
+
+if git -C "$GI_TMP" check-ignore -q terraform/example/.terraform.lock.hcl; then
+  pass "8.17 unrelated Terraform lockfiles remain ignored"
+else
+  fail "8.17 unrelated Terraform lockfiles remain ignored" \
+    "the lockfile exceptions are broader than the intended repository-relative paths"
 fi
 
 rm -rf "$GI_TMP"
