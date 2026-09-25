@@ -291,6 +291,8 @@ const fleetApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.MAX_
   const route = String(url); const method = request.method; if (method !== 'GET') writes.push(route);
   let data = {};
   if (route.includes('/pulls?')) data = [];
+  else if (route.endsWith('/repos/f5/archived')) data = {archived:true};
+  else if (/\/repos\/f5\/(one|two|three)$/.test(route)) data = {archived:false};
   else if (route.includes('/commits/main')) data = {sha:'c'.repeat(40)};
   else if (route.includes('/git/trees/') && method === 'GET') data = {tree:[]};
   else if (route.includes('/git/commits/') && method === 'GET') data = {tree:{sha:'t'.repeat(40)}};
@@ -308,6 +310,10 @@ assert.equal(admission.repositories.find((entry) => entry.repo === 'three').stat
 assert.equal(writes.filter((route) => route.endsWith('/pulls')).length, 2);
 assert.equal(writes.filter((route) => route.includes('/statuses/')).length, 0);
 assert.equal(writes.filter((route) => route.endsWith('/graphql')).length, 2);
+const writesBeforeArchived = writes.length;
+const archivedResult = await reconcileContent({api:fleetApi, owner:'f5', sourceSha:sha, mode:'full', inventory:['archived'], selection:'', sourceRoot:process.cwd(), manifest:oneFileManifest, config:{managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}}}});
+assert.deepEqual(archivedResult.repositories.map((entry) => entry.status), ['skipped-archived']);
+assert.equal(writes.length, writesBeforeArchived);
 const recoveryWrites=[];
 const recoveryDesired={files:[{path:'README',sha,mode:'100644',src:'README.md'}],deletes:[]};
 const recoveryTree=require('node:crypto').createHash('sha256').update(JSON.stringify(recoveryDesired)).digest('hex');
@@ -325,7 +331,8 @@ const recoveryApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.M
       head:{ref:branchName(sha, repo),sha,repo:{full_name:`f5/${repo}`}},
       user:{login:'automation'},
     }] : [];
-  } else if (route.includes('/pulls/1/commits?')) {
+  } else if (/\/repos\/f5\/(one|two|three)$/.test(route)) data={archived:false};
+  else if (route.includes('/pulls/1/commits?')) {
     data=[{sha,parents:[{sha:'7'.repeat(40)}],commit:{message:managedCommitMessage(sha)}}];
   } else if (route.endsWith('/issues/1')) {
     data={number:1,title:issueTitleForTest(sha),body:`${recoveryNote}\n\nCentral reconciliation of managed files.`,state:'open',user:{login:'automation'}};
