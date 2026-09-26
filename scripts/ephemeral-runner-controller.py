@@ -37,6 +37,7 @@ DEFAULT_POLICY = (
 REPOSITORY_RE = re.compile(r"[A-Za-z0-9_.-]+")
 PROFILE_RE = re.compile(r"[a-z0-9][a-z0-9.-]*")
 IMAGE_RE = re.compile(r"ghcr\.io/f5-sales-demo/[a-z0-9._-]+@sha256:[0-9a-f]{64}")
+CLOUD_MACHINE_RE = re.compile(r"(?:Standard_[A-Za-z0-9_]+|[a-z][a-z0-9]*[.][a-z0-9]+)")
 MEMORY_RE = re.compile(r"[1-9][0-9]*[KMGTPEkmgtpe]")
 CPU_RE = re.compile(r"[1-9][0-9]*(?:\.[0-9]+)?")
 VERSION_RE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
@@ -193,6 +194,12 @@ XCSH_CANDIDATE_SCALE_SETS = {
         "attestation": "xcsh-compute-f32-candidate",
     },
 }
+PROVIDER_CANDIDATE_SCALE_SETS = {
+    "compute-32-vcpu-density-candidate": {
+        "label": "terraform-provider-xcsh-32vcpu-candidate",
+        "attestation": "terraform-provider-xcsh-32vcpu-candidate",
+    },
+}
 RESERVED_ARC_LABELS = frozenset(
     {
         "api-specs-enriched-compute",
@@ -201,6 +208,7 @@ RESERVED_ARC_LABELS = frozenset(
         "managed-container-build",
         "managed-socketless",
         "terraform-provider-xcsh-compute",
+        "terraform-provider-xcsh-32vcpu-candidate",
         "xcsh-container-build",
         "xcsh-compute",
         "xcsh-compute-16-vcpu-candidate",
@@ -223,9 +231,13 @@ def arc_scale_sets_match_contract(repository, scale_sets):
     expected = expected_arc_scale_sets(repository)
     if scale_sets == expected:
         return True
-    if repository != "f5-sales-demo/xcsh" or expected is None:
+    if expected is None:
         return False
-    return scale_sets == {**expected, **XCSH_CANDIDATE_SCALE_SETS}
+    if repository == "f5-sales-demo/xcsh":
+        return scale_sets == {**expected, **XCSH_CANDIDATE_SCALE_SETS}
+    if repository == "f5-sales-demo/terraform-provider-xcsh":
+        return scale_sets == {**expected, **PROVIDER_CANDIDATE_SCALE_SETS}
+    return False
 
 
 class FleetError(RuntimeError):
@@ -533,7 +545,7 @@ class FleetPolicy:
                 or not isinstance(spec["image"], str)
                 or not IMAGE_RE.fullmatch(spec["image"])
                 or not isinstance(spec["vm_size"], str)
-                or not spec["vm_size"].startswith("Standard_")
+                or not CLOUD_MACHINE_RE.fullmatch(spec["vm_size"])
                 or not isinstance(spec["cpu_limit"], int)
                 or spec["cpu_limit"] <= 0
                 or not isinstance(spec["memory_limit_bytes"], int)

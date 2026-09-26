@@ -69,6 +69,7 @@ expected = sorted([
     "api-specs-enriched-compute",
     "managed-socketless",
     "terraform-provider-xcsh-compute",
+    "terraform-provider-xcsh-32vcpu-candidate",
     "xcsh-container-build",
     "xcsh-compute",
     "xcsh-compute-16-vcpu-candidate",
@@ -166,6 +167,7 @@ assert policy["schema_version"] == 5
 provider = "f5-sales-demo/terraform-provider-xcsh"
 xcsh = "f5-sales-demo/xcsh"
 digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca"
+candidate_digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:37844f6be57177fa574ce96e9241499663c5194453e2477f0ce0ea8225094e7c"
 assert policy["arc_attestations"] == {
     "terraform-provider-xcsh-d8": {
         "label": "managed-socketless",
@@ -183,6 +185,16 @@ assert policy["arc_attestations"] == {
         "image": digest,
         "vm_size": "Standard_D16ads_v5",
         "cpu_limit": 15,
+        "memory_limit_bytes": 56 * 1024**3,
+        "docker_socket": False,
+        "repositories": [provider],
+    },
+    "terraform-provider-xcsh-32vcpu-candidate": {
+        "label": "terraform-provider-xcsh-32vcpu-candidate",
+        "runner_profile": "compute-32-vcpu-density-candidate",
+        "image": candidate_digest,
+        "vm_size": "c6a.8xlarge",
+        "cpu_limit": 30,
         "memory_limit_bytes": 56 * 1024**3,
         "docker_socket": False,
         "repositories": [provider],
@@ -209,10 +221,26 @@ assert policy["arc_attestations"] == {
     },
 }
 assert policy["restricted_routes"] == {
-    "terraform-provider-xcsh-compute": [{
+    "terraform-provider-xcsh-compute": [
+        {"repository": provider, "workflow": workflow, "job": job}
+        for workflow, job in (
+            (".github/workflows/_build-test.yml", "build"),
+            (".github/workflows/_build-test.yml", "vet"),
+            (".github/workflows/_build-test.yml", "race"),
+            (".github/workflows/_build-test.yml", "lint"),
+            (".github/workflows/_generate-docs.yml", "generate"),
+            (".github/workflows/_generate-provider.yml", "generate"),
+            (".github/workflows/_tag-release.yml", "preflight"),
+            (".github/workflows/_tag-release.yml", "publish"),
+            (".github/workflows/ci.yml", "validate-docs-generation"),
+            (".github/workflows/ci.yml", "validate-mock-fixtures"),
+            (".github/workflows/on-merge.yml", "publish-regeneration"),
+        )
+    ],
+    "terraform-provider-xcsh-32vcpu-candidate": [{
         "repository": provider,
         "workflow": ".github/workflows/workload-benchmark.yml",
-        "job": "benchmark-d16",
+        "job": "eks-candidate",
     }],
     "xcsh-compute-16-vcpu-candidate": [
         {
@@ -245,6 +273,10 @@ assert provider_routes["socketless"] == {
 assert provider_routes["compute"] == {
     "label": "terraform-provider-xcsh-compute",
     "attestation": "terraform-provider-xcsh-d16",
+}
+assert provider_routes["compute-32-vcpu-density-candidate"] == {
+    "label": "terraform-provider-xcsh-32vcpu-candidate",
+    "attestation": "terraform-provider-xcsh-32vcpu-candidate",
 }
 for repository, workflows in policy["repositories"].items():
     runner = workflows["runner"]

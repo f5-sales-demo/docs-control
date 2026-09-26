@@ -424,13 +424,41 @@ class EphemeralRunnerTests(unittest.TestCase):
         )
         self.assertEqual(
             {
-                (
-                    "f5-sales-demo/terraform-provider-xcsh",
-                    ".github/workflows/workload-benchmark.yml",
-                    "benchmark-d16",
+                ("f5-sales-demo/terraform-provider-xcsh", workflow, job)
+                for workflow, job in (
+                    (".github/workflows/_build-test.yml", "build"),
+                    (".github/workflows/_build-test.yml", "vet"),
+                    (".github/workflows/_build-test.yml", "race"),
+                    (".github/workflows/_build-test.yml", "lint"),
+                    (".github/workflows/_generate-docs.yml", "generate"),
+                    (".github/workflows/_generate-provider.yml", "generate"),
+                    (".github/workflows/_tag-release.yml", "preflight"),
+                    (".github/workflows/_tag-release.yml", "publish"),
+                    (".github/workflows/ci.yml", "validate-docs-generation"),
+                    (".github/workflows/ci.yml", "validate-mock-fixtures"),
+                    (".github/workflows/on-merge.yml", "publish-regeneration"),
                 )
             },
             policy.restricted_routes["terraform-provider-xcsh-compute"],
+        )
+        candidate = policy.arc_attestations["terraform-provider-xcsh-32vcpu-candidate"]
+        self.assertEqual(
+            ("compute-32-vcpu-density-candidate", "c6a.8xlarge", 30),
+            (
+                candidate["runner_profile"],
+                candidate["vm_size"],
+                candidate["cpu_limit"],
+            ),
+        )
+        self.assertEqual(
+            {
+                (
+                    "f5-sales-demo/terraform-provider-xcsh",
+                    ".github/workflows/workload-benchmark.yml",
+                    "eks-candidate",
+                )
+            },
+            policy.restricted_routes["terraform-provider-xcsh-32vcpu-candidate"],
         )
 
         raw = json.loads(source.read_text(encoding="utf-8"))
