@@ -28,6 +28,7 @@ self-hosted-runner:
     - docs-socketless
     - docs-theme
     - fixture
+    - html-to-markdown
     - i18n-core
     - macos-15-intel
     - managed-container-build
