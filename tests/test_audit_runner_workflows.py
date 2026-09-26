@@ -816,6 +816,48 @@ jobs:
         errors = self.audit()
         self.assertTrue(any("unused hosted exception" in item for item in errors))
 
+    def test_provider_benchmark_exception_may_precede_candidate_workflow(self):
+        self.use_provider_attested_routes()
+        repository = "f5-sales-demo/terraform-provider-xcsh"
+        digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:" + "c" * 64
+        self.data["arc_attestations"][MODULE.PROVIDER_CANDIDATE_LABEL] = {
+            "label": MODULE.PROVIDER_CANDIDATE_LABEL,
+            "runner_profile": "compute-32-vcpu-density-candidate",
+            "image": digest,
+            "vm_size": "c6a.8xlarge",
+            "cpu_limit": 30,
+            "memory_limit_bytes": 56 * 1024**3,
+            "docker_socket": False,
+            "repositories": [repository],
+        }
+        scale_sets = self.data["repositories"][repository]["runner"]["arc_scale_sets"]
+        scale_sets.update(MODULE.PROVIDER_CANDIDATE_SCALE_SETS)
+        self.data["restricted_routes"][MODULE.PROVIDER_CANDIDATE_LABEL] = [
+            {
+                "repository": repository,
+                "workflow": MODULE.PROVIDER_BENCHMARK_WORKFLOW,
+                "job": "eks-candidate",
+            }
+        ]
+        self.data["hosted_exceptions"] = {
+            repository: {
+                MODULE.PROVIDER_BENCHMARK_WORKFLOW: {
+                    "hosted-serial": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "matched hosted serial performance baseline",
+                    }
+                }
+            }
+        }
+        self.write_policy()
+
+        self.assertEqual(self.audit(repository), [])
+        scale_sets.pop("compute-32-vcpu-density-candidate")
+        self.write_policy()
+        self.assertTrue(
+            any("unused hosted exception" in item for item in self.audit(repository))
+        )
+
     def test_missing_profile_label_fails(self):
         self.write_workflow(
             """name: CI
