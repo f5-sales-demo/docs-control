@@ -477,8 +477,16 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         for profile in ("ubuntu-24.04", "ubuntu-24.04-secondary", "automation"):
             self.assertEqual(standard, raw["profiles"][profile]["image"])
         self.assertEqual(container_build, raw["profiles"]["container-build"]["image"])
-        for attestation in raw["arc_attestations"].values():
+        provider_candidate = "terraform-provider-xcsh-32vcpu-candidate"
+        for name, attestation in raw["arc_attestations"].items():
+            if name == provider_candidate:
+                continue
             self.assertEqual(standard, attestation["image"])
+        self.assertEqual(
+            "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
+            "37844f6be57177fa574ce96e9241499663c5194453e2477f0ce0ea8225094e7c",
+            raw["arc_attestations"][provider_candidate]["image"],
+        )
 
         pilot = (ROOT / ".github/workflows/runner-profile-pilot.yml").read_text(
             encoding="utf-8"
@@ -525,6 +533,10 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 expected["compute"] = {
                     "label": "terraform-provider-xcsh-compute",
                     "attestation": "terraform-provider-xcsh-d16",
+                }
+                expected["compute-32-vcpu-density-candidate"] = {
+                    "label": "terraform-provider-xcsh-32vcpu-candidate",
+                    "attestation": "terraform-provider-xcsh-32vcpu-candidate",
                 }
             self.assertEqual(routes, expected)
 

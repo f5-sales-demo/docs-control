@@ -1382,14 +1382,14 @@
             "label": "managed-container-build",
             "profile": "container-build"
           },
-        "compute": {
-          "label": "terraform-provider-xcsh-compute",
-          "attestation": "terraform-provider-xcsh-d16"
-        },
-        "compute-32-vcpu-density-candidate": {
-          "label": "terraform-provider-xcsh-32vcpu-candidate",
-          "attestation": "terraform-provider-xcsh-32vcpu-candidate"
-        }
+          "compute": {
+            "label": "terraform-provider-xcsh-compute",
+            "attestation": "terraform-provider-xcsh-d16"
+          },
+          "compute-32-vcpu-density-candidate": {
+            "label": "terraform-provider-xcsh-32vcpu-candidate",
+            "attestation": "terraform-provider-xcsh-32vcpu-candidate"
+          }
         }
       },
       ".github/workflows/acc-tests.yml": {
