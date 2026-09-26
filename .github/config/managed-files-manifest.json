@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "b51170fcd4776727521403d200255fe483c5adfc",
+  "source_commit": "5b768c5aa5a7b80f25c10393f9e115202f20a59e",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -313,8 +313,8 @@
     {
       "path": "scripts/audit-runner-workflows.py",
       "src": "scripts/audit-runner-workflows.py",
-      "sha": "7ff76f8aa1965e786d401cf38427ffc3f5375bb4",
-      "size": 44066,
+      "sha": "95674f26b70167236b958b0f47132d6950e515ee",
+      "size": 44408,
       "mode": "100755"
     },
     {
@@ -462,5 +462,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:71c2e939bb77e6cece7e8f3919b9dc090f221be8f2d067e8c6b211074cdc2c2f"
+  "state_digest": "sha256:67a575e1480950dc3400f8eee7a269b6f95e08c667db638412163615d4938dd7"
 }
