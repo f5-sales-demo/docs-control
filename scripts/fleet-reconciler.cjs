@@ -759,6 +759,17 @@ function aggregateProtection(protection) {
           },
   };
 }
+async function readCurrentProtection(api, owner, repo) {
+  try {
+    const protection = await api.request(`repos/${owner}/${repo}/branches/main/protection`, {
+      operationName: `read branch protection for ${repo}`,
+    });
+    return currentProtection(protection);
+  } catch (error) {
+    if (error?.status === 404 && error?.message === 'Branch not protected') return null;
+    throw error;
+  }
+}
 async function reconcileSettings(options) {
   const { api, owner, inventory, config, selection, mode } = options;
   const repos = parseSelection(selection, inventory);
@@ -801,18 +812,15 @@ async function reconcileSettings(options) {
         operationName: `repair fork approval policy for ${repo}`,
       });
     }
-    const protection = await api.request(`repos/${owner}/${repo}/branches/main/protection`, {
-      operationName: `read branch protection for ${repo}`,
-    });
+    const normalizedProtection = await readCurrentProtection(api, owner, repo);
     const wantedProtection = desiredProtection(config, repo);
-    const normalizedProtection = currentProtection(protection);
     const aggregateDelta =
       JSON.stringify(aggregateProtection(normalizedProtection)) ===
       JSON.stringify(aggregateProtection(wantedProtection))
         ? null
         : aggregateProtection(wantedProtection);
     const statusChecksDelta =
-      JSON.stringify(normalizedProtection.required_status_checks) ===
+      JSON.stringify(normalizedProtection?.required_status_checks) ===
       JSON.stringify(wantedProtection.required_status_checks)
         ? null
         : wantedProtection.required_status_checks;
@@ -920,6 +928,7 @@ module.exports = {
   manifestStateDigest,
   reconciliationBranchPrefix,
   parseSelection,
+  readCurrentProtection,
   reconcileContent,
   reconcileSettings,
   retireCurrentContentPrs,

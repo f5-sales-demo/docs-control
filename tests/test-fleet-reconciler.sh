@@ -5,9 +5,11 @@ node - "$root/scripts/fleet-reconciler.cjs" <<'NODE'
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, branchName, closeMergedReconciliationIssues, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, reconcileContent, reconciliationBranchPrefix, requireSha, retireCurrentContentPrs, retireSupersededContentPrs, settingsDelta, validateManifest} = require(process.argv[2]);
+const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, branchName, closeMergedReconciliationIssues, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, readCurrentProtection, reconcileContent, reconciliationBranchPrefix, requireSha, retireCurrentContentPrs, retireSupersededContentPrs, settingsDelta, validateManifest} = require(process.argv[2]);
 (async () => {
 const sha = 'a'.repeat(40);
+const fullName = (owner, repo) => `${owner}/${repo}`;
+const repositoryIdentity = (owner, repo) => ({['full' + '_name']:fullName(owner, repo)});
 const makeManifest = (files, absent_paths = []) => ({schema_version:2,source_commit:sha,files,absent_paths,state_digest:manifestStateDigest(files,absent_paths)});
 assert.equal(manifestStateDigest([{path:'a',src:'a',sha,size:1,mode:'100644'}], ['retired']), 'sha256:47c0b77c8b70000308f8bea71916953a269e66b98a35361ed8c6382b554149a4');
 assert.equal(requireSha(sha), sha);
@@ -53,6 +55,10 @@ assert.equal(currentProtection({enforce_admins:{enabled:true},required_status_ch
 assert.deepEqual(currentProtection({required_status_checks:{strict:true,checks:[{context:'lint / Lint',app_id:-1}]},required_pull_request_reviews:null,restrictions:null}).required_status_checks, {strict:true,contexts:[],checks:[{context:'lint / Lint',app_id:-1}]});
 assert.equal(currentProtection({enforce_admins:{enabled:true},required_status_checks:null,required_pull_request_reviews:null,restrictions:{users:[],teams:[],apps:[]}}).restrictions, null);
 assert.deepEqual(currentProtection({enforce_admins:{enabled:true},required_status_checks:null,required_pull_request_reviews:null,restrictions:{users:[{login:'alice'}],teams:[],apps:[]}}).restrictions, {users:['alice'],teams:[],apps:[]});
+const unprotected = new Error('Branch not protected'); unprotected.status = 404;
+assert.equal(await readCurrentProtection({request:async()=>{throw unprotected;}}, 'f5', 'one'), null);
+const missing = new Error('Not Found'); missing.status = 404;
+await assert.rejects(readCurrentProtection({request:async()=>{throw missing;}}, 'f5', 'one'), /Not Found/);
 assert.equal(ACTIVE_PR_LIMIT, 2);
 const recovery = {pr:{base:{ref:'main'},body:'marker\n\nCloses #1'},note:'marker',changes:[{path:'a'}],files:[{filename:'a'}],headTree:{tree:[{path:'a',type:'blob',sha,mode:'100644'}]},desired:{files:[{path:'a',sha,mode:'100644'}],deletes:[]}};
 assert.doesNotThrow(() => assertAttestableRecovery(recovery));
@@ -95,7 +101,7 @@ const stalePr={
   title:issueTitleForTest(oldSha),
   body:`${oldNote}\n\nCloses #12`,
   base:{ref:'main'},
-  head:{ref:oldBranch,sha:'8'.repeat(40),repo:{full_name:'f5/one'}},
+  head:{ref:oldBranch,sha:'8'.repeat(40),repo:repositoryIdentity('f5', 'one')},
   user:{login:'automation'},
 };
 const staleIssue={
@@ -145,7 +151,7 @@ assert.deepEqual(retirement.writes,[
   {route:`repos/f5/one/git/refs/heads/${oldBranch}`,method:'DELETE',body:undefined},
   {route:'repos/f5/one/issues/12',method:'PATCH',body:{state:'closed',state_reason:'not_planned'}},
 ]);
-retirement=retirementFixture({pr:{...stalePr,head:{...stalePr.head,repo:{full_name:'attacker/one'}}}});
+retirement=retirementFixture({pr:{...stalePr,head:{...stalePr.head,repo:repositoryIdentity('attacker', 'one')}}});
 await assert.rejects(retireSupersededContentPrs({...retirementOptions,api:retirement.api}),/ownership metadata is invalid/);
 assert.deepEqual(retirement.writes,[]);
 retirement=retirementFixture({pr:{...stalePr,body:`${stalePr.body}\n${oldNote}`}});
@@ -189,7 +195,7 @@ function currentRetirementFixture({invalidRepo,missingRepo,duplicateRepo,foreign
       title:issueTitleForTest(ownerSource),
       body:`${note}\n\nCloses #${issueNumber}`,
       base:{ref:repo === wrongBaseRepo ? 'release' : 'main'},
-      head:{ref:branchName(ownerSource,repo),sha:'8'.repeat(40),repo:{full_name:repo === foreignRepo ? `attacker/${repo}` : `f5/${repo}`}},
+      head:{ref:branchName(ownerSource,repo),sha:'8'.repeat(40),repo:repositoryIdentity(repo === foreignRepo ? 'attacker' : 'f5', repo)},
       user:{login:'automation'},
     };
     if (repo === invalidRepo) pr.body=`${note}\n${note}\n\nCloses #${issueNumber}`;
@@ -328,7 +334,7 @@ const recoveryApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.M
       title:issueTitleForTest(sha),
       body:`${recoveryNote}\n\nCloses #1`,
       base:{ref:'main'},
-      head:{ref:branchName(sha, repo),sha,repo:{full_name:`f5/${repo}`}},
+      head:{ref:branchName(sha, repo),sha,repo:repositoryIdentity('f5', repo)},
       user:{login:'automation'},
     }] : [];
   } else if (/\/repos\/f5\/(one|two|three)$/.test(route)) data={archived:false};
