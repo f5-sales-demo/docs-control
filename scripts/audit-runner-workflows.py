@@ -1071,7 +1071,13 @@ def audit_repository(root, repository, policy_path):
     for workflow, jobs in exceptions.items():
         for job_id in jobs:
             declared_exceptions.add((workflow, job_id))
-    for workflow, job_id in sorted(declared_exceptions - actual_exceptions):
+    staged_exceptions = set()
+    is_provider = repository == PROVIDER_REPOSITORY
+    route_labels = routes.get("profiles_by_label", {})
+    if is_provider and PROVIDER_CANDIDATE_LABEL in route_labels:
+        staged_exceptions.add((PROVIDER_BENCHMARK_WORKFLOW, "hosted-serial"))
+    unused_exceptions = declared_exceptions - actual_exceptions - staged_exceptions
+    for workflow, job_id in sorted(unused_exceptions):
         errors.append(f"unused hosted exception: {workflow}/{job_id}")
     return errors
 
