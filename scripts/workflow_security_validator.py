@@ -395,9 +395,7 @@ def validate_provider_candidate_grants(repository, scale_sets, restricted_routes
     )
     if not candidate_contract:
         return
-    expected = {
-        (PROVIDER_REPOSITORY, PROVIDER_BENCHMARK_WORKFLOW, "eks-candidate")
-    }
+    expected = {(PROVIDER_REPOSITORY, PROVIDER_BENCHMARK_WORKFLOW, "eks-candidate")}
     grants = (restricted_routes or {}).get(PROVIDER_CANDIDATE_LABEL, [])
     actual = {
         (grant.get("repository"), grant.get("workflow"), grant.get("job"))
@@ -1181,9 +1179,7 @@ def inventory(root, repository, policy, default_profile, routes):
                 PROVIDER_MANUAL_COMPUTE_ROUTE_EXPRESSION,
             }
             if is_candidate_job and not is_manual_route:
-                message = (
-                    "candidate job requires the exact manual route expression"
-                )
+                message = "candidate job requires the exact manual route expression"
                 raise PolicyError(f"{relative}/{job_id}: {message}")
             if is_manual_route and dynamic_route_labels is None:
                 message = "manual route requires its workflow_dispatch job context"
