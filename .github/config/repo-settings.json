@@ -228,6 +228,7 @@
         ".github/workflows/github-pages-deploy.yml",
         ".github/workflows/super-linter.yml"
       ],
+      "html-to-markdown": ["LICENSE", ".ruff.toml", ".mypy.ini", ".gitignore"],
       "i18n-core": [
         ".ruff.toml",
         ".mypy.ini",

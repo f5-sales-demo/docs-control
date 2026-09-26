@@ -144,6 +144,12 @@ assert "f5-sales-demo/docs-template" not in policy["repositories"]
 for skips in (settings["managed_files"]["skip_files"], governance["skip_files"]):
     assert ".github/workflows/github-pages-deploy.yml" in skips["xcsh"]
 assert settings["managed_files"]["skip_files"] == governance["skip_files"]
+assert settings["managed_files"]["skip_files"]["html-to-markdown"] == [
+    "LICENSE",
+    ".ruff.toml",
+    ".mypy.ini",
+    ".gitignore",
+]
 PY
   pass "2.1a documentation cohort has exact ARC routes and managed opt-outs"
 else
