@@ -119,14 +119,20 @@ XCSH_CANDIDATE_GRANT_IDENTITIES = frozenset().union(*XCSH_CANDIDATE_RESTRICTED_G
 # fmt: on
 PROVIDER_REPOSITORY = "f5-sales-demo/terraform-provider-xcsh"
 PROVIDER_BENCHMARK_WORKFLOW = ".github/workflows/workload-benchmark.yml"
+PROVIDER_CANDIDATE_LABEL = "terraform-provider-xcsh-32vcpu-candidate"
 PROVIDER_MANUAL_COMPUTE_ROUTE_EXPRESSION = "${{ needs.validate.outputs.runner_label }}"
 PROVIDER_MANUAL_COMPUTE_ROUTE_LABELS = {
-    "eks-candidate": frozenset({"terraform-provider-xcsh-32vcpu-candidate"}),
+    "eks-candidate": frozenset({PROVIDER_CANDIDATE_LABEL}),
 }
+# fmt: off
 PROVIDER_CANDIDATE_GRANT_IDENTITIES = frozenset(
     (PROVIDER_REPOSITORY, PROVIDER_BENCHMARK_WORKFLOW, job_id)
     for job_id in PROVIDER_MANUAL_COMPUTE_ROUTE_LABELS
 )
+CANDIDATE_GRANT_IDENTITIES = (
+    XCSH_CANDIDATE_GRANT_IDENTITIES | PROVIDER_CANDIDATE_GRANT_IDENTITIES
+)
+# fmt: on
 DOCS_ICONS_REPOSITORY = "f5-sales-demo/docs-icons"
 DOCS_SOCKETLESS_ROUTE_EXPRESSION = "${{ github.repository == 'f5-sales-demo/docs-icons' && 'docs-socketless' || 'managed-socketless' }}"  # fmt: skip
 DOCS_SOCKETLESS_ROUTE_LABELS = {DOCS_ICONS_REPOSITORY: "docs-socketless"}
@@ -379,9 +385,7 @@ def validate_provider_candidate_grants(repository, scale_sets, restricted_routes
     if not candidate_contract:
         return
     expected = {(PROVIDER_REPOSITORY, PROVIDER_BENCHMARK_WORKFLOW, "eks-candidate")}
-    grants = (restricted_routes or {}).get(
-        "terraform-provider-xcsh-32vcpu-candidate", []
-    )
+    grants = (restricted_routes or {}).get(PROVIDER_CANDIDATE_LABEL, [])
     actual = {
         (grant.get("repository"), grant.get("workflow"), grant.get("job"))
         for grant in grants
@@ -948,9 +952,7 @@ def audit_job(  # noqa: PLR0917
             runs_on,
             workflow,
         )
-        is_candidate_job = identity in (
-            XCSH_CANDIDATE_GRANT_IDENTITIES | PROVIDER_CANDIDATE_GRANT_IDENTITIES
-        )
+        is_candidate_job = identity in CANDIDATE_GRANT_IDENTITIES
         is_manual_route = isinstance(runs_on, str) and runs_on in {
             XCSH_MANUAL_COMPUTE_ROUTE_EXPRESSION,
             PROVIDER_MANUAL_COMPUTE_ROUTE_EXPRESSION,

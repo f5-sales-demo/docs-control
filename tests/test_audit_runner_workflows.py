@@ -1564,6 +1564,12 @@ jobs:
                         "reason": "release tag signing uses isolated hosted execution",
                     },
                 },
+                ".github/workflows/workload-benchmark.yml": {
+                    "hosted-serial": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "matched hosted serial performance baseline",
+                    }
+                },
                 ".github/workflows/workflow-security-audit.yml": {
                     "workflow-security-audit": {
                         "runs_on": "ubuntu-latest",
