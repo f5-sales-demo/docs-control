@@ -1038,6 +1038,14 @@
         }
       }
     },
+    "f5-sales-demo/docs-theme": {
+      "runner": {
+        "arc_scale_sets": {
+          "socketless": { "label": "docs-socketless", "profile": "ubuntu-24.04" },
+          "container-build": { "label": "docs-container-build", "profile": "container-build" }
+        }
+      }
+    },
     "f5-sales-demo/html-to-markdown": {
       "runner": {
         "arc_scale_sets": {
@@ -1049,14 +1057,6 @@
             "label": "managed-container-build",
             "profile": "container-build"
           }
-        }
-      }
-    },
-    "f5-sales-demo/docs-theme": {
-      "runner": {
-        "arc_scale_sets": {
-          "socketless": { "label": "docs-socketless", "profile": "ubuntu-24.04" },
-          "container-build": { "label": "docs-container-build", "profile": "container-build" }
         }
       }
     },
