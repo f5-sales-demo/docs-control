@@ -203,6 +203,7 @@
       "docs-control": "scaffolding",
       "docs-icons": "developer",
       "docs-theme": "developer",
+      "html-to-markdown": "developer",
       "i18n-core": "developer",
       "marketplace": "developer",
       "marketplace-claude-code": "developer",

@@ -550,6 +550,7 @@
       "demo-resource-template": ["governance"],
       "docs-icons": ["governance", "npm_publish"],
       "docs-theme": ["governance", "npm_publish"],
+      "html-to-markdown": ["governance"],
       "docs-builder": ["governance", "release"],
       "origin-server": ["governance", "release"],
       "starlight-llms-txt": ["governance", "npm_publish"],

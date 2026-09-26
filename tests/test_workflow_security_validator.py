@@ -106,7 +106,7 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
 
     def test_all_arc_cohorts_are_excluded_from_dispatcher_contract(self):
         self.assertEqual(validator.DISPATCHER_POLICY["repositories"], [])
-        self.assertEqual(len(validator.MANAGED_ARC_COHORT), 30)
+        self.assertEqual(len(validator.MANAGED_ARC_COHORT), 31)
         self.assertIn("f5-sales-demo/docs-control", validator.MANAGED_ARC_COHORT)
         self.assertNotIn(
             "f5-sales-demo/api-specs-enriched", validator.MANAGED_ARC_COHORT

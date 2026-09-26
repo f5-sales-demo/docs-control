@@ -87,6 +87,7 @@ MANAGED_ARC_COHORT = frozenset(
         "devcontainer",
         "dns",
         "docs-control",
+        "html-to-markdown",
         "marketplace",
         "marketplace-claude-code",
         "multi-cloud-networking",
