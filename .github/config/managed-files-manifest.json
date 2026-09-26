@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "34d710521bd577226e9d3244c6149bcfee494be5",
+  "source_commit": "9598f2876514d3935cdd2bc0768c739d001cae5f",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "3d6a7cd9d97f15f71eda04d219770ecd4e334c1b",
-      "size": 8505,
+      "sha": "f12cf6591f8c25be9862bb141d689c00de33c0d9",
+      "size": 8544,
       "mode": "100644"
     },
     {
@@ -103,15 +103,15 @@
     {
       "path": ".github/actionlint.yaml",
       "src": ".github/actionlint.yaml",
-      "sha": "ce02a7e1af323f63c56009b8b9ac8591d2a85a23",
-      "size": 1681,
+      "sha": "790496e1e2aad6b5044e6cb3c48ee1a14b63489d",
+      "size": 1704,
       "mode": "100644"
     },
     {
       "path": ".github/config/self-hosted-runner-policy.json",
       "src": ".github/config/self-hosted-runner-policy.json",
-      "sha": "54c04d40b84242ebe0655c003dff5f0e2c1427bc",
-      "size": 44938,
+      "sha": "9cfc135bf51f42a3075d58b7428f0eba82a964b1",
+      "size": 46115,
       "mode": "100644"
     },
     {
@@ -313,8 +313,8 @@
     {
       "path": "scripts/audit-runner-workflows.py",
       "src": "scripts/audit-runner-workflows.py",
-      "sha": "aa83f70a0e413a2968302652261ca60373b93e5d",
-      "size": 41421,
+      "sha": "82da5d7e52e89943941629d4cd1542ae2c9e052c",
+      "size": 41449,
       "mode": "100755"
     },
     {
@@ -383,8 +383,8 @@
     {
       "path": "scripts/workflow_security_validator.py",
       "src": "scripts/workflow_security_validator.py",
-      "sha": "44318deda52226fb17101ca68122f5becd9fe56d",
-      "size": 51220,
+      "sha": "3cc7baa282408b01a62778e38bdf0f085557c3a9",
+      "size": 51248,
       "mode": "100755"
     },
     {
@@ -462,5 +462,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:5899214388a92cdfbab3949906eeef116ceceaa4670e65d1391c41df9675497f"
+  "state_digest": "sha256:799bf8cd482b754a919eb9726f03c9757f3e43bff3df15388bdd8ff9dad4dfaa"
 }
