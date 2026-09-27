@@ -2015,6 +2015,22 @@ git -C "$repo" add fixture.txt
 git -C "$repo" commit -qm syntax
 assert_clean "URI, package, and anchor syntax are not contact emails" "$repo" --scope head --mode enforce
 
+repo=$(new_repo scoped-npm-coordinate)
+cat >"${repo}/package.json" <<'EOF'
+{
+  "patchedDependencies": {
+    "@tobilu/qmd@2.8.3": "patches/@tobilu%2Fqmd@2.8.3.patch"
+  }
+}
+EOF
+cat >"${repo}/bun.lock" <<'EOF'
+"patchedDependencies": {
+  "@tobilu/qmd@2.8.3": "patches/@tobilu%2Fqmd@2.8.3.patch",
+}
+EOF
+git -C "$repo" add package.json bun.lock
+assert_clean "staged scoped npm package coordinates are not contact emails" "$repo" --scope staged --mode enforce
+
 repo=$(new_repo email)
 printf 'email: person@customer.local\n' >"${repo}/fixture.yaml"
 git -C "$repo" add fixture.yaml
