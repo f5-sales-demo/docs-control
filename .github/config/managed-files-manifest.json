@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "8250e64fb8804bc6259fecd494973ddb01d58970",
+  "source_commit": "9a2ae498f31b5f3a601574a77216df11569669cd",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "d6e0ff3446788bb8eccf41d336baf111f71d84ec",
-      "size": 8829,
+      "sha": "a574394caafcaaccd2153a383fb8324cea05a11e",
+      "size": 8703,
       "mode": "100644"
     },
     {
@@ -103,15 +103,15 @@
     {
       "path": ".github/actionlint.yaml",
       "src": ".github/actionlint.yaml",
-      "sha": "52cb84be70734bd274840a4c62324ea19c245ab5",
-      "size": 1781,
+      "sha": "6308dd8b93792b6cda293ba68695a4a29c675b27",
+      "size": 1751,
       "mode": "100644"
     },
     {
       "path": ".github/config/self-hosted-runner-policy.json",
       "src": ".github/config/self-hosted-runner-policy.json",
-      "sha": "ebd9757bef02cce2f39f983ae06821b032f40e7a",
-      "size": 49446,
+      "sha": "61f4a0569c592c625c72ad8a8393b05fc05f0a5e",
+      "size": 48877,
       "mode": "100644"
     },
     {
@@ -462,5 +462,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:247ce7b65a945862daf67985416a64d0a959e6718a2a4ff39e487094307535f9"
+  "state_digest": "sha256:d6fcacf67c6e62b35ddee064ebf13dad283fcaec8d8d244e5553444a4095dc54"
 }
