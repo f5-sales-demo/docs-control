@@ -347,9 +347,7 @@ class SnapshotWorkflowTests(unittest.TestCase):
             validation["run"],
         )
         checkout = by_name["Checkout immutable snapshot verifier"]
-        self.assertEqual(
-            checkout["with"]["ref"], "${{ inputs.snapshot-verifier-ref }}"
-        )
+        self.assertEqual(checkout["with"]["ref"], "${{ inputs.snapshot-verifier-ref }}")
         verify = by_name["Download and verify exact snapshot"]["run"]
         self.assertIn('gh release download "$SNAPSHOT_TAG"', verify)
         self.assertNotIn("latest", verify.casefold())
