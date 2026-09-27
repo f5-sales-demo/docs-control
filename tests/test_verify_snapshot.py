@@ -362,6 +362,12 @@ class SnapshotWorkflowTests(unittest.TestCase):
         machine_root = by_name["Stage root machine-only artifact"]
         self.assertEqual(machine_root["if"], "inputs.machine-root")
         self.assertIn("stage-machine-root.py", machine_root["run"])
+        self.assertEqual(
+            machine_root["env"]["BUILDER_IMAGE"],
+            "${{ steps.builder.outputs.builder_image }}",
+        )
+        self.assertIn("--entrypoint chown", machine_root["run"])
+        self.assertIn('"$(id -u):$(id -g)"', machine_root["run"])
         validation = by_name["Validate immutable snapshot request"]
         self.assertEqual(
             validation["env"]["SNAPSHOT_VERIFIER_REF"],
