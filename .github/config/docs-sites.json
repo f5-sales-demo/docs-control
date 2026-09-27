@@ -1,5 +1,11 @@
 [
   {
+    "label": "F5 Docs Corpus",
+    "url": "https://f5-sales-demo.github.io/html-to-markdown/llms.txt",
+    "description": "Progressive machine-readable F5 product documentation",
+    "rebuild_dispatch": false
+  },
+  {
     "label": "xcsh Docs Builder",
     "url": "https://f5-sales-demo.github.io/docs-builder/llms-full.txt",
     "description": "Containerized Astro + Starlight documentation build system",

@@ -150,6 +150,7 @@ assert settings["managed_files"]["skip_files"]["html-to-markdown"] == [
     ".ruff.toml",
     ".mypy.ini",
     ".gitignore",
+    ".github/workflows/github-pages-deploy.yml",
 ]
 PY
   pass "2.1a documentation cohort has exact ARC routes and managed opt-outs"

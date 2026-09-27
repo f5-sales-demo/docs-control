@@ -17,6 +17,16 @@ on:
         required: false
         default: 'ghcr.io/f5-sales-demo/docs-builder:latest'
         type: string
+      snapshot-tag:
+        description: 'Exact immutable content-* release tag for a machine corpus'
+        required: false
+        default: ''
+        type: string
+      publication-sha256:
+        description: 'Expected SHA-256 digest of the snapshot publication.json receipt'
+        required: false
+        default: ''
+        type: string
       docs-title:
         description: 'Documentation site title (overrides frontmatter)'
         required: false
@@ -135,6 +145,39 @@ jobs:
             exit 1
           fi
 
+      - name: Validate immutable snapshot request
+        id: snapshot
+        env:
+          PUBLICATION_SHA256: ${{ inputs.publication-sha256 }}
+          REPOSITORY: ${{ github.repository }}
+          SNAPSHOT_TAG: ${{ inputs.snapshot-tag }}
+        run: |
+          set -euo pipefail
+          if [[ "$REPOSITORY" == "f5-sales-demo/html-to-markdown" ]] &&
+            { [[ -z "$SNAPSHOT_TAG" ]] || [[ -z "$PUBLICATION_SHA256" ]]; }; then
+            echo "::error::html-to-markdown Pages builds require snapshot-tag and publication-sha256"
+            exit 1
+          fi
+          if [[ -z "$SNAPSHOT_TAG" && -z "$PUBLICATION_SHA256" ]]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ ! "$SNAPSHOT_TAG" =~ ^content-[0-9]{8}T[0-9]{6}Z$ ]] ||
+            [[ ! "$PUBLICATION_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::snapshot-tag and publication-sha256 must be exact immutable identities"
+            exit 1
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout immutable snapshot verifier
+        if: steps.snapshot.outputs.enabled == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: f5-sales-demo/docs-control
+          ref: ${{ github.workflow_sha }}
+          path: .docs-control-policy
+          persist-credentials: false
+
       - name: Login to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -146,9 +189,14 @@ jobs:
         id: builder
         env:
           REQUESTED_IMAGE: ${{ inputs.builder-image }}
+          SNAPSHOT_ENABLED: ${{ steps.snapshot.outputs.enabled }}
         run: |
           if [[ ! "$REQUESTED_IMAGE" =~ ^ghcr\.io/f5-sales-demo/docs-builder(:latest|@sha256:[0-9a-f]{64})$ ]]; then
             echo "::error::builder-image must be ghcr.io/f5-sales-demo/docs-builder:latest or an approved immutable digest"
+            exit 1
+          fi
+          if [[ "$SNAPSHOT_ENABLED" == "true" && "$REQUESTED_IMAGE" != *@sha256:* ]]; then
+            echo "::error::snapshot builds require an immutable builder digest"
             exit 1
           fi
 
@@ -166,6 +214,37 @@ jobs:
             exit 1
           fi
           echo "builder_image=$RESOLVED_BUILDER_IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Download and verify exact snapshot
+        id: snapshot-files
+        if: steps.snapshot.outputs.enabled == 'true'
+        env:
+          BUILDER_IMAGE: ${{ steps.builder.outputs.builder_image }}
+          CONTENT_REF: ${{ steps.content.outputs.content_ref }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLICATION_SHA256: ${{ inputs.publication-sha256 }}
+          REPOSITORY: ${{ github.repository }}
+          SNAPSHOT_TAG: ${{ inputs.snapshot-tag }}
+        run: |
+          set -euo pipefail
+          release_dir="$RUNNER_TEMP/snapshot-release"
+          corpus_dir="$RUNNER_TEMP/machine-corpus"
+          metadata="$RUNNER_TEMP/snapshot-release.json"
+          mkdir -p "$release_dir"
+          gh api "repos/$REPOSITORY/releases/tags/$SNAPSHOT_TAG" > "$metadata"
+          jq -e --arg tag "$SNAPSHOT_TAG" '.tag_name == $tag and .draft == false and .prerelease == false' "$metadata" >/dev/null
+          git fetch --no-tags origin "refs/tags/$SNAPSHOT_TAG:refs/tags/$SNAPSHOT_TAG"
+          source_commit=$(git rev-parse "$SNAPSHOT_TAG^{commit}")
+          if [[ ! "$source_commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::snapshot tag does not resolve to a commit"
+            exit 1
+          fi
+          gh release download "$SNAPSHOT_TAG" --repo "$REPOSITORY" --dir "$release_dir"
+          python3 .docs-control-policy/scripts/verify-snapshot.py --release-dir "$release_dir" --tag "$SNAPSHOT_TAG" --publication-sha256 "$PUBLICATION_SHA256" --source-commit "$source_commit" --output "$corpus_dir"
+          jq -n --arg snapshot_tag "$SNAPSHOT_TAG" --arg publication_sha256 "$PUBLICATION_SHA256" --arg source_commit "$source_commit" --arg content_commit "$CONTENT_REF" --arg builder_image "$BUILDER_IMAGE" '{schema_version:1, snapshot_tag:$snapshot_tag, publication_sha256:$publication_sha256, source_commit:$source_commit, content_commit:$content_commit, builder_image:$builder_image}' > "$corpus_dir/snapshot-provenance.json"
+          chmod -R a-w "$corpus_dir"
+          echo "machine_corpus=$corpus_dir" >> "$GITHUB_OUTPUT"
+          echo "source_commit=$source_commit" >> "$GITHUB_OUTPUT"
 
       - name: Stage imported files for documentation
         env:
@@ -235,6 +314,8 @@ jobs:
           DOCS_TITLE: ${{ inputs.docs-title }}
           OUTPUT_DIR: ${{ runner.temp }}/docs-output
           REPOSITORY: ${{ github.repository }}
+          MACHINE_CORPUS_DIR: ${{ steps.snapshot-files.outputs.machine_corpus }}
+          SNAPSHOT_ENABLED: ${{ steps.snapshot.outputs.enabled }}
           WORKSPACE: ${{ github.workspace }}
         run: |
           mkdir -p "$OUTPUT_DIR"
@@ -253,11 +334,20 @@ jobs:
           TITLE_ARGS=()
           [ -z "$DOCS_TITLE" ] || TITLE_ARGS=(-e "DOCS_TITLE=$DOCS_TITLE")
 
+          CORPUS_ARGS=()
+          if [[ "$SNAPSHOT_ENABLED" == "true" ]]; then
+            CORPUS_ARGS=(
+              -v "$MACHINE_CORPUS_DIR:/content/machine-corpus:ro"
+              -e MACHINE_CORPUS_DIR=/content/machine-corpus
+            )
+          fi
+
           # shellcheck disable=SC2153
           docker run --rm --pull=never \
             --name docs-builder \
             -v "$WORKSPACE/$CONTENT_PATH:/content/docs:ro" \
             "${MOUNTS[@]}" \
+            "${CORPUS_ARGS[@]}" \
             -v "$OUTPUT_DIR:/output" \
             -e CONTENT_DIR=/content/docs \
             -e OUTPUT_DIR=/output \
@@ -272,10 +362,23 @@ jobs:
       - name: Verify build output
         env:
           OUTPUT_DIR: ${{ runner.temp }}/docs-output
+          SNAPSHOT_ENABLED: ${{ steps.snapshot.outputs.enabled }}
         run: |
           if [ ! -d "$OUTPUT_DIR" ] || [ -z "$(ls -A "$OUTPUT_DIR")" ]; then
             echo "❌ Build output is empty"
             exit 1
+          fi
+          if [[ "$SNAPSHOT_ENABLED" == "true" ]]; then
+            for required in llms.txt llms-full.txt snapshot/manifest.json snapshot/SHA256SUMS snapshot/snapshot-provenance.json; do
+              if [[ ! -f "$OUTPUT_DIR/$required" ]]; then
+                echo "❌ Snapshot build output is missing $required"
+                exit 1
+              fi
+            done
+            if [[ -e "$OUTPUT_DIR/llms-small.txt" ]]; then
+              echo "❌ Progressive corpus must not publish llms-small.txt"
+              exit 1
+            fi
           fi
 
           echo "✅ Build output verified"
@@ -287,6 +390,9 @@ jobs:
           CONTENT_REF: ${{ steps.content.outputs.content_ref }}
           BUILDER_IMAGE: ${{ steps.builder.outputs.builder_image }}
           OUTPUT_DIR: ${{ runner.temp }}/docs-output
+          PUBLICATION_SHA256: ${{ inputs.publication-sha256 }}
+          SNAPSHOT_SOURCE_COMMIT: ${{ steps.snapshot-files.outputs.source_commit }}
+          SNAPSHOT_TAG: ${{ inputs.snapshot-tag }}
         run: |
           API_DIR="${OUTPUT_DIR}/api"
           mkdir -p "${API_DIR}/files"
@@ -323,7 +429,10 @@ jobs:
             --arg content_ref "${CONTENT_REF}" \
             --arg commit "${CHECKED_OUT_SHA}" \
             --arg builder_image "${BUILDER_IMAGE}" \
-            '{content_ref:$content_ref, commit:$commit, builder_image:$builder_image}' \
+            --arg snapshot_tag "${SNAPSHOT_TAG}" \
+            --arg publication_sha256 "${PUBLICATION_SHA256}" \
+            --arg snapshot_source_commit "${SNAPSHOT_SOURCE_COMMIT}" \
+            '{content_ref:$content_ref, commit:$commit, builder_image:$builder_image, snapshot_tag:$snapshot_tag, publication_sha256:$publication_sha256, snapshot_source_commit:$snapshot_source_commit}' \
             > "${API_DIR}/revision.json"
           echo "Published: /api/revision.json"
 
