@@ -27,6 +27,11 @@ on:
         required: false
         default: ''
         type: string
+      snapshot-verifier-ref:
+        description: 'Exact docs-control commit SHA containing the snapshot verifier'
+        required: false
+        default: ''
+        type: string
       docs-title:
         description: 'Documentation site title (overrides frontmatter)'
         required: false
@@ -151,20 +156,24 @@ jobs:
           PUBLICATION_SHA256: ${{ inputs.publication-sha256 }}
           REPOSITORY: ${{ github.repository }}
           SNAPSHOT_TAG: ${{ inputs.snapshot-tag }}
+          SNAPSHOT_VERIFIER_REF: ${{ inputs.snapshot-verifier-ref }}
         run: |
           set -euo pipefail
           if [[ "$REPOSITORY" == "f5-sales-demo/html-to-markdown" ]] &&
-            { [[ -z "$SNAPSHOT_TAG" ]] || [[ -z "$PUBLICATION_SHA256" ]]; }; then
-            echo "::error::html-to-markdown Pages builds require snapshot-tag and publication-sha256"
+            { [[ -z "$SNAPSHOT_TAG" ]] || [[ -z "$PUBLICATION_SHA256" ]] ||
+              [[ -z "$SNAPSHOT_VERIFIER_REF" ]]; }; then
+            echo "::error::html-to-markdown Pages builds require snapshot-tag, publication-sha256, and snapshot-verifier-ref"
             exit 1
           fi
-          if [[ -z "$SNAPSHOT_TAG" && -z "$PUBLICATION_SHA256" ]]; then
+          if [[ -z "$SNAPSHOT_TAG" && -z "$PUBLICATION_SHA256" &&
+            -z "$SNAPSHOT_VERIFIER_REF" ]]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if [[ ! "$SNAPSHOT_TAG" =~ ^content-[0-9]{8}T[0-9]{6}Z$ ]] ||
-            [[ ! "$PUBLICATION_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
-            echo "::error::snapshot-tag and publication-sha256 must be exact immutable identities"
+            [[ ! "$PUBLICATION_SHA256" =~ ^[0-9a-f]{64}$ ]] ||
+            [[ ! "$SNAPSHOT_VERIFIER_REF" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::snapshot-tag, publication-sha256, and snapshot-verifier-ref must be exact immutable identities"
             exit 1
           fi
           echo "enabled=true" >> "$GITHUB_OUTPUT"
@@ -174,7 +183,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: f5-sales-demo/docs-control
-          ref: ${{ github.workflow_sha }}
+          ref: ${{ inputs.snapshot-verifier-ref }}
           path: .docs-control-policy
           persist-credentials: false
 
