@@ -103,7 +103,8 @@ policy, settings, governance = (
     json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]
 )
 cohort = {
-    "docs", "docs-builder", "docs-icons", "docs-theme", "i18n-core",
+    "docs", "docs-builder", "docs-icons", "docs-theme",
+    "f5-sales-demo.github.io", "i18n-core",
     "starlight-llms-txt",
 }
 routes = {
@@ -126,7 +127,9 @@ for repo in cohort:
     assert policy["repositories"][repository]["runner"] == {"arc_scale_sets": routes}
     assert repository not in legacy
     expected = set(managed)
-    if repo == "docs-icons":
+    if repo == "f5-sales-demo.github.io":
+        expected = {".github/workflows/github-pages-deploy.yml"}
+    elif repo == "docs-icons":
         expected -= {
             ".github/workflows/auto-merge.yml",
             ".github/workflows/require-linked-issue.yml",

@@ -4,8 +4,13 @@ on:
   workflow_call:
     inputs:
       content-ref:
-        description: 'Exact 40-character commit SHA to build from the calling repo'
+        description: 'Exact 40-character commit SHA to build from the content repo'
         required: true
+        type: string
+      content-repository:
+        description: 'Content repository; empty means the calling repository'
+        required: false
+        default: ''
         type: string
       content-path:
         description: 'Path to content directory in the calling repo'
@@ -27,6 +32,11 @@ on:
         required: false
         default: ''
         type: string
+      machine-root:
+        description: 'Publish only the machine corpus at the organization Pages root'
+        required: false
+        default: false
+        type: boolean
       snapshot-verifier-ref:
         description: 'Exact docs-control commit SHA containing the snapshot verifier'
         required: false
@@ -111,24 +121,46 @@ jobs:
       - name: Resolve immutable content commit
         id: content
         env:
+          CALLER_REPOSITORY: ${{ github.repository }}
+          MACHINE_ROOT: ${{ inputs.machine-root }}
           REQUESTED_REF: ${{ inputs.content-ref }}
+          REQUESTED_REPOSITORY: ${{ inputs.content-repository }}
         run: |
+          set -euo pipefail
           CONTENT_REF="$REQUESTED_REF"
           if [[ ! "$CONTENT_REF" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::content-ref must be a full lowercase 40-character commit SHA"
             exit 1
           fi
+          CONTENT_REPOSITORY="${REQUESTED_REPOSITORY:-$CALLER_REPOSITORY}"
+          if [[ ! "$CONTENT_REPOSITORY" =~ ^f5-sales-demo/[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::content-repository must be an f5-sales-demo repository"
+            exit 1
+          fi
+          if [[ "$MACHINE_ROOT" == "true" ]]; then
+            if [[ "$CALLER_REPOSITORY" != "f5-sales-demo/f5-sales-demo.github.io" ]] ||
+              [[ "$CONTENT_REPOSITORY" != "f5-sales-demo/html-to-markdown" ]]; then
+              echo "::error::machine-root is restricted to the organization Pages corpus publisher"
+              exit 1
+            fi
+          elif [[ "$CONTENT_REPOSITORY" != "$CALLER_REPOSITORY" ]]; then
+            echo "::error::cross-repository content requires the approved machine-root publisher"
+            exit 1
+          fi
           echo "content_ref=$CONTENT_REF" >> "$GITHUB_OUTPUT"
+          echo "content_repository=$CONTENT_REPOSITORY" >> "$GITHUB_OUTPUT"
 
       - name: Checkout content repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          repository: ${{ steps.content.outputs.content_repository }}
           ref: ${{ steps.content.outputs.content_ref }}
           persist-credentials: false
 
       - name: Verify checked-out content commit
         env:
           CONTENT_REF: ${{ steps.content.outputs.content_ref }}
+          CONTENT_REPOSITORY: ${{ steps.content.outputs.content_repository }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -155,11 +187,12 @@ jobs:
         env:
           PUBLICATION_SHA256: ${{ inputs.publication-sha256 }}
           REPOSITORY: ${{ github.repository }}
+          CONTENT_REPOSITORY: ${{ steps.content.outputs.content_repository }}
           SNAPSHOT_TAG: ${{ inputs.snapshot-tag }}
           SNAPSHOT_VERIFIER_REF: ${{ inputs.snapshot-verifier-ref }}
         run: |
           set -euo pipefail
-          if [[ "$REPOSITORY" == "f5-sales-demo/html-to-markdown" ]] &&
+          if [[ "$CONTENT_REPOSITORY" == "f5-sales-demo/html-to-markdown" ]] &&
             { [[ -z "$SNAPSHOT_TAG" ]] || [[ -z "$PUBLICATION_SHA256" ]] ||
               [[ -z "$SNAPSHOT_VERIFIER_REF" ]]; }; then
             echo "::error::html-to-markdown Pages builds require snapshot-tag, publication-sha256, and snapshot-verifier-ref"
@@ -232,7 +265,7 @@ jobs:
           CONTENT_REF: ${{ steps.content.outputs.content_ref }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PUBLICATION_SHA256: ${{ inputs.publication-sha256 }}
-          REPOSITORY: ${{ github.repository }}
+          REPOSITORY: ${{ steps.content.outputs.content_repository }}
           SNAPSHOT_TAG: ${{ inputs.snapshot-tag }}
         run: |
           set -euo pipefail
@@ -322,7 +355,7 @@ jobs:
           DOCS_SITE: ${{ inputs.docs-site || format('https://{0}.github.io', github.repository_owner) }}
           DOCS_TITLE: ${{ inputs.docs-title }}
           OUTPUT_DIR: ${{ runner.temp }}/docs-output
-          REPOSITORY: ${{ github.repository }}
+          REPOSITORY: ${{ steps.content.outputs.content_repository }}
           MACHINE_CORPUS_DIR: ${{ steps.snapshot-files.outputs.machine_corpus }}
           SNAPSHOT_ENABLED: ${{ steps.snapshot.outputs.enabled }}
           WORKSPACE: ${{ github.workspace }}
@@ -395,6 +428,7 @@ jobs:
           find "$OUTPUT_DIR" -type f | head -20
 
       - name: Stage governance assets for /api/
+        if: ${{ !inputs.machine-root }}
         env:
           CONTENT_REF: ${{ steps.content.outputs.content_ref }}
           BUILDER_IMAGE: ${{ steps.builder.outputs.builder_image }}
@@ -447,6 +481,35 @@ jobs:
 
           # Nudge Pages to not apply Jekyll to the api/ directory
           touch "${OUTPUT_DIR}/.nojekyll"
+
+      - name: Stage root machine-only artifact
+        if: inputs.machine-root
+        env:
+          CONTENT_REPOSITORY: ${{ steps.content.outputs.content_repository }}
+          DOCS_SITE: ${{ inputs.docs-site || format('https://{0}.github.io', github.repository_owner) }}
+          OUTPUT_DIR: ${{ runner.temp }}/docs-output
+          SNAPSHOT_ENABLED: ${{ steps.snapshot.outputs.enabled }}
+        run: |
+          set -euo pipefail
+          if [[ "$SNAPSHOT_ENABLED" != "true" ]]; then
+            echo "::error::machine-root publication requires a verified immutable snapshot"
+            exit 1
+          fi
+          project="${CONTENT_REPOSITORY#*/}"
+          python3 .docs-control-policy/scripts/stage-machine-root.py \
+            --output "$OUTPUT_DIR" \
+            --site "$DOCS_SITE" \
+            --project "$project"
+          if find "$OUTPUT_DIR" -type f -name '*.html' -print -quit | grep -q .; then
+            echo "::error::machine-root artifact contains an HTML route"
+            exit 1
+          fi
+          for required in llms.txt llms-full.txt snapshot/manifest.json snapshot/snapshot-provenance.json; do
+            if [[ ! -f "$OUTPUT_DIR/$required" ]]; then
+              echo "::error::machine-root artifact is missing $required"
+              exit 1
+            fi
+          done
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

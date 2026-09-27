@@ -326,6 +326,8 @@ class SnapshotWorkflowTests(unittest.TestCase):
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
         inputs = workflow[True]["workflow_call"]["inputs"]
         for name in (
+            "content-repository",
+            "machine-root",
             "snapshot-tag",
             "publication-sha256",
             "snapshot-verifier-ref",
@@ -335,8 +337,22 @@ class SnapshotWorkflowTests(unittest.TestCase):
         self.assertEqual(inputs["snapshot-verifier-ref"]["default"], "")
         steps = workflow["jobs"]["build"]["steps"]
         by_name = {step.get("name"): step for step in steps}
+        resolve = by_name["Resolve immutable content commit"]
+        self.assertEqual(
+            resolve["env"]["REQUESTED_REPOSITORY"],
+            "${{ inputs.content-repository }}",
+        )
+        checkout_content = by_name["Checkout content repo"]
+        self.assertEqual(
+            checkout_content["with"]["repository"],
+            "${{ steps.content.outputs.content_repository }}",
+        )
         self.assertIn("Checkout immutable snapshot verifier", by_name)
         self.assertIn("Download and verify exact snapshot", by_name)
+        self.assertIn("Stage root machine-only artifact", by_name)
+        machine_root = by_name["Stage root machine-only artifact"]
+        self.assertEqual(machine_root["if"], "inputs.machine-root")
+        self.assertIn("stage-machine-root.py", machine_root["run"])
         validation = by_name["Validate immutable snapshot request"]
         self.assertEqual(
             validation["env"]["SNAPSHOT_VERIFIER_REF"],
@@ -369,6 +385,14 @@ class SnapshotWorkflowTests(unittest.TestCase):
         self.assertIn(
             ".github/workflows/github-pages-deploy.yml",
             governance["skip_files"]["html-to-markdown"],
+        )
+        self.assertEqual(
+            governance["repo_classes"]["repos"]["f5-sales-demo.github.io"],
+            "scaffolding",
+        )
+        self.assertIn(
+            ".github/workflows/github-pages-deploy.yml",
+            governance["skip_files"]["f5-sales-demo.github.io"],
         )
 
 
