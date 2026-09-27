@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "5b768c5aa5a7b80f25c10393f9e115202f20a59e",
+  "source_commit": "a04341bfd4fcf51c762321e6a65f50c883b1ef52",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -334,8 +334,8 @@
     {
       "path": "scripts/check_pii.py",
       "src": "scripts/check_pii.py",
-      "sha": "1e950a03242d3a8d91a38df1ed79e3e397fad5a2",
-      "size": 100738,
+      "sha": "085c6d123f0ef67b4887bc9072f6158e78505c51",
+      "size": 100754,
       "mode": "100644"
     },
     {
@@ -390,8 +390,8 @@
     {
       "path": "tests/test-check-pii.sh",
       "src": "tests/test-check-pii.sh",
-      "sha": "e4f053268f2888e12cab8f1d934030170f09c160",
-      "size": 95482,
+      "sha": "1a7fd1b5f43e801464c932bf708debcaf2188a02",
+      "size": 96664,
       "mode": "100755"
     },
     {
@@ -462,5 +462,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:67a575e1480950dc3400f8eee7a269b6f95e08c667db638412163615d4938dd7"
+  "state_digest": "sha256:91d1caf4f9166ef55cb4cc53c685e374bd73a609dadd99ca978d6f8ed6c57434"
 }
