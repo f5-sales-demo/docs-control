@@ -163,6 +163,7 @@ jobs:
           CONTENT_REPOSITORY: ${{ steps.content.outputs.content_repository }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SNAPSHOT_TAG: ${{ inputs.snapshot-tag }}
         run: |
           CHECKED_OUT_SHA=$(git rev-parse HEAD)
           if [ "$CHECKED_OUT_SHA" != "$CONTENT_REF" ]; then
@@ -176,10 +177,22 @@ jobs:
           gh auth setup-git
           git fetch --no-tags origin "+refs/heads/main:refs/remotes/origin/main"
           PROTECTED_MAIN_SHA=$(git rev-parse refs/remotes/origin/main)
-          if [[ ! "$PROTECTED_MAIN_SHA" =~ ^[0-9a-f]{40}$ ]] ||
-            [ "$PROTECTED_MAIN_SHA" != "$CONTENT_REF" ]; then
-            echo "::error::content-ref is not current protected main"
+          if [[ ! "$PROTECTED_MAIN_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::protected-main commit is invalid"
             exit 1
+          fi
+          if [ "$PROTECTED_MAIN_SHA" != "$CONTENT_REF" ]; then
+            if [[ ! "$SNAPSHOT_TAG" =~ ^content-[0-9]{8}T[0-9]{6}Z$ ]]; then
+              echo "::error::historical content-ref requires an exact immutable snapshot tag"
+              exit 1
+            fi
+            relation=$(gh api \
+              "repos/${CONTENT_REPOSITORY}/compare/${CONTENT_REF}...${PROTECTED_MAIN_SHA}" \
+              --jq .status)
+            if [ "$relation" != ahead ]; then
+              echo "::error::historical content-ref is not an ancestor of current protected main"
+              exit 1
+            fi
           fi
 
       - name: Validate immutable snapshot request

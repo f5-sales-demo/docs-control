@@ -347,6 +347,13 @@ class SnapshotWorkflowTests(unittest.TestCase):
             checkout_content["with"]["repository"],
             "${{ steps.content.outputs.content_repository }}",
         )
+        checked_out = by_name["Verify checked-out content commit"]
+        self.assertEqual(checked_out["env"]["SNAPSHOT_TAG"], "${{ inputs.snapshot-tag }}")
+        self.assertIn(
+            '"repos/${CONTENT_REPOSITORY}/compare/${CONTENT_REF}...${PROTECTED_MAIN_SHA}"',
+            checked_out["run"],
+        )
+        self.assertIn('[ "$relation" != ahead ]', checked_out["run"])
         self.assertIn("Checkout immutable snapshot verifier", by_name)
         self.assertIn("Download and verify exact snapshot", by_name)
         self.assertIn("Stage root machine-only artifact", by_name)
