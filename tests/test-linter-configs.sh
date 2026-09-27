@@ -781,6 +781,16 @@ else
     "remove the stale xcsh exclusions for Lint Code Base and Shell Unit Tests"
 fi
 
+ROOT_EXCLUDED=$(jq -c '.repo_overrides["f5-sales-demo.github.io"].excluded_required_contexts // []' \
+  "$REPO_SETTINGS")
+if echo "$ROOT_EXCLUDED" | jq -e --argjson base "$BASE_CTX" \
+  'sort == ($base | sort)' >/dev/null; then
+  pass "7e.7 machine-only root excludes every unavailable default context"
+else
+  fail "7e.7 machine-only root excludes every unavailable default context" \
+    "f5-sales-demo.github.io must exclude exactly the base contexts"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # SECTION 5e: super-linter disables validators not applicable to the
 #             ecosystem's language mix (TS/Rust/Python/Markdown/Astro)

@@ -664,12 +664,17 @@ function desiredProtection(config, repo) {
     checks: _configuredChecks,
     ...requiredStatusChecks
   } = base.required_status_checks || {};
+  const excludedContexts = new Set(override.excluded_required_contexts || []);
   // This reconciler only manages downstream repositories. `self_contexts`
   // documents docs-control's own unqualified workflow names; downstream
   // workflows report the qualified names in `contexts`.
-  const contexts = [
-    ...new Set([...(base.required_status_checks?.contexts || []), ...(override.additional_contexts || [])]),
-  ].sort();
+  const configuredContexts = [
+    ...(base.required_status_checks?.contexts || []),
+    ...(override.additional_contexts || []),
+  ];
+  const contexts = [...new Set(configuredContexts)]
+    .filter((context) => !excludedContexts.has(context))
+    .sort();
   const checks = contexts.map((context) => ({
     context,
     // GitHub documents -1 as an explicit any-app binding. Exact-commit central
