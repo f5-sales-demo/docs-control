@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import shutil
 import tarfile
 import tempfile
 import unittest
@@ -52,7 +53,7 @@ def fixture_files() -> tuple[dict[str, bytes], dict[str, object]]:
     second = markdown("source-b", "Source B", "b.svg")
     asset_a = b"png\n"
     asset_b = b'<svg xmlns="http://www.w3.org/2000/svg"/>\n'
-    documents = []
+    documents: list[dict[str, object]] = []
     for source, path, data in (
         ("source-a", "content/source-a/page/index.md", first),
         ("source-b", "content/source-b/page/index.md", second),
@@ -67,7 +68,7 @@ def fixture_files() -> tuple[dict[str, bytes], dict[str, object]]:
                 "size_bytes": len(data),
             }
         )
-    assets = []
+    assets: list[dict[str, object]] = []
     for path, data, media_type in (
         ("content/source-a/page/assets/a.png", asset_a, "image/png"),
         ("content/source-b/page/assets/b.svg", asset_b, "image/svg+xml"),
@@ -91,11 +92,11 @@ def fixture_files() -> tuple[dict[str, bytes], dict[str, object]]:
         "documents": documents,
         "assets": assets,
     }
-    files = {
-        documents[0]["path"]: first,
-        documents[1]["path"]: second,
-        assets[0]["path"]: asset_a,
-        assets[1]["path"]: asset_b,
+    files: dict[str, bytes] = {
+        str(documents[0]["path"]): first,
+        str(documents[1]["path"]): second,
+        str(assets[0]["path"]): asset_a,
+        str(assets[1]["path"]): asset_b,
         "manifest.json": (json.dumps(manifest, sort_keys=True) + "\n").encode(),
         "quality-report.json": b'{"status":"accepted"}\n',
         "quality-report.md": b"# Quality\n\nAccepted.\n",
@@ -152,9 +153,9 @@ def write_release(
 
 class SnapshotVerifierTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        temp_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, temp_dir)
+        self.root = Path(temp_dir)
         self.release = self.root / "release"
         self.output = self.root / "output"
         self.release.mkdir()
@@ -274,7 +275,7 @@ class SnapshotVerifierTests(unittest.TestCase):
                 release = Path(raw)
                 write_release(release)
                 files, _ = fixture_files()
-                extra = []
+                extra: list[tuple[tarfile.TarInfo, bytes | None]] = []
                 if case == "traversal":
                     info = tarfile.TarInfo("../escape")
                     info.size = 1

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: D103, EM101, EM102, PLR2004, TRY003, TRY004
+# pylint: disable=invalid-name
 """Verify and extract one immutable html-to-markdown snapshot publication."""
 
 from __future__ import annotations
@@ -55,15 +56,11 @@ def _safe_path(value: object, label: str) -> PurePosixPath:
         raise ValueError(f"{label} is not a string")
     path = PurePosixPath(value)
     encoded = value.casefold()
-    if (
-        not value
-        or value.startswith("/")
-        or "\\" in value
-        or path.is_absolute()
-        or any(part in {"", ".", ".."} for part in path.parts)
-        or "%2f" in encoded
-        or "%5c" in encoded
-    ):
+    if not value or value.startswith("/") or "\\" in value:
+        raise ValueError(f"{label} is unsafe: {value}")
+    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
+        raise ValueError(f"{label} is unsafe: {value}")
+    if "%2f" in encoded or "%5c" in encoded:
         raise ValueError(f"{label} is unsafe: {value}")
     return path
 
@@ -214,15 +211,16 @@ def _validate_asset(
     path = entry.get("path")
     parsed = _safe_path(path, "manifest asset path")
     source = parsed.parts[1] if len(parsed.parts) > 1 else ""
+    if not isinstance(path, str):
+        raise ValueError(f"manifest asset is missing, duplicated, or misplaced: {path}")
     if (
-        not isinstance(path, str)
-        or len(parsed.parts) < 5
+        len(parsed.parts) < 5
         or parsed.parts[0] != "content"
         or source not in source_roots
         or "assets" not in parsed.parts[2:-1]
-        or path in seen
-        or path not in files
     ):
+        raise ValueError(f"manifest asset is missing, duplicated, or misplaced: {path}")
+    if path in seen or path not in files:
         raise ValueError(f"manifest asset is missing, duplicated, or misplaced: {path}")
     seen.add(path)
     data = files[path]
@@ -266,12 +264,8 @@ def _validate_manifest(raw: bytes, files: dict[str, bytes]) -> None:
         raise ValueError("archive contains an unknown or missing member")
 
 
-def _validate_publication(
-    release_dir: Path,
-    *,
-    tag: str,
-    publication_sha256: str,
-    source_commit: str,
+def _validate_snapshot_identity(
+    tag: str, publication_sha256: str, source_commit: str
 ) -> None:
     if not TAG_PATTERN.fullmatch(tag):
         raise ValueError("snapshot tag is invalid")
@@ -279,6 +273,23 @@ def _validate_publication(
         raise ValueError("publication digest is invalid")
     if not COMMIT_PATTERN.fullmatch(source_commit):
         raise ValueError("snapshot source commit is invalid")
+
+
+def _validate_receipt_timestamps(receipt: dict[str, object]) -> None:
+    for key in ("created_at", "published_at"):
+        value = receipt.get(key)
+        if not isinstance(value, str) or not TIMESTAMP_PATTERN.fullmatch(value):
+            raise ValueError(f"publication receipt {key} is invalid")
+
+
+def _validate_publication(
+    release_dir: Path,
+    *,
+    tag: str,
+    publication_sha256: str,
+    source_commit: str,
+) -> None:
+    _validate_snapshot_identity(tag, publication_sha256, source_commit)
     entries = list(release_dir.iterdir())
     if any(path.is_symlink() or not path.is_file() for path in entries):
         raise ValueError("release download contains a non-regular asset")
@@ -294,11 +305,7 @@ def _validate_publication(
         raise ValueError("publication receipt tag mismatch")
     if receipt.get("source_commit") != source_commit:
         raise ValueError("publication receipt source commit mismatch")
-    for key in ("created_at", "published_at"):
-        if not isinstance(receipt.get(key), str) or not TIMESTAMP_PATTERN.fullmatch(
-            receipt[key]
-        ):
-            raise ValueError(f"publication receipt {key} is invalid")
+    _validate_receipt_timestamps(receipt)
     assets = receipt.get("assets")
     if not isinstance(assets, list):
         raise ValueError("publication receipt assets must be a list")
