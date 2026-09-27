@@ -1119,6 +1119,14 @@
         }
       }
     },
+    "f5-sales-demo/f5-sales-demo.github.io": {
+      "runner": {
+        "arc_scale_sets": {
+          "socketless": { "label": "docs-socketless", "profile": "ubuntu-24.04" },
+          "container-build": { "label": "docs-container-build", "profile": "container-build" }
+        }
+      }
+    },
     "f5-sales-demo/html-to-markdown": {
       "runner": {
         "arc_scale_sets": {

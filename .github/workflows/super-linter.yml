@@ -938,6 +938,7 @@ jobs:
             tests/test_ephemeral_runner_controller.py \
             tests/test_fleet_runner_dispatch.py \
             tests/test_provision_ephemeral_runners.py \
+            tests/test_stage_machine_root.py \
             tests/test_verify_snapshot.py \
             tests/test_workflow_security_validator.py
 

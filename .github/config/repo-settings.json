@@ -235,6 +235,7 @@
         ".gitignore",
         ".github/workflows/github-pages-deploy.yml"
       ],
+      "f5-sales-demo.github.io": [".github/workflows/github-pages-deploy.yml"],
       "i18n-core": [
         ".ruff.toml",
         ".mypy.ini",
