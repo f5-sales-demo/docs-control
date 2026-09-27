@@ -61,9 +61,16 @@ with:
   content-ref: ${{ github.sha }}
 ```
 
-`content-ref` must be a full 40-character commit SHA. The reusable workflow checks that checkout resolves to that SHA, then proves it is the current protected `main` commit before it builds or publishes. It records the requested content SHA, checked-out commit, and resolved builder image in the published revision marker, so the deployed artifact has a deterministic identity.
+`content-ref` must be a full 40-character commit SHA. The reusable workflow checks that checkout
+resolves to that SHA, then proves it is the current protected `main` commit before it builds or
+publishes. An exact `content-*` snapshot may instead rebuild from its receipt-bound historical
+commit after proving that commit remains an ancestor of protected `main`. It records the requested
+content SHA, checked-out commit, and resolved builder image in the published revision marker, so
+the deployed artifact has a deterministic identity.
 
-There is no mutable fallback: callers cannot omit `content-ref`, use a branch name, or publish an older or unmerged commit. In docs-control, `docs-site-deploy.yml` is the direct push/manual caller; `github-pages-deploy.yml` is reusable-only.
+There is no mutable fallback: callers cannot omit `content-ref`, use a branch name, or publish an
+unmerged or divergent commit. In docs-control, `docs-site-deploy.yml` is the direct push/manual
+caller; `github-pages-deploy.yml` is reusable-only.
 
 ### 5. Trigger enforcement
 
