@@ -498,6 +498,7 @@ jobs:
       - name: Stage root machine-only artifact
         if: inputs.machine-root
         env:
+          BUILDER_IMAGE: ${{ steps.builder.outputs.builder_image }}
           CONTENT_REPOSITORY: ${{ steps.content.outputs.content_repository }}
           DOCS_SITE: ${{ inputs.docs-site || format('https://{0}.github.io', github.repository_owner) }}
           OUTPUT_DIR: ${{ runner.temp }}/docs-output
@@ -508,6 +509,12 @@ jobs:
             echo "::error::machine-root publication requires a verified immutable snapshot"
             exit 1
           fi
+          docker run --rm --pull=never \
+            --user 0:0 \
+            --entrypoint chown \
+            -v "$OUTPUT_DIR:/output" \
+            "$BUILDER_IMAGE" \
+            -R "$(id -u):$(id -g)" /output
           project="${CONTENT_REPOSITORY#*/}"
           python3 .docs-control-policy/scripts/stage-machine-root.py \
             --output "$OUTPUT_DIR" \
