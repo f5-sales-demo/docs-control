@@ -56,13 +56,19 @@ start = by_name["Start Super-Linter profiler"]
 assert start["if"] == "runner.environment == 'self-hosted'"
 assert start.get("continue-on-error") is True
 assert start["env"] == {
+    "SUPER_LINTER_ACTION_COMMIT": "4ce20838b8ab83717e78138c5b3a1407148e0918",
     "SUPER_LINTER_IMAGE": "ghcr.io/super-linter/super-linter:v8.7.0",
     "SUPER_LINTER_DIGEST": "sha256:c05768164eed53bac7c82aade7a14a76955206d4962cd41be97118db96fa5996",
+    "SUPER_LINTER_MANIFEST_DIGEST": "sha256:a38987de6efa8b7286ef98233eb8454cd1370ab58eeab8190ddd74fe0c7ca849",
 }
 for fragment in (
     "RUNNER_TRACKING_ID=",
     "docker-action-profile",
     "--expected-digest",
+    "--expected-action-commit",
+    "--expected-manifest-digest",
+    "--expected-seed-image",
+    "--seed-result-file",
     "--ready-file",
     "--pid-file",
     "--variant instrumentation",
@@ -81,6 +87,14 @@ assert finalize["if"] == "always() && runner.environment == 'self-hosted'"
 assert finalize.get("continue-on-error") is True
 for fragment in (
     "docker-action-profile.schema.json",
+    "profile.schema_version !== 2",
+    "profile.seed.qualified",
+    "profile.seed.result !== 'hit'",
+    "profile.seed.action_commit !== expectedActionCommit",
+    "profile.seed.index_digest !== expectedDigest",
+    "profile.seed.manifest_digest !== expectedManifestDigest",
+    "profile.cache_state !== 'warm'",
+    "profile.timing.action_pull_seconds",
     "/opt/spectral/node_modules/ajv/dist/2020",
     "/opt/spectral/node_modules/ajv-formats",
     "kill -TERM",
