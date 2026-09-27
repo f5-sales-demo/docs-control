@@ -90,6 +90,9 @@
     },
     "docs-icons": {
       "additional_contexts": ["Generated artifact release"]
+    },
+    "f5-sales-demo.github.io": {
+      "excluded_required_contexts": ["Check linked issues", "lint / Lint Code Base", "lint / Shell Unit Tests"]
     }
   },
   "consumer_shell_tests": {

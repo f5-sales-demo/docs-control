@@ -38,12 +38,14 @@ assert.throws(() => validateManifest(config, {...manifest,absent_paths:[]}), /co
 assert.throws(() => validateManifest(config, makeManifest(manifest.files, ['a','retired'])), /sorted and unique/);
 assert.deepEqual(contentDiff({tree:[{path:'a',type:'blob',sha:'c'.repeat(40),mode:'100644'},{path:'retired',type:'blob',sha:sha,mode:'100644'}]}, desiredEntries(config, manifest, 'one')).map(x => x.action), ['upsert','upsert','delete']);
 assert.deepEqual(settingsDelta({has_issues:true,has_wiki:true}, {has_issues:true,has_wiki:false}), {has_wiki:false});
-const protection = desiredProtection({branch_protection:[{branch:'main',enforce_admins:true,required_status_checks:{strict:true,contexts:['lint / Lint'],self_contexts:['Lint']},required_pull_request_reviews:null,restrictions:null,required_linear_history:false,allow_force_pushes:false,allow_deletions:false,block_creations:false,required_conversation_resolution:false,lock_branch:false,allow_fork_syncing:false}],repo_overrides:{one:{additional_contexts:['Extra']}}}, 'one');
+const protection = desiredProtection({branch_protection:[{branch:'main',enforce_admins:true,required_status_checks:{strict:true,contexts:['lint / Lint'],self_contexts:['Lint']},required_pull_request_reviews:null,restrictions:null,required_linear_history:false,allow_force_pushes:false,allow_deletions:false,block_creations:false,required_conversation_resolution:false,lock_branch:false,allow_fork_syncing:false}],repo_overrides:{one:{additional_contexts:['Extra','Excluded'],excluded_required_contexts:['Excluded']}}}, 'one');
 assert.deepEqual(protection.required_status_checks.contexts, []);
 assert.deepEqual(protection.required_status_checks.checks, [{context:'Extra',app_id:-1},{context:'lint / Lint',app_id:-1}]);
 const attestedProtection = desiredProtection({branch_protection:[{branch:'main',enforce_admins:true,required_status_checks:{strict:true,contexts:['Check linked issues','lint / Lint Code Base','lint / Shell Unit Tests']},required_pull_request_reviews:null,restrictions:null}]}, 'one');
 assert.deepEqual(attestedProtection.required_status_checks.checks, [{context:'Check linked issues',app_id:-1},{context:'lint / Lint Code Base',app_id:-1},{context:'lint / Shell Unit Tests',app_id:-1}]);
 const canonicalSettings = JSON.parse(fs.readFileSync(path.join(path.dirname(process.argv[2]), '..', '.github/config/repo-settings.json'), 'utf8'));
+const rootProtection = desiredProtection(canonicalSettings, 'f5-sales-demo.github.io');
+assert.deepEqual(rootProtection.required_status_checks.checks, []);
 const xcshProtection = desiredProtection(canonicalSettings, 'xcsh');
 assert.deepEqual(xcshProtection.required_status_checks.checks, [
   {context:'Check linked issues',app_id:-1}, {context:'lint / Lint Code Base',app_id:-1}, {context:'lint / Shell Unit Tests',app_id:-1},
