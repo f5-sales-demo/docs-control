@@ -83,6 +83,7 @@ SOURCE_CODE_SUFFIXES = {
     ".py",
     ".rb",
     ".rs",
+    ".source",
     ".swift",
     ".tf",
     ".ts",
