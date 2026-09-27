@@ -629,6 +629,14 @@
         }
       }
     },
+    "f5-sales-demo/f5-sales-demo.github.io": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    },
     "f5-sales-demo/i18n-core": {
       ".github/workflows/workflow-security-audit.yml": {
         "workflow-security-audit": {

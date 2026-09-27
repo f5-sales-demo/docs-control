@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # ruff: noqa: D103, EM101, EM102, TRY003
+# pylint: disable=invalid-name,too-many-boolean-expressions
 """Reduce a built project Pages tree to the organization-root machine corpus."""
 
 from __future__ import annotations

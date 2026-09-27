@@ -5,12 +5,13 @@ import importlib.util
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any, ClassVar
 
 ROOT = Path(__file__).parents[1]
 SCRIPT_PATH = ROOT / "scripts" / "stage-machine-root.py"
 
 
-def load_module():
+def load_module() -> Any:
     spec = importlib.util.spec_from_file_location("stage_machine_root", SCRIPT_PATH)
     if spec is None or spec.loader is None:
         raise AssertionError("cannot load machine-root staging helper")
@@ -20,6 +21,8 @@ def load_module():
 
 
 class StageMachineRootTests(unittest.TestCase):
+    module: ClassVar[Any]
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.module = load_module()
