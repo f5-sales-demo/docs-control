@@ -325,12 +325,31 @@ class SnapshotWorkflowTests(unittest.TestCase):
     def test_reusable_workflow_has_fail_closed_snapshot_contract(self) -> None:
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
         inputs = workflow[True]["workflow_call"]["inputs"]
-        for name in ("snapshot-tag", "publication-sha256"):
+        for name in (
+            "snapshot-tag",
+            "publication-sha256",
+            "snapshot-verifier-ref",
+        ):
             self.assertIn(name, inputs)
+        self.assertFalse(inputs["snapshot-verifier-ref"]["required"])
+        self.assertEqual(inputs["snapshot-verifier-ref"]["default"], "")
         steps = workflow["jobs"]["build"]["steps"]
         by_name = {step.get("name"): step for step in steps}
         self.assertIn("Checkout immutable snapshot verifier", by_name)
         self.assertIn("Download and verify exact snapshot", by_name)
+        validation = by_name["Validate immutable snapshot request"]
+        self.assertEqual(
+            validation["env"]["SNAPSHOT_VERIFIER_REF"],
+            "${{ inputs.snapshot-verifier-ref }}",
+        )
+        self.assertIn(
+            '[[ ! "$SNAPSHOT_VERIFIER_REF" =~ ^[0-9a-f]{40}$ ]]',
+            validation["run"],
+        )
+        checkout = by_name["Checkout immutable snapshot verifier"]
+        self.assertEqual(
+            checkout["with"]["ref"], "${{ inputs.snapshot-verifier-ref }}"
+        )
         verify = by_name["Download and verify exact snapshot"]["run"]
         self.assertIn('gh release download "$SNAPSHOT_TAG"', verify)
         self.assertNotIn("latest", verify.casefold())
