@@ -629,14 +629,6 @@
         }
       }
     },
-    "f5-sales-demo/f5-sales-demo.github.io": {
-      ".github/workflows/workflow-security-audit.yml": {
-        "workflow-security-audit": {
-          "runs_on": "ubuntu-latest",
-          "reason": "read-only pull request workflow security audit"
-        }
-      }
-    },
     "f5-sales-demo/i18n-core": {
       ".github/workflows/workflow-security-audit.yml": {
         "workflow-security-audit": {
@@ -1120,14 +1112,6 @@
       }
     },
     "f5-sales-demo/docs-theme": {
-      "runner": {
-        "arc_scale_sets": {
-          "socketless": { "label": "docs-socketless", "profile": "ubuntu-24.04" },
-          "container-build": { "label": "docs-container-build", "profile": "container-build" }
-        }
-      }
-    },
-    "f5-sales-demo/f5-sales-demo.github.io": {
       "runner": {
         "arc_scale_sets": {
           "socketless": { "label": "docs-socketless", "profile": "ubuntu-24.04" },

@@ -103,8 +103,7 @@ policy, settings, governance = (
     json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]
 )
 cohort = {
-    "docs", "docs-builder", "docs-icons", "docs-theme",
-    "f5-sales-demo.github.io", "i18n-core",
+    "docs", "docs-builder", "docs-icons", "docs-theme", "i18n-core",
     "starlight-llms-txt",
 }
 routes = {
@@ -127,9 +126,7 @@ for repo in cohort:
     assert policy["repositories"][repository]["runner"] == {"arc_scale_sets": routes}
     assert repository not in legacy
     expected = set(managed)
-    if repo == "f5-sales-demo.github.io":
-        expected = {".github/workflows/github-pages-deploy.yml"}
-    elif repo == "docs-icons":
+    if repo == "docs-icons":
         expected -= {
             ".github/workflows/auto-merge.yml",
             ".github/workflows/require-linked-issue.yml",
@@ -779,16 +776,6 @@ if echo "$XCSH_EXCLUDED" | jq -e \
 else
   fail "7e.6 xcsh requires both Super-Linter contexts" \
     "remove the stale xcsh exclusions for Lint Code Base and Shell Unit Tests"
-fi
-
-ROOT_EXCLUDED=$(jq -c '.repo_overrides["f5-sales-demo.github.io"].excluded_required_contexts // []' \
-  "$REPO_SETTINGS")
-if echo "$ROOT_EXCLUDED" | jq -e --argjson base "$BASE_CTX" \
-  'sort == ($base | sort)' >/dev/null; then
-  pass "7e.7 machine-only root excludes every unavailable default context"
-else
-  fail "7e.7 machine-only root excludes every unavailable default context" \
-    "f5-sales-demo.github.io must exclude exactly the base contexts"
 fi
 
 # ════════════════════════════════════════════════════════════════════

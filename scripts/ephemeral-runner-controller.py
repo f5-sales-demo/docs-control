@@ -65,7 +65,6 @@ DOCS_ARC_COHORT = frozenset(
         "docs-builder",
         "docs-icons",
         "docs-theme",
-        "f5-sales-demo.github.io",
         "i18n-core",
         "starlight-llms-txt",
     )

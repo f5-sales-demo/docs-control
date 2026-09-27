@@ -190,7 +190,6 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             "f5-sales-demo/docs-builder",
             "f5-sales-demo/docs-icons",
             "f5-sales-demo/docs-theme",
-            "f5-sales-demo/f5-sales-demo.github.io",
             "f5-sales-demo/i18n-core",
             "f5-sales-demo/starlight-llms-txt",
         }
@@ -499,7 +498,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         policy = MODULE.active_policy()
         self.assertEqual(policy.dispatcher.repositories, ())
         self.assertEqual(MODULE.all_instances(), ())
-        self.assertEqual(len(policy.arc_scale_sets), 41)
+        self.assertEqual(len(policy.arc_scale_sets), 40)
         managed = {
             repository: routes
             for repository, routes in policy.arc_scale_sets.items()

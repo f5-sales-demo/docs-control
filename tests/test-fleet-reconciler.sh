@@ -44,8 +44,6 @@ assert.deepEqual(protection.required_status_checks.checks, [{context:'Extra',app
 const attestedProtection = desiredProtection({branch_protection:[{branch:'main',enforce_admins:true,required_status_checks:{strict:true,contexts:['Check linked issues','lint / Lint Code Base','lint / Shell Unit Tests']},required_pull_request_reviews:null,restrictions:null}]}, 'one');
 assert.deepEqual(attestedProtection.required_status_checks.checks, [{context:'Check linked issues',app_id:-1},{context:'lint / Lint Code Base',app_id:-1},{context:'lint / Shell Unit Tests',app_id:-1}]);
 const canonicalSettings = JSON.parse(fs.readFileSync(path.join(path.dirname(process.argv[2]), '..', '.github/config/repo-settings.json'), 'utf8'));
-const rootProtection = desiredProtection(canonicalSettings, 'f5-sales-demo.github.io');
-assert.deepEqual(rootProtection.required_status_checks.checks, []);
 const xcshProtection = desiredProtection(canonicalSettings, 'xcsh');
 assert.deepEqual(xcshProtection.required_status_checks.checks, [
   {context:'Check linked issues',app_id:-1}, {context:'lint / Lint Code Base',app_id:-1}, {context:'lint / Shell Unit Tests',app_id:-1},
