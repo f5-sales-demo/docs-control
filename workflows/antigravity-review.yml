@@ -27,7 +27,7 @@ concurrency:
 jobs:
   review:
     if: vars.ANTIGRAVITY_REVIEW_ENABLED == 'true'
-    uses: f5-sales-demo/docs-control/.github/workflows/antigravity-review.yml@b718c6297b0d6c31ffb9fa414601e3674af879df
+    uses: f5-sales-demo/docs-control/.github/workflows/antigravity-review.yml@b1e9c4e4ebbfa40d3267511f5418af7b48b0529c
     with:
       pr_number: ${{ inputs.pr_number }}
       expected_base_sha: ${{ inputs.expected_base_sha }}
