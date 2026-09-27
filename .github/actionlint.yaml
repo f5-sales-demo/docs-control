@@ -27,7 +27,6 @@ self-hosted-runner:
     - docs-icons
     - docs-socketless
     - docs-theme
-    - f5-sales-demo.github.io
     - fixture
     - html-to-markdown
     - i18n-core

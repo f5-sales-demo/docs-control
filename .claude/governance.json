@@ -56,7 +56,6 @@
       ".gitignore",
       ".github/workflows/github-pages-deploy.yml"
     ],
-    "f5-sales-demo.github.io": [".github/workflows/github-pages-deploy.yml"],
     "i18n-core": [
       ".ruff.toml",
       ".mypy.ini",
@@ -211,7 +210,6 @@
       "docs-control": "scaffolding",
       "docs-icons": "developer",
       "docs-theme": "developer",
-      "f5-sales-demo.github.io": "scaffolding",
       "html-to-markdown": "developer",
       "i18n-core": "developer",
       "marketplace": "developer",
