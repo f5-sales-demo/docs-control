@@ -348,7 +348,9 @@ class SnapshotWorkflowTests(unittest.TestCase):
             "${{ steps.content.outputs.content_repository }}",
         )
         checked_out = by_name["Verify checked-out content commit"]
-        self.assertEqual(checked_out["env"]["SNAPSHOT_TAG"], "${{ inputs.snapshot-tag }}")
+        self.assertEqual(
+            checked_out["env"]["SNAPSHOT_TAG"], "${{ inputs.snapshot-tag }}"
+        )
         self.assertIn(
             '"repos/${CONTENT_REPOSITORY}/compare/${CONTENT_REF}...${PROTECTED_MAIN_SHA}"',
             checked_out["run"],
