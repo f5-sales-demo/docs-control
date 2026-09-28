@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -128,6 +129,12 @@ PROVIDER_MANUAL_COMPUTE_ROUTE_LABELS = {
 PROVIDER_CANDIDATE_GRANT_IDENTITIES = frozenset(
     (PROVIDER_REPOSITORY, PROVIDER_BENCHMARK_WORKFLOW, job_id)
     for job_id in PROVIDER_MANUAL_COMPUTE_ROUTE_LABELS
+)
+STAGED_PROVIDER_COMPUTE_JOBS = frozenset(
+    {
+        (".github/workflows/_generate-docs.yml", "generate"),
+        (".github/workflows/_generate-provider.yml", "generate"),
+    }
 )
 CANDIDATE_GRANT_IDENTITIES = (
     XCSH_CANDIDATE_GRANT_IDENTITIES | PROVIDER_CANDIDATE_GRANT_IDENTITIES
@@ -679,6 +686,29 @@ def trusted_dynamic_route_labels(repository, relative, job_id, runs_on, workflow
     return XCSH_MANUAL_COMPUTE_ROUTE_LABELS.get(job_id)
 
 
+def staged_provider_compute_route(repository, relative, job_id, runs_on, routes):
+    """Resolve the exact one-PR hosted-to-compute governance transition."""
+    identity = (repository, relative, job_id)
+    head_ref = os.environ.get("GITHUB_HEAD_REF", "")
+    staged_head = re.fullmatch(
+        r"governance/sync-managed-files-[0-9a-f]{12}-[0-9]+-[0-9]+",
+        head_ref,
+    )
+    grants = routes.get("restricted_grants", {}).get(
+        "terraform-provider-xcsh-compute",
+        frozenset(),
+    )
+    if (
+        repository == PROVIDER_REPOSITORY
+        and (relative, job_id) in STAGED_PROVIDER_COMPUTE_JOBS
+        and runs_on == "ubuntu-latest"
+        and staged_head is not None
+        and identity in grants
+    ):
+        return "terraform-provider-xcsh-compute"
+    return None
+
+
 def profile_for_route(runs_on, profiles, routes, repository):
     """Resolve one security-equivalent profile for an exact scheduling route."""
     if routes["kind"] == "arc":
@@ -952,6 +982,13 @@ def audit_job(  # noqa: PLR0917
             runs_on,
             workflow,
         )
+        staged_route_label = staged_provider_compute_route(
+            repository,
+            relative,
+            job_id,
+            runs_on,
+            routes,
+        )
         is_candidate_job = identity in CANDIDATE_GRANT_IDENTITIES
         is_manual_route = isinstance(runs_on, str) and runs_on in {
             XCSH_MANUAL_COMPUTE_ROUTE_EXPRESSION,
@@ -963,7 +1000,12 @@ def audit_job(  # noqa: PLR0917
         if is_manual_route and dynamic_route_labels is None:
             message = "manual route requires its workflow_dispatch job context"
             errors.append(f"{relative}/{job_id}: {message}")
-        resolved_profile = profile_for_route(runs_on, profiles, routes, repository)
+        resolved_profile = profile_for_route(
+            staged_route_label or runs_on,
+            profiles,
+            routes,
+            repository,
+        )
         if dynamic_route_labels is not None:
             profiles_by_label = routes["profiles_by_label"]
             dynamic_profiles = set(map(profiles_by_label.get, dynamic_route_labels))
@@ -979,7 +1021,10 @@ def audit_job(  # noqa: PLR0917
             errors.append(
                 f"{relative}/{job_id}: runs-on must use the canonical repository route, got {runs_on!r}",
             )
-        canonical_label = canonical_route_label(runs_on, repository)
+        canonical_label = staged_route_label or canonical_route_label(
+            runs_on,
+            repository,
+        )
         route_labels = dynamic_route_labels or frozenset({canonical_label})
         for route_label in route_labels:
             grants = routes.get("restricted_grants", {}).get(route_label)
