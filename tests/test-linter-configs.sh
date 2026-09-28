@@ -103,7 +103,7 @@ policy, settings, governance = (
     json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]
 )
 cohort = {
-    "docs", "docs-builder", "docs-icons", "docs-theme", "i18n-core",
+    "f5-sales-demo.github.io", "docs-builder", "docs-icons", "docs-theme", "i18n-core",
     "starlight-llms-txt",
 }
 routes = {

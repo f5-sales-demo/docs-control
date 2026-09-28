@@ -186,7 +186,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
     def test_documentation_cohort_uses_only_shared_arc_scale_sets(self):
         policy = MODULE.active_policy()
         cohort = {
-            "f5-sales-demo/docs",
+            "f5-sales-demo/f5-sales-demo.github.io",
             "f5-sales-demo/docs-builder",
             "f5-sales-demo/docs-icons",
             "f5-sales-demo/docs-theme",

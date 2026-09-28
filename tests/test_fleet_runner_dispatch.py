@@ -49,7 +49,7 @@ class FleetRunnerDispatchTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def test_etag_cache_reuses_prior_inventory_after_not_modified(self):
-        path = "/repos/f5-sales-demo/docs/actions/runs?status=queued&per_page=100"
+        path = "/repos/f5-sales-demo/f5-sales-demo.github.io/actions/runs?status=queued&per_page=100"
         github = GitHub({path: ({"workflow_runs": []}, {"ETag": '"fixture"'})})
         self.assertEqual(MODULE.get(github, path), {"workflow_runs": []})
         github.responses[path] = (None, {})
@@ -86,7 +86,7 @@ class FleetRunnerDispatchTests(unittest.TestCase):
         self.assertTrue(MODULE.STATE_PATH.exists())
 
     def test_cooldown_suppresses_api_traffic(self):
-        policy = self.policy(("f5-sales-demo/docs",), 80)
+        policy = self.policy(("f5-sales-demo/f5-sales-demo.github.io",), 80)
         MODULE.save({"cursor": 0, "cooldowns": {"primary": 1100, "secondary": 1200}})
         controller = mock.Mock()
         with (
@@ -105,14 +105,14 @@ class FleetRunnerDispatchTests(unittest.TestCase):
             kind = "primary"
             retry_at = 1200
 
-        policy = self.policy(("f5-sales-demo/docs",), 80)
+        policy = self.policy(("f5-sales-demo/f5-sales-demo.github.io",), 80)
         github = GitHub(
             {
-                "/repos/f5-sales-demo/docs/actions/runs?status=queued&per_page=100": (
+                "/repos/f5-sales-demo/f5-sales-demo.github.io/actions/runs?status=queued&per_page=100": (
                     {"workflow_runs": []},
                     {},
                 ),
-                "/repos/f5-sales-demo/docs/actions/runs?status=in_progress&per_page=100": (
+                "/repos/f5-sales-demo/f5-sales-demo.github.io/actions/runs?status=in_progress&per_page=100": (
                     {"workflow_runs": []},
                     {},
                 ),
@@ -240,7 +240,7 @@ class FleetRunnerDispatchTests(unittest.TestCase):
         self.assertEqual(started, [])
 
     def test_reaps_only_the_exact_verified_idle_runner(self):
-        repository = "f5-sales-demo/docs"
+        repository = "f5-sales-demo/f5-sales-demo.github.io"
         profile = SimpleNamespace(name="ubuntu-24.04", docker_socket=False)
         spec = SimpleNamespace(name="docs")
         item = SimpleNamespace(
@@ -299,7 +299,7 @@ class FleetRunnerDispatchTests(unittest.TestCase):
         )
 
     def test_idle_reaping_preserves_busy_offline_and_unrelated_runners(self):
-        repository = "f5-sales-demo/docs"
+        repository = "f5-sales-demo/f5-sales-demo.github.io"
         profile = SimpleNamespace(name="ubuntu-24.04", docker_socket=False)
         spec = SimpleNamespace(name="docs")
         item = SimpleNamespace(
@@ -343,7 +343,7 @@ class FleetRunnerDispatchTests(unittest.TestCase):
                 command.assert_not_called()
 
     def test_idle_reaping_skips_repositories_with_queued_or_active_work(self):
-        repository = "f5-sales-demo/docs"
+        repository = "f5-sales-demo/f5-sales-demo.github.io"
         item = SimpleNamespace(
             repository=repository,
             profile="ubuntu-24.04",
@@ -365,7 +365,7 @@ class FleetRunnerDispatchTests(unittest.TestCase):
         command.assert_not_called()
 
     def test_dispatch_protects_queued_repository_before_idle_reap(self):
-        repository = "f5-sales-demo/docs"
+        repository = "f5-sales-demo/f5-sales-demo.github.io"
         base = f"/repos/{repository}/actions/runs"
         github = GitHub(
             {
@@ -472,7 +472,7 @@ class FleetRunnerDispatchTests(unittest.TestCase):
     def start_attempt(
         self, profile, labels, job_labels, trusted, primary_active=False, busy=True
     ):
-        repository = "f5-sales-demo/docs"
+        repository = "f5-sales-demo/f5-sales-demo.github.io"
         base = f"/repos/{repository}/actions/runs"
         github = GitHub(
             {
