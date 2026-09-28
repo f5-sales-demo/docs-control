@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "ef85630aee69f170da1b20f3ded4c759e88860b2",
+  "source_commit": "4bb2e41458f77ac41d54db8a6d473216461017ba",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "0b37836c60170841404dd56c5e64fb8b20a56f89",
-      "size": 8741,
+      "sha": "0925a30179567d6536031ec83d6e83962eb43240",
+      "size": 8760,
       "mode": "100644"
     },
     {
@@ -462,5 +462,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:0b7eec997e7302ca64c1c392f096337df1fcb5a47e6a5c46b07779e40e0975fa"
+  "state_digest": "sha256:c8c9c5749080c5bc127469434eeb1486478363e2a744f43a48cf6f86ddf3919f"
 }
