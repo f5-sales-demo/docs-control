@@ -384,8 +384,8 @@ class SnapshotWorkflowTests(unittest.TestCase):
             ".github/workflows/github-pages-deploy.yml",
             governance["skip_files"]["html-to-markdown"],
         )
-        self.assertNotIn("f5-sales-demo.github.io", governance["repo_classes"]["repos"])
-        self.assertNotIn("f5-sales-demo.github.io", governance["skip_files"])
+        self.assertIn("f5-sales-demo.github.io", governance["repo_classes"]["repos"])
+        self.assertIn("f5-sales-demo.github.io", governance["skip_files"])
 
 
 if __name__ == "__main__":
