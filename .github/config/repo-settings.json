@@ -229,6 +229,7 @@
         ".github/workflows/super-linter.yml"
       ],
       "html-to-markdown": [
+        "README.md",
         "LICENSE",
         ".ruff.toml",
         ".mypy.ini",

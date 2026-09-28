@@ -146,6 +146,7 @@ for skips in (settings["managed_files"]["skip_files"], governance["skip_files"])
     assert ".github/workflows/github-pages-deploy.yml" in skips["xcsh"]
 assert settings["managed_files"]["skip_files"] == governance["skip_files"]
 assert settings["managed_files"]["skip_files"]["html-to-markdown"] == [
+    "README.md",
     "LICENSE",
     ".ruff.toml",
     ".mypy.ini",
