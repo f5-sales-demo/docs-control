@@ -126,6 +126,7 @@
     "label": "Dev Container",
     "url": "https://f5-sales-demo.github.io/devcontainer/llms-full.txt",
     "description": "Isolated development environment with AI coding tools",
+    "rebuild_dispatch": false,
     "badges": [{ "name": "Docker Publish", "workflow": "docker-publish.yml" }]
   },
   {
