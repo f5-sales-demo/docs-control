@@ -812,10 +812,9 @@ def load_policy(path, governance_path, repository):
             if isinstance(repositories, dict)
             else sorted(governed)
         )
+        extra = []
         if isinstance(repositories, dict):
             extra = sorted(set(repositories) - governed)
-        else:
-            extra = []
         raise PolicyError(
             f"policy/governance repository mismatch: missing={missing}, extra={extra}",
         )
