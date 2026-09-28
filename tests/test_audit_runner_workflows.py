@@ -366,17 +366,43 @@ jobs:
 """,
             encoding="utf-8",
         )
-        environment = {
-            "GITHUB_HEAD_REF": "governance/sync-managed-files-abcdef123456-1-1"
-        }
-        with mock.patch.dict("os.environ", environment, clear=False):
-            self.assertEqual(self.audit(repository), [])
-        for head_ref in ("", "feature/2227-generation-artifacts"):
+        allowed_environments = (
+            {
+                "GITHUB_EVENT_NAME": "pull_request",
+                "GITHUB_HEAD_REF": "governance/sync-managed-files-abcdef123456-1-1",
+                "GITHUB_REF": "refs/pull/1/merge",
+            },
+            {
+                "GITHUB_EVENT_NAME": "pull_request",
+                "GITHUB_HEAD_REF": "feature/2225-parallel-pr-validation",
+                "GITHUB_REF": "refs/pull/2/merge",
+            },
+            {
+                "GITHUB_EVENT_NAME": "push",
+                "GITHUB_HEAD_REF": "",
+                "GITHUB_REF": "refs/heads/main",
+            },
+        )
+        for environment in allowed_environments:
+            with mock.patch.dict("os.environ", environment, clear=False):
+                self.assertEqual(self.audit(repository), [])
+        for environment in (
+            {
+                "GITHUB_EVENT_NAME": "pull_request",
+                "GITHUB_HEAD_REF": "feature/2227-generation-artifacts",
+                "GITHUB_REF": "refs/pull/3/merge",
+            },
+            {
+                "GITHUB_EVENT_NAME": "push",
+                "GITHUB_HEAD_REF": "",
+                "GITHUB_REF": "refs/heads/not-main",
+            },
+        ):
             with (
-                self.subTest(head_ref=head_ref),
+                self.subTest(environment=environment),
                 mock.patch.dict(
                     "os.environ",
-                    {"GITHUB_HEAD_REF": head_ref},
+                    environment,
                     clear=False,
                 ),
             ):
