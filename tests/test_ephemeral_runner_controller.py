@@ -432,6 +432,7 @@ class EphemeralRunnerTests(unittest.TestCase):
                     (".github/workflows/_build-test.yml", "lint"),
                     (".github/workflows/_generate-docs.yml", "generate"),
                     (".github/workflows/_generate-provider.yml", "generate"),
+                    (".github/workflows/workload-benchmark.yml", "eks-candidate"),
                     (".github/workflows/_tag-release.yml", "preflight"),
                     (".github/workflows/_tag-release.yml", "publish"),
                     (".github/workflows/ci.yml", "validate-docs-generation"),

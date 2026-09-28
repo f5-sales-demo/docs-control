@@ -1570,18 +1570,6 @@ jobs:
                         "reason": "read-only AWS and KVM release-chain pull request policy",
                     }
                 },
-                ".github/workflows/_generate-docs.yml": {
-                    "generate": {
-                        "runs_on": "ubuntu-latest",
-                        "reason": "read-only documentation generation uses hosted Terraform tooling",
-                    }
-                },
-                ".github/workflows/_generate-provider.yml": {
-                    "generate": {
-                        "runs_on": "ubuntu-latest",
-                        "reason": "read-only provider generation uses the hosted Go toolchain",
-                    }
-                },
                 ".github/workflows/workload-benchmark.yml": {
                     "hosted-serial": {
                         "runs_on": "ubuntu-latest",
