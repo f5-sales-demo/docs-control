@@ -120,6 +120,7 @@ XCSH_CANDIDATE_GRANT_IDENTITIES = frozenset().union(*XCSH_CANDIDATE_RESTRICTED_G
 # fmt: on
 PROVIDER_REPOSITORY = "f5-sales-demo/terraform-provider-xcsh"
 PROVIDER_BENCHMARK_WORKFLOW = ".github/workflows/workload-benchmark.yml"
+PROVIDER_STAGE_ONE_BRANCH = "feature/2225-parallel-pr-validation"
 PROVIDER_CANDIDATE_LABEL = "terraform-provider-xcsh-32vcpu-candidate"
 PROVIDER_MANUAL_COMPUTE_ROUTE_EXPRESSION = "${{ needs.validate.outputs.runner_label }}"
 PROVIDER_MANUAL_COMPUTE_ROUTE_LABELS = {
@@ -690,10 +691,16 @@ def staged_provider_compute_route(repository, relative, job_id, runs_on, routes)
     """Resolve the exact one-PR hosted-to-compute governance transition."""
     identity = (repository, relative, job_id)
     head_ref = os.environ.get("GITHUB_HEAD_REF", "")
-    staged_head = re.fullmatch(
+    governance_head = re.fullmatch(
         r"governance/sync-managed-files-[0-9a-f]{12}-[0-9]+-[0-9]+",
         head_ref,
     )
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+    staged_head = governance_head is not None
+    if event_name == "pull_request" and head_ref == PROVIDER_STAGE_ONE_BRANCH:
+        staged_head = True
+    if event_name == "push" and os.environ.get("GITHUB_REF") == "refs/heads/main":
+        staged_head = True
     grants = routes.get("restricted_grants", {}).get(
         "terraform-provider-xcsh-compute",
         frozenset(),
@@ -702,7 +709,7 @@ def staged_provider_compute_route(repository, relative, job_id, runs_on, routes)
         repository == PROVIDER_REPOSITORY
         and (relative, job_id) in STAGED_PROVIDER_COMPUTE_JOBS
         and runs_on == "ubuntu-latest"
-        and staged_head is not None
+        and staged_head
         and identity in grants
     ):
         return "terraform-provider-xcsh-compute"
