@@ -568,12 +568,9 @@ def repository_runner_routes(
         attestations = arc_attestations or {}
         attestations_by_label = {}
         for name, spec in scale_sets.items():
-            name_is_string = isinstance(name, str)
-            name_matches = False
-            if name_is_string:
-                name_matches = bool(re.fullmatch(r"[a-z0-9][a-z0-9.-]*", name))
-            valid_name = name_is_string and name_matches
-            if not valid_name:
+            if not isinstance(name, str):
+                raise PolicyError("repository ARC scale sets must use safe route names")
+            if not re.fullmatch(r"[a-z0-9][a-z0-9.-]*", name):
                 raise PolicyError("repository ARC scale sets must use safe route names")
             if not isinstance(spec, dict) or set(spec) not in (
                 {"label", "profile"},
@@ -582,10 +579,9 @@ def repository_runner_routes(
                 raise PolicyError("ARC scale set must name one profile or attestation")
             label = spec.get("label")
             profile = spec.get("profile")
-            valid_label = isinstance(label, str) and bool(
-                re.fullmatch(r"[a-z0-9][a-z0-9.-]*", label)
-            )
-            if not valid_label:
+            if not isinstance(label, str):
+                raise PolicyError("ARC scale set label must be a safe string")
+            if not re.fullmatch(r"[a-z0-9][a-z0-9.-]*", label):
                 raise PolicyError("ARC scale set label must be a safe string")
             attestation_name = spec.get("attestation")
             if attestation_name is not None:
@@ -651,8 +647,11 @@ def repository_runner_routes(
     for profile in allowed:
         spec = profiles[profile]
         labels = spec.get("labels", [profile]) if isinstance(spec, dict) else None
-        single_label = isinstance(labels, list) and len(labels) == 1
-        if not single_label or not isinstance(labels[0], str):
+        if not isinstance(labels, list) or len(labels) != 1:
+            raise PolicyError(
+                f"profile {profile!r} must define exactly one route label",
+            )
+        if not isinstance(labels[0], str):
             raise PolicyError(
                 f"profile {profile!r} must define exactly one route label",
             )
@@ -772,12 +771,9 @@ def validate_reusable_runner_inputs(job, routes, default_profile, repository):
     }
     for name, expected_profile in expected_profiles.items():
         value = values[name]
-        value_is_string = isinstance(value, str)
-        value_matches = False
-        if value_is_string:
-            value_matches = bool(re.fullmatch(r"[a-z0-9][a-z0-9.-]*", value))
-        valid_value = value_is_string and value_matches
-        if not valid_value:
+        if not isinstance(value, str):
+            raise PolicyError(f"{name} must be a safe scalar label")
+        if not re.fullmatch(r"[a-z0-9][a-z0-9.-]*", value):
             raise PolicyError(f"{name} must be a safe scalar label")
         if routes["profiles_by_route"].get(value) != expected_profile:
             raise PolicyError(f"{name} does not match its policy-approved profile")
