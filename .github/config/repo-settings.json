@@ -198,7 +198,7 @@
       "api-specs": [".ruff.toml", ".python-lint", ".mypy.ini"],
       "api-specs-enriched": [".ruff.toml", ".python-lint", ".mypy.ini", ".github/workflows/github-pages-deploy.yml"],
       "vscode-xcsh": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg", "README.md"],
-      "docs": [
+      "f5-sales-demo.github.io": [
         ".github/workflows/auto-merge.yml",
         ".github/workflows/translation-audit.yml",
         ".github/workflows/workflow-security-audit.yml",
@@ -569,7 +569,7 @@
       "api-specs": ["governance"],
       "api-specs-enriched": ["governance", "api_enrichment"],
       "apt-repo": ["governance"],
-      "docs": ["governance"],
+      "f5-sales-demo.github.io": ["governance"],
       "administration": ["governance"],
       "nginx": ["governance"],
       "observability": ["governance"],

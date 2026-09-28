@@ -468,7 +468,7 @@ def infer_area(repository: str, title: str, body: str, labels: list[str]) -> str
         "api-specs": "api-contracts",
         "api-specs-enriched": "api-contracts",
         "terraform-provider-xcsh": "api-contracts",
-        "docs": "docs-publishing",
+        "f5-sales-demo.github.io": "docs-publishing",
         "docs-builder": "docs-publishing",
         "docs-icons": "docs-publishing",
         "docs-theme": "docs-publishing",

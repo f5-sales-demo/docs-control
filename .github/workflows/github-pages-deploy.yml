@@ -41,6 +41,11 @@ on:
         required: false
         default: 'https://f5-sales-demo.github.io'
         type: string
+      docs-base:
+        description: 'Site base path; empty uses the builder repository default'
+        required: false
+        default: ''
+        type: string
       socketless_runner_label:
         description: 'Policy-approved repository-scoped ARC socketless label'
         required: false
@@ -336,6 +341,7 @@ jobs:
           BUILDER_IMAGE: ${{ steps.builder.outputs.builder_image }}
           CONTENT_PATH: ${{ inputs.content-path || 'docs' }}
           DOCS_SITE: ${{ inputs.docs-site || format('https://{0}.github.io', github.repository_owner) }}
+          DOCS_BASE: ${{ inputs.docs-base }}
           DOCS_TITLE: ${{ inputs.docs-title }}
           OUTPUT_DIR: ${{ runner.temp }}/docs-output
           REPOSITORY: ${{ github.repository }}
@@ -377,6 +383,7 @@ jobs:
             -e CONTENT_DIR=/content/docs \
             -e OUTPUT_DIR=/output \
             -e "DOCS_SITE=$DOCS_SITE" \
+            -e "DOCS_BASE=$DOCS_BASE" \
             -e "GITHUB_REPOSITORY=$REPOSITORY" \
             "${TITLE_ARGS[@]}" \
             "$BUILDER_IMAGE"

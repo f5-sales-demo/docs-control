@@ -186,7 +186,7 @@ REUSABLE_DEFINITION_ROUTES = {
 DOCS_ARC_COHORT = frozenset(
     f"f5-sales-demo/{name}"
     for name in (
-        "docs",
+        "f5-sales-demo.github.io",
         "docs-builder",
         "docs-icons",
         "docs-theme",
