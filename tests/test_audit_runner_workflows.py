@@ -1549,6 +1549,49 @@ jobs:
             },
         )
 
+    def test_xcsh_release_and_cache_routes_match_current_workflows(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        exceptions = policy["hosted_exceptions"]["f5-sales-demo/xcsh"]
+        for workflow, job, route in (
+            ("ci.yml", "create-release", "macos-14"),
+            ("ci.yml", "update-homebrew", "macos-14"),
+            ("ci.yml", "verify-macos-pkg", "matrix"),
+            ("ci.yml", "verify-standalone-install", "matrix"),
+            ("container.yml", "publish-ghcr-arm64", "ubuntu-24.04-arm"),
+            ("dependency-cache-prime.yml", "prime-hosted-bun", "ubuntu-24.04"),
+            ("release-github-backfill.yml", "backfill", "macos-14"),
+            ("spoofed-version-drift.yml", "check", "ubuntu-22.04"),
+        ):
+            with self.subTest(workflow=workflow, job=job):
+                self.assertEqual(
+                    exceptions[f".github/workflows/{workflow}"][job]["runs_on"],
+                    route,
+                )
+        self.assertNotIn(".github/workflows/test-codesign.yml", exceptions)
+
+    def test_xcsh_zig_prime_is_an_exact_hosted_exception(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        exception = policy["hosted_exceptions"]["f5-sales-demo/xcsh"][
+            ".github/workflows/zig-cache-prime.yml"
+        ]
+        self.assertEqual(
+            exception,
+            {
+                "prime": {
+                    "runs_on": "matrix",
+                    "reason": "native-platform Zig verification and main-branch archive cache priming require macOS and Windows runners",
+                }
+            },
+        )
+
     def test_xcsh_ci_has_exact_image_runtime_hosted_exception(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
