@@ -45,6 +45,7 @@ GOVERNANCE="$REPO_ROOT/.claude/governance.json"
 MANIFEST_WORKFLOW="$REPO_ROOT/.github/workflows/build-managed-files-manifest.yml"
 CLAUDE_MD="$REPO_ROOT/CLAUDE.md"
 CONTRIBUTING_MD="$REPO_ROOT/CONTRIBUTING.md"
+STYLE_GUIDE_MD="$REPO_ROOT/STYLE_GUIDE.md"
 PR_TEMPLATE="$REPO_ROOT/.github/PULL_REQUEST_TEMPLATE.md"
 
 echo ""
@@ -106,6 +107,30 @@ for token in \
     relative=${file#"$REPO_ROOT"/}
     assert_not_contains "$file" "$token" "$relative excludes legacy stopper: $token"
   done
+done
+
+echo ""
+echo "=== Section 2a: guidance separates public PII controls from authorized private runtime ==="
+
+for file in "$AGENTS_MD" "$CONTRIBUTING_MD" "$STYLE_GUIDE_MD"; do
+  relative=${file#"$REPO_ROOT"/}
+  assert_contains "$file" "authorized real customer data" \
+    "$relative permits authorized real customer data in private runtime workflows"
+  assert_contains "$file" "Private local" \
+    "$relative identifies the private local boundary"
+done
+
+assert_contains "$AGENTS_MD" "Repository and public content must not contain real customer" \
+  "AGENTS.md keeps repository and public content synthetic"
+assert_contains "$CONTRIBUTING_MD" "must not enter Git, public documentation, examples, fixtures" \
+  "CONTRIBUTING.md keeps real customer data out of public artifacts"
+assert_contains "$STYLE_GUIDE_MD" "Every repository example, template, and fixture remains" \
+  "STYLE_GUIDE.md keeps committed examples synthetic"
+assert_contains "$STYLE_GUIDE_MD" "Authorization from the organization or source system" \
+  "STYLE_GUIDE.md does not introduce a second authorization gate"
+for token in "credentials" "logs" "telemetry"; do
+  assert_contains "$CONTRIBUTING_MD" "$token" \
+    "CONTRIBUTING.md retains public boundary for $token"
 done
 
 echo ""
