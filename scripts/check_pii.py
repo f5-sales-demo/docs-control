@@ -2080,7 +2080,8 @@ def scan_contacts(
             value = structured_field_value(path, line, match)
             if not is_json_structured_literal(path, line, match):
                 continue
-            if NUMERIC_LITERAL_RE.fullmatch(value) or source_field_alias(match, value, context):
+            numeric_name = NUMERIC_LITERAL_RE.fullmatch(value)
+            if numeric_name or source_field_alias(match, value, context):
                 continue
             if is_nonliteral_code_expression(
                 line,
