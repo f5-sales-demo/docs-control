@@ -345,6 +345,64 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
             ):
                 validate_current()
 
+    def test_managed_job_uses_baked_tools(self):
+        root = Path(__file__).resolve().parents[1]
+        workflow = yaml.safe_load(
+            (root / "workflows/workflow-security-audit.yml").read_text()
+        )
+        script = next(
+            step["run"]
+            for step in workflow["jobs"]["audit"]["steps"]
+            if step["name"] == "Reject every workflow security finding"
+        )
+        self.assertNotIn("uvx", script)
+        self.assertNotIn("uv run", script)
+        self.assertIn("zizmor --version", script)
+        self.assertIn("1.29.0", script)
+        self.assertIn("provider-python", script)
+        self.assertIn("6.0.2", script)
+        self.assertIn("--no-config --no-ignores --persona=auditor", script)
+        hosted = workflow["jobs"]["workflow-security-audit"]
+        self.assertEqual(hosted["runs-on"], "ubuntu-latest")
+        self.assertIn(
+            "uvx", next(step["run"] for step in hosted["steps"] if "run" in step)
+        )
+
+    def test_provider_shell_route_uses_exact_context(self):
+        repository = "f5-sales-demo/terraform-provider-xcsh"
+        expression = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'managed-socketless' }}"
+        self.assertEqual(
+            validator.scoped_route_label(
+                repository,
+                ".github/workflows/ci.yml",
+                "validate-shell-scripts",
+                expression,
+            ),
+            "managed-socketless",
+        )
+        for context in (
+            (repository, ".github/workflows/other.yml", "validate-shell-scripts"),
+            (repository, ".github/workflows/ci.yml", "other"),
+            (
+                "f5-sales-demo/other",
+                ".github/workflows/ci.yml",
+                "validate-shell-scripts",
+            ),
+        ):
+            self.assertEqual(
+                validator.scoped_route_label(*context, expression), expression
+            )
+        altered = expression.replace("!=", "==")
+        self.assertEqual(
+            validator.scoped_route_label(
+                repository,
+                ".github/workflows/ci.yml",
+                "validate-shell-scripts",
+                altered,
+            ),
+            altered,
+        )
+
     def test_arc_attestation_schema_rejects_incomplete_and_cross_repo_claims(self):
         runner, attestations, restricted = self.provider_arc_contract()
         validator.validate_arc_contract(attestations, restricted)
