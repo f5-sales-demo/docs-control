@@ -373,9 +373,21 @@ jobs:
             )
           fi
 
+          COLLECTION_ARGS=()
+          COLLECTION_COMMAND=()
+          if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
+            test -f "$WORKSPACE/tools/render-doc-collections.mjs"
+            COLLECTION_ARGS=(
+              --entrypoint node
+              -v "$WORKSPACE/tools/render-doc-collections.mjs:/app/render-doc-collections.mjs:ro"
+            )
+            COLLECTION_COMMAND=(/app/render-doc-collections.mjs /content/docs /output)
+          fi
+
           # shellcheck disable=SC2153
           docker run --rm --pull=never \
             --name docs-builder \
+            "${COLLECTION_ARGS[@]}" \
             -v "$WORKSPACE/$CONTENT_PATH:/content/docs:ro" \
             "${MOUNTS[@]}" \
             "${CORPUS_ARGS[@]}" \
@@ -386,7 +398,7 @@ jobs:
             -e "DOCS_BASE=$DOCS_BASE" \
             -e "GITHUB_REPOSITORY=$REPOSITORY" \
             "${TITLE_ARGS[@]}" \
-            "$BUILDER_IMAGE"
+            "$BUILDER_IMAGE" "${COLLECTION_COMMAND[@]}"
 
           if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
             test -f "$CONTENT_PATH/generated-manifest.json"
