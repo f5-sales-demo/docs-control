@@ -1177,9 +1177,7 @@ def inventory(root, repository, policy, default_profile, routes):
                 raise PolicyError(f"malformed job {relative}/{job_id}")
             if "uses" in job:
                 validate_reusable_runner_inputs(job, routes, default_profile, repository)  # fmt: skip
-            runs_on = scoped_route_label(
-                repository, relative, job_id, job.get("runs-on")
-            )
+            runs_on = scoped_route_label(repository, relative, job_id, job.get("runs-on"))  # fmt: skip
             identity = (repository, relative, job_id)
             dynamic_route_labels = trusted_dynamic_route_labels(
                 repository,

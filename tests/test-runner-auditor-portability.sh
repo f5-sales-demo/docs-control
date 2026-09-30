@@ -31,4 +31,11 @@ uvx --from 'pylint==4.0.6' pylint \
   --enable=import-error,unused-argument \
   "$auditor"
 
+# Managed security validator must also format identically under downstream widths.
+validator="$repo_root/scripts/workflow_security_validator.py"
+for width in 88 100; do
+  uvx --from 'ruff==0.15.17' ruff format --check --isolated \
+    --config "line-length = $width" "$validator"
+done
+
 echo "runner auditor is portable across governed downstream Python lint settings"
