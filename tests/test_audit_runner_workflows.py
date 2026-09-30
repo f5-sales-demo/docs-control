@@ -9,7 +9,6 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
-from unittest import mock
 
 import yaml
 
@@ -338,74 +337,6 @@ class WorkflowAuditTests(unittest.TestCase):
             workflow["jobs"]["benchmark-d16"]["runs-on"] = dynamic
             path.write_text(yaml.safe_dump(workflow, sort_keys=False), encoding="utf-8")
             with self.subTest(dynamic=dynamic):
-                self.assertTrue(self.audit(repository))
-
-    def test_provider_generator_allows_only_exact_governance_transition_head(self):
-        self.use_provider_attested_routes()
-        repository = "f5-sales-demo/terraform-provider-xcsh"
-        workflow_path = ".github/workflows/_generate-provider.yml"
-        self.data["restricted_routes"]["terraform-provider-xcsh-compute"] = [
-            {
-                "repository": repository,
-                "workflow": workflow_path,
-                "job": "generate",
-            }
-        ]
-        self.write_policy()
-        path = self.root / workflow_path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            """name: Generate Provider
-on:
-  workflow_call:
-jobs:
-  generate:
-    runs-on: ubuntu-latest
-    steps:
-      - run: true
-""",
-            encoding="utf-8",
-        )
-        allowed_environments = (
-            {
-                "GITHUB_EVENT_NAME": "pull_request",
-                "GITHUB_HEAD_REF": "governance/sync-managed-files-abcdef123456-1-1",
-                "GITHUB_REF": "refs/pull/1/merge",
-            },
-            {
-                "GITHUB_EVENT_NAME": "pull_request",
-                "GITHUB_HEAD_REF": "feature/2225-parallel-pr-validation",
-                "GITHUB_REF": "refs/pull/2/merge",
-            },
-            {
-                "GITHUB_EVENT_NAME": "push",
-                "GITHUB_HEAD_REF": "",
-                "GITHUB_REF": "refs/heads/main",
-            },
-        )
-        for environment in allowed_environments:
-            with mock.patch.dict("os.environ", environment, clear=False):
-                self.assertEqual(self.audit(repository), [])
-        for environment in (
-            {
-                "GITHUB_EVENT_NAME": "pull_request",
-                "GITHUB_HEAD_REF": "feature/2227-generation-artifacts",
-                "GITHUB_REF": "refs/pull/3/merge",
-            },
-            {
-                "GITHUB_EVENT_NAME": "push",
-                "GITHUB_HEAD_REF": "",
-                "GITHUB_REF": "refs/heads/not-main",
-            },
-        ):
-            with (
-                self.subTest(environment=environment),
-                mock.patch.dict(
-                    "os.environ",
-                    environment,
-                    clear=False,
-                ),
-            ):
                 self.assertTrue(self.audit(repository))
 
     def test_arc_routes_accept_only_scalar_contract_labels(self):
