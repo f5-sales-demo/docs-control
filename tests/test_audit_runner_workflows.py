@@ -339,6 +339,30 @@ class WorkflowAuditTests(unittest.TestCase):
             with self.subTest(dynamic=dynamic):
                 self.assertTrue(self.audit(repository))
 
+    def test_provider_shell_route_is_fork_isolated_and_context_exact(self):
+        self.use_provider_attested_routes()
+        repository = "f5-sales-demo/terraform-provider-xcsh"
+        expression = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'managed-socketless' }}"
+        workflow = {
+            "name": "Shell",
+            "on": {"pull_request": {}},
+            "jobs": {
+                "validate-shell-scripts": {
+                    "runs-on": expression,
+                    "steps": [{"run": True}],
+                }
+            },
+        }
+        self.write_workflow(yaml.safe_dump(workflow, sort_keys=False))
+        self.assertEqual(self.audit(repository), [])
+        for name, route in (
+            ("other-job", expression),
+            ("validate-shell-scripts", expression.replace("!=", "==")),
+        ):
+            workflow["jobs"] = {name: {"runs-on": route, "steps": [{"run": True}]}}
+            self.write_workflow(yaml.safe_dump(workflow, sort_keys=False))
+            self.assertTrue(self.audit(repository))
+
     def test_arc_routes_accept_only_scalar_contract_labels(self):
         self.use_xcsh_arc_routes()
         for label in ("xcsh-socketless", "xcsh-container-build", "xcsh-compute"):
