@@ -1117,11 +1117,12 @@ ZIZMOR_TMP=$(mktemp -d /tmp/test-linter-configs-zizmor-XXXXXX)
 mkdir -p "$ZIZMOR_TMP/bin" "$ZIZMOR_TMP/without/.github/workflows" \
   "$ZIZMOR_TMP/with/.github/workflows" "$ZIZMOR_TMP/with/workflows"
 printf '%s\n' '#!/bin/sh' \
+  'if [ "$1" = --version ]; then printf "zizmor 1.29.0\n"; exit 0; fi' \
   'printf "%s\\n" "$@" > "${ZIZMOR_ARGS:?}"' \
-  'printf "[]\\n"' >"$ZIZMOR_TMP/bin/uvx"
+  'printf "[]\\n"' >"$ZIZMOR_TMP/bin/zizmor"
 printf '%s\n' '#!/bin/sh' \
-  'case " $* " in *" -c "*) printf "0\\n";; esac' >"$ZIZMOR_TMP/bin/uv"
-chmod +x "$ZIZMOR_TMP/bin/uvx" "$ZIZMOR_TMP/bin/uv"
+  'case " $* " in *" -c "*) printf "6.0.2\n";; esac' >"$ZIZMOR_TMP/bin/provider-python"
+chmod +x "$ZIZMOR_TMP/bin/zizmor" "$ZIZMOR_TMP/bin/provider-python"
 touch "$ZIZMOR_TMP/with/workflows/source.yml"
 
 (
