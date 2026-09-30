@@ -1,6 +1,8 @@
 {
   "threshold": 10,
-  "reporters": ["console"],
+  "reporters": [
+    "console"
+  ],
   "ignore": [
     "**/*.yaml",
     "**/*.yml",
@@ -17,6 +19,7 @@
     "**/internal/provider/**",
     "**/*_pairs.py",
     "**/templates/**",
-    "**/docs/**"
+    "**/docs/**",
+    "**/documentation/**"
   ]
 }
