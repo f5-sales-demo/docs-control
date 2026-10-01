@@ -208,6 +208,15 @@ jobs:
           path: .docs-control-policy
           persist-credentials: false
 
+      - name: Stage immutable Terraform documentation versions
+        if: github.repository == 'f5-sales-demo/terraform-provider-xcsh'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/stage_documentation_versions.py --output "$RUNNER_TEMP/provider-documentation"
+          echo "PROVIDER_DOCUMENTATION=$RUNNER_TEMP/provider-documentation" >> "$GITHUB_ENV"
+
       - name: Login to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -349,12 +358,16 @@ jobs:
           SNAPSHOT_ENABLED: ${{ steps.snapshot.outputs.enabled }}
           WORKSPACE: ${{ github.workspace }}
         run: |
+          if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
+            CONTENT_PATH="$PROVIDER_DOCUMENTATION"
+          fi
           mkdir -p "$OUTPUT_DIR"
           chmod 777 "$OUTPUT_DIR"
 
           MOUNTS=()
           for dir in "$CONTENT_PATH"/*/; do
             [ -d "$dir" ] || continue
+            [ "$REPOSITORY" != f5-sales-demo/terraform-provider-xcsh ] || continue
             directory_name=$(basename "$dir")
             if ! find "$dir" -maxdepth 1 \( -name '*.md' -o -name '*.mdx' \) | grep -q .; then
               MOUNTS+=(-v "$WORKSPACE/$dir:/app/public/$directory_name:ro")
@@ -379,6 +392,8 @@ jobs:
             test -f "$WORKSPACE/tools/render-doc-collections.mjs"
             COLLECTION_ARGS=(
               --entrypoint node
+              -e DOCUMENTATION_PREFIX=
+              -e DOCUMENTATION_LABEL="Latest stable"
               -v "$WORKSPACE/tools/render-doc-collections.mjs:/app/render-doc-collections.mjs:ro"
             )
             COLLECTION_COMMAND=(/app/render-doc-collections.mjs /content/docs /output)
@@ -388,7 +403,7 @@ jobs:
           docker run --rm --pull=never \
             --name docs-builder \
             "${COLLECTION_ARGS[@]}" \
-            -v "$WORKSPACE/$CONTENT_PATH:/content/docs:ro" \
+            -v "${PROVIDER_DOCUMENTATION:-$WORKSPACE/$CONTENT_PATH}:/content/docs:ro" \
             "${MOUNTS[@]}" \
             "${CORPUS_ARGS[@]}" \
             -v "$OUTPUT_DIR:/output" \
@@ -399,6 +414,22 @@ jobs:
             -e "GITHUB_REPOSITORY=$REPOSITORY" \
             "${TITLE_ARGS[@]}" \
             "$BUILDER_IMAGE" "${COLLECTION_COMMAND[@]}"
+
+          if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
+            for version_path in "$CONTENT_PATH"/versions/* "$CONTENT_PATH"/preview/main; do
+              [ -d "$version_path" ] || continue
+              prefix=${version_path#"$CONTENT_PATH"/}
+              version_output="$OUTPUT_DIR/$prefix"
+              mkdir -p "$version_output"
+              chmod 777 "$version_output"
+              docker run --rm --pull=never --entrypoint node \
+                -v "$WORKSPACE/tools/render-doc-collections.mjs:/app/render-doc-collections.mjs:ro" \
+                -v "$version_path:/content/docs:ro" -v "$version_output:/output" \
+                -e "DOCUMENTATION_PREFIX=$prefix" -e "DOCUMENTATION_LABEL=$prefix" \
+                "$BUILDER_IMAGE" /app/render-doc-collections.mjs /content/docs /output
+            done
+            cp "$CONTENT_PATH/documentation-versions.json" "$OUTPUT_DIR/documentation-versions.json"
+          fi
 
           if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
             test -f "$CONTENT_PATH/generated-manifest.json"
