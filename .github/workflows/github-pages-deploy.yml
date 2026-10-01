@@ -487,8 +487,9 @@ jobs:
           fi
 
           output_bytes=$(find "$OUTPUT_DIR" -type f -printf '%s\n' | awk '{sum += $1} END {printf "%.0f", sum}')
-          if [ "$output_bytes" -gt 1073741824 ]; then
-            echo "::error::assembled Pages artifact exceeds 1 GiB: $output_bytes bytes"
+          echo "Assembled Pages artifact: $output_bytes bytes"
+          if [ "$output_bytes" -ge 10000000000 ]; then
+            echo "::error::assembled Pages artifact reaches the action 10 GB hard limit: $output_bytes bytes"
             exit 1
           fi
 
