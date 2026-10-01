@@ -486,6 +486,12 @@ jobs:
             fi
           fi
 
+          output_bytes=$(find "$OUTPUT_DIR" -type f -printf '%s\n' | awk '{sum += $1} END {printf "%.0f", sum}')
+          if [ "$output_bytes" -gt 1073741824 ]; then
+            echo "::error::assembled Pages artifact exceeds 1 GiB: $output_bytes bytes"
+            exit 1
+          fi
+
           echo "✅ Build output verified"
           echo "Files generated:"
           find "$OUTPUT_DIR" -type f | head -20
