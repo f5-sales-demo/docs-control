@@ -367,6 +367,7 @@ jobs:
           MOUNTS=()
           for dir in "$CONTENT_PATH"/*/; do
             [ -d "$dir" ] || continue
+            [ "$REPOSITORY" != f5-sales-demo/terraform-provider-xcsh ] || continue
             directory_name=$(basename "$dir")
             if ! find "$dir" -maxdepth 1 \( -name '*.md' -o -name '*.mdx' \) | grep -q .; then
               MOUNTS+=(-v "$WORKSPACE/$dir:/app/public/$directory_name:ro")
