@@ -403,9 +403,9 @@ jobs:
           if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
             test -f "$CONTENT_PATH/generated-manifest.json"
             test -f "$CONTENT_PATH/terraform-llms-index.json"
-            cp "$CONTENT_PATH/llms.txt" "$OUTPUT_DIR/llms.txt"
-            cp "$CONTENT_PATH/terraform-llms-index.json" "$OUTPUT_DIR/terraform-llms-index.json"
-            cp "$CONTENT_PATH/generated-manifest.json" "$OUTPUT_DIR/generated-manifest.json"
+            cmp "$CONTENT_PATH/llms.txt" "$OUTPUT_DIR/llms.txt"
+            cmp "$CONTENT_PATH/terraform-llms-index.json" "$OUTPUT_DIR/terraform-llms-index.json"
+            cmp "$CONTENT_PATH/generated-manifest.json" "$OUTPUT_DIR/generated-manifest.json"
           fi
 
           echo "✅ Build completed successfully"
