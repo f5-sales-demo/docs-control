@@ -227,7 +227,7 @@ jobs:
       - name: Resolve approved documentation builder
         id: builder
         env:
-          REQUESTED_IMAGE: ${{ inputs.builder-image }}
+          REQUESTED_IMAGE: ${{ github.repository == 'f5-sales-demo/terraform-provider-xcsh' && 'ghcr.io/f5-sales-demo/docs-builder@sha256:5ff6fe8691c0e6582f485635eae7ab313848c5443d253fc0683a1f8a208cc9dd' || inputs.builder-image }}
           SNAPSHOT_ENABLED: ${{ steps.snapshot.outputs.enabled }}
         run: |
           if [[ ! "$REQUESTED_IMAGE" =~ ^ghcr\.io/f5-sales-demo/docs-builder(:latest|@sha256:[0-9a-f]{64})$ ]]; then
@@ -386,17 +386,35 @@ jobs:
             )
           fi
 
-          COLLECTION_ARGS=()
-          COLLECTION_COMMAND=()
           if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
-            test -f "$WORKSPACE/tools/render-doc-collections.mjs"
+            expected_builder=ghcr.io/f5-sales-demo/docs-builder@sha256:5ff6fe8691c0e6582f485635eae7ab313848c5443d253fc0683a1f8a208cc9dd
+            if [ "$BUILDER_IMAGE" != "$expected_builder" ]; then
+              echo "::error::canonical provider requires the accepted immutable builder"
+              exit 1
+            fi
+            preview_output="$OUTPUT_DIR/preview/main"
+            mkdir -p "$preview_output"
+            chmod 777 "$preview_output"
+            docker run --rm --pull=never \
+              -v "$CONTENT_PATH/preview/main:/content/docs:ro" -v "$preview_output:/output" \
+              -e CONTENT_DIR=/content/docs -e OUTPUT_DIR=/output \
+              -e DOCS_PROFILE=canonical-provider -e "DOCS_SITE=$DOCS_SITE" \
+              -e DOCS_BASE=/terraform-provider-xcsh/preview/main/ \
+              -e DOCUMENTATION_LABEL="Main preview" \
+              -e "DOCUMENTATION_SOURCE_COMMIT=${GITHUB_SHA}" \
+              -e "BUILDER_DIGEST=$BUILDER_IMAGE" \
+              "$BUILDER_IMAGE"
+          fi
+
+          COLLECTION_ARGS=()
+          if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
+            DOCS_BASE=/terraform-provider-xcsh/
             COLLECTION_ARGS=(
-              --entrypoint node
-              -e DOCUMENTATION_PREFIX=
+              -e DOCS_PROFILE=canonical-provider
               -e DOCUMENTATION_LABEL="Latest stable"
-              -v "$WORKSPACE/tools/render-doc-collections.mjs:/app/render-doc-collections.mjs:ro"
+              -e "DOCUMENTATION_SOURCE_COMMIT=${GITHUB_SHA}"
+              -e "BUILDER_DIGEST=$BUILDER_IMAGE"
             )
-            COLLECTION_COMMAND=(/app/render-doc-collections.mjs /content/docs /output)
           fi
 
           # shellcheck disable=SC2153
@@ -413,20 +431,24 @@ jobs:
             -e "DOCS_BASE=$DOCS_BASE" \
             -e "GITHUB_REPOSITORY=$REPOSITORY" \
             "${TITLE_ARGS[@]}" \
-            "$BUILDER_IMAGE" "${COLLECTION_COMMAND[@]}"
+            "$BUILDER_IMAGE"
 
           if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
-            for version_path in "$CONTENT_PATH"/versions/* "$CONTENT_PATH"/preview/main; do
+            for version_path in "$CONTENT_PATH"/versions/*; do
               [ -d "$version_path" ] || continue
               prefix=${version_path#"$CONTENT_PATH"/}
               version_output="$OUTPUT_DIR/$prefix"
               mkdir -p "$version_output"
               chmod 777 "$version_output"
-              docker run --rm --pull=never --entrypoint node \
-                -v "$WORKSPACE/tools/render-doc-collections.mjs:/app/render-doc-collections.mjs:ro" \
+              docker run --rm --pull=never \
                 -v "$version_path:/content/docs:ro" -v "$version_output:/output" \
-                -e "DOCUMENTATION_PREFIX=$prefix" -e "DOCUMENTATION_LABEL=$prefix" \
-                "$BUILDER_IMAGE" /app/render-doc-collections.mjs /content/docs /output
+                -e CONTENT_DIR=/content/docs -e OUTPUT_DIR=/output \
+                -e DOCS_PROFILE=canonical-provider -e "DOCS_SITE=$DOCS_SITE" \
+                -e "DOCS_BASE=/terraform-provider-xcsh/$prefix/" \
+                -e "DOCUMENTATION_LABEL=$prefix" \
+                -e "DOCUMENTATION_SOURCE_COMMIT=${GITHUB_SHA}" \
+                -e "BUILDER_DIGEST=$BUILDER_IMAGE" \
+                "$BUILDER_IMAGE"
             done
             cp "$CONTENT_PATH/documentation-versions.json" "$OUTPUT_DIR/documentation-versions.json"
           fi
@@ -462,6 +484,13 @@ jobs:
               echo "❌ Progressive corpus must not publish llms-small.txt"
               exit 1
             fi
+          fi
+
+          output_bytes=$(find "$OUTPUT_DIR" -type f -printf '%s\n' | awk '{sum += $1} END {printf "%.0f", sum}')
+          echo "Assembled Pages artifact: $output_bytes bytes"
+          if [ "$output_bytes" -ge 10000000000 ]; then
+            echo "::error::assembled Pages artifact reaches the action 10 GB hard limit: $output_bytes bytes"
+            exit 1
           fi
 
           echo "✅ Build output verified"
