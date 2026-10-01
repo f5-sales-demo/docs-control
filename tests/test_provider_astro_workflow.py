@@ -1,3 +1,4 @@
+# ruff: noqa: INP001
 """Contract for canonical provider publication through the shared builder."""
 
 import unittest
@@ -20,23 +21,19 @@ class ProviderAstroWorkflow(unittest.TestCase):
             if item.get("name") == "Build docs with container"
         )
         shell = step["run"]
-        self.assertNotIn("--entrypoint node", shell)
-        self.assertNotIn("render-doc-collections", shell)
-        self.assertLess(
-            shell.index("preview_output="), shell.index("COLLECTION_ARGS=()")
-        )
-        self.assertIn("DOCS_BASE=/terraform-provider-xcsh/preview/main/", shell)
-        self.assertIn("DOCS_BASE=/terraform-provider-xcsh/$prefix/", shell)
-        self.assertIn("DOCS_PROFILE=canonical-provider", shell)
-        self.assertIn("BUILDER_DIGEST=$BUILDER_IMAGE", shell)
-        self.assertIn(
-            "canonical provider requires the accepted immutable builder", shell
-        )
+        assert "--entrypoint node" not in shell
+        assert "render-doc-collections" not in shell
+        assert shell.index("preview_output=") < shell.index("COLLECTION_ARGS=()")
+        assert "DOCS_BASE=/terraform-provider-xcsh/preview/main/" in shell
+        assert "DOCS_BASE=/terraform-provider-xcsh/$prefix/" in shell
+        assert "DOCS_PROFILE=canonical-provider" in shell
+        assert "BUILDER_DIGEST=$BUILDER_IMAGE" in shell
+        assert "canonical provider requires the accepted immutable builder" in shell
         verify = next(
             item for item in build["steps"] if item.get("name") == "Verify build output"
         )["run"]
-        self.assertIn("10000000000", verify)
-        self.assertIn("Assembled Pages artifact:", verify)
+        assert "10000000000" in verify
+        assert "Assembled Pages artifact:" in verify
 
 
 if __name__ == "__main__":
