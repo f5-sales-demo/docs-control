@@ -227,7 +227,7 @@ jobs:
       - name: Resolve approved documentation builder
         id: builder
         env:
-          REQUESTED_IMAGE: ${{ inputs.builder-image }}
+          REQUESTED_IMAGE: ${{ github.repository == 'f5-sales-demo/terraform-provider-xcsh' && 'ghcr.io/f5-sales-demo/docs-builder@sha256:78b282d05304d60a3d825bc2c453500d306b2ffbfce5b6b3455ee3342119801d' || inputs.builder-image }}
           SNAPSHOT_ENABLED: ${{ steps.snapshot.outputs.enabled }}
         run: |
           if [[ ! "$REQUESTED_IMAGE" =~ ^ghcr\.io/f5-sales-demo/docs-builder(:latest|@sha256:[0-9a-f]{64})$ ]]; then
@@ -386,6 +386,26 @@ jobs:
             )
           fi
 
+          if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
+            expected_builder=ghcr.io/f5-sales-demo/docs-builder@sha256:78b282d05304d60a3d825bc2c453500d306b2ffbfce5b6b3455ee3342119801d
+            if [ "$BUILDER_IMAGE" != "$expected_builder" ]; then
+              echo "::error::canonical provider requires the accepted immutable builder"
+              exit 1
+            fi
+            preview_output="$OUTPUT_DIR/preview/main"
+            mkdir -p "$preview_output"
+            chmod 777 "$preview_output"
+            docker run --rm --pull=never \
+              -v "$CONTENT_PATH/preview/main:/content/docs:ro" -v "$preview_output:/output" \
+              -e CONTENT_DIR=/content/docs -e OUTPUT_DIR=/output \
+              -e DOCS_PROFILE=canonical-provider -e "DOCS_SITE=$DOCS_SITE" \
+              -e DOCS_BASE=/terraform-provider-xcsh/preview/main/ \
+              -e DOCUMENTATION_LABEL="Main preview" \
+              -e "DOCUMENTATION_SOURCE_COMMIT=${GITHUB_SHA}" \
+              -e "BUILDER_DIGEST=$BUILDER_IMAGE" \
+              "$BUILDER_IMAGE"
+          fi
+
           COLLECTION_ARGS=()
           if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
             DOCS_BASE=/terraform-provider-xcsh/
@@ -414,7 +434,7 @@ jobs:
             "$BUILDER_IMAGE"
 
           if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
-            for version_path in "$CONTENT_PATH"/versions/* "$CONTENT_PATH"/preview/main; do
+            for version_path in "$CONTENT_PATH"/versions/*; do
               [ -d "$version_path" ] || continue
               prefix=${version_path#"$CONTENT_PATH"/}
               version_output="$OUTPUT_DIR/$prefix"
