@@ -9,6 +9,7 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 
@@ -386,6 +387,37 @@ class SnapshotWorkflowTests(unittest.TestCase):
         )
         self.assertIn("f5-sales-demo.github.io", governance["repo_classes"]["repos"])
         self.assertIn("f5-sales-demo.github.io", governance["skip_files"])
+
+
+class SnapshotBoundaryTests(unittest.TestCase):
+    def test_paired_limits(self):
+        module = load_verifier()
+        self.assertEqual(module.MAX_ARCHIVE_BYTES, 512 * 1024 * 1024)
+        self.assertEqual(module.MAX_EXPANDED_BYTES, 1024 * 1024 * 1024)
+        self.assertEqual(module.MAX_MEMBERS, 20_000)
+
+    def test_exact_boundary_accepts_and_one_over_rejects(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bounds.tar.gz"
+            write_archive(path, {"one": b"abc", "two": b"defg"})
+            module = load_verifier()
+            read_archive = vars(module)["_read_archive"]
+            boundaries = [
+                ("MAX_ARCHIVE_BYTES", path.stat().st_size),
+                ("MAX_EXPANDED_BYTES", 7),
+                ("MAX_MEMBERS", 2),
+            ]
+            for field, limit in boundaries:
+                with self.subTest(field=field):
+                    with patch.object(module, field, limit):
+                        self.assertEqual(
+                            read_archive(path), {"one": b"abc", "two": b"defg"}
+                        )
+                    with (
+                        patch.object(module, field, limit - 1),
+                        self.assertRaises(ValueError),
+                    ):
+                        read_archive(path)
 
 
 if __name__ == "__main__":
