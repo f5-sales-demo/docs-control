@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   docs:
-    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@dee4ce725f5e3120a541fe0ece9efcac08df81c8
+    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@ac7d4efe5998f8e2f1953b032216b2893c7d2d8d
     with:
       content-ref: ${{ github.sha }}
       content-path: ${{ github.repository == 'f5-sales-demo/terraform-provider-xcsh' && 'documentation' || 'docs' }}
