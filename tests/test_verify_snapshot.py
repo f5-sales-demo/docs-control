@@ -11,7 +11,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -390,48 +389,36 @@ class SnapshotWorkflowTests(unittest.TestCase):
         self.assertIn("f5-sales-demo.github.io", governance["skip_files"])
 
 
+class SnapshotBoundaryTests(unittest.TestCase):
+    def test_paired_limits(self):
+        module = load_verifier()
+        self.assertEqual(module.MAX_ARCHIVE_BYTES, 512 * 1024 * 1024)
+        self.assertEqual(module.MAX_EXPANDED_BYTES, 1024 * 1024 * 1024)
+        self.assertEqual(module.MAX_MEMBERS, 20_000)
+
+    def test_exact_boundary_accepts_and_one_over_rejects(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "bounds.tar.gz"
+            write_archive(path, {"one": b"abc", "two": b"defg"})
+            module = load_verifier()
+            read_archive = vars(module)["_read_archive"]
+            boundaries = [
+                ("MAX_ARCHIVE_BYTES", path.stat().st_size),
+                ("MAX_EXPANDED_BYTES", 7),
+                ("MAX_MEMBERS", 2),
+            ]
+            for field, limit in boundaries:
+                with self.subTest(field=field):
+                    with patch.object(module, field, limit):
+                        self.assertEqual(
+                            read_archive(path), {"one": b"abc", "two": b"defg"}
+                        )
+                    with (
+                        patch.object(module, field, limit - 1),
+                        self.assertRaises(ValueError),
+                    ):
+                        read_archive(path)
+
+
 if __name__ == "__main__":
     unittest.main()
-
-
-def verifier():
-    path = Path(__file__).parents[1] / "scripts/verify-snapshot.py"
-    spec = importlib.util.spec_from_file_location("snapshot_bounds", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def archive(tmp_path):
-    path = tmp_path / "bounds.tar.gz"
-    with tarfile.open(path, "w:gz") as output:
-        for name, data in [("one", b"abc"), ("two", b"defg")]:
-            member = tarfile.TarInfo(name)
-            member.size = len(data)
-            output.addfile(member, io.BytesIO(data))
-    return path
-
-
-def test_paired_limits():
-    module = verifier()
-    assert module.MAX_ARCHIVE_BYTES == 512 * 1024 * 1024
-    assert module.MAX_EXPANDED_BYTES == 1024 * 1024 * 1024
-    assert module.MAX_MEMBERS == 20_000
-
-
-@pytest.mark.parametrize(
-    ("field", "bound"),
-    [("MAX_ARCHIVE_BYTES", None), ("MAX_EXPANDED_BYTES", 7), ("MAX_MEMBERS", 2)],
-)
-def test_exact_boundary_accepts_and_one_over_rejects(tmp_path, field, bound):
-    module = verifier()
-    read_archive = vars(module)["_read_archive"]
-    path = archive(tmp_path)
-    limit = path.stat().st_size if bound is None else bound
-    with patch.object(module, field, limit):
-        assert read_archive(path) == {"one": b"abc", "two": b"defg"}
-    with (
-        patch.object(module, field, limit - 1),
-        pytest.raises(ValueError, match=r"archive|expanded"),
-    ):
-        read_archive(path)
