@@ -953,5 +953,19 @@ class CanadaInventoryTests(unittest.TestCase):
         self.assertIn("canada-topology", readme)
 
 
+class CanadaLocalStateTests(unittest.TestCase):
+    def test_managed_readme_uses_protected_local_state(self):
+        readme = (ROOT / "content/canada-topology/README.md").read_text()
+        self.assertIn("local Terraform state", readme)
+        self.assertNotIn("Azure Blob state", readme)
+
+    def test_coverage_runtime_is_excluded_after_authored_source(self):
+        ignore = (ROOT / ".gitignore").read_text()
+        self.assertGreater(
+            ignore.index("coverage/smsv2/.terraform/"),
+            ignore.index("!coverage/smsv2/**"),
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
