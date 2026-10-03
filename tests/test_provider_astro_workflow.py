@@ -17,6 +17,11 @@ class ProviderAstroWorkflow(unittest.TestCase):
         )
         assert text.count("ghcr.io/f5-sales-demo/docs-builder@" + digest) == 2
 
+    def test_hierarchy_output_replaces_flat_index_comparison(self):
+        text = (ROOT / ".github/workflows/github-pages-deploy.yml").read_text()
+        assert 'cmp "$CONTENT_PATH/llms.txt"' not in text
+        assert "verify-canonical-hierarchy.py" in text
+
     def test_provider_builds_preview_before_stable_with_isolated_versions(self):
         workflow = yaml.safe_load(
             (ROOT / ".github/workflows/github-pages-deploy.yml").read_text()
