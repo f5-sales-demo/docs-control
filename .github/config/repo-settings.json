@@ -1,5 +1,5 @@
 {
-  "_comment": "Central repo-settings config — enforced by reconcile-fleet-settings.yml",
+  "_comment": "Central repo-settings config \u2014 enforced by reconcile-fleet-settings.yml",
   "_last_verified": "2026-02-16",
   "repository": {
     "private": false,
@@ -526,6 +526,11 @@
           "i18n-core",
           "terraform-provider-xcsh"
         ]
+      },
+      {
+        "src": "content/canada-topology/README.md",
+        "dest": "README.md",
+        "only_repos": ["canada-topology"]
       }
     ]
   },

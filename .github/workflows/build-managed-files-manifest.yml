@@ -25,6 +25,7 @@ on:
       - 'STYLE_GUIDE.md'
       - '.agents/**'
       - 'README.md'
+      - 'content/canada-topology/README.md'
       - 'LICENSE'
       - '.editorconfig'
       - '.gitignore'

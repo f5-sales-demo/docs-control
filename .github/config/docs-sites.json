@@ -48,6 +48,13 @@
     "description": "F5 XC multi-cloud networking"
   },
   {
+    "label": "Canada Topology",
+    "url": "https://f5-sales-demo.github.io/canada-topology/llms-full.txt",
+    "description": "Canadian regional F5 Distributed Cloud Terraform demo",
+    "readme_english_only": true,
+    "readme_content": "Three Canadian Azure Customer Edges, dual FRR relays and Toronto/Montreal Regional Edges. Independent Canadian Azure Blob state and an owned canada-topology application namespace. See the deployment, verification, failover and teardown documentation."
+  },
+  {
     "label": "DNS",
     "url": "https://f5-sales-demo.github.io/dns/llms-full.txt",
     "description": "F5 XC DNS management"
