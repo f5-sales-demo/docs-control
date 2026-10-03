@@ -206,6 +206,7 @@ MANAGED_ARC_COHORT = frozenset(
         "marketplace",
         "marketplace-claude-code",
         "multi-cloud-networking",
+        "canada-topology",
         "nginx",
         "observability",
         "origin-server",
