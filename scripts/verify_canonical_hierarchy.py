@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 
-def main():
+def main() -> None:
     """Validate the rendered hierarchy against canonical source receipts."""
     source, output = map(Path, sys.argv[1:])
     receipt = json.loads((output / "llms-hierarchy-receipt.json").read_text())
