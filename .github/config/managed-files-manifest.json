@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "8ac6c4e76669c6ea1da865e97bac882cd6780afc",
+  "source_commit": "deb91ac98d747c8a5a7e3146688b3cb62e9082e7",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -173,8 +173,8 @@
     {
       "path": ".gitignore",
       "src": ".gitignore",
-      "sha": "bc91b8b0814371fba6ce60cda1ec3df8d8030f48",
-      "size": 3553,
+      "sha": "53e2ac02a0e5f4ce9769d4dfc92c505cbefcfe4c",
+      "size": 3580,
       "mode": "100644"
     },
     {
@@ -299,8 +299,8 @@
     {
       "path": "README.md",
       "src": "content/canada-topology/README.md",
-      "sha": "a3a57e2b2415a1e47f17974a9aac375ea9d80987",
-      "size": 1477,
+      "sha": "9a516bf09c6eed520cd84e614a6a5fcd8a3f3487",
+      "size": 1608,
       "mode": "100644"
     },
     {
@@ -469,5 +469,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:295babe6d5f2e5ee13694f4bdc417f4bfa6ca9542e8c64e72264cbd03ac84f39"
+  "state_digest": "sha256:3ec962be301f2228a47fada4fc42baba9a49f62fdf71b3b96f30c4976ffa62ad"
 }
