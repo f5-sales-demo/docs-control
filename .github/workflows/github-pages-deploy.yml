@@ -474,8 +474,8 @@ jobs:
           for name in json.loads(manifest_bytes)["files"]:
               if name.startswith("documentation/") and name.endswith(".md") and "/_data/" not in name:
                   text = (source / name.removeprefix("documentation/")).read_text()
-                  line = next(line for line in text.splitlines() if line.startswith("xcsh_docs: "))
-                  pages.add(json.loads(line.removeprefix("xcsh_docs: "))["id"])
+                  line = next((line for line in text.splitlines() if line.startswith("xcsh_docs: ")), None)
+                  pages.add(json.loads(line.removeprefix("xcsh_docs: "))["id"] if line else "xcsh-docs:path:" + name)
           leaves = receipt["leaves"]
           if {leaf["id"] for leaf in leaves} != pages or len(leaves) != len(pages):
               message = "canonical hierarchy page coverage mismatch"
