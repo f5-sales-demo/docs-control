@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "c3559c6edb2fae364e8f098927471e2dbc74369b",
+  "source_commit": "1cd7c3fffd8e6043ac66460bb0cfd7b340602e69",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -299,8 +299,8 @@
     {
       "path": "README.md",
       "src": "content/canada-topology/README.md",
-      "sha": "a6103520bbb297126aa8d60d58eea881008a4128",
-      "size": 2217,
+      "sha": "88796fbee27c4d5be02ef1031bdd143a4748ca9f",
+      "size": 2858,
       "mode": "100644"
     },
     {
@@ -469,5 +469,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:f049ab3c1da6ca22e1a5a806e1428bf834940cc7d31857347ab6dee33700d512"
+  "state_digest": "sha256:c7f551cd726f66a4800a17e615e6f80244c9014b215f6b5f8704729c5c63fae9"
 }
