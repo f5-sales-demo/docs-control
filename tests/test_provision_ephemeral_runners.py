@@ -946,7 +946,7 @@ class CanadaInventoryTests(unittest.TestCase):
         entry = next(
             e for e in config["managed_files"]["files"] if e["dest"] == "README.md"
         )
-        self.assertEqual(entry["only_repos"], ["canada-topology"])
+        self.assertEqual(entry["only_repos"], ["canada-topology", "multi-cloud-networking"])
         readme = (ROOT / entry["src"]).read_text()
         self.assertIn("https://f5-sales-demo.github.io/canada-topology/", readme)
         self.assertNotIn("enforce-repo-settings.yml", readme)
