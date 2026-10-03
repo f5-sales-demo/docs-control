@@ -22,7 +22,7 @@ class ProviderAstroWorkflow(unittest.TestCase):
         assert 'cmp "$CONTENT_PATH/llms.txt"' not in text
         assert "verify_canonical_hierarchy.py" in text
 
-    def test_provider_builds_preview_before_stable_with_isolated_versions(self):
+    def test_provider_builds_current_documentation_once(self):
         workflow = yaml.safe_load(
             (ROOT / ".github/workflows/github-pages-deploy.yml").read_text()
         )
@@ -35,9 +35,11 @@ class ProviderAstroWorkflow(unittest.TestCase):
         shell = step["run"]
         assert "--entrypoint node" not in shell
         assert "render-doc-collections" not in shell
-        assert shell.index("preview_output=") < shell.index("COLLECTION_ARGS=()")
-        assert "DOCS_BASE=/terraform-provider-xcsh/preview/main/" in shell
-        assert "DOCS_BASE=/terraform-provider-xcsh/$prefix/" in shell
+        assert "preview_output=" not in shell
+        assert "version_path" not in shell
+        assert "documentation-versions.json" not in shell
+        assert "stage_documentation_versions.py" not in str(workflow)
+        assert 'CONTENT_PATH="documentation"' in shell
         assert "DOCS_PROFILE=canonical-provider" in shell
         assert "BUILDER_DIGEST=$BUILDER_IMAGE" in shell
         assert "canonical provider requires the accepted immutable builder" in shell
