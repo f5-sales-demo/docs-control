@@ -531,6 +531,11 @@
         "src": "content/canada-topology/README.md",
         "dest": "README.md",
         "only_repos": ["canada-topology"]
+      },
+      {
+        "src": "content/multi-cloud-networking/README.md",
+        "dest": "README.md",
+        "only_repos": ["multi-cloud-networking"]
       }
     ]
   },
