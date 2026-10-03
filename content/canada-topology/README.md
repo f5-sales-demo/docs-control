@@ -8,7 +8,9 @@ Toronto and Montreal Regional Edges advertise the retained reserved public IP.
 
 The deployment owns the `canada-topology` application namespace and its registration token.
 CE sites remain in `system`; the reserved public-IP allocation remains in its
-existing platform namespace. Independent Azure Blob state lives in Canada Central.
+existing platform namespace. Independent local Terraform state lives in a protected directory outside the
+Ubuntu checkout. Deployment uses the existing Azure CLI login and exclusive
+operator and local-state locks.
 Subscription Marketplace acceptance is a shared prerequisite.
 
 Extracted with source attribution from

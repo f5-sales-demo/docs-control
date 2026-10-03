@@ -9,13 +9,23 @@
     "label": "xcsh Docs Builder",
     "url": "https://f5-sales-demo.github.io/docs-builder/llms-full.txt",
     "description": "Containerized Astro + Starlight documentation build system",
-    "badges": [{ "name": "Build Image", "workflow": "build-image.yml" }]
+    "badges": [
+      {
+        "name": "Build Image",
+        "workflow": "build-image.yml"
+      }
+    ]
   },
   {
     "label": "XC Docs Theme",
     "url": "https://f5-sales-demo.github.io/docs-theme/llms-full.txt",
     "description": "Shared branding and styling for F5 Distributed Cloud documentation sites",
-    "badges": [{ "name": "Release", "workflow": "release.yml" }]
+    "badges": [
+      {
+        "name": "Release",
+        "workflow": "release.yml"
+      }
+    ]
   },
   {
     "label": "F5 XC Docs",
@@ -52,7 +62,7 @@
     "url": "https://f5-sales-demo.github.io/canada-topology/llms-full.txt",
     "description": "Canadian regional F5 Distributed Cloud Terraform demo",
     "readme_english_only": true,
-    "readme_content": "Three Canadian Azure Customer Edges, dual FRR relays and Toronto/Montreal Regional Edges. Independent Canadian Azure Blob state and an owned canada-topology application namespace. See the deployment, verification, failover and teardown documentation."
+    "readme_content": "Three Canadian Azure Customer Edges, dual FRR relays and Toronto/Montreal Regional Edges. Protected independent local Terraform state on Ubuntu and an owned canada-topology application namespace. See the deployment, verification, failover and teardown documentation."
   },
   {
     "label": "DNS",
@@ -98,7 +108,12 @@
     "label": "API Specs",
     "url": "https://f5-sales-demo.github.io/api-specs/llms-full.txt",
     "description": "OpenAPI spec validation and reconciliation for F5 Distributed Cloud",
-    "badges": [{ "name": "Validate and Release", "workflow": "validate-and-release.yml" }]
+    "badges": [
+      {
+        "name": "Validate and Release",
+        "workflow": "validate-and-release.yml"
+      }
+    ]
   },
   {
     "label": "API Specs Enriched",
@@ -108,8 +123,14 @@
     "rebuild_dispatch": false,
     "readme_content": "## Role in the API supply chain\n\n[`api-specs`](https://github.com/f5-sales-demo/api-specs) is the correction\nlayer for the source API specifications. This repository consumes an immutable\n`api-specs` release, applies deterministic enrichment, and publishes the\ncanonical enriched specification bundle used by\n[`terraform-provider-xcsh`](https://github.com/f5-sales-demo/terraform-provider-xcsh)\nand other downstream projects.\n\nChanges advance in that order: source corrections land in `api-specs`,\nenrichment lands and publishes here, and consumers update to the exact enriched\nrelease. The specification leads provider implementation.\n\nDocumentation publication is English-only until the production release.\nTranslation generation is deliberately suspended during prerelease iteration.",
     "badges": [
-      { "name": "Tests", "workflow": "tests.yml" },
-      { "name": "Sync and Enrich", "workflow": "sync-and-enrich.yml" }
+      {
+        "name": "Tests",
+        "workflow": "tests.yml"
+      },
+      {
+        "name": "Sync and Enrich",
+        "workflow": "sync-and-enrich.yml"
+      }
     ]
   },
   {
@@ -121,28 +142,49 @@
     "label": "Docs Icons",
     "url": "https://f5-sales-demo.github.io/docs-icons/llms-full.txt",
     "description": "NPM icon packages and plugins for the F5 XC documentation build system",
-    "badges": [{ "name": "NPM Publish", "workflow": "npm-publish.yml" }]
+    "badges": [
+      {
+        "name": "NPM Publish",
+        "workflow": "npm-publish.yml"
+      }
+    ]
   },
   {
     "label": "Terraform Provider",
     "url": "https://f5-sales-demo.github.io/terraform-provider-xcsh/llms-full.txt",
     "description": "Terraform provider for F5 Distributed Cloud",
-    "badges": [{ "name": "CI", "workflow": "ci.yml" }]
+    "badges": [
+      {
+        "name": "CI",
+        "workflow": "ci.yml"
+      }
+    ]
   },
   {
     "label": "Dev Container",
     "url": "https://f5-sales-demo.github.io/devcontainer/llms-full.txt",
     "description": "Isolated development environment with AI coding tools",
     "rebuild_dispatch": false,
-    "badges": [{ "name": "Docker Publish", "workflow": "docker-publish.yml" }]
+    "badges": [
+      {
+        "name": "Docker Publish",
+        "workflow": "docker-publish.yml"
+      }
+    ]
   },
   {
     "label": "Marketplace",
     "url": "https://f5-sales-demo.github.io/marketplace/llms-full.txt",
     "description": "AI-powered marketplace for F5 Distributed Cloud solutions",
     "badges": [
-      { "name": "Validate Plugins", "workflow": "validate-plugins.yml" },
-      { "name": "Release Plugins", "workflow": "release-plugins.yml" }
+      {
+        "name": "Validate Plugins",
+        "workflow": "validate-plugins.yml"
+      },
+      {
+        "name": "Release Plugins",
+        "workflow": "release-plugins.yml"
+      }
     ]
   },
   {
@@ -150,13 +192,23 @@
     "url": "https://f5-sales-demo.github.io/xcsh/llms-full.txt",
     "description": "AI-powered development environment and CLI tool",
     "rebuild_dispatch": false,
-    "badges": [{ "name": "CI", "workflow": "ci.yml" }]
+    "badges": [
+      {
+        "name": "CI",
+        "workflow": "ci.yml"
+      }
+    ]
   },
   {
     "label": "xcsh Action",
     "url": "https://f5-sales-demo.github.io/xcsh-action/llms-full.txt",
     "description": "Verified GitHub Action for deterministic F5 XC manifest operations",
-    "badges": [{ "name": "CI", "workflow": "ci.yml" }]
+    "badges": [
+      {
+        "name": "CI",
+        "workflow": "ci.yml"
+      }
+    ]
   },
   {
     "label": "CDN Simulator",
@@ -167,7 +219,12 @@
     "label": "Origin Server",
     "url": "https://f5-sales-demo.github.io/origin-server/llms-full.txt",
     "description": "Ubuntu 24.04 origin server with vulnerable web applications for F5 XC demo environments",
-    "badges": [{ "name": "Release", "workflow": "release.yml" }]
+    "badges": [
+      {
+        "name": "Release",
+        "workflow": "release.yml"
+      }
+    ]
   },
   {
     "label": "Demo Resources",
@@ -182,8 +239,13 @@
   {
     "label": "Console Catalog",
     "url": "https://f5-sales-demo.github.io/console/llms-full.txt",
-    "description": "Schema-driven inventory of the F5 XC administration console UI — routes, resources, workflows, and browser automation manifests",
-    "badges": [{ "name": "Validate Catalog", "workflow": "validate-catalog.yml" }]
+    "description": "Schema-driven inventory of the F5 XC administration console UI \u2014 routes, resources, workflows, and browser automation manifests",
+    "badges": [
+      {
+        "name": "Validate Catalog",
+        "workflow": "validate-catalog.yml"
+      }
+    ]
   },
   {
     "label": "xcsh Chrome Extension",
