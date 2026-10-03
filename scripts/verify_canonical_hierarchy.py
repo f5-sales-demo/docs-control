@@ -25,9 +25,14 @@ def main() -> None:
         ):
             text = (source / name.removeprefix("documentation/")).read_text()
             line = next(
-                line for line in text.splitlines() if line.startswith("xcsh_docs: ")
+                (line for line in text.splitlines() if line.startswith("xcsh_docs: ")),
+                None,
             )
-            pages.add(json.loads(line.removeprefix("xcsh_docs: "))["id"])
+            pages.add(
+                json.loads(line.removeprefix("xcsh_docs: "))["id"]
+                if line
+                else "xcsh-docs:path:" + name
+            )
     leaves = receipt["leaves"]
     if {leaf["id"] for leaf in leaves} != pages or len(leaves) != len(pages):
         message = "canonical hierarchy page coverage mismatch"
