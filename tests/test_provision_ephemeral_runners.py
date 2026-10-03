@@ -504,7 +504,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             for repository, routes in policy.arc_scale_sets.items()
             if routes["socketless"]["label"] == "managed-socketless"
         }
-        self.assertEqual(len(managed), 33)
+        self.assertEqual(len(managed), 34)
         compute_labels = {
             "f5-sales-demo/api-specs-enriched": "api-specs-enriched-compute",
             "f5-sales-demo/terraform-provider-xcsh": "terraform-provider-xcsh-compute",
