@@ -1,6 +1,17 @@
-# Canada Topology
+# Customer Edge Demonstrations
 
 [![GitHub Pages Deploy](https://github.com/f5-sales-demo/canada-topology/actions/workflows/github-pages-deploy.yml/badge.svg)](https://github.com/f5-sales-demo/canada-topology/actions/workflows/github-pages-deploy.yml)
+
+The repositories demonstrate two distinct capabilities:
+
+| Demonstration | Purpose |
+| --- | --- |
+| [Multi-Cloud Networking](https://f5-sales-demo.github.io/multi-cloud-networking/) | Advanced Azure/AWS/KVM CE deployment: interface binding, registration, BGP/ECMP, TGW Connect, HA, upgrades and lifecycle automation |
+| [Canada Topology](https://f5-sales-demo.github.io/canada-topology/) | Canadian hosting and origin isolation, Toronto/Montreal advertisement, tenant-managed `.ca` DNS, GeoIP access control and regional failure/recovery |
+
+MCN and Canada own separate infrastructure and Terraform states.
+
+## Canada Topology
 
 Canadian regional F5 Distributed Cloud demo: three Azure Customer Edges, two FRR
 relays, Azure Route Server, an internal load balancer and a Canadian origin.
