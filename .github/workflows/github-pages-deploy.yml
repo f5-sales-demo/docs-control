@@ -349,7 +349,7 @@ jobs:
         env:
           BUILDER_IMAGE: ${{ steps.builder.outputs.builder_image }}
           CONTENT_PATH: ${{ inputs.content-path || 'docs' }}
-          DOCS_SITE: ${{ inputs.docs-site || format('https://{0}.github.io', github.repository_owner) }}
+          PUBLICATION_SITE: ${{ inputs.docs-site || format('https://{0}.github.io', github.repository_owner) }}
           DOCS_BASE: ${{ inputs.docs-base }}
           DOCS_TITLE: ${{ inputs.docs-title }}
           OUTPUT_DIR: ${{ runner.temp }}/docs-output
@@ -398,7 +398,7 @@ jobs:
             docker run --rm --pull=never \
               -v "$CONTENT_PATH/preview/main:/content/docs:ro" -v "$preview_output:/output" \
               -e CONTENT_DIR=/content/docs -e OUTPUT_DIR=/output \
-              -e DOCS_PROFILE=canonical-provider -e "DOCS_SITE=$DOCS_SITE" \
+              -e DOCS_PROFILE=canonical-provider -e "DOCS_SITE=$PUBLICATION_SITE" \
               -e DOCS_BASE=/terraform-provider-xcsh/preview/main/ \
               -e DOCUMENTATION_LABEL="Main preview" \
               -e "DOCUMENTATION_SOURCE_COMMIT=${GITHUB_SHA}" \
@@ -427,7 +427,7 @@ jobs:
             -v "$OUTPUT_DIR:/output" \
             -e CONTENT_DIR=/content/docs \
             -e OUTPUT_DIR=/output \
-            -e "DOCS_SITE=$DOCS_SITE" \
+            -e "DOCS_SITE=$PUBLICATION_SITE" \
             -e "DOCS_BASE=$DOCS_BASE" \
             -e "GITHUB_REPOSITORY=$REPOSITORY" \
             "${TITLE_ARGS[@]}" \
@@ -443,7 +443,7 @@ jobs:
               docker run --rm --pull=never \
                 -v "$version_path:/content/docs:ro" -v "$version_output:/output" \
                 -e CONTENT_DIR=/content/docs -e OUTPUT_DIR=/output \
-                -e DOCS_PROFILE=canonical-provider -e "DOCS_SITE=$DOCS_SITE" \
+                -e DOCS_PROFILE=canonical-provider -e "DOCS_SITE=$PUBLICATION_SITE" \
                 -e "DOCS_BASE=/terraform-provider-xcsh/$prefix/" \
                 -e "DOCUMENTATION_LABEL=$prefix" \
                 -e "DOCUMENTATION_SOURCE_COMMIT=${GITHUB_SHA}" \
