@@ -456,7 +456,7 @@ jobs:
           if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
             test -f "$CONTENT_PATH/generated-manifest.json"
             test -f "$CONTENT_PATH/terraform-llms-index.json"
-            # verify-canonical-hierarchy.py contract, embedded at the exact workflow revision.
+            # verify_canonical_hierarchy.py contract, embedded at the exact workflow revision.
             python3 - "$CONTENT_PATH" "$OUTPUT_DIR" <<'PY'
           import hashlib
           import json
