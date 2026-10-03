@@ -56,7 +56,7 @@ jobs:
       github.event.pull_request.user.type == 'User' &&
       format('{0}', github.event.pull_request.user.id) != vars.RENOVATE_GITHUB_APP_BOT_ID &&
       github.event.pull_request.head.repo.full_name == github.repository
-    uses: f5-sales-demo/docs-control/.github/workflows/auto-merge.yml@ac7d4efe5998f8e2f1953b032216b2893c7d2d8d
+    uses: f5-sales-demo/docs-control/.github/workflows/auto-merge.yml@8a27e0fe9587d22585fbaded95c36b993e01f097
     permissions:
       contents: write # the reusable completes the merge
       pull-requests: write # enable auto-merge and update the pull request
