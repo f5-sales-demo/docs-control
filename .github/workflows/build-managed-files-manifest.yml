@@ -25,6 +25,7 @@ on:
       - 'STYLE_GUIDE.md'
       - '.agents/**'
       - 'README.md'
+      - 'content/**'
       - 'LICENSE'
       - '.editorconfig'
       - '.gitignore'

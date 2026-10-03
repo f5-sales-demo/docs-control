@@ -201,7 +201,12 @@ async function runUnlinkedRenovate(pullRequest, script, configuredId = '987654')
   else process.env.RENOVATE_GITHUB_APP_BOT_ID = configuredId;
   try {
     await script(
-      { graphql: async (_query, variables) => { graphqlCalls.push(variables); return { repository: { pullRequest: { closingIssuesReferences: { nodes: [] } } } }; } },
+      {
+        graphql: async (_query, variables) => {
+          graphqlCalls.push(variables);
+          return { repository: { pullRequest: { closingIssuesReferences: { nodes: [] } } } };
+        },
+      },
       { ...context, payload: { pull_request: pullRequest } },
       { info: (message) => info.push(message), setFailed: (message) => failures.push(message) },
     );
@@ -213,7 +218,14 @@ async function runUnlinkedRenovate(pullRequest, script, configuredId = '987654')
 }
 
 async function testExactRenovateIdentityPassesAndLookalikesFailClosed() {
-  const exact = { number: 90, title: 'chore: update dependency', body: '', user: { id: 987654, login: 'f5-renovate-aks[bot]', type: 'Bot' }, head: { ref: 'renovate/npm', repo: { [repoIdentityKey]: 'f5-sales-demo/example' } }, base: { ref: 'main', repo: { [repoIdentityKey]: 'f5-sales-demo/example' } } };
+  const exact = {
+    number: 90,
+    title: 'chore: update dependency',
+    body: '',
+    user: { id: 987654, login: 'f5-renovate-aks[bot]', type: 'Bot' },
+    head: { ref: 'renovate/npm', repo: { [repoIdentityKey]: 'f5-sales-demo/example' } },
+    base: { ref: 'main', repo: { [repoIdentityKey]: 'f5-sales-demo/example' } },
+  };
   for (const script of linkedScripts) {
     const accepted = await runUnlinkedRenovate(exact, script);
     assert.deepEqual(accepted.graphqlCalls, []);

@@ -1541,6 +1541,20 @@
           "if": null
         }
       }
+    },
+    "f5-sales-demo/canada-topology": {
+      "runner": {
+        "arc_scale_sets": {
+          "socketless": {
+            "label": "managed-socketless",
+            "profile": "ubuntu-24.04"
+          },
+          "container-build": {
+            "label": "managed-container-build",
+            "profile": "container-build"
+          }
+        }
+      }
     }
   }
 }

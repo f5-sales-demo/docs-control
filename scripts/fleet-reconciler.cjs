@@ -672,9 +672,7 @@ function desiredProtection(config, repo) {
     ...(base.required_status_checks?.contexts || []),
     ...(override.additional_contexts || []),
   ];
-  const contexts = [...new Set(configuredContexts)]
-    .filter((context) => !excludedContexts.has(context))
-    .sort();
+  const contexts = [...new Set(configuredContexts)].filter((context) => !excludedContexts.has(context)).sort();
   const checks = contexts.map((context) => ({
     context,
     // GitHub documents -1 as an explicit any-app binding. Exact-commit central
