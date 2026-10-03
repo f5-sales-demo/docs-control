@@ -852,7 +852,14 @@
         }
       }
     },
-    "f5-sales-demo/canada-topology": {}
+    "f5-sales-demo/canada-topology": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
+    }
   },
   "repositories": {
     "f5-sales-demo/administration": {

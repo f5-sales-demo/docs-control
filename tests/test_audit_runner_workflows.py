@@ -1227,6 +1227,15 @@ jobs:
         self.write_policy()
         self.assertEqual(self.audit(), [])
 
+    def test_canada_managed_security_audit_route(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text()
+        )
+        route = policy["hosted_exceptions"]["f5-sales-demo/canada-topology"][
+            ".github/workflows/workflow-security-audit.yml"
+        ]["workflow-security-audit"]
+        self.assertEqual(route["runs_on"], "ubuntu-latest")
+
     def test_linked_issue_hosted_exceptions_are_exact_for_release_chain(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
