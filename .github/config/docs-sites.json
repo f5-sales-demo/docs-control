@@ -61,9 +61,9 @@
   {
     "label": "Canada Topology",
     "url": "https://f5-sales-demo.github.io/canada-topology/llms-full.txt",
-    "description": "Canadian hosting, Toronto/Montreal advertisement, GeoIP access control and regional recovery",
+    "description": "Canadian hosting and regional access control",
     "readme_english_only": true,
-    "readme_content": "Canadian hosting and origin isolation through three Canadian CEs. canada.f5-sales-demo.ca uses tenant-managed .ca DNS and a reserved VIP exclusively on Toronto/Montreal REs. An explicitly selected GeoIP policy permits only actual Canadian sources, denies all others and trusts no forwarding headers. Internal diagnostics use internal.canada.f5-sales-demo.ca without public advertisement or DNS. Protected independent state and regional failure/recovery evidence."
+    "readme_content": "Sales presenter and operator guide for Canadian origins, Toronto/Montreal public advertisement, actual-source GeoIP authorization, and independent lifecycle verification."
   },
   {
     "label": "DNS",
