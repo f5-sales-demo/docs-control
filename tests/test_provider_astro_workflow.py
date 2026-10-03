@@ -13,7 +13,7 @@ class ProviderAstroWorkflow(unittest.TestCase):
     def test_canonical_builder_uses_qualified_digest_consistently(self):
         text = (ROOT / ".github/workflows/github-pages-deploy.yml").read_text()
         digest = (
-            "sha256:f0236866ff6cf36eef78635520262af9f443f390018e605a90cd1cfa33c872da"
+            "sha256:b502d0862cb3b6f4bb694aed5957c8fba87c53fed9ecfe61d0ac1cac6815cc21"
         )
         assert text.count("ghcr.io/f5-sales-demo/docs-builder@" + digest) == 2
 
