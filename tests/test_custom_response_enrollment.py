@@ -15,6 +15,7 @@ class EnrollmentTests(unittest.TestCase):
             spec = importlib.util.spec_from_file_location(
                 "enrollment_" + script, ROOT / "scripts" / script
             )
+            assert spec is not None and spec.loader is not None
             module = importlib.util.module_from_spec(spec)
             sys.modules[spec.name] = module
             spec.loader.exec_module(module)
