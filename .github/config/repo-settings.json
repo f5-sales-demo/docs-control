@@ -33,16 +33,8 @@
       "enforce_admins": true,
       "required_status_checks": {
         "strict": true,
-        "contexts": [
-          "Check linked issues",
-          "lint / Lint Code Base",
-          "lint / Shell Unit Tests"
-        ],
-        "self_contexts": [
-          "Check linked issues",
-          "Lint Code Base",
-          "Shell Unit Tests"
-        ]
+        "contexts": ["Check linked issues", "lint / Lint Code Base", "lint / Shell Unit Tests"],
+        "self_contexts": ["Check linked issues", "Lint Code Base", "Shell Unit Tests"]
       },
       "required_pull_request_reviews": {
         "dismiss_stale_reviews": false,
@@ -74,11 +66,7 @@
       "additional_contexts": ["Run plugin test suites"]
     },
     "vscode-xcsh": {
-      "additional_contexts": [
-        "Validate Generation",
-        "Test (ubuntu-latest)",
-        "Build VSIX"
-      ]
+      "additional_contexts": ["Validate Generation", "Test (ubuntu-latest)", "Build VSIX"]
     },
     "console": {
       "additional_contexts": ["Validate Catalog Schemas"]
@@ -206,24 +194,10 @@
         ".github/workflows/github-pages-deploy.yml"
       ],
       "xcsh-action": ["README.md"],
-      "terraform-provider-xcsh": [
-        ".github/workflows/translation-audit.yml",
-        "scripts/locale-lint.sh"
-      ],
+      "terraform-provider-xcsh": [".github/workflows/translation-audit.yml", "scripts/locale-lint.sh"],
       "api-specs": [".ruff.toml", ".python-lint", ".mypy.ini"],
-      "api-specs-enriched": [
-        ".ruff.toml",
-        ".python-lint",
-        ".mypy.ini",
-        ".github/workflows/github-pages-deploy.yml"
-      ],
-      "vscode-xcsh": [
-        ".ruff.toml",
-        ".python-lint",
-        ".mypy.ini",
-        ".isort.cfg",
-        "README.md"
-      ],
+      "api-specs-enriched": [".ruff.toml", ".python-lint", ".mypy.ini", ".github/workflows/github-pages-deploy.yml"],
+      "vscode-xcsh": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg", "README.md"],
       "f5-sales-demo.github.io": [
         ".github/workflows/auto-merge.yml",
         ".github/workflows/translation-audit.yml",
@@ -276,12 +250,7 @@
         ".github/workflows/semgrep.yml"
       ],
       "console": [".mypy.ini", ".isort.cfg"],
-      "xcsh-chrome-extension": [
-        ".ruff.toml",
-        ".python-lint",
-        ".mypy.ini",
-        ".isort.cfg"
-      ],
+      "xcsh-chrome-extension": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"],
       "apt-repo": ["README.md"],
       "demo-resource-template": ["README.md"],
       "marketplace-claude-code": ["README.md"],
@@ -570,16 +539,8 @@
       "governance": ["REPO_SETTINGS_TOKEN", "REPO_SYNC_TOKEN"],
       "npm_publish": ["NPM_TOKEN", "RELEASE_TOKEN"],
       "release": ["RELEASE_TOKEN"],
-      "vscode_extension": [
-        "VS_MARKETPLACE_TOKEN",
-        "RELEASE_PAT",
-        "RELEASE_TOKEN"
-      ],
-      "terraform_provider": [
-        "GPG_PRIVATE_KEY",
-        "PASSPHRASE",
-        "AUTO_MERGE_TOKEN"
-      ],
+      "vscode_extension": ["VS_MARKETPLACE_TOKEN", "RELEASE_PAT", "RELEASE_TOKEN"],
+      "terraform_provider": ["GPG_PRIVATE_KEY", "PASSPHRASE", "AUTO_MERGE_TOKEN"],
       "api_enrichment": [
         "DOWNSTREAM_DISPATCH_TOKEN",
         "F5XC_API_TOKEN",
@@ -594,17 +555,8 @@
         "APPLE_PASSWORD",
         "APPLE_TEAM_ID"
       ],
-      "xcsh": [
-        "XCSH_API_URL",
-        "XCSH_API_TOKEN",
-        "XCSH_USERNAME",
-        "XCSH_CONSOLE_PASSWORD"
-      ],
-      "custom_response_infrastructure": [
-        "XCSH_API_URL",
-        "XCSH_API_TOKEN",
-        "ARM_ACCESS_KEY"
-      ]
+      "xcsh": ["XCSH_API_URL", "XCSH_API_TOKEN", "XCSH_USERNAME", "XCSH_CONSOLE_PASSWORD"],
+      "custom_response_infrastructure": ["XCSH_API_URL", "XCSH_API_TOKEN", "ARM_ACCESS_KEY"]
     },
     "repo_roles": {
       "_default": ["governance"],

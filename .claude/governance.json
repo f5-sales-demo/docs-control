@@ -15,24 +15,10 @@
       ".github/workflows/github-pages-deploy.yml"
     ],
     "xcsh-action": ["README.md"],
-    "terraform-provider-xcsh": [
-      ".github/workflows/translation-audit.yml",
-      "scripts/locale-lint.sh"
-    ],
+    "terraform-provider-xcsh": [".github/workflows/translation-audit.yml", "scripts/locale-lint.sh"],
     "api-specs": [".ruff.toml", ".python-lint", ".mypy.ini"],
-    "api-specs-enriched": [
-      ".ruff.toml",
-      ".python-lint",
-      ".mypy.ini",
-      ".github/workflows/github-pages-deploy.yml"
-    ],
-    "vscode-xcsh": [
-      ".ruff.toml",
-      ".python-lint",
-      ".mypy.ini",
-      ".isort.cfg",
-      "README.md"
-    ],
+    "api-specs-enriched": [".ruff.toml", ".python-lint", ".mypy.ini", ".github/workflows/github-pages-deploy.yml"],
+    "vscode-xcsh": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg", "README.md"],
     "f5-sales-demo.github.io": [
       ".github/workflows/auto-merge.yml",
       ".github/workflows/translation-audit.yml",
@@ -85,12 +71,7 @@
       ".github/workflows/semgrep.yml"
     ],
     "console": [".mypy.ini", ".isort.cfg"],
-    "xcsh-chrome-extension": [
-      ".ruff.toml",
-      ".python-lint",
-      ".mypy.ini",
-      ".isort.cfg"
-    ],
+    "xcsh-chrome-extension": [".ruff.toml", ".python-lint", ".mypy.ini", ".isort.cfg"],
     "apt-repo": ["README.md"],
     "demo-resource-template": ["README.md"],
     "marketplace-claude-code": ["README.md"],
@@ -196,16 +177,7 @@
       "content": {
         "authority": "author",
         "description": "Demo, product and lab content. Documentation, Terraform plans, howtos and demo scripts are authored here directly through the governed path: linked issue, branch, pull request, auto-merge.",
-        "surfaces": [
-          "docs/",
-          "terraform/",
-          "coverage/",
-          "scripts/",
-          "*.mdx",
-          "*.md",
-          "*.tf",
-          "*.tftest.hcl"
-        ]
+        "surfaces": ["docs/", "terraform/", "coverage/", "scripts/", "*.mdx", "*.md", "*.tf", "*.tftest.hcl"]
       },
       "developer": {
         "authority": "delegate",

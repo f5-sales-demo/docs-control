@@ -498,7 +498,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         policy = MODULE.active_policy()
         self.assertEqual(policy.dispatcher.repositories, ())
         self.assertEqual(MODULE.all_instances(), ())
-        self.assertEqual(len(policy.arc_scale_sets), 41)
+        self.assertEqual(len(policy.arc_scale_sets), len(policy.raw["repositories"]))
         managed = {
             repository: routes
             for repository, routes in policy.arc_scale_sets.items()

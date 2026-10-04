@@ -859,6 +859,14 @@
           "reason": "read-only pull request workflow security audit"
         }
       }
+    },
+    "f5-sales-demo/custom-responses": {
+      ".github/workflows/workflow-security-audit.yml": {
+        "workflow-security-audit": {
+          "runs_on": "ubuntu-latest",
+          "reason": "read-only pull request workflow security audit"
+        }
+      }
     }
   },
   "repositories": {
@@ -1551,11 +1559,7 @@
           "runs_on": "managed-socketless",
           "environment": "default-discovery",
           "permissions": {},
-          "allowed_secrets": [
-            "REPO_SYNC_TOKEN",
-            "XCSH_API_TOKEN",
-            "XCSH_API_URL"
-          ],
+          "allowed_secrets": ["REPO_SYNC_TOKEN", "XCSH_API_TOKEN", "XCSH_API_URL"],
           "triggers": {
             "schedule": [
               {
