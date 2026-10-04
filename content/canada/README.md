@@ -13,7 +13,7 @@ MCN and Canada own separate infrastructure and Terraform states.
 
 ## Canada Topology
 
-Canadian regional F5 Distributed Cloud demo: three Azure Customer Edges, two FRR
+Canadian hosting and regional access control demo: three Azure Customer Edges, two FRR
 relays, Azure Route Server, an internal load balancer and a Canadian origin.
 `canada.f5-sales-demo.ca` uses tenant-managed `.ca` DNS and the retained reserved
 public IP exclusively on Toronto and Montreal Regional Edges. An explicitly
@@ -35,13 +35,15 @@ Subscription Marketplace acceptance is a shared prerequisite.
 
 Extracted with source attribution from
 [f5-sales-demo/multi-cloud-networking](https://github.com/f5-sales-demo/multi-cloud-networking).
-Terraform is pinned to 1.16.3 and xcsh to 12.4.0 with API 9.0.2, contract 7.0.0
+Terraform is pinned to 1.16.3 and xcsh to 13.1.0 with API 10.0.1, contract 7.0.0
 and telemetry v2. Credentials, state configuration and workstation
 egress addresses belong in private operator inputs.
 
 ## Documentation
 
-Deployment, verification, failover, teardown and Terraform sources are published
+The sales presenter and operator guide covers use case, architecture, deployment,
+presentation, verification, failover, troubleshooting, teardown and Terraform reference.
+These pages are published
 at [https://f5-sales-demo.github.io/canada/](https://f5-sales-demo.github.io/canada/).
 
 ## Contributing
