@@ -66,6 +66,14 @@ class CustomResponsePagesTests(unittest.TestCase):
         entries = [e for e in config["managed_files"]["files"] if e["dest"] == path]
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0]["only_repos"], ["custom-responses"])
+        prose_caller = (ROOT / "workflows/github-pages-deploy.yml").read_text()
+        self.assertIn(
+            "github.repository == 'f5-sales-demo/custom-responses'", prose_caller
+        )
+        self.assertIn(
+            "sha256:5785f53f8dcbcc8786d1c255aed3beb2f0371f1fcdde8bb3f42243f53a8126a3",
+            prose_caller,
+        )
 
 
 if __name__ == "__main__":
