@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   docs:
-    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@deb91ac98d747c8a5a7e3146688b3cb62e9082e7
+    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@90fb060edb9628c366c50fd49eb375d348f95095
     with:
       builder-image: ${{ (github.repository == 'f5-sales-demo/canada' || github.repository == 'f5-sales-demo/custom-responses') && 'ghcr.io/f5-sales-demo/docs-builder@sha256:5785f53f8dcbcc8786d1c255aed3beb2f0371f1fcdde8bb3f42243f53a8126a3' || 'ghcr.io/f5-sales-demo/docs-builder:latest' }}
       content-ref: ${{ github.sha }}
