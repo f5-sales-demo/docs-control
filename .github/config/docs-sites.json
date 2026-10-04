@@ -56,14 +56,14 @@
     "label": "Multi-Cloud Networking",
     "url": "https://f5-sales-demo.github.io/multi-cloud-networking/llms-full.txt",
     "description": "Advanced Azure, AWS and KVM Customer Edge deployment and lifecycle automation",
-    "readme_content": "Azure/AWS/KVM Customer Edge interface binding, registration, BGP/ECMP, TGW Connect, HA, upgrades and lifecycle automation. Canadian hosting and regional access control are demonstrated independently in [Canada Topology](https://f5-sales-demo.github.io/canada/)."
+    "readme_content": "Advanced Azure/AWS/KVM Customer Edge use case covering interface binding, registration, BGP/ECMP, TGW Connect, HA, upgrades and lifecycle automation. [Canada Topology](https://f5-sales-demo.github.io/canada/en/use-case/) explains Canadian hosting and regional access control through API configuration excerpts."
   },
   {
     "label": "Canada Topology",
     "url": "https://f5-sales-demo.github.io/canada/llms-full.txt",
-    "description": "Canadian hosting and regional access control",
+    "description": "Canadian hosting and regional access control for F5 Distributed Cloud users",
     "readme_english_only": true,
-    "readme_content": "Sales presenter and operator guide for Canadian origins, Toronto/Montreal public advertisement, actual-source GeoIP authorization, and independent lifecycle verification."
+    "readme_content": "Informational use case explaining DNS, Toronto/Montreal advertisement, actual-source country authorization and Canadian CE origin discovery through annotated API configuration excerpts. Terraform and lifecycle pages provide supporting reference."
   },
   {
     "label": "DNS",
@@ -240,7 +240,7 @@
   {
     "label": "Console Catalog",
     "url": "https://f5-sales-demo.github.io/console/llms-full.txt",
-    "description": "Schema-driven inventory of the F5 XC administration console UI \u2014 routes, resources, workflows, and browser automation manifests",
+    "description": "Schema-driven inventory of the F5 XC administration console UI — routes, resources, workflows, and browser automation manifests",
     "badges": [
       {
         "name": "Validate Catalog",
