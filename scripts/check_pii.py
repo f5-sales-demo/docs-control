@@ -2491,6 +2491,7 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
     fence_language: str | None = None
     fence_close_column: int | None = None
     fence_container: str | None = None
+    pending_jq_command = ""
     active_jq_quote: str | None = None
     yaml_block_indent: int | None = None
     yaml_block_anchor: str | None = None
@@ -2635,7 +2636,22 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
             spans = ()
             active_jq_quote = None
         else:
-            spans, active_jq_quote = jq_filter_spans(line, active_jq_quote)
+            if pending_jq_command and active_jq_quote is None:
+                combined = pending_jq_command + line
+                combined_spans, active_jq_quote = jq_filter_spans(combined, None)
+                offset = len(pending_jq_command)
+                spans = tuple(
+                    (max(0, start - offset), end - offset)
+                    for start, end in combined_spans
+                    if end > offset
+                )
+            else:
+                combined = line
+                spans, active_jq_quote = jq_filter_spans(line, active_jq_quote)
+            if combined.rstrip().endswith("\\") and active_jq_quote is None:
+                pending_jq_command = combined.rstrip()[:-1] + " "
+            else:
+                pending_jq_command = ""
 
         context = LineScanContext(
             source_code=source_code,

@@ -764,6 +764,22 @@ git -C "$repo" add fixture.mdx
 git -C "$repo" commit -qm jq-identity-comparison
 assert_clean "jq identity comparisons do not emit organization literals" "$repo" --scope head --mode enforce
 
+repo=$(new_repo jq-continued-options)
+cat >"${repo}/fixture.md" <<'EOF'
+```bash
+jq -e \
+  --arg namespace "$NS" \
+  '.metadata.namespace == $namespace' \
+  response.json
+jq -n \
+  --arg label 'sample' \
+  '{namespace: "unsafe-org-fixture"}'
+```
+EOF
+git -C "$repo" add fixture.md
+git -C "$repo" commit -qm jq-continued-options
+assert_customer_identifier "continued jq options retain literal enforcement" "$repo" --scope head --mode enforce
+
 repo=$(new_repo jq-expressions)
 cat >"${repo}/fixture.mdx" <<'EOF'
 ```bash
