@@ -25,7 +25,7 @@ remains unpublished pending equivalent enforcement verification.
 
 Terraform is supporting implementation reference. Its source is extracted with attribution from
 [f5-sales-demo/multi-cloud-networking](https://github.com/f5-sales-demo/multi-cloud-networking). The Canada application namespace and registration token are separately owned; CE
-sites remain in `system`, and the reserved allocation remains platform-owned. Deployment state and credentials belong in protected local inputs. Shared Marketplace acceptance is a
+sites remain in `system`, and the reserved allocation remains platform-owned. Independent local Terraform state and backups live outside the Ubuntu checkout in protected storage. Deployment uses the existing Azure CLI login and exclusive deployment/state locks. Credentials belong in private inputs. Shared Marketplace acceptance is a
 subscription prerequisite.
 
 ## Contributing
