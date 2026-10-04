@@ -10,7 +10,7 @@ self-hosted-runner:
     - automation
     - bot-advanced
     - bot-standard
-    - canada-topology
+    - canada
     - cdn
     - cdn-simulator
     - console

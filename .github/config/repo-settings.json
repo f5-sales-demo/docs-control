@@ -528,9 +528,9 @@
         ]
       },
       {
-        "src": "content/canada-topology/README.md",
+        "src": "content/canada/README.md",
         "dest": "README.md",
-        "only_repos": ["canada-topology", "multi-cloud-networking"]
+        "only_repos": ["canada", "multi-cloud-networking"]
       }
     ]
   },
