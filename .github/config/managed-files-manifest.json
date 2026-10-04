@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "d033e041e3c703e502c28ab88be3802084dbacb2",
+  "source_commit": "90fb060edb9628c366c50fd49eb375d348f95095",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "c4d5d3ef91345e6abcfedc1ce9631e1af185302d",
-      "size": 8810,
+      "sha": "e5fcf9616f2cfc14ba416636093203d9aac410c5",
+      "size": 8867,
       "mode": "100644"
     },
     {
@@ -129,10 +129,17 @@
       "mode": "100644"
     },
     {
+      "path": ".github/workflows/github-pages-config-sources.yml",
+      "src": "workflows/github-pages-config-sources.yml",
+      "sha": "b5d8bfa1c280849baf66dee02704e918a3ee1f72",
+      "size": 1027,
+      "mode": "100644"
+    },
+    {
       "path": ".github/workflows/github-pages-deploy.yml",
       "src": "workflows/github-pages-deploy.yml",
-      "sha": "4c9c644d66921df616592447c84d7a85e38fd16f",
-      "size": 1340,
+      "sha": "fc7d4949521f298b2b11979d06d6128bf7a9a621",
+      "size": 1399,
       "mode": "100644"
     },
     {
@@ -469,5 +476,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:8f31de9acba444c04bf33cd5470b9e31dd0665ebe0f40ae1f9571d7861130293"
+  "state_digest": "sha256:eb4f5f32b37f5a00feb0fad2ae9113159162ce87df2ec12359ad9fb929417ab9"
 }
