@@ -196,6 +196,7 @@ MANAGED_ARC_COHORT = frozenset(
         "cdn-simulator",
         "console",
         "csd",
+        "custom-responses",
         "ddos",
         "demo-resource-template",
         "demo-resources",
