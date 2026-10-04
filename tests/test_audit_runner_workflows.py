@@ -1231,7 +1231,7 @@ jobs:
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text()
         )
-        route = policy["hosted_exceptions"]["f5-sales-demo/canada-topology"][
+        route = policy["hosted_exceptions"]["f5-sales-demo/canada"][
             ".github/workflows/workflow-security-audit.yml"
         ]["workflow-security-audit"]
         self.assertEqual(route["runs_on"], "ubuntu-latest")
@@ -1697,7 +1697,7 @@ class SecretProvisioningTests(unittest.TestCase):
         source = (ROOT / ".github/workflows/provision-canada-secrets.yml").read_text()
         self.assertIn("workflow_dispatch:", source)
         self.assertNotIn("pull_request", source)
-        self.assertIn("f5-sales-demo/canada-topology", source)
+        self.assertIn("f5-sales-demo/canada", source)
         self.assertIn("input=value", source)
         self.assertIn('["REPO_SETTINGS_TOKEN", "REPO_SYNC_TOKEN"]', source)
         self.assertNotIn("print(value)", source)
