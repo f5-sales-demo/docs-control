@@ -2640,11 +2640,11 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
                 combined = pending_jq_command + line
                 combined_spans, active_jq_quote = jq_filter_spans(combined, None)
                 offset = len(pending_jq_command)
-                spans = tuple(
-                    (max(0, start - offset), end - offset)
-                    for start, end in combined_spans
-                    if end > offset
-                )
+                adjusted_spans = []
+                for start, end in combined_spans:
+                    if end > offset:
+                        adjusted_spans.append((max(0, start - offset), end - offset))
+                spans = tuple(adjusted_spans)
             else:
                 combined = line
                 spans, active_jq_quote = jq_filter_spans(line, active_jq_quote)
