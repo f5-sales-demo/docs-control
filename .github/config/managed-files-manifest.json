@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "d033e041e3c703e502c28ab88be3802084dbacb2",
+  "source_commit": "8d15b176397b6a4b06b7c168e08e4f7821236451",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "c4d5d3ef91345e6abcfedc1ce9631e1af185302d",
-      "size": 8810,
+      "sha": "e5fcf9616f2cfc14ba416636093203d9aac410c5",
+      "size": 8867,
       "mode": "100644"
     },
     {
@@ -117,22 +117,29 @@
     {
       "path": ".github/workflows/antigravity-review.yml",
       "src": "workflows/antigravity-review.yml",
-      "sha": "af6b89836e1d759dc9dba137f55bd913bda2cd18",
+      "sha": "7fb311b2b5703e9d64163672edd9942633ac2116",
       "size": 1309,
       "mode": "100644"
     },
     {
       "path": ".github/workflows/auto-merge.yml",
       "src": "workflows/auto-merge.yml",
-      "sha": "2c675c2626cbb8a6b2c5c7adc14f43721e6b629d",
+      "sha": "d502122467fc9ce437152c336b8313aecc504542",
       "size": 3422,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/workflows/github-pages-config-sources.yml",
+      "src": "workflows/github-pages-config-sources.yml",
+      "sha": "b16aa89be78777169cbd079799f31877cd951bf4",
+      "size": 1027,
       "mode": "100644"
     },
     {
       "path": ".github/workflows/github-pages-deploy.yml",
       "src": "workflows/github-pages-deploy.yml",
-      "sha": "4c9c644d66921df616592447c84d7a85e38fd16f",
-      "size": 1340,
+      "sha": "0e4392d0eb33e915b21f5a2cfb98c3d07b50cfa7",
+      "size": 1399,
       "mode": "100644"
     },
     {
@@ -152,7 +159,7 @@
     {
       "path": ".github/workflows/super-linter.yml",
       "src": "workflows/super-linter.yml",
-      "sha": "12017cb9c1cd76e4219e47a9fdb184ea97161f5f",
+      "sha": "9792cee2389b3148662c506f520968ba9f0eac91",
       "size": 5331,
       "mode": "100644"
     },
@@ -469,5 +476,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:8f31de9acba444c04bf33cd5470b9e31dd0665ebe0f40ae1f9571d7861130293"
+  "state_digest": "sha256:400377b05bd83cb4d2f18eda5705cb4e63f3dc04c10316ba663f00a840f0d135"
 }

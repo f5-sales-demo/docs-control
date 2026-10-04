@@ -1,0 +1,31 @@
+---
+name: Configuration Source Pages Deploy
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'terraform/scenarios.tf.json'
+      - 'examples/bot-defense.json'
+      - 'scripts/prepare_snippets.py'
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  docs:
+    if: github.repository == 'f5-sales-demo/custom-responses'
+    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@90fb060edb9628c366c50fd49eb375d348f95095
+    with:
+      builder-image: ghcr.io/f5-sales-demo/docs-builder@sha256:5785f53f8dcbcc8786d1c255aed3beb2f0371f1fcdde8bb3f42243f53a8126a3
+      content-ref: ${{ github.sha }}
+      content-path: docs
+      socketless_runner_label: managed-socketless
+      container_build_runner_label: managed-container-build
+    permissions:
+      contents: read # read exact configuration and documentation source
+      packages: read # pull the governed immutable builder
+      pages: write # publish the guide
+      id-token: write # authenticate the Pages deployment
