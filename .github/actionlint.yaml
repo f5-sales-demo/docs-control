@@ -16,6 +16,7 @@ self-hosted-runner:
     - console
     - container-build
     - csd
+    - custom-responses
     - ddos
     - demo-resource-template
     - demo-resources
