@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "21e7dff7324df803fd5bca573f11c428e2715659",
+  "source_commit": "09250a96f7c0267a78db2df875124232940f0625",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -299,8 +299,8 @@
     {
       "path": "README.md",
       "src": "content/canada/README.md",
-      "sha": "2af1ba143f0440f1844d5c140b728d7e6f1e5317",
-      "size": 2804,
+      "sha": "896716d6a8d9fabe75cc0d68f4b66664d69c89a9",
+      "size": 2927,
       "mode": "100644"
     },
     {
@@ -469,5 +469,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:79b61e011416944738ae74d2c873632a77ee409cdb66ea291db9d25e1f77255f"
+  "state_digest": "sha256:bb170c1411bef6129cf7596f444e6d10d9fc4db1c87b26161bdc4e655641b600"
 }
