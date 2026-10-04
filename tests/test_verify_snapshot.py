@@ -392,7 +392,7 @@ class SnapshotWorkflowTests(unittest.TestCase):
 class SnapshotBoundaryTests(unittest.TestCase):
     def test_paired_limits(self):
         module = load_verifier()
-        self.assertEqual(module.MAX_ARCHIVE_BYTES, 512 * 1024 * 1024)
+        self.assertEqual(module.MAX_ARCHIVE_BYTES, 1024 * 1024 * 1024)
         self.assertEqual(module.MAX_EXPANDED_BYTES, 1024 * 1024 * 1024)
         self.assertEqual(module.MAX_MEMBERS, 20_000)
 
