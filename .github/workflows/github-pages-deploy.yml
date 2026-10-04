@@ -336,6 +336,12 @@ jobs:
             done < "$IMPORTS"
           fi
 
+      - name: Prepare Custom Responses configuration snippets
+        if: github.repository == 'f5-sales-demo/custom-responses'
+        run: |
+          set -euo pipefail
+          python3 scripts/prepare_snippets.py
+
       - name: Build docs with container
         env:
           BUILDER_IMAGE: ${{ steps.builder.outputs.builder_image }}

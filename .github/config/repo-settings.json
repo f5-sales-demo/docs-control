@@ -268,6 +268,11 @@
     },
     "files": [
       {
+        "src": "workflows/github-pages-config-sources.yml",
+        "dest": ".github/workflows/github-pages-config-sources.yml",
+        "only_repos": ["custom-responses"]
+      },
+      {
         "src": "workflows/github-pages-deploy.yml",
         "dest": ".github/workflows/github-pages-deploy.yml"
       },

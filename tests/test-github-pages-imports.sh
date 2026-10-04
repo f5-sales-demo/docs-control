@@ -116,3 +116,8 @@ if [ "$failures" -ne 0 ]; then
 fi
 
 printf 'Pages import staging tests passed\n'
+
+# The repository-scoped snippet step shares this governed Pages test gate.
+if [[ -f "$REPO_ROOT/tests/test_custom_response_pages.py" ]]; then
+  python3 -m unittest discover -s "$REPO_ROOT/tests" -p test_custom_response_pages.py
+fi
