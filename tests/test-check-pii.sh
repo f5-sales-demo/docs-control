@@ -754,6 +754,16 @@ git -C "$repo" add fixture.mdx
 git -C "$repo" commit -qm unrelated-jq
 assert_customer_identifier "an earlier jq command cannot exempt a later field" "$repo" --scope head --mode enforce
 
+repo=$(new_repo jq-identity-comparison)
+cat >"${repo}/fixture.mdx" <<'EOF'
+```bash
+jq -e --arg namespace "$NS" '.metadata.namespace == $namespace and .spec.custom_errors["5"] == $page' response.json
+```
+EOF
+git -C "$repo" add fixture.mdx
+git -C "$repo" commit -qm jq-identity-comparison
+assert_clean "jq identity comparisons do not emit organization literals" "$repo" --scope head --mode enforce
+
 repo=$(new_repo jq-expressions)
 cat >"${repo}/fixture.mdx" <<'EOF'
 ```bash

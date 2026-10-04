@@ -1816,6 +1816,10 @@ def is_nonliteral_code_expression(
     value = normalized_value(value_override or match.group("value"))
     numeric_literal = bool(NUMERIC_LITERAL_RE.fullmatch(value))
     in_jq_filter = match_is_in_spans(match, jq_spans)
+    if in_jq_filter and match.groupdict().get("separator") == "=":
+        separator_end = match.end("separator")
+        if line[separator_end : separator_end + 1] == "=":
+            return True
     in_source_comment = (source_code or in_jq_filter) and is_source_comment(line, match)
     if numeric_literal:
         return False
