@@ -25,6 +25,7 @@
       ".github/workflows/workflow-security-audit.yml",
       ".github/workflows/require-linked-issue.yml",
       ".github/workflows/github-pages-deploy.yml",
+      ".github/workflows/github-pages-config-sources.yml",
       ".github/workflows/super-linter.yml"
     ],
     "docs-builder": [
