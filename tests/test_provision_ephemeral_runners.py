@@ -920,15 +920,12 @@ class CanadaInventoryTests(unittest.TestCase):
             json.loads((config / "downstream-repos.json").read_text()),
         )
         governance = json.loads((ROOT / ".claude/governance.json").read_text())
-        self.assertEqual(
-            governance["repo_classes"]["repos"]["canada"], "content"
-        )
+        self.assertEqual(governance["repo_classes"]["repos"]["canada"], "content")
         sites = json.loads((config / "docs-sites.json").read_text())
         site = next(
             s
             for s in sites
-            if s["url"]
-            == "https://f5-sales-demo.github.io/canada/llms-full.txt"
+            if s["url"] == "https://f5-sales-demo.github.io/canada/llms-full.txt"
         )
         self.assertTrue(site["readme_english_only"])
         policy = json.loads((config / "self-hosted-runner-policy.json").read_text())
@@ -946,9 +943,7 @@ class CanadaInventoryTests(unittest.TestCase):
         entry = next(
             e for e in config["managed_files"]["files"] if e["dest"] == "README.md"
         )
-        self.assertEqual(
-            entry["only_repos"], ["canada", "multi-cloud-networking"]
-        )
+        self.assertEqual(entry["only_repos"], ["canada", "multi-cloud-networking"])
         readme = (ROOT / entry["src"]).read_text()
         self.assertIn("https://f5-sales-demo.github.io/canada/", readme)
         self.assertNotIn("enforce-repo-settings.yml", readme)
