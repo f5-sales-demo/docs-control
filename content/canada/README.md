@@ -1,50 +1,32 @@
-# Customer Edge Demonstrations
+# Customer Edge use cases
 
 [![GitHub Pages Deploy](https://github.com/f5-sales-demo/canada/actions/workflows/github-pages-deploy.yml/badge.svg)](https://github.com/f5-sales-demo/canada/actions/workflows/github-pages-deploy.yml)
 
-The repositories demonstrate two distinct capabilities:
+These repositories document two distinct F5 Distributed Cloud patterns:
 
-| Demonstration | Purpose |
+| Use case | Purpose |
 | --- | --- |
-| [Multi-Cloud Networking](https://f5-sales-demo.github.io/multi-cloud-networking/) | Advanced Azure/AWS/KVM CE deployment: interface binding, registration, BGP/ECMP, TGW Connect, HA, upgrades and lifecycle automation |
-| [Canada Topology](https://f5-sales-demo.github.io/canada/) | Canadian hosting and origin isolation, Toronto/Montreal advertisement, tenant-managed `.ca` DNS, GeoIP access control and regional failure/recovery |
+| [Multi-Cloud Networking](https://f5-sales-demo.github.io/multi-cloud-networking/) | Advanced Azure/AWS/KVM CE interface binding, registration, BGP/ECMP, TGW Connect, HA, upgrades and lifecycle automation |
+| [Canada Topology](https://f5-sales-demo.github.io/canada/en/use-case/) | Canadian hosting and regional access control through DNS, regional advertisement, actual-source authorization and Canadian CE origin discovery |
 
 MCN and Canada own separate infrastructure and Terraform states.
 
 ## Canada Topology
 
-Canadian hosting and regional access control demo: three Azure Customer Edges, two FRR
-relays, Azure Route Server, an internal load balancer and a Canadian origin.
-`canada.f5-sales-demo.ca` uses tenant-managed `.ca` DNS and the retained reserved
-public IP exclusively on Toronto and Montreal Regional Edges. An explicitly
-selected GeoIP service policy allows only actual sources classified by XC as
-Canada, with default denial, no exceptions and no trust in forwarding headers.
-Unknown classifications are denied. Public IPv6 remains unpublished.
+The [primary article](https://f5-sales-demo.github.io/canada/en/use-case/) follows a request from tenant-managed DNS to a reserved public allocation, Toronto/Montreal Regional Edges, an explicitly selected country policy, and an origin discovered through Canadian Customer Edges. Annotated API JSON excerpts explain each control for existing F5 Distributed Cloud users.
 
-CE BGP, primary-IP and ILB diagnostics use `internal.canada.f5-sales-demo.ca`
-without public advertisement or managed public DNS. Canadian CE origin discovery
-and the origin infrastructure-source ACL are separate from client geofencing.
-Regional failure and recovery verification covers public and internal paths.
+The demonstrated policy allows `COUNTRY_CA` and denies other or unknown classifications, with forwarding-header trust disabled. Canadian origin placement, Canadian public advertisement and source-country authorization are independent decisions. Origin infrastructure ingress uses a separate ACL.
 
-The deployment owns the `canada` application namespace and its registration token.
-CE sites remain in `system`; the reserved public-IP allocation remains in its
-existing platform namespace. Independent local Terraform state lives in a protected directory outside the
-Ubuntu checkout. Deployment uses the existing Azure CLI login and exclusive
-operator and local-state locks.
-Subscription Marketplace acceptance is a shared prerequisite.
+Three Azure Customer Edges, two FRR relays, Azure Route Server, an internal load balancer and an origin stage the demonstration in Canada Central. Its node recovery exercise does
+not establish cross-region redundancy, comprehensive Canadian data residency or legal compliance. Internal diagnostic listeners are separate from public advertisement. Public IPv6
+remains unpublished pending equivalent enforcement verification.
 
-Extracted with source attribution from
-[f5-sales-demo/multi-cloud-networking](https://github.com/f5-sales-demo/multi-cloud-networking).
-Terraform is pinned to 1.16.3 and xcsh to 13.1.0 with API 10.0.1, contract 7.0.0
-and telemetry v2. Credentials, state configuration and workstation
-egress addresses belong in private operator inputs.
+[Understand the tests](https://f5-sales-demo.github.io/canada/en/verification/) or consult the [configuration mapping](https://f5-sales-demo.github.io/canada/en/architecture/) and [Terraform sources](https://f5-sales-demo.github.io/canada/en/terraform/). Staging, proof sequence, recovery, symptoms and ownership remain informational references at their existing URLs.
 
-## Documentation
-
-The sales presenter and operator guide covers use case, architecture, deployment,
-presentation, verification, failover, troubleshooting, teardown and Terraform reference.
-These pages are published
-at [https://f5-sales-demo.github.io/canada/](https://f5-sales-demo.github.io/canada/).
+Terraform is supporting implementation reference. Its source is extracted with attribution from
+[f5-sales-demo/multi-cloud-networking](https://github.com/f5-sales-demo/multi-cloud-networking). The Canada application namespace and registration token are separately owned; CE
+sites remain in `system`, and the reserved allocation remains platform-owned. Independent local Terraform state and backups live outside the Ubuntu checkout in protected storage. Deployment uses the existing Azure CLI login and exclusive deployment/state locks. Credentials belong in private inputs. Shared Marketplace acceptance is a
+subscription prerequisite.
 
 ## Contributing
 
