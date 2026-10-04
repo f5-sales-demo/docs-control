@@ -316,7 +316,7 @@ ADDRESS_FIELD_RE = re.compile(
     r"(?i)(?:^|[,{\s])['\"]?"
     r"(?P<key>street_address|postal_address|postal_code|zip_code|date_of_birth|dob|"
     r"social_security_number|ssn)"
-    r"['\"]?\s*[:=]\s*(?P<quote>['\"`]?)"
+    r"['\"]?\s*(?P<separator>[:=])\s*(?P<quote>['\"`]?)"
     r"(?P<value>(?:(?!\\[rn])[^'\"`#,\r\n}\]])+)"
 )
 QUERY_RE = re.compile(

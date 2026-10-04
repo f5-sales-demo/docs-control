@@ -9,6 +9,21 @@ SCANNER="${REPO_ROOT}/scripts/check-pii.sh"
 PYTHON_SCANNER="${REPO_ROOT}/scripts/check_pii.py"
 SYNTHETIC_USER=realperson
 
+# Address-field matches share the structured-value interface with identity fields.
+python3 - "$PYTHON_SCANNER" <<'PYTEST'
+import importlib.util
+import sys
+spec = importlib.util.spec_from_file_location("scanner_address_regression", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+for line in ["ssn: str", "ssn = '123-45-6789'", "{'ssn': '123-45-6789'}"]:
+    match = module.ADDRESS_FIELD_RE.search(line)
+    assert match is not None
+    assert match.group("separator") in {":", "="}
+print("[OK] address-field match preserves the structured separator contract")
+PYTEST
+
 FAIL=0
 WORK=$(mktemp -d)
 cleanup() { rm -rf "$WORK"; }
