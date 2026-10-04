@@ -25,7 +25,7 @@ on:
       - 'STYLE_GUIDE.md'
       - '.agents/**'
       - 'README.md'
-      - 'content/canada-topology/README.md'
+      - 'content/canada/README.md'
       - 'content/multi-cloud-networking/README.md'
       - 'LICENSE'
       - '.editorconfig'

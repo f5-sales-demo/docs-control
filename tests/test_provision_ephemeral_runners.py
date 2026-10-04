@@ -498,13 +498,14 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         policy = MODULE.active_policy()
         self.assertEqual(policy.dispatcher.repositories, ())
         self.assertEqual(MODULE.all_instances(), ())
-        self.assertEqual(len(policy.arc_scale_sets), 41)
+        self.assertEqual(len(policy.arc_scale_sets), len(policy.raw["repositories"]))
         managed = {
             repository: routes
             for repository, routes in policy.arc_scale_sets.items()
             if routes["socketless"]["label"] == "managed-socketless"
         }
-        self.assertEqual(len(managed), 34)
+        self.assertEqual(len(managed), 35)
+        self.assertIn("f5-sales-demo/custom-responses", managed)
         compute_labels = {
             "f5-sales-demo/api-specs-enriched": "api-specs-enriched-compute",
             "f5-sales-demo/terraform-provider-xcsh": "terraform-provider-xcsh-compute",
@@ -916,25 +917,22 @@ class CanadaInventoryTests(unittest.TestCase):
     def test_enrollment(self):
         config = ROOT / ".github/config"
         self.assertIn(
-            "canada-topology",
+            "canada",
             json.loads((config / "downstream-repos.json").read_text()),
         )
         governance = json.loads((ROOT / ".claude/governance.json").read_text())
-        self.assertEqual(
-            governance["repo_classes"]["repos"]["canada-topology"], "content"
-        )
+        self.assertEqual(governance["repo_classes"]["repos"]["canada"], "content")
         sites = json.loads((config / "docs-sites.json").read_text())
         site = next(
             s
             for s in sites
-            if s["url"]
-            == "https://f5-sales-demo.github.io/canada-topology/llms-full.txt"
+            if s["url"] == "https://f5-sales-demo.github.io/canada/llms-full.txt"
         )
         self.assertTrue(site["readme_english_only"])
         policy = json.loads((config / "self-hosted-runner-policy.json").read_text())
         self.assertEqual(
             set(
-                policy["repositories"]["f5-sales-demo/canada-topology"]["runner"][
+                policy["repositories"]["f5-sales-demo/canada"]["runner"][
                     "arc_scale_sets"
                 ]
             ),
@@ -946,18 +944,16 @@ class CanadaInventoryTests(unittest.TestCase):
         entry = next(
             e for e in config["managed_files"]["files"] if e["dest"] == "README.md"
         )
-        self.assertEqual(
-            entry["only_repos"], ["canada-topology", "multi-cloud-networking"]
-        )
+        self.assertEqual(entry["only_repos"], ["canada", "multi-cloud-networking"])
         readme = (ROOT / entry["src"]).read_text()
-        self.assertIn("https://f5-sales-demo.github.io/canada-topology/", readme)
+        self.assertIn("https://f5-sales-demo.github.io/canada/", readme)
         self.assertNotIn("enforce-repo-settings.yml", readme)
-        self.assertIn("canada-topology", readme)
+        self.assertIn("canada", readme)
 
 
 class CanadaLocalStateTests(unittest.TestCase):
     def test_managed_readme_uses_protected_local_state(self):
-        readme = (ROOT / "content/canada-topology/README.md").read_text()
+        readme = (ROOT / "content/canada/README.md").read_text()
         self.assertIn("local Terraform state", readme)
         self.assertNotIn("Azure Blob state", readme)
 

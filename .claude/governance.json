@@ -230,7 +230,8 @@
       "xcsh": "developer",
       "xcsh-action": "developer",
       "xcsh-chrome-extension": "developer",
-      "canada-topology": "content"
+      "canada": "content",
+      "custom-responses": "content"
     }
   }
 }

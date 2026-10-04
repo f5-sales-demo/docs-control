@@ -56,11 +56,11 @@
     "label": "Multi-Cloud Networking",
     "url": "https://f5-sales-demo.github.io/multi-cloud-networking/llms-full.txt",
     "description": "Advanced Azure, AWS and KVM Customer Edge deployment and lifecycle automation",
-    "readme_content": "Azure/AWS/KVM Customer Edge interface binding, registration, BGP/ECMP, TGW Connect, HA, upgrades and lifecycle automation. Canadian hosting and regional access control are demonstrated independently in [Canada Topology](https://f5-sales-demo.github.io/canada-topology/)."
+    "readme_content": "Azure/AWS/KVM Customer Edge interface binding, registration, BGP/ECMP, TGW Connect, HA, upgrades and lifecycle automation. Canadian hosting and regional access control are demonstrated independently in [Canada Topology](https://f5-sales-demo.github.io/canada/)."
   },
   {
     "label": "Canada Topology",
-    "url": "https://f5-sales-demo.github.io/canada-topology/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/canada/llms-full.txt",
     "description": "Canadian hosting and regional access control",
     "readme_english_only": true,
     "readme_content": "Sales presenter and operator guide for Canadian origins, Toronto/Montreal public advertisement, actual-source GeoIP authorization, and independent lifecycle verification."
@@ -252,5 +252,10 @@
     "label": "xcsh Chrome Extension",
     "url": "https://f5-sales-demo.github.io/xcsh-chrome-extension/llms-full.txt",
     "description": "Chrome extension companion for the xcsh AI-powered F5 Distributed Cloud CLI"
+  },
+  {
+    "label": "Custom Responses",
+    "url": "https://f5-sales-demo.github.io/custom-responses/llms-full.txt",
+    "description": "Isolated Terraform showcase of F5 Distributed Cloud response customization with live acceptance"
   }
 ]

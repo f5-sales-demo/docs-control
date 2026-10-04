@@ -25,7 +25,7 @@ Connect, high availability, upgrades and automated deployment/recovery lifecycle
 Canadian hosting, Toronto/Montreal public advertisement, Canadian-origin
 isolation, tenant-managed `.ca` DNS, GeoIP access control and regional recovery
 are demonstrated independently in
-[Canada Topology](https://f5-sales-demo.github.io/canada-topology/).
+[Canada Topology](https://f5-sales-demo.github.io/canada/).
 
 ## Documentation
 

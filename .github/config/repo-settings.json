@@ -528,9 +528,9 @@
         ]
       },
       {
-        "src": "content/canada-topology/README.md",
+        "src": "content/canada/README.md",
         "dest": "README.md",
-        "only_repos": ["canada-topology", "multi-cloud-networking"]
+        "only_repos": ["canada", "multi-cloud-networking"]
       }
     ]
   },
@@ -555,7 +555,8 @@
         "APPLE_PASSWORD",
         "APPLE_TEAM_ID"
       ],
-      "xcsh": ["XCSH_API_URL", "XCSH_API_TOKEN", "XCSH_USERNAME", "XCSH_CONSOLE_PASSWORD"]
+      "xcsh": ["XCSH_API_URL", "XCSH_API_TOKEN", "XCSH_USERNAME", "XCSH_CONSOLE_PASSWORD"],
+      "custom_response_infrastructure": ["XCSH_API_URL", "XCSH_API_TOKEN", "ARM_ACCESS_KEY"]
     },
     "repo_roles": {
       "_default": ["governance"],
@@ -597,7 +598,8 @@
       "i18n-core": ["governance"],
       "console": ["governance"],
       "xcsh-chrome-extension": ["governance"],
-      "marketplace-claude-code": ["governance"]
+      "marketplace-claude-code": ["governance"],
+      "custom-responses": ["governance", "custom_response_infrastructure"]
     }
   }
 }

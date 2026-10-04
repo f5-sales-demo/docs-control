@@ -1,13 +1,13 @@
 # Customer Edge Demonstrations
 
-[![GitHub Pages Deploy](https://github.com/f5-sales-demo/canada-topology/actions/workflows/github-pages-deploy.yml/badge.svg)](https://github.com/f5-sales-demo/canada-topology/actions/workflows/github-pages-deploy.yml)
+[![GitHub Pages Deploy](https://github.com/f5-sales-demo/canada/actions/workflows/github-pages-deploy.yml/badge.svg)](https://github.com/f5-sales-demo/canada/actions/workflows/github-pages-deploy.yml)
 
 The repositories demonstrate two distinct capabilities:
 
 | Demonstration | Purpose |
 | --- | --- |
 | [Multi-Cloud Networking](https://f5-sales-demo.github.io/multi-cloud-networking/) | Advanced Azure/AWS/KVM CE deployment: interface binding, registration, BGP/ECMP, TGW Connect, HA, upgrades and lifecycle automation |
-| [Canada Topology](https://f5-sales-demo.github.io/canada-topology/) | Canadian hosting and origin isolation, Toronto/Montreal advertisement, tenant-managed `.ca` DNS, GeoIP access control and regional failure/recovery |
+| [Canada Topology](https://f5-sales-demo.github.io/canada/) | Canadian hosting and origin isolation, Toronto/Montreal advertisement, tenant-managed `.ca` DNS, GeoIP access control and regional failure/recovery |
 
 MCN and Canada own separate infrastructure and Terraform states.
 
@@ -26,7 +26,7 @@ without public advertisement or managed public DNS. Canadian CE origin discovery
 and the origin infrastructure-source ACL are separate from client geofencing.
 Regional failure and recovery verification covers public and internal paths.
 
-The deployment owns the `canada-topology` application namespace and its registration token.
+The deployment owns the `canada` application namespace and its registration token.
 CE sites remain in `system`; the reserved public-IP allocation remains in its
 existing platform namespace. Independent local Terraform state lives in a protected directory outside the
 Ubuntu checkout. Deployment uses the existing Azure CLI login and exclusive
@@ -35,7 +35,7 @@ Subscription Marketplace acceptance is a shared prerequisite.
 
 Extracted with source attribution from
 [f5-sales-demo/multi-cloud-networking](https://github.com/f5-sales-demo/multi-cloud-networking).
-Terraform is pinned to 1.16.3 and xcsh to 13.0.3 with API 10.0.0, contract 7.0.0
+Terraform is pinned to 1.16.3 and xcsh to 13.1.0 with API 10.0.1, contract 7.0.0
 and telemetry v2. Credentials, state configuration and workstation
 egress addresses belong in private operator inputs.
 
@@ -44,7 +44,7 @@ egress addresses belong in private operator inputs.
 The sales presenter and operator guide covers use case, architecture, deployment,
 presentation, verification, failover, troubleshooting, teardown and Terraform reference.
 These pages are published
-at [https://f5-sales-demo.github.io/canada-topology/](https://f5-sales-demo.github.io/canada-topology/).
+at [https://f5-sales-demo.github.io/canada/](https://f5-sales-demo.github.io/canada/).
 
 ## Contributing
 
