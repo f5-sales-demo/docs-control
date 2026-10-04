@@ -14,18 +14,12 @@
       ".github/workflows/require-linked-issue.yml",
       ".github/workflows/github-pages-deploy.yml"
     ],
-    "xcsh-action": [
-      "README.md"
-    ],
+    "xcsh-action": ["README.md"],
     "terraform-provider-xcsh": [
       ".github/workflows/translation-audit.yml",
       "scripts/locale-lint.sh"
     ],
-    "api-specs": [
-      ".ruff.toml",
-      ".python-lint",
-      ".mypy.ini"
-    ],
+    "api-specs": [".ruff.toml", ".python-lint", ".mypy.ini"],
     "api-specs-enriched": [
       ".ruff.toml",
       ".python-lint",
@@ -90,25 +84,16 @@
       ".github/workflows/super-linter.yml",
       ".github/workflows/semgrep.yml"
     ],
-    "console": [
-      ".mypy.ini",
-      ".isort.cfg"
-    ],
+    "console": [".mypy.ini", ".isort.cfg"],
     "xcsh-chrome-extension": [
       ".ruff.toml",
       ".python-lint",
       ".mypy.ini",
       ".isort.cfg"
     ],
-    "apt-repo": [
-      "README.md"
-    ],
-    "demo-resource-template": [
-      "README.md"
-    ],
-    "marketplace-claude-code": [
-      "README.md"
-    ],
+    "apt-repo": ["README.md"],
+    "demo-resource-template": ["README.md"],
+    "marketplace-claude-code": ["README.md"],
     "starlight-llms-txt": [
       "README.md",
       ".github/workflows/auto-merge.yml",
@@ -118,12 +103,8 @@
       ".github/workflows/github-pages-deploy.yml",
       ".github/workflows/super-linter.yml"
     ],
-    "starlight-mega-menu": [
-      "README.md"
-    ],
-    "traffic-generator": [
-      "README.md"
-    ]
+    "starlight-mega-menu": ["README.md"],
+    "traffic-generator": ["README.md"]
   },
   "protected_files": [
     ".github/workflows/github-pages-deploy.yml",

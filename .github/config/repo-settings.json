@@ -71,9 +71,7 @@
   ],
   "repo_overrides": {
     "marketplace": {
-      "additional_contexts": [
-        "Run plugin test suites"
-      ]
+      "additional_contexts": ["Run plugin test suites"]
     },
     "vscode-xcsh": {
       "additional_contexts": [
@@ -83,9 +81,7 @@
       ]
     },
     "console": {
-      "additional_contexts": [
-        "Validate Catalog Schemas"
-      ]
+      "additional_contexts": ["Validate Catalog Schemas"]
     },
     "terraform-provider-xcsh": {
       "additional_contexts": [
@@ -99,21 +95,13 @@
       ]
     },
     "api-specs-enriched": {
-      "additional_contexts": [
-        "Contract-diff gate",
-        "Run pytest suite"
-      ]
+      "additional_contexts": ["Contract-diff gate", "Run pytest suite"]
     },
     "api-specs": {
-      "additional_contexts": [
-        "Workflow security audit",
-        "Python test suite"
-      ]
+      "additional_contexts": ["Workflow security audit", "Python test suite"]
     },
     "docs-icons": {
-      "additional_contexts": [
-        "Generated artifact release"
-      ]
+      "additional_contexts": ["Generated artifact release"]
     }
   },
   "consumer_shell_tests": {
@@ -138,9 +126,7 @@
           },
           {
             "path": "tests/test-hook-neutralization.sh",
-            "args": [
-              "--unit-only"
-            ]
+            "args": ["--unit-only"]
           },
           {
             "path": "tests/test-inlined-helpers-match.sh",
@@ -219,18 +205,12 @@
         ".github/workflows/require-linked-issue.yml",
         ".github/workflows/github-pages-deploy.yml"
       ],
-      "xcsh-action": [
-        "README.md"
-      ],
+      "xcsh-action": ["README.md"],
       "terraform-provider-xcsh": [
         ".github/workflows/translation-audit.yml",
         "scripts/locale-lint.sh"
       ],
-      "api-specs": [
-        ".ruff.toml",
-        ".python-lint",
-        ".mypy.ini"
-      ],
+      "api-specs": [".ruff.toml", ".python-lint", ".mypy.ini"],
       "api-specs-enriched": [
         ".ruff.toml",
         ".python-lint",
@@ -295,25 +275,16 @@
         ".github/workflows/super-linter.yml",
         ".github/workflows/semgrep.yml"
       ],
-      "console": [
-        ".mypy.ini",
-        ".isort.cfg"
-      ],
+      "console": [".mypy.ini", ".isort.cfg"],
       "xcsh-chrome-extension": [
         ".ruff.toml",
         ".python-lint",
         ".mypy.ini",
         ".isort.cfg"
       ],
-      "apt-repo": [
-        "README.md"
-      ],
-      "demo-resource-template": [
-        "README.md"
-      ],
-      "marketplace-claude-code": [
-        "README.md"
-      ],
+      "apt-repo": ["README.md"],
+      "demo-resource-template": ["README.md"],
+      "marketplace-claude-code": ["README.md"],
       "starlight-llms-txt": [
         "README.md",
         ".github/workflows/auto-merge.yml",
@@ -323,12 +294,8 @@
         ".github/workflows/github-pages-deploy.yml",
         ".github/workflows/super-linter.yml"
       ],
-      "starlight-mega-menu": [
-        "README.md"
-      ],
-      "traffic-generator": [
-        "README.md"
-      ]
+      "starlight-mega-menu": ["README.md"],
+      "traffic-generator": ["README.md"]
     },
     "files": [
       {
@@ -594,26 +561,15 @@
       {
         "src": "content/canada/README.md",
         "dest": "README.md",
-        "only_repos": [
-          "canada",
-          "multi-cloud-networking"
-        ]
+        "only_repos": ["canada", "multi-cloud-networking"]
       }
     ]
   },
   "secrets_manifest": {
     "roles": {
-      "governance": [
-        "REPO_SETTINGS_TOKEN",
-        "REPO_SYNC_TOKEN"
-      ],
-      "npm_publish": [
-        "NPM_TOKEN",
-        "RELEASE_TOKEN"
-      ],
-      "release": [
-        "RELEASE_TOKEN"
-      ],
+      "governance": ["REPO_SETTINGS_TOKEN", "REPO_SYNC_TOKEN"],
+      "npm_publish": ["NPM_TOKEN", "RELEASE_TOKEN"],
+      "release": ["RELEASE_TOKEN"],
       "vscode_extension": [
         "VS_MARKETPLACE_TOKEN",
         "RELEASE_PAT",
@@ -651,141 +607,47 @@
       ]
     },
     "repo_roles": {
-      "_default": [
-        "governance"
-      ],
-      "dns": [
-        "governance"
-      ],
-      "demo-resource-template": [
-        "governance"
-      ],
-      "docs-icons": [
-        "governance",
-        "npm_publish"
-      ],
-      "docs-theme": [
-        "governance",
-        "npm_publish"
-      ],
-      "html-to-markdown": [
-        "governance"
-      ],
-      "docs-builder": [
-        "governance",
-        "release"
-      ],
-      "origin-server": [
-        "governance",
-        "release"
-      ],
-      "starlight-llms-txt": [
-        "governance",
-        "npm_publish"
-      ],
-      "starlight-mega-menu": [
-        "governance",
-        "npm_publish"
-      ],
-      "xcsh": [
-        "governance",
-        "npm_publish",
-        "apple_signing"
-      ],
-      "xcsh-action": [
-        "governance"
-      ],
-      "vscode-xcsh": [
-        "governance",
-        "vscode_extension"
-      ],
-      "terraform-provider-xcsh": [
-        "governance",
-        "terraform_provider"
-      ],
-      "api-specs": [
-        "governance"
-      ],
-      "api-specs-enriched": [
-        "governance",
-        "api_enrichment"
-      ],
-      "apt-repo": [
-        "governance"
-      ],
-      "f5-sales-demo.github.io": [
-        "governance"
-      ],
-      "administration": [
-        "governance"
-      ],
-      "nginx": [
-        "governance"
-      ],
-      "observability": [
-        "governance"
-      ],
-      "was": [
-        "governance"
-      ],
-      "multi-cloud-networking": [
-        "governance"
-      ],
-      "cdn": [
-        "governance"
-      ],
-      "bot-standard": [
-        "governance"
-      ],
-      "bot-advanced": [
-        "governance"
-      ],
-      "ddos": [
-        "governance"
-      ],
-      "waf": [
-        "governance"
-      ],
-      "api-protection": [
-        "governance"
-      ],
-      "webapp-api-protection": [
-        "governance"
-      ],
-      "csd": [
-        "governance"
-      ],
-      "devcontainer": [
-        "governance"
-      ],
-      "marketplace": [
-        "governance"
-      ],
-      "cdn-simulator": [
-        "governance"
-      ],
-      "traffic-generator": [
-        "governance"
-      ],
-      "demo-resources": [
-        "governance"
-      ],
-      "i18n-core": [
-        "governance"
-      ],
-      "console": [
-        "governance"
-      ],
-      "xcsh-chrome-extension": [
-        "governance"
-      ],
-      "marketplace-claude-code": [
-        "governance"
-      ],
-      "custom-responses": [
-        "governance",
-        "custom_response_infrastructure"
-      ]
+      "_default": ["governance"],
+      "dns": ["governance"],
+      "demo-resource-template": ["governance"],
+      "docs-icons": ["governance", "npm_publish"],
+      "docs-theme": ["governance", "npm_publish"],
+      "html-to-markdown": ["governance"],
+      "docs-builder": ["governance", "release"],
+      "origin-server": ["governance", "release"],
+      "starlight-llms-txt": ["governance", "npm_publish"],
+      "starlight-mega-menu": ["governance", "npm_publish"],
+      "xcsh": ["governance", "npm_publish", "apple_signing"],
+      "xcsh-action": ["governance"],
+      "vscode-xcsh": ["governance", "vscode_extension"],
+      "terraform-provider-xcsh": ["governance", "terraform_provider"],
+      "api-specs": ["governance"],
+      "api-specs-enriched": ["governance", "api_enrichment"],
+      "apt-repo": ["governance"],
+      "f5-sales-demo.github.io": ["governance"],
+      "administration": ["governance"],
+      "nginx": ["governance"],
+      "observability": ["governance"],
+      "was": ["governance"],
+      "multi-cloud-networking": ["governance"],
+      "cdn": ["governance"],
+      "bot-standard": ["governance"],
+      "bot-advanced": ["governance"],
+      "ddos": ["governance"],
+      "waf": ["governance"],
+      "api-protection": ["governance"],
+      "webapp-api-protection": ["governance"],
+      "csd": ["governance"],
+      "devcontainer": ["governance"],
+      "marketplace": ["governance"],
+      "cdn-simulator": ["governance"],
+      "traffic-generator": ["governance"],
+      "demo-resources": ["governance"],
+      "i18n-core": ["governance"],
+      "console": ["governance"],
+      "xcsh-chrome-extension": ["governance"],
+      "marketplace-claude-code": ["governance"],
+      "custom-responses": ["governance", "custom_response_infrastructure"]
     }
   }
 }
