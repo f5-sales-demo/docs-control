@@ -13,12 +13,12 @@ class ProviderAstroWorkflow(unittest.TestCase):
     def test_canonical_builder_uses_qualified_digest_consistently(self):
         text = (ROOT / ".github/workflows/github-pages-deploy.yml").read_text()
         digest = (
-            "sha256:72ab6ad2488d391b86d737c1375f782876cce16501f567d327db1caae0f3a7ae"
+            "sha256:988e1fbf4e5acdbb15eb0c9aa6430f7968603d4fc96e713a28ca09846eedadd4"
         )
         assert text.count("ghcr.io/f5-sales-demo/docs-builder@" + digest) == 2
 
     def test_named_content_callers_use_the_verified_builder(self):
-        image = "ghcr.io/f5-sales-demo/docs-builder@sha256:72ab6ad2488d391b86d737c1375f782876cce16501f567d327db1caae0f3a7ae"
+        image = "ghcr.io/f5-sales-demo/docs-builder@sha256:988e1fbf4e5acdbb15eb0c9aa6430f7968603d4fc96e713a28ca09846eedadd4"
         pages = (ROOT / "workflows/github-pages-deploy.yml").read_text()
         config_sources = (
             ROOT / "workflows/github-pages-config-sources.yml"
