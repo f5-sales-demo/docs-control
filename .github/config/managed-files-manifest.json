@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "13d9ecaab31dd828f3cf9bdfb3e67160741308ab",
+  "source_commit": "e0f3eee948a688d05ed686013e4761417bdf2da7",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "3ee42028ecf4b9cd8692db68e0f7e65ab28ab9f0",
-      "size": 8843,
+      "sha": "cdf3c08ece16294775d9724adb7ea0e5f99f38d2",
+      "size": 8874,
       "mode": "100644"
     },
     {
@@ -103,8 +103,8 @@
     {
       "path": ".github/actionlint.yaml",
       "src": ".github/actionlint.yaml",
-      "sha": "2e7fbf729947cbcd03396f23e2ac7526cdcbfc0a",
-      "size": 1796,
+      "sha": "d9b6950b6893d35936f1d5c162714738b9d51209",
+      "size": 1813,
       "mode": "100644"
     },
     {
@@ -476,5 +476,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:744cdb45936f7b79a7c4a0dc16d35123a73039fd2cb3bc75079de8371159c9d5"
+  "state_digest": "sha256:dd48a76b01410b29ce65b6dd8dab51715562976ce3bfb08b41ca86831288d110"
 }
