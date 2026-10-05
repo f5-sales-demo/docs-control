@@ -123,6 +123,49 @@ function contentDiff(tree, desired) {
   for (const absent of desired.deletes) if (actual.has(absent)) changes.push({ path: absent, action: 'delete' });
   return changes.sort((a, b) => a.path.localeCompare(b.path));
 }
+async function readManagedTree(api, owner, repo, revision, desired) {
+  const endpoint = `repos/${owner}/${repo}/git/trees/${revision}`;
+  const recursive = await api.request(`${endpoint}?recursive=1`, {
+    operationName: `read managed tree for ${repo}`,
+  });
+  if (!Array.isArray(recursive?.tree) || typeof recursive.truncated !== 'boolean')
+    fail(`managed tree response is malformed for ${repo}`);
+  if (!recursive.truncated) return recursive;
+
+  // GitHub caps recursive trees for large repositories. Read only paths governed
+  // by this manifest so omitted entries cannot be mistaken for missing files.
+  const root = await api.request(endpoint, { operationName: `read managed root tree for ${repo}` });
+  if (!Array.isArray(root?.tree) || root.truncated !== false)
+    fail(`managed root tree is incomplete for ${repo}`);
+  const cache = new Map();
+  const paths = [...new Set([...desired.files.map((file) => file.path), ...desired.deletes])].sort();
+  const files = [];
+  for (const path of paths) {
+    const parts = path.split('/');
+    let entries = root.tree;
+    for (let index = 0; index < parts.length; index += 1) {
+      const entry = entries.find((item) => item.path === parts[index]);
+      if (!entry) break;
+      if (index === parts.length - 1) {
+        if (entry.type === 'blob') files.push({ ...entry, path });
+        break;
+      }
+      if (entry.type !== 'tree') break;
+      let subtree = cache.get(entry.sha);
+      if (!subtree) {
+        subtree = await api.request(`repos/${owner}/${repo}/git/trees/${entry.sha}`, {
+          operationName: `read managed subtree for ${repo}`,
+        });
+        if (!Array.isArray(subtree?.tree) || subtree.truncated !== false)
+          fail(`managed subtree is incomplete for ${repo}`);
+        cache.set(entry.sha, subtree);
+      }
+      entries = subtree.tree;
+    }
+  }
+  return { tree: files, truncated: false };
+}
+
 function reconciliationBranchPrefix(value = 'governance/reconcile') {
   if (!BRANCH_PREFIXES.has(value)) fail('reconciliation branch prefix is invalid');
   return value;
@@ -510,9 +553,7 @@ async function createContentPr(
     const files = await api.request(`repos/${owner}/${repo}/pulls/${recovered.number}/files?per_page=100`, {
       operationName: `verify recovered PR paths for ${repo}`,
     });
-    const headTree = await api.request(`repos/${owner}/${repo}/git/trees/${recovered.head.sha}?recursive=1`, {
-      operationName: `verify recovered PR tree for ${repo}`,
-    });
+    const headTree = await readManagedTree(api, owner, repo, recovered.head.sha, desired);
     assertAttestableRecovery({ pr: recovered, note, changes, files, headTree, desired });
     await enableManagedAutoMerge(api, repo, recovered.node_id);
     return { status: 'recovered', pr: recovered.number };
@@ -618,9 +659,7 @@ async function reconcileContent(options) {
       operationName: `read protected main for ${repo}`,
     });
     const desired = desiredEntries(config, manifest, repo);
-    const tree = await api.request(`repos/${owner}/${repo}/git/trees/${main.sha}?recursive=1`, {
-      operationName: `read managed tree for ${repo}`,
-    });
+    const tree = await readManagedTree(api, owner, repo, main.sha, desired);
     const changes = contentDiff(tree, desired);
     const desiredTree = require('node:crypto').createHash('sha256').update(JSON.stringify(desired)).digest('hex');
     if (!changes.length) {
@@ -932,6 +971,7 @@ module.exports = {
   reconciliationBranchPrefix,
   parseSelection,
   readCurrentProtection,
+  readManagedTree,
   reconcileContent,
   reconcileSettings,
   retireCurrentContentPrs,
