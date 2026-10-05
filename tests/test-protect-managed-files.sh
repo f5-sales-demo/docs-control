@@ -67,7 +67,7 @@ setup_downstream() {
   cp "$GOVERNANCE_JSON" "$DOWNSTREAM/.claude/"
   cd "$DOWNSTREAM"
   git init -q
-  git remote add origin https://github.com/f5-sales-demo/waf.git
+  git remote add origin https://github.com/f5-sales-demo/was.git
 }
 
 # Helper: run the hook in a given directory with a given file_path input
@@ -525,12 +525,12 @@ OUTPUT=$(run_hook "$XCSH_DOWN" "AGENTS.md") || EXIT_CODE=$?
 assert_exit_code 2 "$EXIT_CODE" "5.5 non-opted-out AGENTS.md still blocked for xcsh"
 assert_contains "$OUTPUT" "BLOCKED" "5.5 non-opted-out AGENTS.md shows BLOCKED for xcsh"
 
-# Test 5.5.N+1: a different downstream (waf) is NOT opted out of biome.json
-# The existing $DOWNSTREAM (origin=waf) should still block biome.json.
+# Test 5.5.N+1: a different downstream (was) is NOT opted out of biome.json
+# The existing $DOWNSTREAM (origin=was) should still block biome.json.
 OUTPUT=""
 EXIT_CODE=0
 OUTPUT=$(run_hook "$DOWNSTREAM" "biome.json") || EXIT_CODE=$?
-assert_exit_code 2 "$EXIT_CODE" "5.5 waf (not opted-out) still blocks biome.json"
+assert_exit_code 2 "$EXIT_CODE" "5.5 was (not opted-out) still blocks biome.json"
 
 # ════════════════════════════════════════════════════════════════════
 # SECTION 6: Hook Behavior — Allowing Non-Protected Files
