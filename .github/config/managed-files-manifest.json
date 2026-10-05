@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "0b58d1c8fa7297a426e36d75171c7c8e3498270c",
+  "source_commit": "aecc39429eb87f3d59b0e80c6723e595a9ceecd3",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -68,8 +68,8 @@
     {
       "path": ".github/ISSUE_TEMPLATE/bug_report.md",
       "src": ".github/ISSUE_TEMPLATE/bug_report.md",
-      "sha": "d9a3cf932abdc3fcbc004b0ae76e3de5edd8ecfe",
-      "size": 845,
+      "sha": "bc4f2cbd458f1654375b6aff19d3e318f5414d71",
+      "size": 835,
       "mode": "100644"
     },
     {
@@ -82,15 +82,15 @@
     {
       "path": ".github/ISSUE_TEMPLATE/documentation.md",
       "src": ".github/ISSUE_TEMPLATE/documentation.md",
-      "sha": "c3c4dd7402ee9395899f757afba117eb36c9443d",
-      "size": 739,
+      "sha": "b5cd9d3f2517e5118f397dbba395a4b36e542a6b",
+      "size": 729,
       "mode": "100644"
     },
     {
       "path": ".github/ISSUE_TEMPLATE/feature_request.md",
       "src": ".github/ISSUE_TEMPLATE/feature_request.md",
-      "sha": "ecdb5a3a6dc83a975f36946f0c826152da46498a",
-      "size": 756,
+      "sha": "b8d6573e0a1e5756010457ffa71e12b730fe76fe",
+      "size": 746,
       "mode": "100644"
     },
     {
@@ -476,5 +476,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:2ef2b720cf5f8476ebfa9a18030b59d89cec0b6f62f43adc63d98068ab3bd9c9"
+  "state_digest": "sha256:ab2b6b31aa523b9126cf3bf17efc7aac366085ff09d290fac20a9736dec88839"
 }
