@@ -5,7 +5,7 @@ node - "$root/scripts/fleet-reconciler.cjs" <<'NODE'
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, branchName, closeMergedReconciliationIssues, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, readCurrentProtection, readManagedTree, reconcileContent, reconciliationBranchPrefix, requireSha, retireCurrentContentPrs, retireSupersededContentPrs, settingsDelta, validateManifest} = require(process.argv[2]);
+const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, branchName, closeMergedReconciliationIssues, contentDiff, currentProtection, desiredEntries, desiredRepositorySettings, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, readCurrentProtection, readManagedTree, reconcileContent, reconciliationBranchPrefix, requireSha, retireCurrentContentPrs, retireSupersededContentPrs, settingsDelta, validateManifest} = require(process.argv[2]);
 (async () => {
 const sha = 'a'.repeat(40);
 const fullName = (owner, repo) => `${owner}/${repo}`;
@@ -54,6 +54,12 @@ assert.equal(treeCalls.filter(x => x.endsWith(`/git/trees/${subtreeSha}`)).lengt
 await assert.rejects(readManagedTree({request:async(route) => route.endsWith('?recursive=1') ? {tree:[],truncated:true} : {tree:[],truncated:true}},'f5','one',sha,managedPaths), /root tree is incomplete/);
 
 assert.deepEqual(settingsDelta({has_issues:true,has_wiki:true}, {has_issues:true,has_wiki:false}), {has_wiki:false});
+const repositoryPolicy = {repository:{homepage:'',has_issues:true},repo_overrides:{'webapp-api-protection':{repository:{homepage:'https://f5-sales-demo.github.io/webapp-api-protection/',description:'Canonical showcase'}}}};
+assert.deepEqual(desiredRepositorySettings(repositoryPolicy,'webapp-api-protection'),{homepage:'https://f5-sales-demo.github.io/webapp-api-protection/',has_issues:true,description:'Canonical showcase'});
+assert.deepEqual(desiredRepositorySettings(repositoryPolicy,'was'),repositoryPolicy.repository);
+assert.throws(() => desiredRepositorySettings({repository:{},repo_overrides:{one:{repository:{private:true}}}},'one'), /unsupported fields/);
+assert.throws(() => desiredRepositorySettings({repository:{},repo_overrides:{one:{repository:[]}}},'one'), /malformed/);
+
 const protection = desiredProtection({branch_protection:[{branch:'main',enforce_admins:true,required_status_checks:{strict:true,contexts:['lint / Lint'],self_contexts:['Lint']},required_pull_request_reviews:null,restrictions:null,required_linear_history:false,allow_force_pushes:false,allow_deletions:false,block_creations:false,required_conversation_resolution:false,lock_branch:false,allow_fork_syncing:false}],repo_overrides:{one:{additional_contexts:['Extra','Excluded'],excluded_required_contexts:['Excluded']}}}, 'one');
 assert.deepEqual(protection.required_status_checks.contexts, []);
 assert.deepEqual(protection.required_status_checks.checks, [{context:'Extra',app_id:-1},{context:'lint / Lint',app_id:-1}]);
