@@ -591,7 +591,6 @@
       "bot-standard": ["governance"],
       "bot-advanced": ["governance"],
       "ddos": ["governance"],
-      "waf": ["governance"],
       "api-protection": ["governance"],
       "webapp-api-protection": ["governance"],
       "csd": ["governance"],
