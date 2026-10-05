@@ -48,6 +48,11 @@
     "description": "F5 XC observability and monitoring"
   },
   {
+    "label": "Statistics",
+    "url": "https://f5-sales-demo.github.io/statistics/llms-full.txt",
+    "description": "Guides for retrieving statistics from the F5 Distributed Cloud API"
+  },
+  {
     "label": "Web App Scanning",
     "url": "https://f5-sales-demo.github.io/was/llms-full.txt",
     "description": "F5 XC web application scanning"
