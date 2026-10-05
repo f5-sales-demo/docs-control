@@ -693,6 +693,17 @@ function settingsDelta(current, desired) {
     if (JSON.stringify(current[key]) !== JSON.stringify(value)) delta[key] = value;
   return delta;
 }
+function desiredRepositorySettings(config, repo) {
+  const base = config.repository || {};
+  const override = config.repo_overrides?.[repo]?.repository;
+  if (override === undefined) return base;
+  if (!override || typeof override !== 'object' || Array.isArray(override))
+    fail(`repository settings override is malformed for ${repo}`);
+  const allowed = new Set(['homepage', 'description']);
+  if (Object.keys(override).some((key) => !allowed.has(key)))
+    fail(`repository settings override contains unsupported fields for ${repo}`);
+  return { ...base, ...override };
+}
 function desiredProtection(config, repo) {
   const base = (config.branch_protection || []).find((entry) => entry.branch === 'main');
   if (!base) return null;
@@ -818,7 +829,7 @@ async function reconcileSettings(options) {
   const result = [];
   for (const repo of repos) {
     const current = await api.request(`repos/${owner}/${repo}`, { operationName: `read settings for ${repo}` });
-    const delta = settingsDelta(current, config.repository);
+    const delta = settingsDelta(current, desiredRepositorySettings(config, repo));
     if (mode === 'dry-run') {
       result.push({ repo, status: Object.keys(delta).length ? 'would-update' : 'noop', delta });
       continue;
@@ -965,6 +976,7 @@ module.exports = {
   closeMergedReconciliationIssues,
   currentProtection,
   desiredEntries,
+  desiredRepositorySettings,
   desiredProtection,
   managedCommitMessage,
   manifestStateDigest,

@@ -90,6 +90,12 @@
     },
     "docs-icons": {
       "additional_contexts": ["Generated artifact release"]
+    },
+    "webapp-api-protection": {
+      "repository": {
+        "homepage": "https://f5-sales-demo.github.io/webapp-api-protection/",
+        "description": "F5 XC Web App & API Protection showcase: Terraform deployment, origin apps, WAF/API/Bot scenarios, and continuous traffic"
+      }
     }
   },
   "consumer_shell_tests": {
