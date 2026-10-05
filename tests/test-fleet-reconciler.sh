@@ -5,7 +5,7 @@ node - "$root/scripts/fleet-reconciler.cjs" <<'NODE'
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, branchName, closeMergedReconciliationIssues, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, readCurrentProtection, reconcileContent, reconciliationBranchPrefix, requireSha, retireCurrentContentPrs, retireSupersededContentPrs, settingsDelta, validateManifest} = require(process.argv[2]);
+const {ACTIVE_PR_LIMIT, ApiQueue, aggregateProtection, assertAttestableRecovery, branchName, closeMergedReconciliationIssues, contentDiff, currentProtection, desiredEntries, desiredProtection, managedCommitMessage, manifestStateDigest, parseSelection, readCurrentProtection, readManagedTree, reconcileContent, reconciliationBranchPrefix, requireSha, retireCurrentContentPrs, retireSupersededContentPrs, settingsDelta, validateManifest} = require(process.argv[2]);
 (async () => {
 const sha = 'a'.repeat(40);
 const fullName = (owner, repo) => `${owner}/${repo}`;
@@ -37,6 +37,22 @@ assert.throws(() => validateManifest(config, {...manifest,state_digest:`sha256:$
 assert.throws(() => validateManifest(config, {...manifest,absent_paths:[]}), /configuration and manifest/);
 assert.throws(() => validateManifest(config, makeManifest(manifest.files, ['a','retired'])), /sorted and unique/);
 assert.deepEqual(contentDiff({tree:[{path:'a',type:'blob',sha:'c'.repeat(40),mode:'100644'},{path:'retired',type:'blob',sha:sha,mode:'100644'}]}, desiredEntries(config, manifest, 'one')).map(x => x.action), ['upsert','upsert','delete']);
+const subtreeSha = 'd'.repeat(40);
+const managedPaths = {files:[{path:'scripts/one.py',sha,mode:'100644'},{path:'scripts/two.py',sha,mode:'100755'}],deletes:['retired']};
+const treeCalls = [];
+const truncatedApi = {request:async(route) => {
+  treeCalls.push(route);
+  if (route.endsWith('?recursive=1')) return {tree:[],truncated:true};
+  if (route.endsWith(`/git/trees/${sha}`)) return {tree:[{path:'scripts',type:'tree',sha:subtreeSha},{path:'retired',type:'blob',sha,mode:'100644'}],truncated:false};
+  if (route.endsWith(`/git/trees/${subtreeSha}`)) return {tree:[{path:'one.py',type:'blob',sha,mode:'100644'},{path:'two.py',type:'blob',sha,mode:'100755'}],truncated:false};
+  throw new Error(`unexpected tree route ${route}`);
+}};
+const recoveredTree = await readManagedTree(truncatedApi,'f5','one',sha,managedPaths);
+assert.deepEqual(recoveredTree.tree.map(x => x.path), ['retired','scripts/one.py','scripts/two.py']);
+assert.equal(contentDiff(recoveredTree,managedPaths).length,1);
+assert.equal(treeCalls.filter(x => x.endsWith(`/git/trees/${subtreeSha}`)).length,1);
+await assert.rejects(readManagedTree({request:async(route) => route.endsWith('?recursive=1') ? {tree:[],truncated:true} : {tree:[],truncated:true}},'f5','one',sha,managedPaths), /root tree is incomplete/);
+
 assert.deepEqual(settingsDelta({has_issues:true,has_wiki:true}, {has_issues:true,has_wiki:false}), {has_wiki:false});
 const protection = desiredProtection({branch_protection:[{branch:'main',enforce_admins:true,required_status_checks:{strict:true,contexts:['lint / Lint'],self_contexts:['Lint']},required_pull_request_reviews:null,restrictions:null,required_linear_history:false,allow_force_pushes:false,allow_deletions:false,block_creations:false,required_conversation_resolution:false,lock_branch:false,allow_fork_syncing:false}],repo_overrides:{one:{additional_contexts:['Extra','Excluded'],excluded_required_contexts:['Excluded']}}}, 'one');
 assert.deepEqual(protection.required_status_checks.contexts, []);
@@ -300,7 +316,7 @@ const fleetApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.MAX_
   else if (route.endsWith('/repos/f5/archived')) data = {archived:true};
   else if (/\/repos\/f5\/(one|two|three)$/.test(route)) data = {archived:false};
   else if (route.includes('/commits/main')) data = {sha:'c'.repeat(40)};
-  else if (route.includes('/git/trees/') && method === 'GET') data = {tree:[]};
+  else if (route.includes('/git/trees/') && method === 'GET') data = {tree:[],truncated:false};
   else if (route.includes('/git/commits/') && method === 'GET') data = {tree:{sha:'t'.repeat(40)}};
   else if (route.endsWith('/git/trees')) data = {sha:'n'.repeat(40)};
   else if (route.endsWith('/git/commits')) data = {sha:'m'.repeat(40)};
@@ -347,8 +363,8 @@ const recoveryApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.M
     data=['one','two'].includes(repo) ? [{number:1,node_id:'P',base:{ref:'main'},body:`${recoveryNote}\n\nCloses #1`,head:{sha}}] : [];
   } else if (route.includes('/pulls/1/files')) data=[{filename:'README'}];
   else if (route.includes('/commits/main')) data={sha:'c'.repeat(40)};
-  else if (route.includes(`/git/trees/${sha}`)) data={tree:[{path:'README',type:'blob',sha,mode:'100644'}]};
-  else if (route.includes('/git/trees/')) data={tree:[]};
+  else if (route.includes(`/git/trees/${sha}`)) data={tree:[{path:'README',type:'blob',sha,mode:'100644'}],truncated:false};
+  else if (route.includes('/git/trees/')) data={tree:[],truncated:false};
   return new Response(JSON.stringify(data),{status:200});
 }});
 const recovered = await reconcileContent({api:recoveryApi, owner:'f5', sourceSha:sha, mode:'full', inventory:['one','two','three'], selection:'', sourceRoot:process.cwd(), manifest:oneFileManifest, config:{managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}}}});
