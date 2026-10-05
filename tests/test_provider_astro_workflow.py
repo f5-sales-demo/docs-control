@@ -17,6 +17,15 @@ class ProviderAstroWorkflow(unittest.TestCase):
         )
         assert text.count("ghcr.io/f5-sales-demo/docs-builder@" + digest) == 2
 
+    def test_named_content_callers_use_the_verified_builder(self):
+        image = "ghcr.io/f5-sales-demo/docs-builder@sha256:2116c4606e7339f51fcbfdba67bd9495ea1cfab5b3933b0abb4e2563211101e9"
+        pages = (ROOT / "workflows/github-pages-deploy.yml").read_text()
+        config_sources = (ROOT / "workflows/github-pages-config-sources.yml").read_text()
+        assert pages.count(image) == 2
+        assert "f5-sales-demo/canada" in pages
+        assert "f5-sales-demo/custom-responses" in pages
+        assert config_sources.count(image) == 1
+
     def test_hierarchy_output_replaces_flat_index_comparison(self):
         text = (ROOT / ".github/workflows/github-pages-deploy.yml").read_text()
         assert 'cmp "$CONTENT_PATH/llms.txt"' not in text
