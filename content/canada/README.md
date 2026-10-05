@@ -21,7 +21,9 @@ Three Azure Customer Edges, two FRR relays, Azure Route Server, an internal load
 not establish cross-region redundancy, comprehensive Canadian data residency or legal compliance. Internal diagnostic listeners are separate from public advertisement. Public IPv6
 remains unpublished pending equivalent enforcement verification.
 
-The documentation follows [Design](https://f5-sales-demo.github.io/canada/en/design/), [Deploy](https://f5-sales-demo.github.io/canada/en/deploy/), [Verify](https://f5-sales-demo.github.io/canada/en/verify/) and [Operate](https://f5-sales-demo.github.io/canada/en/operate/). The [configuration map](https://f5-sales-demo.github.io/canada/en/architecture/) and [Terraform source](https://f5-sales-demo.github.io/canada/en/terraform/) retain their existing URLs.
+The documentation follows [Design](https://f5-sales-demo.github.io/canada/en/design/), [Deploy](https://f5-sales-demo.github.io/canada/en/deploy/),
+[Verify](https://f5-sales-demo.github.io/canada/en/verify/) and [Operate](https://f5-sales-demo.github.io/canada/en/operate/).
+The [configuration map](https://f5-sales-demo.github.io/canada/en/architecture/) and [Terraform source](https://f5-sales-demo.github.io/canada/en/terraform/) retain their existing URLs.
 
 Terraform is supporting implementation reference. Its source is extracted with attribution from
 [f5-sales-demo/multi-cloud-networking](https://github.com/f5-sales-demo/multi-cloud-networking). The Canada application namespace and registration token are separately owned; CE
