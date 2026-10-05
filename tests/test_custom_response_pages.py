@@ -71,7 +71,7 @@ class CustomResponsePagesTests(unittest.TestCase):
             "github.repository == 'f5-sales-demo/custom-responses'", prose_caller
         )
         self.assertIn(
-            "sha256:2116c4606e7339f51fcbfdba67bd9495ea1cfab5b3933b0abb4e2563211101e9",
+            "sha256:72ab6ad2488d391b86d737c1375f782876cce16501f567d327db1caae0f3a7ae",
             prose_caller,
         )
 
