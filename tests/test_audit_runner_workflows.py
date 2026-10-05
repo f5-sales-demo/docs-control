@@ -1694,13 +1694,17 @@ class DocsConditionalRouteTests(unittest.TestCase):
 
 class SecretProvisioningTests(unittest.TestCase):
     def test_dispatch_is_exact_and_does_not_persist_values(self):
-        source = (ROOT / ".github/workflows/provision-canada-secrets.yml").read_text()
-        self.assertIn("workflow_dispatch:", source)
-        self.assertNotIn("pull_request", source)
-        self.assertIn("f5-sales-demo/canada", source)
-        self.assertIn("input=value", source)
-        self.assertIn('["REPO_SETTINGS_TOKEN", "REPO_SYNC_TOKEN"]', source)
-        self.assertNotIn("print(value)", source)
+        for repository in ("canada", "statistics"):
+            with self.subTest(repository=repository):
+                source = (
+                    ROOT / f".github/workflows/provision-{repository}-secrets.yml"
+                ).read_text()
+                self.assertIn("workflow_dispatch:", source)
+                self.assertNotIn("pull_request", source)
+                self.assertIn(f"f5-sales-demo/{repository}", source)
+                self.assertIn("input=value", source)
+                self.assertIn('["REPO_SETTINGS_TOKEN", "REPO_SYNC_TOKEN"]', source)
+                self.assertNotIn("print(value)", source)
 
 
 if __name__ == "__main__":
