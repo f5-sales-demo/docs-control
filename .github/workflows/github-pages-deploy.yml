@@ -218,7 +218,7 @@ jobs:
       - name: Resolve approved documentation builder
         id: builder
         env:
-          REQUESTED_IMAGE: ${{ github.repository == 'f5-sales-demo/terraform-provider-xcsh' && 'ghcr.io/f5-sales-demo/docs-builder@sha256:2116c4606e7339f51fcbfdba67bd9495ea1cfab5b3933b0abb4e2563211101e9' || inputs.builder-image }}
+          REQUESTED_IMAGE: ${{ github.repository == 'f5-sales-demo/terraform-provider-xcsh' && 'ghcr.io/f5-sales-demo/docs-builder@sha256:72ab6ad2488d391b86d737c1375f782876cce16501f567d327db1caae0f3a7ae' || inputs.builder-image }}
           SNAPSHOT_ENABLED: ${{ steps.snapshot.outputs.enabled }}
         run: |
           if [[ ! "$REQUESTED_IMAGE" =~ ^ghcr\.io/f5-sales-demo/docs-builder(:latest|@sha256:[0-9a-f]{64})$ ]]; then
@@ -384,7 +384,7 @@ jobs:
           fi
 
           if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
-            expected_builder=ghcr.io/f5-sales-demo/docs-builder@sha256:2116c4606e7339f51fcbfdba67bd9495ea1cfab5b3933b0abb4e2563211101e9
+            expected_builder=ghcr.io/f5-sales-demo/docs-builder@sha256:72ab6ad2488d391b86d737c1375f782876cce16501f567d327db1caae0f3a7ae
             if [ "$BUILDER_IMAGE" != "$expected_builder" ]; then
               echo "::error::canonical provider requires the accepted immutable builder"
               exit 1

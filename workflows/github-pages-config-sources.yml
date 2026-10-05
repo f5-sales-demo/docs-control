@@ -19,7 +19,7 @@ jobs:
     if: github.repository == 'f5-sales-demo/custom-responses'
     uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@a0e40f0e5643fce004547f321f4a6e8a98bcbea1
     with:
-      builder-image: ghcr.io/f5-sales-demo/docs-builder@sha256:2116c4606e7339f51fcbfdba67bd9495ea1cfab5b3933b0abb4e2563211101e9
+      builder-image: ghcr.io/f5-sales-demo/docs-builder@sha256:72ab6ad2488d391b86d737c1375f782876cce16501f567d327db1caae0f3a7ae
       content-ref: ${{ github.sha }}
       content-path: docs
       socketless_runner_label: managed-socketless
