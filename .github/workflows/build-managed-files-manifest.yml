@@ -26,6 +26,7 @@ on:
       - '.agents/**'
       - 'README.md'
       - 'content/canada/README.md'
+      - 'content/statistics/README.md'
       - 'content/multi-cloud-networking/README.md'
       - 'LICENSE'
       - '.editorconfig'

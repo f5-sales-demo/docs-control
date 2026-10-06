@@ -274,6 +274,11 @@
     },
     "files": [
       {
+        "src": "content/statistics/README.md",
+        "dest": "README.md",
+        "only_repos": ["statistics"]
+      },
+      {
         "src": "workflows/github-pages-config-sources.yml",
         "dest": ".github/workflows/github-pages-config-sources.yml",
         "only_repos": ["custom-responses"]
