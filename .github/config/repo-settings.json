@@ -91,6 +91,12 @@
     "docs-icons": {
       "additional_contexts": ["Generated artifact release"]
     },
+    "statistics": {
+      "repository": {
+        "homepage": "https://f5-sales-demo.github.io/statistics/",
+        "description": "Retrieve statistics from the F5 Distributed Cloud API across resource types"
+      }
+    },
     "webapp-api-protection": {
       "repository": {
         "homepage": "https://f5-sales-demo.github.io/webapp-api-protection/",
