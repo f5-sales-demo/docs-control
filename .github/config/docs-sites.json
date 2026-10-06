@@ -50,7 +50,9 @@
   {
     "label": "Statistics",
     "url": "https://f5-sales-demo.github.io/statistics/llms-full.txt",
-    "description": "Guides for retrieving statistics from the F5 Distributed Cloud API"
+    "description": "Retrieve statistics from the F5 Distributed Cloud API across resource types",
+    "readme_english_only": true,
+    "readme_content": "Statistics retrieves resource telemetry from the F5 Distributed Cloud API. The current HTTP deployment demonstrates access logs, load balancer and origin metrics, application health, API activity, WAF counters, and security events. Infrastructure reference and demo readiness support these resource guides."
   },
   {
     "label": "Web App Scanning",
