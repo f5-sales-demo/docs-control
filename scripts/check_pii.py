@@ -2175,11 +2175,11 @@ def scan_structured_identity(
         if not is_literal_structured_identity_field(path, line, match):
             continue
         value = structured_field_value(path, line, match)
-        if is_documented_identity_expression(line, match, value, context):
-            continue
-        if numeric_enum_member(match, value, context):
-            continue
-        if source_field_alias(match, value, context):
+        if (
+            is_documented_identity_expression(line, match, value, context)
+            or numeric_enum_member(match, value, context)
+            or source_field_alias(match, value, context)
+        ):
             continue
         in_jq_span = match_is_in_spans(match, context.jq_spans)
         jq_literal = in_jq_span and not jq_value_is_expression(
