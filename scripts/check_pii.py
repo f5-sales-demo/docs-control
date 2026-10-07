@@ -2136,7 +2136,10 @@ def scan_contacts(
 
 
 def is_documented_identity_expression(
-    line: str, match: re.Match[str], value: str, context: LineScanContext
+    line: str,
+    match: re.Match[str],
+    value: str,
+    context: LineScanContext,
 ) -> bool:
     """Recognize dynamic shell inputs and fixed XC query/control expressions."""
     key = re.escape(match.group("key"))
