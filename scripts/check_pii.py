@@ -2139,12 +2139,12 @@ def is_documented_identity_expression(
     line: str, match: re.Match[str], value: str, context: LineScanContext
 ) -> bool:
     """Recognize dynamic shell inputs and fixed XC query/control expressions."""
+    key = re.escape(match.group("key"))
+    positional_pattern = rf"(?:^|[;\s]){key}=\$[0-9]+(?:\s|$)"
     positional = (
         match.group("separator") == "="
         and re.fullmatch(r"\$[0-9]+(?=\s|$)", value.split(maxsplit=1)[0])
-        and re.search(
-            r"(?:^|[;\s])" + re.escape(match.group("key")) + r"=\$[0-9]+(?:\s|$)", line
-        )
+        and re.search(positional_pattern, line)
     )
     lookup = (
         match_is_in_spans(match, context.jq_spans)
