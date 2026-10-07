@@ -2135,6 +2135,29 @@ def scan_contacts(
             )
 
 
+def is_documented_identity_expression(
+    line: str, match: re.Match[str], value: str, context: LineScanContext
+) -> bool:
+    """Recognize dynamic shell inputs and fixed XC query/control expressions."""
+    positional = (
+        match.group("separator") == "="
+        and re.fullmatch(r"\$[0-9]+(?=\s|$)", value.split(maxsplit=1)[0])
+        and re.search(
+            r"(?:^|[;\s])" + re.escape(match.group("key")) + r"=\$[0-9]+(?:\s|$)", line
+        )
+    )
+    lookup = (
+        match_is_in_spans(match, context.jq_spans)
+        and re.search(r"\bdef\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*\{", line)
+        and re.search(r"\}\s*\[\.\]\s*;", line)
+        and re.fullmatch(r"[0-9]+", normalized_value(value))
+    )
+    fixed_query = normalized_value(value).startswith("system") and re.search(
+        r"/api/web/namespaces/system/quota/usage\?namespace=system(?:[\"'\s]|$)", line
+    )
+    return bool(positional or lookup or fixed_query)
+
+
 def scan_structured_identity(
     path: str,
     line_number: int,
@@ -2149,26 +2172,7 @@ def scan_structured_identity(
         if not is_literal_structured_identity_field(path, line, match):
             continue
         value = structured_field_value(path, line, match)
-        if (
-            match.group("separator") == "="
-            and re.fullmatch(r"\$[0-9]+(?=\s|$)", value.split(maxsplit=1)[0])
-            and re.search(
-                r"(?:^|[;\s])" + re.escape(match.group("key")) + r"=\$[0-9]+(?:\s|$)",
-                line,
-            )
-        ):
-            continue
-        if (
-            match_is_in_spans(match, context.jq_spans)
-            and re.search(r"\bdef\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*\{", line)
-            and re.search(r"\}\s*\[\.\]\s*;", line)
-            and re.fullmatch(r"[0-9]+", normalized_value(value))
-        ):
-            continue
-        if normalized_value(value).startswith("system") and re.search(
-            r"/api/web/namespaces/system/quota/usage\?namespace=system(?:[\"'\s]|$)",
-            line,
-        ):
+        if is_documented_identity_expression(line, match, value, context):
             continue
         if numeric_enum_member(match, value, context):
             continue
