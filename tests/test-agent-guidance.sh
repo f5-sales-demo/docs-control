@@ -134,6 +134,59 @@ for token in "credentials" "logs" "telemetry"; do
 done
 
 echo ""
+echo "=== Section 2b: guidance retains authorization and scopes human input ==="
+
+# Fold prose line wrapping so the policy checks do not depend on Markdown layout.
+assert_prose_contains() {
+  local file="$1" token="$2" label="$3" prose
+  prose=$(tr '\n' ' ' <"$file" | sed 's/[[:space:]][[:space:]]*/ /g')
+  if [[ "$prose" == *"$token"* ]]; then
+    pass "$label"
+  else
+    fail "$label" "missing: $token"
+  fi
+}
+
+for file in "$AGENTS_MD" "$CLAUDE_MD" "$CONTRIBUTING_MD"; do
+  relative=${file#"$REPO_ROOT"/}
+  for token in \
+    "Use authorization already provided in the conversation." \
+    "Continue authorized work without requesting approval again for routine implementation, verification, commits, PR repair, or delivery steps within that scope." \
+    "missing authorization for the next action" \
+    "an unresolved material decision" \
+    "explicitly required human acceptance" \
+    "an operational failure preventing that action" \
+    "identify the action and unmet requirement" \
+    "pause dependent work" \
+    "continue independent authorized work"; do
+    assert_prose_contains "$file" "$token" "$relative retains authorization policy: $token"
+  done
+  for token in \
+    "Where a change needs human judgment" \
+    "explicit human acceptance before merge" \
+    "uncertain authorization, destructive-risk approval" \
+    "a product decision that requires the user" \
+    "a product decision requiring the user"; do
+    assert_not_contains "$file" "$token" "$relative rejects redundant approval gate: $token"
+  done
+done
+
+for token in \
+  "only when the user, applicable instructions, or agreed acceptance criteria explicitly require it" \
+  "user-facing behavior or UX change does not by itself require a separate approval" \
+  "Authorization persists across turns unless the user changes or withdraws it" \
+  "Plan Mode remains non-mutating" \
+  "Required CI checks, branch protection, and merge prerequisites must pass through the normal workflow" \
+  "do not inherently require asking the user for permission"; do
+  assert_prose_contains "$CONTRIBUTING_MD" "$token" "CONTRIBUTING.md defines scoped acceptance: $token"
+done
+
+for file in "$AGENTS_MD" "$CLAUDE_MD"; do
+  assert_contains "$file" 'CONTRIBUTING.md#authorization-and-required-input' \
+    "${file#"$REPO_ROOT"/} links to the full authorization policy"
+done
+
+echo ""
 echo "=== Section 3: managed-file governance covers Codex surfaces ==="
 
 MANAGED_PATHS="AGENTS.md
