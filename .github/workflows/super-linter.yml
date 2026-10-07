@@ -345,6 +345,7 @@ jobs:
       - name: Validate Rust edition input
         env:
           RUST_EDITION: ${{ inputs.rust_edition || 'none' }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           case "$RUST_EDITION" in
             none|2018|2021|2024) ;;
@@ -353,6 +354,12 @@ jobs:
               exit 1
               ;;
           esac
+
+          # xcsh already runs all-target/all-feature Clippy in required CI.
+          # Its vendored OpenSSL needs make, absent from the linter container.
+          if [ "$REPOSITORY" = "f5-sales-demo/xcsh" ]; then
+            echo "VALIDATE_RUST_CLIPPY=false" >> "$GITHUB_ENV"
+          fi
 
           # Super-Linter rejects a mix of explicit true (include mode) and
           # false (exclude mode) VALIDATE_* settings. This workflow already
@@ -1029,6 +1036,10 @@ jobs:
       - name: Run check-repo-hygiene test
         if: hashFiles('tests/test-check-repo-hygiene.sh') != ''
         run: bash tests/test-check-repo-hygiene.sh
+
+      - name: Test dedicated native Clippy routing
+        if: hashFiles('tests/test-native-clippy-route.sh') != ''
+        run: bash tests/test-native-clippy-route.sh
 
       - name: Run PII scanner test
         if: hashFiles('tests/test-check-pii.sh') != ''
