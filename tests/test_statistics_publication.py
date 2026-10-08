@@ -2,7 +2,6 @@
 """Verify Statistics publication selects its immutable builder independently."""
 
 import json
-import re
 import unittest
 from pathlib import Path
 
@@ -17,22 +16,10 @@ class StatisticsPublicationTests(unittest.TestCase):
             (ROOT / "workflows/github-pages-deploy.yml").read_text()
         )
         selector = workflow["jobs"]["docs"]["with"]["builder-image"]
-        choices = dict(
-            re.findall(r"github.repository == '([^']+)' && '([^']+)'", selector)
-        )
         self.assertRegex(
-            choices.get("f5-sales-demo/statistics", ""),
-            r"^ghcr.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$",
+            selector, r"^ghcr.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$"
         )
-        existing = (
-            "ghcr.io/f5-sales-demo/docs-builder@sha256:"
-            "988e1fbf4e5acdbb15eb0c9aa6430f7968603d4fc96e713a28ca09846eedadd4"
-        )
-        self.assertEqual(choices["f5-sales-demo/canada"], existing)
-        self.assertEqual(choices["f5-sales-demo/custom-responses"], existing)
-        self.assertTrue(
-            selector.endswith("'ghcr.io/f5-sales-demo/docs-builder:latest' }}")
-        )
+        self.assertEqual(workflow["jobs"]["docs"]["with"]["shared-mode"], "auto")
         self.assertEqual(
             workflow["jobs"]["docs"]["with"]["content-ref"], "${{ github.sha }}"
         )

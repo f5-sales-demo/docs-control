@@ -67,11 +67,9 @@ class CustomResponsePagesTests(unittest.TestCase):
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0]["only_repos"], ["custom-responses"])
         prose_caller = (ROOT / "workflows/github-pages-deploy.yml").read_text()
+        self.assertIn("shared-mode: auto", prose_caller)
         self.assertIn(
-            "github.repository == 'f5-sales-demo/custom-responses'", prose_caller
-        )
-        self.assertIn(
-            "sha256:988e1fbf4e5acdbb15eb0c9aa6430f7968603d4fc96e713a28ca09846eedadd4",
+            "sha256:049219671eb53fb884af5a529ab638ba01894492ac6918da76bc17a069607e72",
             prose_caller,
         )
 
