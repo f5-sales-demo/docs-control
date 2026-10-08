@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "31288f6bb7884a5b43aac6b47de2e454eaa73781",
+  "source_commit": "e4bb967b8fad845db33d6ba9281fa98481af05d9",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "cdf3c08ece16294775d9724adb7ea0e5f99f38d2",
-      "size": 8874,
+      "sha": "dfeb65076d99d8857e8c3819d47b7ca9c51e80dd",
+      "size": 8917,
       "mode": "100644"
     },
     {
@@ -103,15 +103,15 @@
     {
       "path": ".github/actionlint.yaml",
       "src": ".github/actionlint.yaml",
-      "sha": "d9b6950b6893d35936f1d5c162714738b9d51209",
-      "size": 1813,
+      "sha": "7bb1da7778b1b61a86a85d140435106ab6971dbc",
+      "size": 1842,
       "mode": "100644"
     },
     {
       "path": ".github/config/self-hosted-runner-policy.json",
       "src": ".github/config/self-hosted-runner-policy.json",
-      "sha": "e95850407391fe4e65e9dcbedda6c486dbff059a",
-      "size": 51184,
+      "sha": "a7ef73f8e4932c6510bc42d6150c1e888421378f",
+      "size": 51825,
       "mode": "100644"
     },
     {
@@ -138,8 +138,8 @@
     {
       "path": ".github/workflows/github-pages-deploy.yml",
       "src": "workflows/github-pages-deploy.yml",
-      "sha": "54964bcd08f0e84b86831c11c4a6210119b1e136",
-      "size": 2660,
+      "sha": "13d33fd6fbdd9f3c6358a557c3d34cc4dfc87a67",
+      "size": 2835,
       "mode": "100644"
     },
     {
@@ -327,8 +327,8 @@
     {
       "path": "scripts/audit-runner-workflows.py",
       "src": "scripts/audit-runner-workflows.py",
-      "sha": "928b6f9d6ee1b17975e8f4cc1f0ece5ce4105056",
-      "size": 45195,
+      "sha": "2f4b1063d19b8d8690cd8edbaf28ef84dbbd2bf1",
+      "size": 45229,
       "mode": "100755"
     },
     {
@@ -397,8 +397,8 @@
     {
       "path": "scripts/workflow_security_validator.py",
       "src": "scripts/workflow_security_validator.py",
-      "sha": "4dadb786daaf2ad6bea9f56b2569291fba251a1c",
-      "size": 55427,
+      "sha": "7bd7e65a7cdbc0bf497330e64b9a64e7ed01aaa0",
+      "size": 55461,
       "mode": "100755"
     },
     {
@@ -476,5 +476,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:c70e85edd20634befb1782ee6af6d82e02c9dbf91a43bf0e70ddf21b1f9ed6cb"
+  "state_digest": "sha256:5f75eee6e85d3003f7dc0e00d9fe681a6cfa1a6b40fcbd520141b1ae067ef260"
 }
