@@ -2,6 +2,7 @@
 """Verify Statistics publication selects its immutable builder independently."""
 
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -16,6 +17,9 @@ class StatisticsPublicationTests(unittest.TestCase):
             (ROOT / "workflows/github-pages-deploy.yml").read_text()
         )
         selector = workflow["jobs"]["docs"]["with"]["builder-image"]
+        selector = re.findall(
+            r"ghcr.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}", selector
+        )[-1]
         self.assertRegex(
             selector, r"^ghcr.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$"
         )

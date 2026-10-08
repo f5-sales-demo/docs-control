@@ -15,6 +15,9 @@ class SharedFormPublication(unittest.TestCase):
         source = (ROOT / "workflows/github-pages-deploy.yml").read_text()
         workflow = yaml.safe_load(source)
         selector = workflow["jobs"]["docs"]["with"]["builder-image"]
+        selector = re.findall(
+            r"ghcr.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}", selector
+        )[-1]
         assert re.fullmatch(
             r"ghcr.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}", selector
         )
