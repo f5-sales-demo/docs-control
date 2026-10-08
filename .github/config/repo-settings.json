@@ -91,6 +91,12 @@
     "docs-icons": {
       "additional_contexts": ["Generated artifact release"]
     },
+    "certificate-management": {
+      "repository": {
+        "homepage": "https://f5-sales-demo.github.io/certificate-management/",
+        "description": "Certificate management for F5 Distributed Cloud"
+      }
+    },
     "statistics": {
       "repository": {
         "homepage": "https://f5-sales-demo.github.io/statistics/",
@@ -577,6 +583,7 @@
     },
     "repo_roles": {
       "_default": ["governance"],
+      "certificate-management": ["governance"],
       "dns": ["governance"],
       "demo-resource-template": ["governance"],
       "docs-icons": ["governance", "npm_publish"],

@@ -55,6 +55,13 @@
     "readme_content": "Statistics retrieves resource telemetry from the F5 Distributed Cloud API. The current HTTP deployment demonstrates access logs, load balancer and origin metrics, application health, API activity, WAF counters, and security events. Infrastructure reference and demo readiness support these resource guides."
   },
   {
+    "label": "Certificate Management",
+    "url": "https://f5-sales-demo.github.io/certificate-management/llms-full.txt",
+    "description": "Certificate management for F5 Distributed Cloud",
+    "readme_english_only": true,
+    "readme_content": "Documentation for certificate management in F5 Distributed Cloud is being prepared. [English documentation](docs/en/index.md)."
+  },
+  {
     "label": "Web App Scanning",
     "url": "https://f5-sales-demo.github.io/was/llms-full.txt",
     "description": "F5 XC web application scanning"
@@ -242,7 +249,7 @@
   {
     "label": "Console Catalog",
     "url": "https://f5-sales-demo.github.io/console/llms-full.txt",
-    "description": "Schema-driven inventory of the F5 XC administration console UI — routes, resources, workflows, and browser automation manifests",
+    "description": "Schema-driven inventory of the F5 XC administration console UI \u2014 routes, resources, workflows, and browser automation manifests",
     "badges": [
       {
         "name": "Validate Catalog",
