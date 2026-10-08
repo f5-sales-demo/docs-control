@@ -3,7 +3,11 @@
     "label": "F5 Docs Corpus",
     "url": "https://f5-sales-demo.github.io/html-to-markdown/llms.txt",
     "description": "Progressive machine-readable F5 product documentation",
-    "rebuild_dispatch": false
+    "rebuild_dispatch": false,
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "xcsh Docs Builder",
@@ -14,7 +18,11 @@
         "name": "Build Image",
         "workflow": "build-image.yml"
       }
-    ]
+    ],
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "XC Docs Theme",
@@ -25,94 +33,162 @@
         "name": "Release",
         "workflow": "release.yml"
       }
-    ]
+    ],
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "F5 XC Docs",
     "url": "https://f5-sales-demo.github.io/llms-full.txt",
-    "description": "Organization landing page for F5 Distributed Cloud documentation"
+    "description": "Organization landing page for F5 Distributed Cloud documentation",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "publish"
+    }
   },
   {
     "label": "Administration",
     "url": "https://f5-sales-demo.github.io/administration/llms-full.txt",
-    "description": "F5 XC administration and tenant management"
+    "description": "F5 XC administration and tenant management",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "NGINX",
     "url": "https://f5-sales-demo.github.io/nginx/llms-full.txt",
-    "description": "F5 XC NGINX integration and configuration"
+    "description": "F5 XC NGINX integration and configuration",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Observability",
     "url": "https://f5-sales-demo.github.io/observability/llms-full.txt",
-    "description": "F5 XC observability and monitoring"
+    "description": "F5 XC observability and monitoring",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Statistics",
     "url": "https://f5-sales-demo.github.io/statistics/llms-full.txt",
     "description": "Retrieve statistics from the F5 Distributed Cloud API across resource types",
     "readme_english_only": true,
-    "readme_content": "Statistics retrieves resource telemetry from the F5 Distributed Cloud API. The current HTTP deployment demonstrates access logs, load balancer and origin metrics, application health, API activity, WAF counters, and security events. Infrastructure reference and demo readiness support these resource guides."
+    "readme_content": "Statistics retrieves resource telemetry from the F5 Distributed Cloud API. The current HTTP deployment demonstrates access logs, load balancer and origin metrics, application health, API activity, WAF counters, and security events. Infrastructure reference and demo readiness support these resource guides.",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Certificate Management",
     "url": "https://f5-sales-demo.github.io/certificate-management/llms-full.txt",
     "description": "Certificate management for F5 Distributed Cloud",
     "readme_english_only": true,
-    "readme_content": "Documentation for certificate management in F5 Distributed Cloud is being prepared. [English documentation](docs/en/index.md)."
+    "readme_content": "Documentation for certificate management in F5 Distributed Cloud is being prepared. [English documentation](docs/en/index.md).",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Web App Scanning",
     "url": "https://f5-sales-demo.github.io/was/llms-full.txt",
-    "description": "F5 XC web application scanning"
+    "description": "F5 XC web application scanning",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Multi-Cloud Networking",
     "url": "https://f5-sales-demo.github.io/multi-cloud-networking/llms-full.txt",
     "description": "Advanced Azure, AWS and KVM Customer Edge deployment and lifecycle automation",
-    "readme_content": "Advanced Azure/AWS/KVM Customer Edge use case covering interface binding, registration, BGP/ECMP, TGW Connect, HA, upgrades and lifecycle automation. [Canada Topology](https://f5-sales-demo.github.io/canada/en/use-case/) explains Canadian hosting and regional access control through API configuration excerpts."
+    "readme_content": "Advanced Azure/AWS/KVM Customer Edge use case covering interface binding, registration, BGP/ECMP, TGW Connect, HA, upgrades and lifecycle automation. [Canada Topology](https://f5-sales-demo.github.io/canada/en/use-case/) explains Canadian hosting and regional access control through API configuration excerpts.",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Canada Topology",
     "url": "https://f5-sales-demo.github.io/canada/llms-full.txt",
     "description": "Canadian hosting and regional access control for F5 Distributed Cloud users",
     "readme_english_only": true,
-    "readme_content": "Informational use case explaining DNS, Toronto/Montreal advertisement, actual-source country authorization and Canadian CE origin discovery through annotated API configuration excerpts. Terraform and lifecycle pages provide supporting reference."
+    "readme_content": "Informational use case explaining DNS, Toronto/Montreal advertisement, actual-source country authorization and Canadian CE origin discovery through annotated API configuration excerpts. Terraform and lifecycle pages provide supporting reference.",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "DNS",
     "url": "https://f5-sales-demo.github.io/dns/llms-full.txt",
-    "description": "F5 XC DNS management"
+    "description": "F5 XC DNS management",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "CDN",
     "url": "https://f5-sales-demo.github.io/cdn/llms-full.txt",
-    "description": "F5 XC content delivery network"
+    "description": "F5 XC content delivery network",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Bot Standard",
     "url": "https://f5-sales-demo.github.io/bot-standard/llms-full.txt",
-    "description": "F5 XC standard bot defense"
+    "description": "F5 XC standard bot defense",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Bot Advanced",
     "url": "https://f5-sales-demo.github.io/bot-advanced/llms-full.txt",
-    "description": "F5 XC advanced bot defense"
+    "description": "F5 XC advanced bot defense",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "DDoS",
     "url": "https://f5-sales-demo.github.io/ddos/llms-full.txt",
-    "description": "F5 XC DDoS protection"
+    "description": "F5 XC DDoS protection",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "API Security",
     "url": "https://f5-sales-demo.github.io/api-protection/llms-full.txt",
-    "description": "F5 XC API security"
+    "description": "F5 XC API security",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Web App & API Protection",
     "url": "https://f5-sales-demo.github.io/webapp-api-protection/llms-full.txt",
-    "description": "F5 XC web application and API protection"
+    "description": "F5 XC web application and API protection",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "API Specs",
@@ -123,7 +199,11 @@
         "name": "Validate and Release",
         "workflow": "validate-and-release.yml"
       }
-    ]
+    ],
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "API Specs Enriched",
@@ -141,12 +221,20 @@
         "name": "Sync and Enrich",
         "workflow": "sync-and-enrich.yml"
       }
-    ]
+    ],
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Client-Side Defense",
     "url": "https://f5-sales-demo.github.io/csd/llms-full.txt",
-    "description": "F5 XC client-side defense"
+    "description": "F5 XC client-side defense",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Docs Icons",
@@ -157,7 +245,11 @@
         "name": "NPM Publish",
         "workflow": "npm-publish.yml"
       }
-    ]
+    ],
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Terraform Provider",
@@ -168,7 +260,11 @@
         "name": "CI",
         "workflow": "ci.yml"
       }
-    ]
+    ],
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Dev Container",
@@ -180,7 +276,11 @@
         "name": "Docker Publish",
         "workflow": "docker-publish.yml"
       }
-    ]
+    ],
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Marketplace",
@@ -195,7 +295,11 @@
         "name": "Release Plugins",
         "workflow": "release-plugins.yml"
       }
-    ]
+    ],
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "xcsh",
@@ -207,7 +311,11 @@
         "name": "CI",
         "workflow": "ci.yml"
       }
-    ]
+    ],
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "xcsh Action",
@@ -218,12 +326,20 @@
         "name": "CI",
         "workflow": "ci.yml"
       }
-    ]
+    ],
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "CDN Simulator",
     "url": "https://f5-sales-demo.github.io/cdn-simulator/llms-full.txt",
-    "description": "NGINX-based CDN edge node simulator on Azure for multi-vendor lab environments"
+    "description": "NGINX-based CDN edge node simulator on Azure for multi-vendor lab environments",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Origin Server",
@@ -234,17 +350,29 @@
         "name": "Release",
         "workflow": "release.yml"
       }
-    ]
+    ],
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Demo Resources",
     "url": "https://f5-sales-demo.github.io/demo-resources/llms-full.txt",
-    "description": "Catalog of pre-configured Azure VM components for F5 XC demo environments"
+    "description": "Catalog of pre-configured Azure VM components for F5 XC demo environments",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "VS Code Extension",
     "url": "https://f5-sales-demo.github.io/vscode-xcsh/llms-full.txt",
-    "description": "VS Code extension for managing F5 Distributed Cloud resources with IntelliSense and xcsh chat"
+    "description": "VS Code extension for managing F5 Distributed Cloud resources with IntelliSense and xcsh chat",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Console Catalog",
@@ -255,16 +383,28 @@
         "name": "Validate Catalog",
         "workflow": "validate-catalog.yml"
       }
-    ]
+    ],
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "xcsh Chrome Extension",
     "url": "https://f5-sales-demo.github.io/xcsh-chrome-extension/llms-full.txt",
-    "description": "Chrome extension companion for the xcsh AI-powered F5 Distributed Cloud CLI"
+    "description": "Chrome extension companion for the xcsh AI-powered F5 Distributed Cloud CLI",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   },
   {
     "label": "Custom Responses",
     "url": "https://f5-sales-demo.github.io/custom-responses/llms-full.txt",
-    "description": "Isolated Terraform showcase of F5 Distributed Cloud response customization with live acceptance"
+    "description": "Isolated Terraform showcase of F5 Distributed Cloud response customization with live acceptance",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   }
 ]

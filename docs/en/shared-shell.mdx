@@ -1,0 +1,32 @@
+---
+title: Shared documentation shell
+description: Publish compatible ecosystem shell updates from the root and explicitly rebuild consumers for framework changes.
+---
+
+The landing repository owns the ecosystem menu, Search source labels, shell CSS, fonts and branding. Each documentation site retains content, document navigation, Astro/Starlight bundles and page-specific assets.
+
+## Compatible shared releases
+
+Edit the root repository's ecosystem configuration and generate a coordinated release from the verified theme package. Commit the retained content-addressed tree and active manifest. Root publication validates every retained hash and reference.
+
+Deploy only the root for compatible menu and shell changes:
+
+```sh
+node scripts/dispatch-shared-shell.mjs root
+```
+
+Consumers check the active v1 manifest on subsequent page loads. They activate only after the complete release loads and verifies. Optional browser storage keeps the last successful release. During failures, local documentation and its ecosystem-directory link remain available.
+
+Roll back by selecting a retained immutable manifest in the root's `shared/v1/current.json` and redeploying the root. Retained immutable files must never be changed or deleted.
+
+## Consumer and framework migration
+
+A new consumer contract or builder/framework change requires an explicit fleet rebuild:
+
+```sh
+node scripts/dispatch-shared-shell.mjs fleet
+```
+
+The governed documentation inventory records each site's shared contract and publication mode. Pinned builder consumers and repository-owned workflow exceptions need their normal linked updates before dispatch. Machine-corpus and custom publication workflows retain their immutable content receipts.
+
+Verify public root assets first, then standard demo, Canada, Statistics, API specifications and canonical provider pilots. Record exact deployments and confirm consumer HTML contains qualified root shell references without duplicated owned assets. Prove an unchanged consumer adopts a root-only release, including warm-cache fallback and rollback, before completing fleet acceptance.
