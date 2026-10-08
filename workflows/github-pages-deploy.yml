@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   docs:
-    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@3ffa6301e0b4852f1476886cbb72e0540ef58beb
+    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@276b522810ed9fb3d91c9762d874a600fa637bbe
     with:
       builder-image: ghcr.io/f5-sales-demo/docs-builder@sha256:049219671eb53fb884af5a529ab638ba01894492ac6918da76bc17a069607e72
       shared-mode: auto
