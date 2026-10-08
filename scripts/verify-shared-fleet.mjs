@@ -28,7 +28,14 @@ for (const site of inventory) {
     const receipt = await (await get(new URL('shared-shell-receipt.json', base))).json();
     const revision = await (await get(new URL('api/revision.json', base))).json();
     const html = await (
-      await get(new URL(receipt.repository === 'f5-sales-demo/terraform-provider-xcsh' ? '' : 'en/', base))
+      await get(
+        new URL(
+          ['f5-sales-demo/terraform-provider-xcsh', 'f5-sales-demo/html-to-markdown'].includes(receipt.repository)
+            ? ''
+            : 'en/',
+          base,
+        ),
+      )
     ).text();
     if (receipt.contract !== 'v1' || !html.includes('data-f5-shared-consumer') || !html.includes(`${root}assets/`))
       throw Error('Missing shared consumer');
