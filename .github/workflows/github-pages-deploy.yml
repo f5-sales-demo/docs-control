@@ -17,6 +17,11 @@ on:
         required: false
         default: 'ghcr.io/f5-sales-demo/docs-builder:latest'
         type: string
+      shared-mode:
+        description: 'auto selects root publishing or ecosystem consuming; local is explicit development mode'
+        required: false
+        default: 'auto'
+        type: string
       snapshot-tag:
         description: 'Exact immutable content-* release tag for a machine corpus'
         required: false
@@ -349,6 +354,7 @@ jobs:
           PUBLICATION_SITE: ${{ inputs.docs-site || format('https://{0}.github.io', github.repository_owner) }}
           DOCS_BASE: ${{ inputs.docs-base }}
           DOCS_TITLE: ${{ inputs.docs-title }}
+          SHARED_MODE: ${{ inputs.shared-mode }}
           OUTPUT_DIR: ${{ runner.temp }}/docs-output
           REPOSITORY: ${{ github.repository }}
           MACHINE_CORPUS_DIR: ${{ steps.snapshot-files.outputs.machine_corpus }}
@@ -392,6 +398,16 @@ jobs:
 
           fi
 
+          SHARED_ARGS=(-e "DOCS_SHARED_MODE=$SHARED_MODE")
+          if [ "$REPOSITORY" = f5-sales-demo/f5-sales-demo.github.io ]; then
+            test -f "$WORKSPACE/shared/v1/current.json"
+            DOCS_BASE=/
+            SHARED_ARGS+=(
+              -v "$WORKSPACE/shared:/content/shared:ro"
+              -e SHARED_ASSETS_DIR=/content/shared
+            )
+          fi
+
           COLLECTION_ARGS=()
           if [ "$REPOSITORY" = f5-sales-demo/terraform-provider-xcsh ]; then
             DOCS_BASE=/terraform-provider-xcsh/
@@ -407,6 +423,7 @@ jobs:
           docker run --rm --pull=never \
             --name docs-builder \
             "${COLLECTION_ARGS[@]}" \
+            "${SHARED_ARGS[@]}" \
             -v "$WORKSPACE/$CONTENT_PATH:/content/docs:ro" \
             "${MOUNTS[@]}" \
             "${CORPUS_ARGS[@]}" \
@@ -469,6 +486,20 @@ jobs:
 
           echo "✅ Build completed successfully"
           ls -lah "$OUTPUT_DIR/"
+
+      - name: Publish retained root shell assets
+        if: github.repository == 'f5-sales-demo/f5-sales-demo.github.io'
+        env:
+          WORKSPACE: ${{ github.workspace }}
+          OUTPUT_DIR: ${{ runner.temp }}/docs-output
+          BUILDER_IMAGE: ${{ steps.builder.outputs.builder_image }}
+        run: |
+          # The root can publish releases before the one-time consumer migration.
+          docker run --rm --pull=never --entrypoint node \
+            -v "$WORKSPACE:/content/root:ro" "$BUILDER_IMAGE" \
+            /content/root/scripts/validate-shared.mjs /content/root/shared
+          mkdir -p "$OUTPUT_DIR/shared"
+          cp -R "$WORKSPACE/shared"/. "$OUTPUT_DIR/shared/"
 
       - name: Verify build output
         env:
