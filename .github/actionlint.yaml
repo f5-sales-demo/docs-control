@@ -44,6 +44,7 @@ self-hosted-runner:
     - starlight-llms-txt
     - starlight-mega-menu
     - statistics
+    - certificate-management
     - terraform-provider-xcsh
     - terraform-provider-xcsh-32vcpu-candidate
     - terraform-provider-xcsh-compute
