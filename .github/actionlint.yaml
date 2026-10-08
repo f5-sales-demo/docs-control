@@ -13,6 +13,7 @@ self-hosted-runner:
     - canada
     - cdn
     - cdn-simulator
+    - certificate-management
     - console
     - container-build
     - csd
@@ -44,7 +45,6 @@ self-hosted-runner:
     - starlight-llms-txt
     - starlight-mega-menu
     - statistics
-    - certificate-management
     - terraform-provider-xcsh
     - terraform-provider-xcsh-32vcpu-candidate
     - terraform-provider-xcsh-compute
