@@ -224,7 +224,8 @@
     ],
     "shared_shell": {
       "contract": "v1",
-      "mode": "consume"
+      "mode": "consume",
+      "workflow": "github-pages-shared-rebuild.yml"
     }
   },
   {
@@ -314,7 +315,8 @@
     ],
     "shared_shell": {
       "contract": "v1",
-      "mode": "consume"
+      "mode": "consume",
+      "workflow": "github-pages-deploy.yml"
     }
   },
   {
