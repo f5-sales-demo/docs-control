@@ -499,7 +499,9 @@ jobs:
             -v "$WORKSPACE:/content/root:ro" "$BUILDER_IMAGE" \
             /content/root/scripts/validate-shared.mjs /content/root/shared
           mkdir -p "$OUTPUT_DIR/shared"
-          cp -R "$WORKSPACE/shared"/. "$OUTPUT_DIR/shared/"
+          if [ ! -f "$OUTPUT_DIR/shared/v1/current.json" ]; then
+            cp -R "$WORKSPACE/shared"/. "$OUTPUT_DIR/shared/"
+          fi
 
       - name: Verify build output
         env:
