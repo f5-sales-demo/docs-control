@@ -229,8 +229,14 @@ ARC_SHARED_CONTRACTS = (
         frozenset({"f5-sales-demo/gitops"}),
         {
             "socketless": {"label": "managed-socketless", "profile": "ubuntu-24.04"},
-            "container-build": {"label": "managed-container-build", "profile": "container-build"},
-            "terraform": {"label": "gitops-terraform", "attestation": "gitops-terraform"},
+            "container-build": {
+                "label": "managed-container-build",
+                "profile": "container-build",
+            },
+            "terraform": {
+                "label": "gitops-terraform",
+                "attestation": "gitops-terraform",
+            },
         },
     ),
     (

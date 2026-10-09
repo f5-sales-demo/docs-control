@@ -542,7 +542,10 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                     "attestation": "terraform-provider-xcsh-32vcpu-candidate",
                 }
             if repository == "f5-sales-demo/gitops":
-                expected["terraform"] = {"label": "gitops-terraform", "attestation": "gitops-terraform"}
+                expected["terraform"] = {
+                    "label": "gitops-terraform",
+                    "attestation": "gitops-terraform",
+                }
             self.assertEqual(routes, expected)
 
     def test_vscode_xcsh_arc_profiles_are_capacity_isolated_and_socket_scoped(self):
