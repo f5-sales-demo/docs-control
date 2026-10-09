@@ -287,7 +287,8 @@
         ".github/workflows/super-linter.yml"
       ],
       "starlight-mega-menu": ["README.md"],
-      "traffic-generator": ["README.md"]
+      "traffic-generator": ["README.md"],
+      "blindfold-contract": ["README.md"]
     },
     "files": [
       {
