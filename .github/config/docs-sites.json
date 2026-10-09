@@ -410,5 +410,16 @@
       "contract": "v1",
       "mode": "consume"
     }
+  },
+  {
+    "label": "GitOps",
+    "url": "https://f5-sales-demo.github.io/gitops/llms-full.txt",
+    "description": "Branch deployments with F5 Distributed Cloud, Terraform, and Kubernetes state",
+    "readme_english_only": true,
+    "readme_content": "Deploy an isolated F5 Distributed Cloud HTTP load balancer for each Git branch. The custom xcsh Terraform provider manages namespaces, origin pools, and load balancers. Kubernetes Secrets preserve state and recovery configuration; Leases serialize writers. [English documentation](https://f5-sales-demo.github.io/gitops/en/).",
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   }
 ]
