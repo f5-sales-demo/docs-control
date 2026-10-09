@@ -1,5 +1,7 @@
 """Exact route guards for credentialed GitOps jobs."""
 
+# unittest follows the existing validator suite.
+# ruff: noqa: INP001, PT009
 import importlib.util
 import unittest
 from pathlib import Path
@@ -23,7 +25,7 @@ class GitOpsRouteTests(unittest.TestCase):
                 path = ".github/workflows/" + workflow
                 guard = (
                     "github.repository == 'f5-sales-demo/gitops' && "
-                    + f"(github.event_name == '{event}' || github.event_name == 'workflow_dispatch')"
+                    f"(github.event_name == '{event}' || github.event_name == 'workflow_dispatch')"
                 )
                 self.assertTrue(
                     check("f5-sales-demo/gitops", path, job, "gitops-terraform", guard)
