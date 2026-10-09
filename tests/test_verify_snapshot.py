@@ -322,6 +322,37 @@ def refresh_receipt(release: Path) -> str:
     return digest(path.read_bytes())
 
 
+class EnrichmentAliasTests(unittest.TestCase):
+    def test_pinned_aliases_are_safe_and_target_canonical_documents(self) -> None:
+        verifier = load_verifier()
+        _, manifest = fixture_files()
+        manifest["enrichment"] = {
+            "artifact_sha256": "a" * 64,
+            "aliases": [
+                {
+                    "path": "content/source-a/old/index.md",
+                    "target": "content/source-a/page/index.md",
+                    "url": "https://source-a.example.invalid/old",
+                }
+            ],
+        }
+        verifier._validate_enrichment_aliases(manifest)
+        manifest["enrichment"]["aliases"][0]["path"] = (
+            "content/source-a/../old/index.md"
+        )
+        with self.assertRaisesRegex(ValueError, "alias"):
+            verifier._validate_enrichment_aliases(manifest)
+        manifest["enrichment"]["aliases"][0]["path"] = "content/source-a/old/index.md"
+        manifest["enrichment"]["aliases"][0]["target"] = (
+            "content/source-a/missing/index.md"
+        )
+        with self.assertRaisesRegex(ValueError, "canonical"):
+            verifier._validate_enrichment_aliases(manifest)
+        manifest["enrichment"]["artifact_sha256"] = "stale"
+        with self.assertRaisesRegex(ValueError, "pin"):
+            verifier._validate_enrichment_aliases(manifest)
+
+
 class SnapshotWorkflowTests(unittest.TestCase):
     def test_reusable_workflow_has_fail_closed_snapshot_contract(self) -> None:
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
