@@ -28,6 +28,21 @@ class StatisticsPublicationTests(unittest.TestCase):
             workflow["jobs"]["docs"]["with"]["content-ref"], "${{ github.sha }}"
         )
 
+    def test_statistics_submenu_builder_is_selected_independently(self):
+        workflow = yaml.safe_load(
+            (ROOT / "workflows/github-pages-deploy.yml").read_text()
+        )
+        selector = workflow["jobs"]["docs"]["with"]["builder-image"]
+        match = re.search(
+            r"github.repository == 'f5-sales-demo/statistics' && '(ghcr.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64})'",
+            selector,
+        )
+        assert match is not None, "Statistics must select the verified submenu builder"
+        assert "f5-sales-demo/custom-responses" in selector
+        assert selector.endswith(
+            "'ghcr.io/f5-sales-demo/docs-builder@sha256:8e3cc0f417f2fd658a07a0ee06b440bb49a02398f9d7657daa26f78dec667cbe' }}"
+        )
+
     def test_statistics_identity_and_existing_source_destinations(self):
         config = json.loads((ROOT / ".github/config/repo-settings.json").read_text())
         identity = config["repo_overrides"]["statistics"]["repository"]
