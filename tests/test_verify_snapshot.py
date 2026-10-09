@@ -9,6 +9,7 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import yaml
@@ -326,7 +327,7 @@ class EnrichmentAliasTests(unittest.TestCase):
     def test_pinned_aliases_are_safe_and_target_canonical_documents(self) -> None:
         verifier = load_verifier()
         _, manifest = fixture_files()
-        manifest["enrichment"] = {
+        enrichment: dict[str, Any] = {
             "artifact_sha256": "a" * 64,
             "aliases": [
                 {
@@ -336,21 +337,18 @@ class EnrichmentAliasTests(unittest.TestCase):
                 }
             ],
         }
-        verifier._validate_enrichment_aliases(manifest)
-        manifest["enrichment"]["aliases"][0]["path"] = (
-            "content/source-a/../old/index.md"
-        )
+        manifest["enrichment"] = enrichment
+        verifier.validate_enrichment_aliases(manifest)
+        enrichment["aliases"][0]["path"] = "content/source-a/../old/index.md"
         with self.assertRaisesRegex(ValueError, "alias"):
-            verifier._validate_enrichment_aliases(manifest)
-        manifest["enrichment"]["aliases"][0]["path"] = "content/source-a/old/index.md"
-        manifest["enrichment"]["aliases"][0]["target"] = (
-            "content/source-a/missing/index.md"
-        )
+            verifier.validate_enrichment_aliases(manifest)
+        enrichment["aliases"][0]["path"] = "content/source-a/old/index.md"
+        enrichment["aliases"][0]["target"] = "content/source-a/missing/index.md"
         with self.assertRaisesRegex(ValueError, "canonical"):
-            verifier._validate_enrichment_aliases(manifest)
-        manifest["enrichment"]["artifact_sha256"] = "stale"
+            verifier.validate_enrichment_aliases(manifest)
+        enrichment["artifact_sha256"] = "stale"
         with self.assertRaisesRegex(ValueError, "pin"):
-            verifier._validate_enrichment_aliases(manifest)
+            verifier.validate_enrichment_aliases(manifest)
 
 
 class SnapshotWorkflowTests(unittest.TestCase):

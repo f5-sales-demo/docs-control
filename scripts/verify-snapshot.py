@@ -233,7 +233,7 @@ def _validate_asset(
         raise ValueError(f"manifest asset media type mismatch: {path}")
 
 
-def _validate_enrichment_aliases(manifest: dict[str, object]) -> None:
+def validate_enrichment_aliases(manifest: dict[str, object]) -> None:
     enrichment = manifest.get("enrichment")
     if enrichment is None:
         return
@@ -246,6 +246,8 @@ def _validate_enrichment_aliases(manifest: dict[str, object]) -> None:
         raise ValueError("invalid enrichment alias mapping")
     documents = manifest["documents"]
     roots = manifest["source_roots"]
+    if not isinstance(documents, list) or not isinstance(roots, dict):
+        raise ValueError("invalid enrichment corpus inventory")
     paths = {document["path"] for document in documents}
     seen: set[str] = set()
     for alias in aliases:
@@ -283,7 +285,7 @@ def _validate_manifest(raw: bytes, files: dict[str, bytes]) -> None:
         raise ValueError("manifest source roots are invalid")
     if not isinstance(documents, list) or not isinstance(assets, list):
         raise ValueError("manifest documents and assets must be lists")
-    _validate_enrichment_aliases(manifest)
+    validate_enrichment_aliases(manifest)
     for source, url in source_roots.items():
         _safe_path(source, "manifest source")
         if "/" in source or not isinstance(url, str) or not url.startswith("https://"):
