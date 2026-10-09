@@ -233,6 +233,47 @@ def _validate_asset(
         raise ValueError(f"manifest asset media type mismatch: {path}")
 
 
+def validate_enrichment_aliases(manifest: dict[str, object]) -> None:
+    enrichment = manifest.get("enrichment")
+    if enrichment is None:
+        return
+    if not isinstance(enrichment, dict) or not re.fullmatch(
+        r"[0-9a-f]{64}", str(enrichment.get("artifact_sha256", ""))
+    ):
+        raise ValueError("invalid enrichment artifact pin")
+    aliases = enrichment.get("aliases")
+    if not isinstance(aliases, list):
+        raise ValueError("invalid enrichment alias mapping")
+    documents = manifest["documents"]
+    roots = manifest["source_roots"]
+    if not isinstance(documents, list) or not isinstance(roots, dict):
+        raise ValueError("invalid enrichment corpus inventory")
+    paths = {document["path"] for document in documents}
+    seen: set[str] = set()
+    for alias in aliases:
+        if not isinstance(alias, dict) or set(alias) != {"path", "target", "url"}:
+            raise ValueError("invalid enrichment alias entry")
+        source = alias["path"]
+        parsed = _safe_path(source, "alias path")
+        if (
+            len(parsed.parts) < 4
+            or parsed.parts[0] != "content"
+            or parsed.parts[1] not in roots
+            or not source.endswith("/index.md")
+        ):
+            raise ValueError("alias source is outside the corpus")
+        if (
+            source in seen
+            or source in paths
+            or alias["target"] not in paths
+            or source == alias["target"]
+        ):
+            raise ValueError("alias collision or missing canonical target")
+        if not isinstance(alias["url"], str) or not alias["url"].startswith("https://"):
+            raise ValueError("invalid alias URL")
+        seen.add(source)
+
+
 def _validate_manifest(raw: bytes, files: dict[str, bytes]) -> None:
     manifest = _json_bytes(raw, "manifest")
     if not isinstance(manifest, dict) or manifest.get("schema_version") != 2:
@@ -244,6 +285,7 @@ def _validate_manifest(raw: bytes, files: dict[str, bytes]) -> None:
         raise ValueError("manifest source roots are invalid")
     if not isinstance(documents, list) or not isinstance(assets, list):
         raise ValueError("manifest documents and assets must be lists")
+    validate_enrichment_aliases(manifest)
     for source, url in source_roots.items():
         _safe_path(source, "manifest source")
         if "/" in source or not isinstance(url, str) or not url.startswith("https://"):

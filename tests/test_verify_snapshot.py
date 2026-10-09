@@ -9,6 +9,7 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import yaml
@@ -320,6 +321,34 @@ def refresh_receipt(release: Path) -> str:
     path = release / "publication.json"
     path.write_text(json.dumps(receipt, sort_keys=True) + "\n")
     return digest(path.read_bytes())
+
+
+class EnrichmentAliasTests(unittest.TestCase):
+    def test_pinned_aliases_are_safe_and_target_canonical_documents(self) -> None:
+        verifier = load_verifier()
+        _, manifest = fixture_files()
+        enrichment: dict[str, Any] = {
+            "artifact_sha256": "a" * 64,
+            "aliases": [
+                {
+                    "path": "content/source-a/old/index.md",
+                    "target": "content/source-a/page/index.md",
+                    "url": "https://source-a.example.invalid/old",
+                }
+            ],
+        }
+        manifest["enrichment"] = enrichment
+        verifier.validate_enrichment_aliases(manifest)
+        enrichment["aliases"][0]["path"] = "content/source-a/../old/index.md"
+        with self.assertRaisesRegex(ValueError, "alias"):
+            verifier.validate_enrichment_aliases(manifest)
+        enrichment["aliases"][0]["path"] = "content/source-a/old/index.md"
+        enrichment["aliases"][0]["target"] = "content/source-a/missing/index.md"
+        with self.assertRaisesRegex(ValueError, "canonical"):
+            verifier.validate_enrichment_aliases(manifest)
+        enrichment["artifact_sha256"] = "stale"
+        with self.assertRaisesRegex(ValueError, "pin"):
+            verifier.validate_enrichment_aliases(manifest)
 
 
 class SnapshotWorkflowTests(unittest.TestCase):
