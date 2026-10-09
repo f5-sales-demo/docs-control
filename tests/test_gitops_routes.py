@@ -15,6 +15,8 @@ class GitOpsRouteTests(unittest.TestCase):
             spec = importlib.util.spec_from_file_location(
                 "gitops_routes", ROOT / "scripts" / filename
             )
+            assert spec is not None
+            assert spec.loader is not None
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             check = module.benchmark_trust_guard_is_allowed
