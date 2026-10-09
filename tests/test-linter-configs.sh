@@ -62,6 +62,7 @@ expected = sorted([
     *governance["repo_classes"]["repos"],
     "container-build",
     "fixture",
+    "gitops-terraform",
     "automation",
     "ubuntu-24.04-arm",
     "macos-15-intel",
@@ -171,6 +172,11 @@ xcsh = "f5-sales-demo/xcsh"
 digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca"
 candidate_digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:37844f6be57177fa574ce96e9241499663c5194453e2477f0ce0ea8225094e7c"
 assert policy["arc_attestations"] == {
+    "gitops-terraform": {
+        "label": "gitops-terraform", "runner_profile": "terraform", "image": digest,
+        "vm_size": "m6a.2xlarge", "cpu_limit": 1, "memory_limit_bytes": 4 * 1024**3,
+        "docker_socket": False, "repositories": ["f5-sales-demo/gitops"],
+    },
     "terraform-provider-xcsh-d8": {
         "label": "managed-socketless",
         "runner_profile": "socketless",
@@ -223,6 +229,11 @@ assert policy["arc_attestations"] == {
     },
 }
 assert policy["restricted_routes"] == {
+    "gitops-terraform": [
+        {"repository": "f5-sales-demo/gitops", "workflow": workflow, "job": job}
+        for workflow, job in ((".github/workflows/terraform-deploy.yml", "deploy"),
+                              (".github/workflows/terraform-cleanup.yml", "cleanup"))
+    ],
     "terraform-provider-xcsh-compute": [
         {"repository": provider, "workflow": workflow, "job": job}
         for workflow, job in (

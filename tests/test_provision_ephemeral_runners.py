@@ -504,7 +504,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             for repository, routes in policy.arc_scale_sets.items()
             if routes["socketless"]["label"] == "managed-socketless"
         }
-        self.assertEqual(len(managed), 37)
+        self.assertEqual(len(managed), 38)
         self.assertIn("f5-sales-demo/blindfold-contract", managed)
         self.assertIn("f5-sales-demo/custom-responses", managed)
         self.assertIn("f5-sales-demo/statistics", managed)
@@ -540,6 +540,11 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 expected["compute-32-vcpu-density-candidate"] = {
                     "label": "terraform-provider-xcsh-32vcpu-candidate",
                     "attestation": "terraform-provider-xcsh-32vcpu-candidate",
+                }
+            if repository == "f5-sales-demo/gitops":
+                expected["terraform"] = {
+                    "label": "gitops-terraform",
+                    "attestation": "gitops-terraform",
                 }
             self.assertEqual(routes, expected)
 

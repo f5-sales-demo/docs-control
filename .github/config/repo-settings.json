@@ -113,6 +113,12 @@
         "homepage": "https://f5-sales-demo.github.io/webapp-api-protection/",
         "description": "F5 XC Web App & API Protection showcase: Terraform deployment, origin apps, WAF/API/Bot scenarios, and continuous traffic"
       }
+    },
+    "gitops": {
+      "repository": {
+        "homepage": "https://f5-sales-demo.github.io/gitops/",
+        "description": "Branch deployments with F5 Distributed Cloud, Terraform, and Kubernetes state"
+      }
     }
   },
   "consumer_shell_tests": {
@@ -585,7 +591,8 @@
         "APPLE_TEAM_ID"
       ],
       "xcsh": ["XCSH_API_URL", "XCSH_API_TOKEN", "XCSH_USERNAME", "XCSH_CONSOLE_PASSWORD"],
-      "custom_response_infrastructure": ["XCSH_API_URL", "XCSH_API_TOKEN", "ARM_ACCESS_KEY"]
+      "custom_response_infrastructure": ["XCSH_API_URL", "XCSH_API_TOKEN", "ARM_ACCESS_KEY"],
+      "gitops_infrastructure": ["XCSH_API_URL", "XCSH_API_TOKEN"]
     },
     "repo_roles": {
       "_default": ["governance"],
@@ -629,7 +636,8 @@
       "xcsh-chrome-extension": ["governance"],
       "marketplace-claude-code": ["governance"],
       "custom-responses": ["governance", "custom_response_infrastructure"],
-      "blindfold-contract": ["governance"]
+      "blindfold-contract": ["governance"],
+      "gitops": ["governance", "gitops_infrastructure"]
     }
   }
 }

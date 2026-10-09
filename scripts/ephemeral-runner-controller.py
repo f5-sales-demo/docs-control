@@ -99,6 +99,7 @@ MANAGED_ARC_COHORT = frozenset(
         "origin-server",
         "starlight-mega-menu",
         "statistics",
+        "gitops",
         "certificate-management",
         "blindfold-contract",
         "traffic-generator",
@@ -110,6 +111,20 @@ MANAGED_ARC_COHORT = frozenset(
     )
 )
 ARC_SHARED_CONTRACTS = (
+    (
+        frozenset({"f5-sales-demo/gitops"}),
+        {
+            "socketless": {"label": "managed-socketless", "profile": "ubuntu-24.04"},
+            "container-build": {
+                "label": "managed-container-build",
+                "profile": "container-build",
+            },
+            "terraform": {
+                "label": "gitops-terraform",
+                "attestation": "gitops-terraform",
+            },
+        },
+    ),
     (
         DOCS_ARC_COHORT,
         {
@@ -206,6 +221,7 @@ PROVIDER_CANDIDATE_SCALE_SETS = {
 }
 RESERVED_ARC_LABELS = frozenset(
     {
+        "gitops-terraform",
         "api-specs-enriched-compute",
         "docs-container-build",
         "docs-socketless",
