@@ -130,7 +130,7 @@
       "runner_profile": "terraform",
       "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca",
       "vm_size": "m6a.2xlarge",
-      "cpu_limit": 1,
+      "cpu_limit": 2,
       "memory_limit_bytes": 4294967296,
       "docker_socket": false,
       "repositories": ["f5-sales-demo/gitops"]
