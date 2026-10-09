@@ -435,11 +435,8 @@ def benchmark_trust_guard_is_allowed(repository, relative, job_id, route_label, 
             "github.repository == 'f5-sales-demo/gitops' && "
             f"(github.event_name == '{event}' || github.event_name == 'workflow_dispatch')"
         )
-        return (
-            repository == "f5-sales-demo/gitops"
-            and event is not None
-            and guard == expected_guard
-        )
+        identity_matches = repository == "f5-sales-demo/gitops" and event is not None
+        return identity_matches and guard == expected_guard
     return guard == BENCHMARK_TRUST_GUARD
 
 
