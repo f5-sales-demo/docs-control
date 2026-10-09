@@ -62,6 +62,11 @@
     }
   ],
   "repo_overrides": {
+    "blindfold-contract": {
+      "repository": {
+        "description": "Versioned native Blindfold protocol, normalization and reconciliation contract"
+      }
+    },
     "marketplace": {
       "additional_contexts": ["Run plugin test suites"]
     },
@@ -622,7 +627,8 @@
       "console": ["governance"],
       "xcsh-chrome-extension": ["governance"],
       "marketplace-claude-code": ["governance"],
-      "custom-responses": ["governance", "custom_response_infrastructure"]
+      "custom-responses": ["governance", "custom_response_infrastructure"],
+      "blindfold-contract": ["governance"]
     }
   }
 }

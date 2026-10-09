@@ -40,5 +40,6 @@
   "console",
   "xcsh-chrome-extension",
   "marketplace-claude-code",
-  "custom-responses"
+  "custom-responses",
+  "blindfold-contract"
 ]

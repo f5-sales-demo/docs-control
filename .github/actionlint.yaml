@@ -14,6 +14,7 @@ self-hosted-runner:
     - cdn
     - cdn-simulator
     - certificate-management
+    - blindfold-contract
     - console
     - container-build
     - csd
