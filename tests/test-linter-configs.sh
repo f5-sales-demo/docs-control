@@ -174,7 +174,7 @@ candidate_digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:37844f6be571
 assert policy["arc_attestations"] == {
     "gitops-terraform": {
         "label": "gitops-terraform", "runner_profile": "terraform", "image": digest,
-        "vm_size": "m6a.2xlarge", "cpu_limit": 1, "memory_limit_bytes": 4 * 1024**3,
+        "vm_size": "m6a.2xlarge", "cpu_limit": 2, "memory_limit_bytes": 4 * 1024**3,
         "docker_socket": False, "repositories": ["f5-sales-demo/gitops"],
     },
     "terraform-provider-xcsh-d8": {
