@@ -639,5 +639,8 @@
       "blindfold-contract": ["governance"],
       "gitops": ["governance", "gitops_infrastructure"]
     }
+  },
+  "readme_sources": {
+    "gitops": "content/gitops/README.md"
   }
 }

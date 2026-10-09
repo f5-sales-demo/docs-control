@@ -107,6 +107,19 @@ function desiredEntries(config, manifest, repo) {
     if (!entry || !repositoryApplies(entry, repo, skip)) continue;
     files.push({ path: receipt.path, sha: receipt.sha, mode: receipt.mode, src: receipt.src });
   }
+  const readmeSource = config.readme_sources?.[repo];
+  if (readmeSource && !(skip[repo] || []).includes('README.md')) {
+    if (!/^content\/[a-z0-9-]+\/README\.md$/.test(readmeSource)) fail('invalid canonical README source');
+    if (files.some((entry) => entry.path === 'README.md')) fail('duplicate canonical README destination');
+    const bytes = fs.readFileSync(path.join(__dirname, '..', readmeSource));
+    const sha = crypto
+      .createHash('sha1')
+      .update(Buffer.from(`blob ${bytes.length}\0`))
+      .update(bytes)
+      .digest('hex');
+    files.push({ path: 'README.md', sha, mode: '100644', src: readmeSource });
+    files.sort((left, right) => left.path.localeCompare(right.path));
+  }
   const deletes = manifest.absent_paths.filter((entry) => !(skip[repo] || []).includes(entry));
   return { files, deletes };
 }
@@ -135,8 +148,7 @@ async function readManagedTree(api, owner, repo, revision, desired) {
   // GitHub caps recursive trees for large repositories. Read only paths governed
   // by this manifest so omitted entries cannot be mistaken for missing files.
   const root = await api.request(endpoint, { operationName: `read managed root tree for ${repo}` });
-  if (!Array.isArray(root?.tree) || root.truncated !== false)
-    fail(`managed root tree is incomplete for ${repo}`);
+  if (!Array.isArray(root?.tree) || root.truncated !== false) fail(`managed root tree is incomplete for ${repo}`);
   const cache = new Map();
   const paths = [...new Set([...desired.files.map((file) => file.path), ...desired.deletes])].sort();
   const files = [];

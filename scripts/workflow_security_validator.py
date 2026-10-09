@@ -432,7 +432,21 @@ class PolicyError(ValueError):
 
 def benchmark_trust_guard_is_allowed(repository, relative, job_id, route_label, guard):
     """Require the generic same-repository guard for direct restricted routes."""
-    del repository, relative, job_id, route_label
+    if route_label == "gitops-terraform":
+        expected_events = {
+            (".github/workflows/terraform-deploy.yml", "deploy"): "push",
+            (".github/workflows/terraform-cleanup.yml", "cleanup"): "delete",
+        }
+        event = expected_events.get((relative, job_id))
+        expected_guard = (
+            "github.repository == 'f5-sales-demo/gitops' && "
+            f"(github.event_name == '{event}' || github.event_name == 'workflow_dispatch')"
+        )
+        return (
+            repository == "f5-sales-demo/gitops"
+            and event is not None
+            and guard == expected_guard
+        )
     return guard == BENCHMARK_TRUST_GUARD
 
 

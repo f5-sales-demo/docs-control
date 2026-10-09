@@ -8,6 +8,7 @@ on:
       - '.github/config/managed-files-manifest.json'
       - 'scripts/fleet-reconciler.cjs'
       - 'scripts/github-api-resilience.cjs'
+      - 'content/gitops/README.md'
   workflow_dispatch:
     inputs:
       source_sha:
