@@ -28,7 +28,7 @@ class StatisticsPublicationTests(unittest.TestCase):
             workflow["jobs"]["docs"]["with"]["content-ref"], "${{ github.sha }}"
         )
 
-    def test_statistics_submenu_builder_is_selected_independently(self):
+    def test_statistics_customization_builder_is_selected_independently(self):
         workflow = yaml.safe_load(
             (ROOT / "workflows/github-pages-deploy.yml").read_text()
         )
@@ -37,8 +37,18 @@ class StatisticsPublicationTests(unittest.TestCase):
             r"github.repository == 'f5-sales-demo/statistics' && '(ghcr.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64})'",
             selector,
         )
-        assert match is not None, "Statistics must select the verified submenu builder"
-        assert "f5-sales-demo/custom-responses" in selector
+        assert match is not None, (
+            "Statistics must select the verified customization builder"
+        )
+        custom = re.search(
+            r"github.repository == 'f5-sales-demo/custom-responses' && '([^']+)'",
+            selector,
+        )
+        assert custom is not None
+        assert custom[1] == (
+            "ghcr.io/f5-sales-demo/docs-builder@sha256:"
+            "eaf57b7f92b26ab11e69420564dad4d3ad194ac7203ed7e292a04a230ed83d29"
+        )
         assert selector.endswith(
             "'ghcr.io/f5-sales-demo/docs-builder@sha256:8e3cc0f417f2fd658a07a0ee06b440bb49a02398f9d7657daa26f78dec667cbe' }}"
         )
