@@ -29,11 +29,31 @@ class GitOpsRouteTests(unittest.TestCase):
                     "github.repository == 'f5-sales-demo/gitops' && "
                     f"(github.event_name == '{event}' || github.event_name == 'workflow_dispatch')"
                 )
+                if job == "deploy":
+                    guard = guard.replace(
+                        "github.event_name == 'push' ||",
+                        "github.event_name == 'push' || (github.event_name == 'create' && github.event.ref_type == 'branch') ||",
+                    )
                 self.assertTrue(
                     check("f5-sales-demo/gitops", path, job, "gitops-terraform", guard)
                 )
-                for repository, route, job_id, unsafe in (
+                negatives = (
                     ("foreign/gitops", path, job, guard),
+                    (
+                        "f5-sales-demo/gitops",
+                        path,
+                        job,
+                        guard.replace("ref_type == 'branch'", "ref_type == 'tag'"),
+                    ),
+                    (
+                        "f5-sales-demo/gitops",
+                        path,
+                        job,
+                        guard.replace(
+                            "(github.event_name == 'create' && github.event.ref_type == 'branch')",
+                            "github.event_name == 'create'",
+                        ),
+                    ),
                     ("f5-sales-demo/gitops", ".github/workflows/other.yml", job, guard),
                     ("f5-sales-demo/gitops", path, "other", guard),
                     (
@@ -42,7 +62,15 @@ class GitOpsRouteTests(unittest.TestCase):
                         job,
                         guard.replace(event, "pull_request"),
                     ),
-                ):
+                )
+                for repository, route, job_id, unsafe in negatives:
+                    if (
+                        unsafe == guard
+                        and repository == "f5-sales-demo/gitops"
+                        and route == path
+                        and job_id == job
+                    ):
+                        continue
                     self.assertFalse(
                         check(repository, route, job_id, "gitops-terraform", unsafe)
                     )
