@@ -93,7 +93,7 @@
     "url": "https://f5-sales-demo.github.io/certificate-management/llms-full.txt",
     "description": "Certificate management for F5 Distributed Cloud",
     "readme_english_only": true,
-    "readme_content": "Documentation for certificate management in F5 Distributed Cloud is being prepared. [English documentation](docs/en/index.md).",
+    "readme_content": "Prepare and encrypt certificate keys for F5 Distributed Cloud. [Terraform](docs/en/terraform/index.md) deploys independently owned certificate resources with native provider Blindfold preparation and no xcsh installation. [xcsh](docs/en/xcsh/index.md) prepares and applies certificate manifests through the CLI. [English documentation](docs/en/index.md).",
     "shared_shell": {
       "contract": "v1",
       "mode": "consume"
