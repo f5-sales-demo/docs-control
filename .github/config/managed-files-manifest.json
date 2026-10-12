@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "cac9cf7fe3f0ab3319914d1e47b0abbebd5b5896",
+  "source_commit": "6195960ce087650a93f989c914a3712abababc20",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -138,8 +138,8 @@
     {
       "path": ".github/workflows/github-pages-deploy.yml",
       "src": "workflows/github-pages-deploy.yml",
-      "sha": "525a9e91e8552303f4c17664fa38e3ac6abfe08c",
-      "size": 1761,
+      "sha": "7c8f7ffceb529a7aaca8ad33f0ad6acfeaf8a8b9",
+      "size": 1936,
       "mode": "100644"
     },
     {
@@ -476,5 +476,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:eed7dd6403fbba77ff43e1f8018d487dfc0c327981f51ccd341fdbe09509cac7"
+  "state_digest": "sha256:8ce3113f12724103deed72b88abdce5239fc4dac4665753ffef412d255ef8a74"
 }
