@@ -641,6 +641,7 @@
     }
   },
   "readme_sources": {
-    "gitops": "content/gitops/README.md"
+    "gitops": "content/gitops/README.md",
+    "certificate-management": "content/certificate-management/README.md"
   }
 }
