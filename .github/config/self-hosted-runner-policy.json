@@ -1572,6 +1572,12 @@
                   "description": "Go test suite timeout (minutes)",
                   "required": false,
                   "type": "string"
+                },
+                "test_pattern": {
+                  "description": "Focused acceptance regex (empty runs the full suite)",
+                  "required": false,
+                  "default": "",
+                  "type": "string"
                 }
               }
             }
