@@ -1,0 +1,105 @@
+---
+name: Certificate Current Artifacts
+on:
+  pull_request:
+    paths:
+      - 'terraform/**'
+      - 'docs/**'
+      - 'scripts/resolve_current_artifacts.py'
+      - 'scripts/check_publication.py'
+      - 'scripts/qualify_certificates.py'
+      - 'tests/**'
+  schedule:
+    - cron: '17 3 * * *'
+    - cron: '41 */6 * * *'
+  workflow_dispatch:
+  repository_dispatch:
+    types: [certificate-artifacts-published]
+permissions:
+  contents: read
+concurrency:
+  group: certificate-current-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+jobs:
+  schema:
+    name: Current schema (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Resolve and verify published artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/resolve_current_artifacts.py --output "$RUNNER_TEMP/current.json" --install "$RUNNER_TEMP/certificate-artifacts"
+      - name: Validate every configuration without tenant credentials
+        run: |
+          python3 -m unittest discover -s tests -p test_current_artifacts.py
+          python3 -m unittest discover -s tests -p test_certificate_ownership.py
+          python3 tests/validate_configurations.py --artifacts "$RUNNER_TEMP/certificate-artifacts" --output "$RUNNER_TEMP/configurations.json"
+          bash tests/test-customization.sh
+      - name: Recheck upstream publications
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/resolve_current_artifacts.py --output "$RUNNER_TEMP/current.json" --check
+      - name: Preserve schema qualification receipts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: certificate-schema-${{ matrix.os }}
+          path: |
+            ${{ runner.temp }}/current.json
+            ${{ runner.temp }}/configurations.json
+          if-no-files-found: error
+          retention-days: 14
+  publication:
+    name: Published endpoints and downloads
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify trusted endpoints and source downloads
+        run: python3 scripts/check_publication.py --output "$RUNNER_TEMP/publication.json"
+      - name: Preserve publication health receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: certificate-publication
+          path: ${{ runner.temp }}/publication.json
+          if-no-files-found: error
+          retention-days: 14
+  customization:
+    name: Current builder and personalized reader workflows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Resolve current builder and install browser test dependencies
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/resolve_current_artifacts.py --output "$RUNNER_TEMP/current-builder.json"
+          python3 -m venv "$RUNNER_TEMP/certificate-browser"
+          "$RUNNER_TEMP/certificate-browser/bin/pip" install playwright
+      - name: Verify build, personalization, clipboard and downloads
+        run: |
+          "$RUNNER_TEMP/certificate-browser/bin/python" tests/validate_customization.py --artifacts "$RUNNER_TEMP/current-builder.json" --output "$RUNNER_TEMP/customization.json"
+      - name: Recheck publication identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/resolve_current_artifacts.py --output "$RUNNER_TEMP/current-builder.json" --check
+      - name: Preserve builder qualification receipts
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: certificate-customization
+          path: |
+            ${{ runner.temp }}/current-builder.json
+            ${{ runner.temp }}/customization.json
+          if-no-files-found: error
+          retention-days: 14
