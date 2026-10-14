@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "a246e82b979f425d7d533122653421737ccad407",
+  "source_commit": "66868f497be6b08c76042c5cc278d5eeb5016478",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "090b6abcb4a2c39ef5a63bf5cbbc6cf13be18d78",
-      "size": 9026,
+      "sha": "c8e9c9322cb554663da53554f92a2a4e1e2adb40",
+      "size": 9085,
       "mode": "100644"
     },
     {
@@ -129,6 +129,13 @@
       "mode": "100644"
     },
     {
+      "path": ".github/workflows/certificate-current-artifacts.yml",
+      "src": "workflows/certificate-current-artifacts.yml",
+      "sha": "a78f39e305adba0613460ad032e70fdd3c1ecbfc",
+      "size": 4374,
+      "mode": "100644"
+    },
+    {
       "path": ".github/workflows/github-pages-config-sources.yml",
       "src": "workflows/github-pages-config-sources.yml",
       "sha": "92f5ee2aee21b1d97a9ac44e7988b1cd378777d9",
@@ -138,8 +145,8 @@
     {
       "path": ".github/workflows/github-pages-deploy.yml",
       "src": "workflows/github-pages-deploy.yml",
-      "sha": "7c8f7ffceb529a7aaca8ad33f0ad6acfeaf8a8b9",
-      "size": 1936,
+      "sha": "1b24ff6914feede3741e6305c426dd490c087178",
+      "size": 1959,
       "mode": "100644"
     },
     {
@@ -476,5 +483,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:e07fce9ef4f1db54212d9eca79e6cb68b865d8e30357847ee0d60da118281129"
+  "state_digest": "sha256:e6a2a6bba2cd751e995c889abf8ab23a477386b29635767429daf0491d06b2aa"
 }
