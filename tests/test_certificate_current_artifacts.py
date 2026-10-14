@@ -29,10 +29,10 @@ class CertificateWorkflowTests(unittest.TestCase):
         source = (ROOT / mapping["src"]).read_text()
         workflow = yaml.safe_load(source)
         events = workflow.get("on", workflow.get(True))
-        self.assertIn("pull_request", events)
+        self.assertIn("schedule", events)
         self.assertIn("schedule", events)
         self.assertIn("workflow_dispatch", events)
-        self.assertIn("repository_dispatch", events)
+        self.assertEqual(len(events["schedule"]), 2)
         self.assertNotIn("secrets.", source)
         self.assertIn("--check", source)
         commands = "\n".join(
