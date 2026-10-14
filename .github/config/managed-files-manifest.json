@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "66868f497be6b08c76042c5cc278d5eeb5016478",
+  "source_commit": "0e7d4ad58a85924714fd09a4be380f3d88a15c01",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "c8e9c9322cb554663da53554f92a2a4e1e2adb40",
-      "size": 9085,
+      "sha": "eeac3c59b192beef3916a8f5825b27910c446290",
+      "size": 9147,
       "mode": "100644"
     },
     {
@@ -129,10 +129,17 @@
       "mode": "100644"
     },
     {
+      "path": ".github/workflows/certificate-current-artifacts-pr.yml",
+      "src": "workflows/certificate-current-artifacts-pr.yml",
+      "sha": "0ebcc025140ded4529ef3fa6d63a8a6f92970a25",
+      "size": 3730,
+      "mode": "100644"
+    },
+    {
       "path": ".github/workflows/certificate-current-artifacts.yml",
       "src": "workflows/certificate-current-artifacts.yml",
-      "sha": "a78f39e305adba0613460ad032e70fdd3c1ecbfc",
-      "size": 4374,
+      "sha": "901c1527484117c33267bacbce7ee5c980599ade",
+      "size": 4559,
       "mode": "100644"
     },
     {
@@ -483,5 +490,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:e6a2a6bba2cd751e995c889abf8ab23a477386b29635767429daf0491d06b2aa"
+  "state_digest": "sha256:293bc9250772616c0158274e99eb5176828a0c8b5b5f559f0fd1e73800027d3b"
 }
