@@ -303,6 +303,11 @@
         "only_repos": ["custom-responses"]
       },
       {
+        "src": "workflows/certificate-current-artifacts.yml",
+        "dest": ".github/workflows/certificate-current-artifacts.yml",
+        "only_repos": ["certificate-management"]
+      },
+      {
         "src": "workflows/github-pages-deploy.yml",
         "dest": ".github/workflows/github-pages-deploy.yml"
       },
