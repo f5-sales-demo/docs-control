@@ -303,6 +303,11 @@
         "only_repos": ["custom-responses"]
       },
       {
+        "src": "workflows/certificate-current-artifacts-pr.yml",
+        "dest": ".github/workflows/certificate-current-artifacts-pr.yml",
+        "only_repos": ["certificate-management"]
+      },
+      {
         "src": "workflows/certificate-current-artifacts.yml",
         "dest": ".github/workflows/certificate-current-artifacts.yml",
         "only_repos": ["certificate-management"]
