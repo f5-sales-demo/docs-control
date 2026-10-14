@@ -4,6 +4,7 @@
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -31,9 +32,9 @@ class CertificateRoutesTests(unittest.TestCase):
                 shutil.copyfile(
                     ROOT / "workflows" / name, root / ".github/workflows" / name
                 )
-            result = subprocess.run(
+            result = subprocess.run(  # noqa: S603 -- Fixed trusted policy auditor argv.
                 [
-                    "python3",
+                    sys.executable,
                     str(ROOT / "scripts/audit-runner-workflows.py"),
                     "--repository",
                     "f5-sales-demo/certificate-management",
@@ -45,7 +46,7 @@ class CertificateRoutesTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=False,
-            )  # noqa: S603, S607 -- Fixed trusted policy auditor.
+            )
             assert result.returncode == 0, result.stdout + result.stderr
 
     def test_workflow_dispatch_and_pr_are_separate(self):
