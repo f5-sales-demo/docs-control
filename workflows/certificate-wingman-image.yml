@@ -1,0 +1,76 @@
+---
+name: Certificate Wingman Application
+on:
+  pull_request:
+    paths: ['wingman/app/**', '.github/workflows/certificate-wingman-image.yml']
+  push:
+    branches: [main]
+    paths: ['wingman/app/**', '.github/workflows/certificate-wingman-image.yml']
+permissions:
+  contents: read
+concurrency:
+  group: certificate-wingman-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+jobs:
+  test:
+    name: Wingman application unit tests (no live unseal)
+    runs-on: managed-socketless
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Test and vet
+        working-directory: wingman/app
+        run: |
+          go test -race ./...
+          go vet ./...
+  trust-gate:
+    name: Verify trusted application publication
+    runs-on: managed-socketless
+    if: >-
+      github.event_name == 'push' && github.repository == 'f5-sales-demo/certificate-management' &&
+      github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.ref_protected == true
+    steps:
+      - name: Accept guarded invocation
+        run: test "$GITHUB_REPOSITORY" = "f5-sales-demo/certificate-management"
+  publish:
+    name: Publish immutable application image
+    runs-on: managed-container-build
+    needs: [test, trust-gate]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up isolated multi-platform builder
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e
+        with:
+          driver: docker-container
+      - name: Build and publish source-bound image
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          read -r go_image < wingman/app/build-image.txt
+          [[ "$go_image" =~ ^golang@sha256:[a-f0-9]{64}$ ]]
+          export DOCKER_CONFIG="$RUNNER_TEMP/wingman-docker"
+          mkdir -m 700 "$DOCKER_CONFIG"
+          trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin
+          docker buildx build wingman/app --platform linux/amd64,linux/arm64 \
+            --build-arg "GO_IMAGE=$go_image" \
+            --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
+            --label "org.opencontainers.image.revision=$GITHUB_SHA" \
+            --tag "ghcr.io/f5-sales-demo/certificate-management-wingman:sha-$GITHUB_SHA" \
+            --provenance=mode=max --sbom=true --push \
+            --metadata-file "$RUNNER_TEMP/wingman-image.json"
+      - name: Preserve immutable image receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: wingman-image
+          path: ${{ runner.temp }}/wingman-image.json
+          if-no-files-found: error
+          retention-days: 90

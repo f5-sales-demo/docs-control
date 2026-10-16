@@ -24,6 +24,10 @@ jobs:
 
         python3 -m unittest discover -s tests -p test_certificate_ownership.py
 
+        python3 -m unittest discover -s tests -p test_wingman.py
+
+        python3 tests/validate_wingman.py --artifacts "$RUNNER_TEMP/certificate-artifacts" --output "$RUNNER_TEMP/wingman-schema.json"
+
         python3 tests/validate_configurations.py --artifacts "$RUNNER_TEMP/certificate-artifacts" --output "$RUNNER_TEMP/configurations.json"
 
         bash tests/test-customization.sh
@@ -53,7 +57,7 @@ jobs:
       with:
         persist-credentials: false
     - name: Verify trusted endpoints and source downloads
-      run: python3 scripts/check_publication.py --output "$RUNNER_TEMP/publication.json"
+      run: python3 scripts/check_publication.py --wingman --output "$RUNNER_TEMP/publication.json"
     - name: Preserve publication health receipt
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:

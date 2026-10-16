@@ -24,6 +24,10 @@ jobs:
 
         python3 -m unittest discover -s tests -p test_certificate_ownership.py
 
+        python3 -m unittest discover -s tests -p test_wingman.py
+
+        python3 tests/validate_wingman.py --artifacts "$RUNNER_TEMP/certificate-artifacts" --output "$RUNNER_TEMP/wingman-schema.json"
+
         python3 tests/validate_configurations.py --artifacts "$RUNNER_TEMP/certificate-artifacts" --output "$RUNNER_TEMP/configurations.json"
 
         bash tests/test-customization.sh
@@ -94,6 +98,7 @@ jobs:
   pull_request:
     paths:
     - terraform/**
+    - wingman/**
     - docs/**
     - scripts/resolve_current_artifacts.py
     - scripts/check_publication.py
