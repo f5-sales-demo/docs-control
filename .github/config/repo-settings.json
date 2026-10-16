@@ -313,6 +313,11 @@
         "only_repos": ["certificate-management"]
       },
       {
+        "src": "workflows/certificate-wingman-image.yml",
+        "dest": ".github/workflows/certificate-wingman-image.yml",
+        "only_repos": ["certificate-management"]
+      },
+      {
         "src": "workflows/github-pages-deploy.yml",
         "dest": ".github/workflows/github-pages-deploy.yml"
       },
