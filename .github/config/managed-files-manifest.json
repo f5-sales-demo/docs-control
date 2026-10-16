@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "50fdb4e851f13ecbce71b1e6c0a1103bc45b89b2",
+  "source_commit": "ccbdde90058127dc333583fff815051be62fa690",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -145,8 +145,8 @@
     {
       "path": ".github/workflows/certificate-wingman-image.yml",
       "src": "workflows/certificate-wingman-image.yml",
-      "sha": "24530d0a8a07aead5b957b8a2197516b5bce5899",
-      "size": 3526,
+      "sha": "909d737f61a02167140ecfa0b3293ede4decd47a",
+      "size": 3608,
       "mode": "100644"
     },
     {
@@ -497,5 +497,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:4f91e670fb8ad24655608e36c4fec4441ba913b68a42085c02a90bc26cb8389f"
+  "state_digest": "sha256:1076667ee80e11d5a23c7a68aa0cc23fe7798ac9e7d319b895f1f34f2fadf60c"
 }
