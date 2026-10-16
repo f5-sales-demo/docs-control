@@ -69,7 +69,7 @@ class CustomResponsePagesTests(unittest.TestCase):
         prose_caller = (ROOT / "workflows/github-pages-deploy.yml").read_text()
         self.assertIn("shared-mode: auto", prose_caller)
         self.assertIn(
-            "sha256:eaf57b7f92b26ab11e69420564dad4d3ad194ac7203ed7e292a04a230ed83d29",
+            "sha256:8fcc5e4171f6b4cb44133e44619aaca352d168b5a34e0c95a5715041d721bcda",
             prose_caller,
         )
 
