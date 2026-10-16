@@ -44,6 +44,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - name: Set up isolated multi-platform builder
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e
+        with:
+          driver: docker-container
       - name: Build and publish source-bound image
         env:
           REGISTRY_TOKEN: ${{ github.token }}
