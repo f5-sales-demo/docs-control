@@ -72,6 +72,7 @@ jobs:
             --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --tag "ghcr.io/f5-sales-demo/certificate-management-wingman:sha-$GITHUB_SHA" \
+            --tag "ghcr.io/f5-sales-demo/certificate-management-wingman:latest" \
             --provenance=mode=max --sbom=true --push \
             --metadata-file "$RUNNER_TEMP/wingman-image.json"
       - name: Preserve immutable image receipt
