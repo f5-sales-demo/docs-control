@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "555fca8baccf3bdb742b983709d699eac3655113",
+  "source_commit": "50faf96db3a51c789646375ecbd96e8478b289db",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "eeac3c59b192beef3916a8f5825b27910c446290",
-      "size": 9147,
+      "sha": "9b2fc6f2cd69f0da8f553428a596e0fe963f6a68",
+      "size": 9202,
       "mode": "100644"
     },
     {
@@ -131,15 +131,22 @@
     {
       "path": ".github/workflows/certificate-current-artifacts-pr.yml",
       "src": "workflows/certificate-current-artifacts-pr.yml",
-      "sha": "0ebcc025140ded4529ef3fa6d63a8a6f92970a25",
-      "size": 3730,
+      "sha": "681a72970aa874e6dccc808e781a8b34e2e49fbb",
+      "size": 3949,
       "mode": "100644"
     },
     {
       "path": ".github/workflows/certificate-current-artifacts.yml",
       "src": "workflows/certificate-current-artifacts.yml",
-      "sha": "901c1527484117c33267bacbce7ee5c980599ade",
-      "size": 4559,
+      "sha": "74c9cc4406bef621528e6f4c5737dc0e91af15cb",
+      "size": 4771,
+      "mode": "100644"
+    },
+    {
+      "path": ".github/workflows/certificate-wingman-image.yml",
+      "src": "workflows/certificate-wingman-image.yml",
+      "sha": "12b4a489e06e294d8584cd2097bf2c44e649bfcb",
+      "size": 3091,
       "mode": "100644"
     },
     {
@@ -152,8 +159,8 @@
     {
       "path": ".github/workflows/github-pages-deploy.yml",
       "src": "workflows/github-pages-deploy.yml",
-      "sha": "dcd427017563e5d46ce9424d44c7a52f4ec04dd7",
-      "size": 1959,
+      "sha": "06bd931907c1e549de0f5346a298b74ab10c2993",
+      "size": 1980,
       "mode": "100644"
     },
     {
@@ -490,5 +497,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:761fb6e767aaebabf3735118cc3086217d5ee8fff5fe2b1341c1c9c62c4d8722"
+  "state_digest": "sha256:10256977fefecdb79cf935bec6a32945322e5bca4ccf38926856504468a04d8a"
 }
