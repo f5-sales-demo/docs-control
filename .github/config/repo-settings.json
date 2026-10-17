@@ -223,7 +223,9 @@
         ".github/workflows/github-pages-deploy.yml",
         ".gitignore",
         ".pre-commit-config.yaml",
-        "scripts/workflow_security_validator.py"
+        "scripts/workflow_security_validator.py",
+        ".github/workflows/antigravity-review.yml",
+        "scripts/lint-mdx-prose.sh"
       ],
       "xcsh-action": ["README.md"],
       "terraform-provider-xcsh": [".github/workflows/translation-audit.yml", "scripts/locale-lint.sh"],
