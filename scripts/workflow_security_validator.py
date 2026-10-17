@@ -1325,17 +1325,28 @@ def inventory(root, repository, policy, default_profile, routes):
 
 def authorize_latest_dependency_finding(finding, root):
     """Authorize only the centrally managed, repository-scoped xcsh latest calls."""
-    if not isinstance(finding, dict) or finding.get("ident") != "unpinned-uses" or finding.get("ignored"):
+    if (
+        not isinstance(finding, dict)
+        or finding.get("ident") != "unpinned-uses"
+        or finding.get("ignored")
+    ):
         return False
     locations = finding.get("locations")
     if not isinstance(locations, list) or len(locations) != 1:
         return False
     symbolic = locations[0].get("symbolic", {})
     relative = symbolic.get("key", {}).get("Local", {}).get("verbatim_path")
-    if relative not in ("workflows/super-linter.yml", ".github/workflows/super-linter.yml"):
+    if relative not in (
+        "workflows/super-linter.yml",
+        ".github/workflows/super-linter.yml",
+    ):
         return False
     route = symbolic.get("route", {}).get("route", [])
-    if len(route) < 3 or route[0] != {"Key": "jobs"} or not isinstance(route[1].get("Key"), str):
+    if (
+        len(route) < 3
+        or route[0] != {"Key": "jobs"}
+        or not isinstance(route[1].get("Key"), str)
+    ):
         return False
     job_id = route[1]["Key"]
     try:
@@ -1346,12 +1357,23 @@ def authorize_latest_dependency_finding(finding, root):
     guard = " ".join(str(job.get("if", "")).split())
     if job.get("secrets") is not None:
         return False
-    if job_id == "linked-issue" and route[2:] == [{"Key": "steps"}, {"Index": 0}, {"Key": "uses"}]:
+    if job_id == "linked-issue" and route[2:] == [
+        {"Key": "steps"},
+        {"Index": 0},
+        {"Key": "uses"},
+    ]:
         expected = "github.repository == 'f5-sales-demo/xcsh' && github.event.pull_request.head.repo.full_name == github.repository"
-        return guard == expected and job["steps"][0].get("uses") == "actions/github-script@main"
+        return (
+            guard == expected
+            and job["steps"][0].get("uses") == "actions/github-script@main"
+        )
     if job_id == "lint-xcsh" and route[2:] == [{"Key": "uses"}]:
         expected = "always() && !startsWith(github.event.pull_request.head.ref, 'governance/reconcile-') && github.repository == 'f5-sales-demo/xcsh' && needs.linked-issue.result == 'success'"
-        return guard == expected and job.get("uses") == "f5-sales-demo/docs-control/.github/workflows/super-linter.yml@main"
+        return (
+            guard == expected
+            and job.get("uses")
+            == "f5-sales-demo/docs-control/.github/workflows/super-linter.yml@main"
+        )
     return False
 
 
@@ -1362,7 +1384,11 @@ def validate(findings, root, repository, policy_path, governance_path):
         policy_path, governance_path, repository
     )
     actual = inventory(root, repository, policy, default_profile, repository_routes)
-    findings = [finding for finding in findings if not authorize_latest_dependency_finding(finding, root)]
+    findings = [
+        finding
+        for finding in findings
+        if not authorize_latest_dependency_finding(finding, root)
+    ]
     if repository_routes["kind"] == "arc":
         if findings:
             raise PolicyError(

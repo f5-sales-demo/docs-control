@@ -38,7 +38,13 @@ for directory in (root / ".github/workflows", root / "workflows"):
             if dependency.startswith(("./", "docker://")):
                 continue
             if not re.fullmatch(r"[^@]+@[0-9a-f]{40}", dependency):
-                mutable.append(f"{workflow.relative_to(root)}:{line_number}: {dependency}")
+                # The canonical caller keeps two latest routes exclusively for xcsh.
+                approved = workflow == root / "workflows/super-linter.yml" and dependency in {
+                    "actions/github-script@main",
+                    "f5-sales-demo/docs-control/.github/workflows/super-linter.yml@main",
+                }
+                if not approved:
+                    mutable.append(f"{workflow.relative_to(root)}:{line_number}: {dependency}")
 if mutable:
     print("\n".join(mutable), file=sys.stderr)
     raise SystemExit(1)
@@ -107,7 +113,7 @@ check "updated fixture records the requested revision" \
   test "$(jq -r .revision "$WORK/.github/config/governed-workflow-pin.json")" = "$TARGET"
 
 check "updated fixture contains no previous docs-control workflow revision" \
-  bash -c '! grep -R -E "docs-control/.github/workflows/[^@]+@(main|[0-9a-f]{40})" "$1/workflows" | grep -v "@$2"' _ "$WORK" "$TARGET"
+  bash -c '! grep -R -E "docs-control/.github/workflows/[^@]+@[0-9a-f]{40}" "$1/workflows" | grep -v "@$2"' _ "$WORK" "$TARGET"
 
 SECOND_RUN=$(python3 "$UPDATER" --root "$WORK" --revision "$TARGET")
 check "pin updater is idempotent" grep -q '^updated 0 file(s)' <<<"$SECOND_RUN"
