@@ -1267,6 +1267,69 @@ class DocsConditionalRouteTests(unittest.TestCase):
         )
 
 
+class PrototypeLatestDependencyTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        (self.root / ".github/workflows").mkdir(parents=True)
+        (self.root / ".github/config").mkdir()
+        self.policy = {"actions": {"actions/checkout": "main"}, "images": []}
+        self.target = "actions/checkout@main"
+        self.finding = {
+            "ident": "unpinned-uses",
+            "locations": [
+                {
+                    "symbolic": {
+                        "key": {"Local": {"verbatim_path": ".github/workflows/ci.yml"}},
+                        "route": {
+                            "route": [
+                                {"Key": "jobs"},
+                                {"Key": "check"},
+                                {"Key": "steps"},
+                                {"Index": 0},
+                                {"Key": "uses"},
+                            ]
+                        },
+                    }
+                }
+            ],
+        }
+
+    def permitted(self, repository="f5-sales-demo/xcsh"):
+        (self.root / ".github/config/latest-dependencies.json").write_text(
+            json.dumps(self.policy)
+        )
+        workflow = {"jobs": {"check": {"steps": [{"uses": self.target}]}}}
+        (self.root / ".github/workflows/ci.yml").write_text(yaml.safe_dump(workflow))
+        return validator.project_latest_allowed(self.finding, self.root, repository)
+
+    def test_current_source_is_scoped_to_xcsh(self):
+        self.assertTrue(self.permitted())
+        self.assertFalse(self.permitted("f5-sales-demo/other"))
+
+    def test_manifest_cannot_authorize_unknown_sources_or_old_refs(self):
+        self.target = "actions/checkout@v7"
+        self.policy["actions"]["actions/checkout"] = "v7"
+        self.assertFalse(self.permitted())
+        self.target = "unapproved/checkout@main"
+        self.policy["actions"]["unapproved/checkout"] = "main"
+        self.assertFalse(self.permitted())
+
+    def test_other_findings_and_ignored_records_are_never_permitted(self):
+        self.finding["ident"] = "excessive-permissions"
+        self.assertFalse(self.permitted())
+        self.finding["ident"] = "unpinned-uses"
+        self.finding["ignored"] = True
+        self.assertFalse(self.permitted())
+
+    def test_canonical_caller_still_requires_its_exact_guard(self):
+        self.finding["locations"][0]["symbolic"]["key"]["Local"]["verbatim_path"] = (
+            ".github/workflows/super-linter.yml"
+        )
+        self.assertFalse(self.permitted())
+
+
 if __name__ == "__main__":
     unittest.main()
 
