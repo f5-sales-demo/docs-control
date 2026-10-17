@@ -23,7 +23,7 @@ jobs:
       pull-requests: read # inspect linked issues or authenticated release metadata
     steps:
       - name: Check this pull request's linked issues
-        uses: actions/github-script@main
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
         env:
           RELEASE_AUTOMATION_LOGIN: ${{ vars.RELEASE_AUTOMATION_LOGIN }}
           RENOVATE_GITHUB_APP_BOT_ID: ${{ vars.RENOVATE_GITHUB_APP_BOT_ID }}
@@ -120,7 +120,7 @@ jobs:
       needs.linked-issue.result == 'success'
     # No `secrets:` — least privilege. The reusable uses only the automatic
     # GITHUB_TOKEN, so passing repository secrets would over-provision it.
-    uses: f5-sales-demo/docs-control/.github/workflows/super-linter.yml@main
+    uses: f5-sales-demo/docs-control/.github/workflows/super-linter.yml@db9dce21bb4c095ef22a4f7268c5ede7bec1a43a
     with:
       rust_edition: ${{ github.repository == 'f5-sales-demo/xcsh' && '2024' || '2021' }}
       classify_xc_minimum_configs: ${{ github.repository == 'f5-sales-demo/terraform-provider-xcsh' }}
