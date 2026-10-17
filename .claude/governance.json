@@ -15,7 +15,6 @@
       ".github/workflows/github-pages-deploy.yml",
       ".gitignore",
       ".pre-commit-config.yaml",
-      "scripts/workflow_security_validator.py",
       ".github/workflows/antigravity-review.yml",
       "scripts/lint-mdx-prose.sh"
     ],

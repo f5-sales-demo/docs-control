@@ -359,6 +359,8 @@ jobs:
           # Its vendored OpenSSL needs make, absent from the linter container.
           if [ "$REPOSITORY" = "f5-sales-demo/xcsh" ]; then
             echo "VALIDATE_RUST_CLIPPY=false" >> "$GITHUB_ENV"
+            # The explicit scan below applies xcsh's approved current-ref policy.
+            echo "VALIDATE_GITHUB_ACTIONS_ZIZMOR=false" >> "$GITHUB_ENV"
           fi
 
           # Super-Linter rejects a mix of explicit true (include mode) and
@@ -371,6 +373,26 @@ jobs:
               echo "VALIDATE_RUST_${edition}=false" >> "$GITHUB_ENV"
             fi
           done
+
+      - name: Audit xcsh current workflow dependencies
+        if: github.repository == 'f5-sales-demo/xcsh'
+        env:
+          AUDITED_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          targets=(.github/workflows/ .github/actions/ workflows/*.yml)
+          audit_exit=0
+          uvx --refresh zizmor --no-config --no-ignores --persona=auditor --format=json "${targets[@]}" > zizmor-findings.json 2>zizmor-diagnostics.log || audit_exit=$?
+          case "$audit_exit" in
+            0|11|12|13|14) ;;
+            *) cat zizmor-diagnostics.log >&2; exit "$audit_exit" ;;
+          esac
+          uv run --refresh --no-project --with PyYAML python scripts/workflow_security_validator.py \
+            --repository "$AUDITED_REPOSITORY" \
+            --policy .github/config/self-hosted-runner-policy.json \
+            --governance .claude/governance.json \
+            --zizmor-exit "$audit_exit" zizmor-findings.json
 
       # Super-Linter v8.7.0's bundled actionlint can deadlock while analyzing
       # the large managed sync workflow. Use the preinstalled immutable runner

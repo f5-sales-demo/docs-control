@@ -1385,6 +1385,82 @@ def authorize_latest_dependency_finding(finding, root):
     return False
 
 
+CURRENT_UPSTREAM_REFS = {
+    "actions/cache": "main",
+    "actions/checkout": "main",
+    "actions/download-artifact": "main",
+    "actions/github-script": "main",
+    "actions/setup-node": "main",
+    "actions/upload-artifact": "main",
+    "astral-sh/setup-uv": "main",
+    "docker/build-push-action": "master",
+    "docker/login-action": "master",
+    "docker/metadata-action": "master",
+    "docker/setup-buildx-action": "master",
+    "f5-sales-demo/docs-control": "main",
+    "github/codeql-action": "main",
+    "oven-sh/setup-bun": "main",
+}
+CURRENT_IMAGES = {"ghcr.io/f5-sales-demo/docs-builder:latest"}
+
+
+def project_dependency_value(finding, root):
+    """Resolve a project dependency finding to its exact workflow value."""
+    if (
+        not isinstance(finding, dict)
+        or finding.get("ident") not in ("unpinned-uses", "unpinned-images")
+        or finding.get("ignored")
+    ):
+        return None
+    try:
+        locations = finding["locations"]
+        if len(locations) != 1:
+            return None
+        symbolic = locations[0]["symbolic"]
+        relative = symbolic["key"]["Local"]["verbatim_path"]
+        if relative == ".github/workflows/super-linter.yml":
+            return None
+        pattern = r"\.github/(?:workflows/[^/]+\.ya?ml|actions/[\w.-]+/action\.ya?ml)"
+        if not re.fullmatch(pattern, relative):
+            return None
+        value = yaml.safe_load((root / relative).read_text(encoding="utf-8"))
+        for item in symbolic["route"]["route"]:
+            value = value[item["Key"]] if "Key" in item else value[item["Index"]]
+    except (OSError, ValueError, KeyError, TypeError, IndexError, yaml.YAMLError):
+        value = None
+    return value
+
+
+def project_latest_allowed(finding, root, repository):
+    """Allow xcsh's approved current references without suppressing other audits."""
+    if repository != "f5-sales-demo/xcsh":
+        return False
+    value = project_dependency_value(finding, root)
+    if not isinstance(value, str):
+        return False
+    try:
+        policy_path = root / ".github/config/latest-dependencies.json"
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+        if finding["ident"] == "unpinned-images":
+            image = value.removeprefix("docker://")
+            return image in CURRENT_IMAGES and image in policy["images"]
+        match = re.fullmatch(r"([\w.-]+/[\w.-]+)(?:/[^@]+)?@([^@]+)", value)
+        return bool(
+            match
+            and CURRENT_UPSTREAM_REFS.get(match[1]) == match[2]
+            and policy["actions"].get(match[1]) == match[2]
+        )
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def permitted_latest(finding, root, repository):
+    """Combine canonical guarded calls with the prototype's current-ref policy."""
+    return authorize_latest_dependency_finding(finding, root) or project_latest_allowed(
+        finding, root, repository
+    )
+
+
 def validate(findings, root, repository, policy_path, governance_path):
     if not isinstance(findings, list):
         raise PolicyError("Zizmor output must be a JSON array")
@@ -1392,8 +1468,8 @@ def validate(findings, root, repository, policy_path, governance_path):
         policy_path, governance_path, repository
     )
     actual = inventory(root, repository, policy, default_profile, repository_routes)
-    latest_allowed = authorize_latest_dependency_finding
-    findings = [item for item in findings if not latest_allowed(item, root)]
+    latest_allowed = permitted_latest
+    findings = [item for item in findings if not latest_allowed(item, root, repository)]
     if repository_routes["kind"] == "arc":
         if findings:
             raise PolicyError(
