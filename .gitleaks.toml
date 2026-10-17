@@ -16,3 +16,12 @@ regexes = [
   '''00000000-0000-0000-0000-000000000000''',
   '''00000000-0000-4000-8000-[0-9a-f]{12}''',
 ]
+
+# Public immutable release provenance: an exact revision assignment is not a credential.
+# Sourcegraph's legacy detector otherwise matches it when a bundle also contains its redaction prefix.
+[allowlist]
+description = "Verified public API schema v12.0.9 revision metadata"
+regexTarget = "line"
+regexes = [
+  '''^\s*(?:(?:const|let|var)\s+)?commit\s*=\s*['"]e04c5d45f7a4e103e2dc84bf52b767182b4de3bc['"],?\s*$''',
+]
