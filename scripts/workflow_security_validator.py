@@ -1427,9 +1427,8 @@ def project_dependency_value(finding, root):
         for item in symbolic["route"]["route"]:
             value = value[item["Key"]] if "Key" in item else value[item["Index"]]
     except (OSError, ValueError, KeyError, TypeError, IndexError, yaml.YAMLError):
-        return None
-    else:
-        return value
+        value = None
+    return value
 
 
 def project_latest_allowed(finding, root, repository):
