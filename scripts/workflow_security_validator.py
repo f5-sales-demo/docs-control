@@ -1323,6 +1323,68 @@ def inventory(root, repository, policy, default_profile, routes):
     return set(actual)
 
 
+MIN_USE_ROUTE_LENGTH = 3
+
+
+def latest_dependency_location(finding):
+    """Locate a current dependency finding in the managed xcsh caller."""
+    if (
+        not isinstance(finding, dict)
+        or finding.get("ident") != "unpinned-uses"
+        or finding.get("ignored")
+    ):
+        return None
+    locations = finding.get("locations")
+    if not isinstance(locations, list) or len(locations) != 1:
+        return None
+    symbolic = locations[0].get("symbolic", {})
+    relative = symbolic.get("key", {}).get("Local", {}).get("verbatim_path")
+    if relative not in (
+        "workflows/super-linter.yml",
+        ".github/workflows/super-linter.yml",
+    ):
+        return None
+    route = symbolic.get("route", {}).get("route", [])
+    if len(route) < MIN_USE_ROUTE_LENGTH or route[0] != {"Key": "jobs"}:
+        return None
+    if not isinstance(route[1].get("Key"), str):
+        return None
+    return relative, route
+
+
+def authorize_latest_dependency_finding(finding, root):
+    """Authorize only the centrally managed, repository-scoped xcsh latest calls."""
+    location = latest_dependency_location(finding)
+    if location is None:
+        return False
+    relative, route = location
+    job_id = route[1]["Key"]
+    try:
+        workflow = yaml.safe_load((root / relative).read_text())
+        job = workflow["jobs"][job_id]
+    except (OSError, KeyError, TypeError, yaml.YAMLError):
+        return False
+    guard = " ".join(str(job.get("if", "")).split())
+    if job.get("secrets") is not None:
+        return False
+    if job_id == "linked-issue" and route[2:] == [
+        {"Key": "steps"},
+        {"Index": 0},
+        {"Key": "uses"},
+    ]:
+        expected = "github.repository == 'f5-sales-demo/xcsh' && github.event.pull_request.head.repo.full_name == github.repository"
+        target = job["steps"][0].get("uses")
+        return guard == expected and target == "actions/github-script@main"
+    if job_id == "lint-xcsh" and route[2:] == [{"Key": "uses"}]:
+        expected = "always() && !startsWith(github.event.pull_request.head.ref, 'governance/reconcile-') && github.repository == 'f5-sales-demo/xcsh' && needs.linked-issue.result == 'success'"
+        return (
+            guard == expected
+            and job.get("uses")
+            == "f5-sales-demo/docs-control/.github/workflows/super-linter.yml@main"
+        )
+    return False
+
+
 def validate(findings, root, repository, policy_path, governance_path):
     if not isinstance(findings, list):
         raise PolicyError("Zizmor output must be a JSON array")
@@ -1330,6 +1392,8 @@ def validate(findings, root, repository, policy_path, governance_path):
         policy_path, governance_path, repository
     )
     actual = inventory(root, repository, policy, default_profile, repository_routes)
+    latest_allowed = authorize_latest_dependency_finding
+    findings = [item for item in findings if not latest_allowed(item, root)]
     if repository_routes["kind"] == "arc":
         if findings:
             raise PolicyError(
