@@ -1269,3 +1269,24 @@ class DocsConditionalRouteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LatestDependencyReferenceTests(unittest.TestCase):
+    def test_only_scoped_xcsh_latest_references_are_authorized(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "workflows/super-linter.yml"
+            source.parent.mkdir(parents=True)
+            guard = "always() && !startsWith(github.event.pull_request.head.ref, 'governance/reconcile-') && github.repository == 'f5-sales-demo/xcsh' && needs.linked-issue.result == 'success'"
+            workflow = {"jobs": {"lint-xcsh": {"if": guard, "uses": "f5-sales-demo/docs-control/.github/workflows/super-linter.yml@main"}}}
+            source.write_text(yaml.safe_dump(workflow))
+            finding = {"ident": "unpinned-uses", "locations": [{"symbolic": {"key": {"Local": {"verbatim_path": "workflows/super-linter.yml"}}, "route": {"route": [{"Key": "jobs"}, {"Key": "lint-xcsh"}, {"Key": "uses"}]}}}]}
+            self.assertTrue(validator.authorize_latest_dependency_finding(finding, root))
+            workflow["jobs"]["lint-xcsh"]["uses"] = "f5-sales-demo/docs-control/.github/workflows/super-linter.yml@feature"
+            source.write_text(yaml.safe_dump(workflow))
+            self.assertFalse(validator.authorize_latest_dependency_finding(finding, root))
+            workflow["jobs"]["lint-xcsh"]["uses"] = "f5-sales-demo/docs-control/.github/workflows/super-linter.yml@main"
+            workflow["jobs"]["lint-xcsh"]["if"] = guard + " || true"
+            source.write_text(yaml.safe_dump(workflow))
+            self.assertFalse(validator.authorize_latest_dependency_finding(finding, root))
+            self.assertFalse(validator.authorize_latest_dependency_finding({**finding, "ident": "template-injection"}, root))

@@ -15,7 +15,6 @@
       ".github/workflows/github-pages-deploy.yml",
       ".gitignore",
       ".pre-commit-config.yaml",
-      ".github/workflows/super-linter.yml",
       "scripts/workflow_security_validator.py"
     ],
     "xcsh-action": ["README.md"],
