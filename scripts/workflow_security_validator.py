@@ -1342,11 +1342,9 @@ def authorize_latest_dependency_finding(finding, root):
     ):
         return False
     route = symbolic.get("route", {}).get("route", [])
-    if (
-        len(route) < 3
-        or route[0] != {"Key": "jobs"}
-        or not isinstance(route[1].get("Key"), str)
-    ):
+    if len(route) < 3 or route[0] != {"Key": "jobs"}:
+        return False
+    if not isinstance(route[1].get("Key"), str):
         return False
     job_id = route[1]["Key"]
     try:
@@ -1363,10 +1361,8 @@ def authorize_latest_dependency_finding(finding, root):
         {"Key": "uses"},
     ]:
         expected = "github.repository == 'f5-sales-demo/xcsh' && github.event.pull_request.head.repo.full_name == github.repository"
-        return (
-            guard == expected
-            and job["steps"][0].get("uses") == "actions/github-script@main"
-        )
+        target = job["steps"][0].get("uses")
+        return guard == expected and target == "actions/github-script@main"
     if job_id == "lint-xcsh" and route[2:] == [{"Key": "uses"}]:
         expected = "always() && !startsWith(github.event.pull_request.head.ref, 'governance/reconcile-') && github.repository == 'f5-sales-demo/xcsh' && needs.linked-issue.result == 'success'"
         return (
@@ -1384,11 +1380,11 @@ def validate(findings, root, repository, policy_path, governance_path):
         policy_path, governance_path, repository
     )
     actual = inventory(root, repository, policy, default_profile, repository_routes)
-    findings = [
-        finding
-        for finding in findings
-        if not authorize_latest_dependency_finding(finding, root)
-    ]
+    remaining = []
+    for finding in findings:
+        if not authorize_latest_dependency_finding(finding, root):
+            remaining.append(finding)
+    findings = remaining
     if repository_routes["kind"] == "arc":
         if findings:
             raise PolicyError(
