@@ -14,6 +14,11 @@ from pathlib import Path, PurePosixPath
 
 import yaml
 
+# Named exception groups retain Python 3.13 syntax under Python 3.14 formatting.
+WORKFLOW_READ_ERRORS = (OSError, KeyError, TypeError, yaml.YAMLError)
+ROUTE_VALUE_ERRORS = (OSError, ValueError, KeyError, TypeError, IndexError, yaml.YAMLError)
+REFERENCE_METADATA_ERRORS = (OSError, ValueError, KeyError, TypeError)
+
 POLICY_SCHEMA_VERSION = 5
 IMAGE_DIGEST_RE = re.compile(
     r"ghcr\.io/f5-sales-demo/self-hosted-runner@sha256:[0-9a-f]{64}"
@@ -1362,7 +1367,7 @@ def authorize_latest_dependency_finding(finding, root):
     try:
         workflow = yaml.safe_load((root / relative).read_text())
         job = workflow["jobs"][job_id]
-    except (OSError, KeyError, TypeError, yaml.YAMLError):
+    except WORKFLOW_READ_ERRORS:
         return False
     guard = " ".join(str(job.get("if", "")).split())
     if job.get("secrets") is not None:
@@ -1426,7 +1431,7 @@ def project_dependency_value(finding, root):
         value = yaml.safe_load((root / relative).read_text(encoding="utf-8"))
         for item in symbolic["route"]["route"]:
             value = value[item["Key"]] if "Key" in item else value[item["Index"]]
-    except (OSError, ValueError, KeyError, TypeError, IndexError, yaml.YAMLError):
+    except ROUTE_VALUE_ERRORS:
         value = None
     return value
 
@@ -1450,7 +1455,7 @@ def project_latest_allowed(finding, root, repository):
             and CURRENT_UPSTREAM_REFS.get(match[1]) == match[2]
             and policy["actions"].get(match[1]) == match[2]
         )
-    except (OSError, ValueError, KeyError, TypeError):
+    except REFERENCE_METADATA_ERRORS:
         return False
 
 
