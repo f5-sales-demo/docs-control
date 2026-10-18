@@ -947,7 +947,9 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
 
         workflow["jobs"][self.job_id]["runs-on"] = "xcsh-socketless"
         self.write_fixture(workflow, policy, governance)
-        with self.assertRaisesRegex(validator.PolicyError, "unexpected Zizmor finding"):
+        with self.assertRaisesRegex(
+            validator.PolicyError, "unexpected Zizmor finding"
+        ) as rejection:
             validator.validate(
                 [self.finding()],
                 self.root,
@@ -955,6 +957,33 @@ class WorkflowSecurityValidatorTests(unittest.TestCase):
                 self.policy_path,
                 self.governance_path,
             )
+        self.assertIn("self-hosted-runner", str(rejection.exception))
+        self.assertIn(self.workflow_path, str(rejection.exception))
+
+    def test_audit_diagnostics_include_only_escaped_rule_and_location(self):
+        finding = self.finding(path="workflow\n::error::literal.yml")
+        finding["locations"][0]["concrete"] = {
+            "location": {"start_point": {"row": 9}},
+            "feature": "DO_NOT_LOG_SOURCE",
+        }
+        details = validator.unexpected_finding_details([finding])
+        self.assertNotIn("\n", details)
+        self.assertNotIn("DO_NOT_LOG_SOURCE", details)
+        self.assertEqual(
+            json.loads(details),
+            [
+                {
+                    "ident": "self-hosted-runner",
+                    "locations": [
+                        {"path": "workflow\n::error::literal.yml", "line": 10}
+                    ],
+                }
+            ],
+        )
+        self.assertEqual(
+            json.loads(validator.unexpected_finding_details([None])),
+            [{"ident": "unknown", "locations": []}],
+        )
 
     def test_real_zizmor_1_29_nested_route_is_normalized(self):
         routes = self.validate()
