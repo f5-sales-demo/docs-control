@@ -1483,21 +1483,25 @@ def unexpected_finding_details(findings):
         records = []
         for location in locations if isinstance(locations, list) else []:
             relative = finding_metadata(
-                location, "symbolic", "key", "Local", "verbatim_path"
+                location,
+                "symbolic",
+                "key",
+                "Local",
+                "verbatim_path",
             )
             row = finding_metadata(
-                location, "concrete", "location", "start_point", "row"
+                location,
+                "concrete",
+                "location",
+                "start_point",
+                "row",
             )
+            valid_row = isinstance(row, int) and not isinstance(row, bool)
+            line = row + 1 if valid_row and row >= 0 else None
             records.append(
                 {
                     "path": relative if isinstance(relative, str) else "unknown",
-                    "line": (
-                        row + 1
-                        if isinstance(row, int)
-                        and not isinstance(row, bool)
-                        and row >= 0
-                        else None
-                    ),
+                    "line": line,
                 }
             )
         details.append(
