@@ -21,7 +21,7 @@ concurrency:
 
 jobs:
   docs:
-    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@db9dce21bb4c095ef22a4f7268c5ede7bec1a43a
+    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@87aeea9889ad738aa8fb7a050cfa67c0a227639a
     with:
       # Certificate Management requires distinct frontend client and application-chain catalog fields.
       builder-image: ${{ github.repository == 'f5-sales-demo/certificate-management' && 'ghcr.io/f5-sales-demo/docs-builder@sha256:7595d2582959ebc02fd0b74d6bd58d46229aa271a10081e4c2386246b982c73c' || 'ghcr.io/f5-sales-demo/docs-builder@sha256:8fcc5e4171f6b4cb44133e44619aaca352d168b5a34e0c95a5715041d721bcda' }}
