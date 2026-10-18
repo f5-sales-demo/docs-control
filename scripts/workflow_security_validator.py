@@ -1466,6 +1466,53 @@ def permitted_latest(finding, root, repository):
     )
 
 
+def finding_metadata(value, *keys: str):
+    for key in keys:
+        if not isinstance(value, dict):
+            return None
+        value = value.get(key)
+    return value
+
+
+def unexpected_finding_details(findings):
+    """Report rule and location metadata without echoing workflow source."""
+    details = []
+    for finding in findings:
+        ident = finding_metadata(finding, "ident")
+        locations = finding_metadata(finding, "locations")
+        records = []
+        for location in locations if isinstance(locations, list) else []:
+            relative = finding_metadata(
+                location,
+                "symbolic",
+                "key",
+                "Local",
+                "verbatim_path",
+            )
+            row = finding_metadata(
+                location,
+                "concrete",
+                "location",
+                "start_point",
+                "row",
+            )
+            valid_row = isinstance(row, int) and not isinstance(row, bool)
+            line = row + 1 if valid_row and row >= 0 else None
+            records.append(
+                {
+                    "path": relative if isinstance(relative, str) else "unknown",
+                    "line": line,
+                }
+            )
+        details.append(
+            {
+                "ident": ident if isinstance(ident, str) else "unknown",
+                "locations": records,
+            }
+        )
+    return json.dumps(details, sort_keys=True)
+
+
 def validate(findings, root, repository, policy_path, governance_path):
     if not isinstance(findings, list):
         raise PolicyError("Zizmor output must be a JSON array")
@@ -1478,7 +1525,8 @@ def validate(findings, root, repository, policy_path, governance_path):
     if repository_routes["kind"] == "arc":
         if findings:
             raise PolicyError(
-                "unexpected Zizmor finding for internally validated ARC scalar routes",
+                "unexpected Zizmor finding for internally validated ARC scalar routes: "
+                + unexpected_finding_details(findings),
             )
         missing = []
         for workflow, job_id in sorted(actual):
