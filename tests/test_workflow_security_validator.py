@@ -1337,6 +1337,20 @@ class PrototypeLatestDependencyTests(unittest.TestCase):
         self.assertTrue(self.permitted())
         self.assertFalse(self.permitted("f5-sales-demo/other"))
 
+    def test_current_zizmor_primary_location_requires_related_context(self):
+        primary = self.finding["locations"][0]
+        primary["symbolic"]["kind"] = "Primary"
+        hidden = copy.deepcopy(primary)
+        hidden["symbolic"]["kind"] = "Hidden"
+        hidden["symbolic"]["route"]["route"].pop()
+        self.finding["locations"] = [hidden, primary]
+        self.assertTrue(self.permitted())
+        hidden["symbolic"]["route"]["route"][1] = {"Key": "other-job"}
+        self.assertFalse(self.permitted())
+        hidden["symbolic"]["route"]["route"][1] = {"Key": "check"}
+        hidden["symbolic"]["key"]["Local"]["verbatim_path"] = "other.yml"
+        self.assertFalse(self.permitted())
+
     def test_manifest_cannot_authorize_unknown_sources_or_old_refs(self):
         self.target = "actions/checkout@v7"
         self.policy["actions"]["actions/checkout"] = "v7"
@@ -1401,6 +1415,20 @@ class LatestDependencyReferenceTests(unittest.TestCase):
             self.assertTrue(
                 validator.authorize_latest_dependency_finding(finding, root)
             )
+            primary = finding["locations"][0]
+            primary["symbolic"]["kind"] = "Primary"
+            hidden = copy.deepcopy(primary)
+            hidden["symbolic"]["kind"] = "Hidden"
+            hidden["symbolic"]["route"]["route"].pop()
+            finding["locations"] = [hidden, primary]
+            self.assertTrue(
+                validator.authorize_latest_dependency_finding(finding, root)
+            )
+            finding["locations"].append(copy.deepcopy(primary))
+            self.assertFalse(
+                validator.authorize_latest_dependency_finding(finding, root)
+            )
+            finding["locations"].pop()
             workflow["jobs"]["lint-xcsh"]["uses"] = (
                 "f5-sales-demo/docs-control/.github/workflows/super-linter.yml@feature"
             )
@@ -1421,3 +1449,56 @@ class LatestDependencyReferenceTests(unittest.TestCase):
                     {**finding, "ident": "template-injection"}, root
                 )
             )
+
+
+class ActionlintAdapterTests(unittest.TestCase):
+    def setUp(self):
+        script = Path(__file__).parents[1] / "scripts/lint_workflow_actions.py"
+        spec = importlib.util.spec_from_file_location("actionlint_adapter", script)
+        self.adapter = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.adapter)
+
+    def test_only_action_fields_change_and_positions_are_preserved(self):
+        source = """name: Fixture
+on: workflow_dispatch
+env:
+  uses: $/literal-environment-data
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: $/.github/actions/setup
+        with:
+          uses: $/literal-input-data
+      - run: |
+          echo "uses: $/literal-shell-data"
+  reusable:
+    uses: '$/.github/workflows/build.yml'
+"""
+        expected = source.replace(
+            "uses: $/.github/actions/setup", "uses: ./.github/actions/setup"
+        ).replace(
+            "uses: '$/.github/workflows/build.yml'",
+            "uses: './.github/workflows/build.yml'",
+        )
+        adapted = self.adapter.actionlint_source(source)
+        self.assertEqual(adapted, expected)
+        self.assertEqual(len(adapted), len(source))
+        self.assertEqual(adapted.count("\n"), source.count("\n"))
+
+    def test_aliases_keep_their_original_structure(self):
+        source = """jobs:
+  build:
+    steps:
+      - uses: &action "$/.github/actions/setup"
+      - uses: *action
+"""
+        self.assertEqual(
+            self.adapter.actionlint_source(source),
+            source.replace('"$/.github/actions/setup"', '"./.github/actions/setup"'),
+        )
+
+    def test_invalid_yaml_and_other_invalid_references_still_reach_actionlint(self):
+        for source in ("jobs: [", "jobs: {build: {steps: [{uses: owner/action}]}}"):
+            with self.subTest(source=source):
+                self.assertEqual(self.adapter.actionlint_source(source), source)

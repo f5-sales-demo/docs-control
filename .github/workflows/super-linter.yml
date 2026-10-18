@@ -412,9 +412,23 @@ jobs:
           echo "$install_dir" >> "$GITHUB_PATH"
 
       - name: Run native actionlint
+        env:
+          AUDITED_REPOSITORY: ${{ github.repository }}
+          WORKSPACE_ROOT: ${{ github.workspace }}
         run: |
           set -euo pipefail
-          actionlint -config-file .github/actionlint.yaml
+          if [[ "$AUDITED_REPOSITORY" == f5-sales-demo/xcsh ]]; then
+            gov_dir=$(mktemp -d)
+            trap 'rm -rf "$gov_dir"' EXIT
+            git -C "$gov_dir" init --quiet
+            git -C "$gov_dir" fetch --quiet --depth 1 https://github.com/f5-sales-demo/docs-control.git main
+            canonical_sha=$(git -C "$gov_dir" rev-parse FETCH_HEAD)
+            git -C "$gov_dir" show "$canonical_sha:scripts/lint_workflow_actions.py" > "$gov_dir/actionlint_adapter.py"
+            echo "Enforcing actionlint compatibility from canonical governance @ $canonical_sha"
+            uv run --refresh --no-project --with PyYAML python "$gov_dir/actionlint_adapter.py" --root "$WORKSPACE_ROOT"
+          else
+            actionlint -config-file .github/actionlint.yaml
+          fi
 
       - name: Start Super-Linter profiler
         id: super_linter_profile_start
