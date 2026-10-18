@@ -2069,6 +2069,12 @@ else
     "schema-v3 ephemeral jobs must not assume sudo or shared workspace ownership"
 fi
 
+if python3 "$REPO_ROOT/tests/test_certificate_latest_builder.py"; then
+  pass "Certificate Management selects latest builder"
+else
+  fail "Certificate Management selects latest builder" "prerelease caller must use latest"
+fi
+
 # ════════════════════════════════════════════════════════════════════
 # Summary
 # ════════════════════════════════════════════════════════════════════
