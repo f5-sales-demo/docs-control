@@ -1328,6 +1328,34 @@ def inventory(root, repository, policy, default_profile, routes):
     return set(actual)
 
 
+def related_finding_context(context, selected):
+    context_key = metadata(context, "symbolic", "key")
+    selected_key = metadata(selected, "symbolic", "key")
+    hidden = metadata(context, "symbolic", "kind") == "Hidden"
+    ancestor = metadata(context, "symbolic", "route", "route")
+    route = metadata(selected, "symbolic", "route", "route")
+    if not isinstance(ancestor, list) or not isinstance(route, list):
+        return False
+    parent = len(ancestor) < len(route) and route[: len(ancestor)] == ancestor
+    return hidden and context_key == selected_key and parent
+
+
+def primary_finding_location(finding):
+    """Accept one primary location with context from the same source ancestry."""
+    records = metadata(finding, "locations")
+    if not isinstance(records, list) or not records:
+        return None
+    if len(records) == 1:
+        return records[0] if isinstance(records[0], dict) else None
+    primary = [loc for loc in records if metadata(loc, "symbolic", "kind") == "Primary"]
+    if len(primary) != 1:
+        return None
+    selected = primary[0]
+    contexts = (ctx for ctx in records if ctx is not selected)
+    related = all(related_finding_context(ctx, selected) for ctx in contexts)
+    return selected if related else None
+
+
 MIN_USE_ROUTE_LENGTH = 3
 
 
@@ -1339,10 +1367,10 @@ def latest_dependency_location(finding):
         or finding.get("ignored")
     ):
         return None
-    locations = finding.get("locations")
-    if not isinstance(locations, list) or len(locations) != 1:
+    location = primary_finding_location(finding)
+    if location is None:
         return None
-    symbolic = locations[0].get("symbolic", {})
+    symbolic = location.get("symbolic", {})
     relative = symbolic.get("key", {}).get("Local", {}).get("verbatim_path")
     if relative not in (
         "workflows/super-linter.yml",
@@ -1418,10 +1446,10 @@ def project_dependency_value(finding, root):
     ):
         return None
     try:
-        locations = finding["locations"]
-        if len(locations) != 1:
+        location = primary_finding_location(finding)
+        if location is None:
             return None
-        symbolic = locations[0]["symbolic"]
+        symbolic = location["symbolic"]
         relative = symbolic["key"]["Local"]["verbatim_path"]
         if relative == ".github/workflows/super-linter.yml":
             return None
@@ -1466,7 +1494,7 @@ def permitted_latest(finding, root, repository):
     )
 
 
-def finding_metadata(value, *keys: str):
+def metadata(value, *keys: str):
     for key in keys:
         if not isinstance(value, dict):
             return None
@@ -1478,18 +1506,18 @@ def unexpected_finding_details(findings):
     """Report rule and location metadata without echoing workflow source."""
     details = []
     for finding in findings:
-        ident = finding_metadata(finding, "ident")
-        locations = finding_metadata(finding, "locations")
+        ident = metadata(finding, "ident")
+        locations = metadata(finding, "locations")
         records = []
         for location in locations if isinstance(locations, list) else []:
-            relative = finding_metadata(
+            relative = metadata(
                 location,
                 "symbolic",
                 "key",
                 "Local",
                 "verbatim_path",
             )
-            row = finding_metadata(
+            row = metadata(
                 location,
                 "concrete",
                 "location",
