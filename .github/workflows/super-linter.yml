@@ -961,6 +961,25 @@ jobs:
         if: hashFiles('tests/test-agent-guidance.sh') != ''
         run: bash tests/test-agent-guidance.sh
 
+      - name: Setup Go for Gitleaks metadata regression
+        if: hashFiles('tests/test-gitleaks-release-revision.sh') != ''
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.26.0'
+          cache: false
+
+      - name: Install Gitleaks for metadata regression
+        if: hashFiles('tests/test-gitleaks-release-revision.sh') != ''
+        env:
+          GOBIN: ${{ runner.temp }}/gitleaks-metadata-bin
+        run: |
+          go install github.com/zricethezav/gitleaks/v8@v8.30.0
+          printf '%s\n' "$GOBIN" >> "$GITHUB_PATH"
+
+      - name: Run Gitleaks release-revision metadata test
+        if: hashFiles('tests/test-gitleaks-release-revision.sh') != ''
+        run: bash tests/test-gitleaks-release-revision.sh
+
       - name: Run linter-configs test
         if: hashFiles('tests/test-linter-configs.sh') != ''
         run: bash tests/test-linter-configs.sh
