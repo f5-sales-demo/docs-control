@@ -25,6 +25,11 @@ SPEC.loader.exec_module(MODULE)
 
 # pylint: disable-next=too-many-public-methods
 class WorkflowAuditTests(unittest.TestCase):
+    def test_self_repository_actions_preserve_remote_pin_enforcement(self):
+        self.assertIsNone(MODULE.remote_dependency("$/.github/actions/setup"))
+        with self.assertRaises(MODULE.AuditError):
+            MODULE.remote_dependency("unapproved/action@main")
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
