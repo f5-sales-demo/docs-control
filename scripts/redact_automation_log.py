@@ -17,7 +17,7 @@ CREDENTIAL_RE = re.compile(
       ["']?
       (?:
         authorization|bearer|token|password|secret|api[-_]?key|
-        access[-_]?key|private[-_]?key|gateway[-_]?(?:token|url)
+        (?:access|refresh|id|auth)[-_]?token|access[-_]?key|private[-_]?key|gateway[-_]?(?:token|url)
       )
       ["']?
     )
@@ -42,20 +42,36 @@ def redact_line(line: str) -> str:
             f"{quote}[REDACTED_CREDENTIAL]{quote}"
         )
 
+    line = re.sub(
+        r"(?:go-keyring-base64|agy-oauth-file-base64):[A-Za-z0-9+/=]+",
+        "[REDACTED_CREDENTIAL]",
+        line,
+    )
+    line = re.sub(
+        r"(?i)(?:Bearer|Basic)\s+[A-Za-z0-9._~+/-]+=*", "[REDACTED_CREDENTIAL]", line
+    )
     line = CREDENTIAL_RE.sub(credential_replacement, line)
     line = EMAIL_RE.sub("[REDACTED_EMAIL]", line)
     return IPV4_RE.sub("[REDACTED_IP]", line)
 
 
-input_stream = io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8", errors="replace")
-in_pem_block = False
-for input_line in input_stream:
-    if in_pem_block:
-        if PEM_END_RE.search(input_line):
-            in_pem_block = False
-        continue
-    if PEM_BEGIN_RE.search(input_line):
-        sys.stdout.write("[REDACTED_PEM_BLOCK]\n")
-        in_pem_block = not PEM_END_RE.search(input_line)
-        continue
-    sys.stdout.write(redact_line(input_line))
+def main() -> None:
+    """Redact UTF-8 log lines and discard complete PEM blocks."""
+    input_stream = io.TextIOWrapper(
+        sys.stdin.buffer, encoding="utf-8", errors="replace"
+    )
+    in_pem_block = False
+    for input_line in input_stream:
+        if in_pem_block:
+            if PEM_END_RE.search(input_line):
+                in_pem_block = False
+            continue
+        if PEM_BEGIN_RE.search(input_line):
+            sys.stdout.write("[REDACTED_PEM_BLOCK]\n")
+            in_pem_block = not PEM_END_RE.search(input_line)
+            continue
+        sys.stdout.write(redact_line(input_line))
+
+
+if __name__ == "__main__":
+    main()
