@@ -287,6 +287,18 @@ class WrapperTests(unittest.TestCase):
         assert any(p.endswith("doc.md") for p in paths), paths
         assert any(p.endswith("other.md") for p in paths), paths
 
+    def test_overall_deadline_interrupts_nonprovider_work(self):
+        source = (
+            "import sys,time,signal; sys.path.insert(0,sys.argv[1]); import agy_review; "
+            "signal.setitimer(signal.ITIMER_REAL,0.2); time.sleep(60)"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", source, str(ROOT / "scripts")],
+            check=False,
+            timeout=5,
+        )
+        assert result.returncode == 124
+
     def test_cancellation_cleanup(self):
         work = self.home / "cancel"
         work.mkdir()

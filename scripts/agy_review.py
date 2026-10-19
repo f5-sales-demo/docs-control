@@ -63,10 +63,10 @@ def interrupted(signum: int, _frame: object) -> None:
     """Propagate cancellation to every active provider group."""
     for pid in tuple(ACTIVE_GROUPS):
         stop_group(pid)
-    raise SystemExit(128 + signum)
+    raise SystemExit(124 if signum == signal.SIGALRM else 128 + signum)
 
 
-for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP, signal.SIGALRM):
     signal.signal(sig, interrupted)
 
 
@@ -360,6 +360,7 @@ def main() -> int:
     parser.add_argument("--kind", choices=("spec", "plan"))
     parser.add_argument("--file")
     args = parser.parse_args()
+    signal.setitimer(signal.ITIMER_REAL, OVERALL_BUDGET)
     invocation = Path.cwd()
     root = Path(git(invocation, "rev-parse", "--show-toplevel")).resolve()
     document = (invocation / args.file).resolve() if args.file else None
@@ -605,12 +606,20 @@ def main() -> int:
                         except (ValueError, KeyError, TypeError, AttributeError):
                             classification = "invalid-review-receipt"
                     else:
-                        nonresult = "\n".join(
-                            line
-                            for line in stream.splitlines()
-                            if '"event": "result"' not in line
-                            and '"event":"result"' not in line
-                        )
+                        diagnostics_only = []
+                        for line in stream.splitlines():
+                            try:
+                                row = json.loads(line)
+                            except ValueError:
+                                diagnostics_only.append(line)
+                                continue
+                            if isinstance(row, dict) and row.get("event") == "result":
+                                diagnostics_only.append(
+                                    str(row.get("result", {}).get("error", ""))
+                                )
+                            else:
+                                diagnostics_only.append(line)
+                        nonresult = "\n".join(diagnostics_only)
                         if (
                             UNAVAILABLE.search(stderr + nonresult)
                             and fallback
