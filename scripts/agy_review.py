@@ -278,10 +278,19 @@ def stream_result(
         msg = "invalid model/status"
         raise ValueError(msg)
     for row in rows:
-        if row.get("event") != "result" and re.search(
-            r"permission denied|read denied|access denied|requires? approval",
-            json.dumps(row),
-            re.IGNORECASE,
+        if row.get("event") == "result":
+            continue
+        step = row.get("step_update", {})
+        info = step.get("tool_info", {})
+        errors = [row.get("error"), step.get("error"), info.get("error")]
+        if step.get("state") in ("ERROR", "FAILED") or any(
+            isinstance(error, str)
+            and re.search(
+                r"permission denied|read denied|access denied|requires? approval",
+                error,
+                re.IGNORECASE,
+            )
+            for error in errors
         ):
             msg = "denied required read"
             raise ValueError(msg)
@@ -610,8 +619,46 @@ def main() -> int:
                                 raise ValueError(msg)
                             results[phase], sessions[phase] = result, session
                             classification = "success"
-                        except (ValueError, KeyError, TypeError, AttributeError):
+                        except (
+                            ValueError,
+                            KeyError,
+                            TypeError,
+                            AttributeError,
+                        ) as error:
                             classification = "invalid-review-receipt"
+                            allowed = {
+                                "missing or duplicate init/result",
+                                "invalid conversation identity",
+                                "invalid model/status",
+                                "denied required read",
+                                "invalid receipt/coverage/schema",
+                                "sessions not independent",
+                            }
+                            detail = (
+                                str(error)
+                                if str(error) in allowed
+                                else type(error).__name__
+                            )
+                            (diagnostics / f"{phase}.validation.txt").write_text(
+                                detail + "\n"
+                            )
+                            try:
+                                result_events = [
+                                    json.loads(line)
+                                    for line in stream.splitlines()
+                                    if line.strip()
+                                ]
+                                final = [
+                                    row
+                                    for row in result_events
+                                    if isinstance(row, dict)
+                                    and row.get("event") == "result"
+                                ]
+                                (diagnostics / f"{phase}.final-result.txt").write_text(
+                                    str(redact(json.dumps(final)))[:16384]
+                                )
+                            except ValueError:
+                                pass
                     else:
                         diagnostics_only = []
                         for line in stream.splitlines():

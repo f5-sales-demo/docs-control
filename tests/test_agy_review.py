@@ -47,6 +47,7 @@ if scenario == 'wrong-model': model='gemini-3.8-flash-high'
 print(json.dumps({'event':'init','conversation_id':cid,'init':{'model':model}}))
 if scenario == 'malformed': print('bad-json'); sys.exit(0)
 if scenario == 'denied': print(json.dumps({'event':'tool_result','error':'permission denied'}))
+if scenario == 'denial-in-source': print(json.dumps({'event':'step_update','step_update':{'state':'DONE','tool_info':{'output':'fixture source mentions permission denied'}}}))
 if scenario == 'unavailable':
     if model == 'gemini-4-argon-high': print('model unavailable',file=sys.stderr); sys.exit(1)
 if scenario == 'transient':
@@ -262,6 +263,9 @@ class WrapperTests(unittest.TestCase):
         diagnostic = (self.home / "diagnostics/catalog.stderr.txt").read_text()
         assert "authentication unavailable" in diagnostic
         assert "fixture-catalog-secret" not in diagnostic
+
+    def test_denial_phrase_in_source_is_not_tool_failure(self):
+        assert self.run_review("denial-in-source").returncode == 0
 
     def test_exact_pii_base(self):
         tools = self.home / "pii-tools"
