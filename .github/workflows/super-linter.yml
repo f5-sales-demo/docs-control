@@ -1024,6 +1024,10 @@ jobs:
         if: hashFiles('tests/test-runner-tool-cache.sh') != ''
         run: bash tests/test-runner-tool-cache.sh
 
+      - name: Run real Antigravity wrapper tests
+        if: hashFiles('tests/test_agy_review.py') != ''
+        run: python3 -m unittest discover -s tests -p test_agy_review.py
+
       - name: Run runner fleet Python unit tests
         if: hashFiles('tests/test_ephemeral_runner_controller.py') != ''
         run: |
