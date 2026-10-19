@@ -28,7 +28,7 @@ import json, os, re, sys, uuid, time
 from pathlib import Path
 scenario=os.environ.get('SCENARIO', 'clean')
 if sys.argv[1:] == ['models']:
-    if scenario == 'catalog-failure': sys.exit(1)
+    if scenario == 'catalog-failure': print('authentication unavailable token=fixture-catalog-secret',file=sys.stderr); sys.exit(1)
     print('gemini-3.8-flash-high\tFlash\ngemini-4-argon-high\tArgon High\ngemini-5-pro-preview-high\tPreview')
     sys.exit(0)
 if scenario == 'hang':
@@ -255,6 +255,13 @@ class WrapperTests(unittest.TestCase):
         assert not report["model"]["latest_model_accepted"]
         assert report["model"]["actual_model"] == "gemini-3.9-pro-high"
         assert report["attempt_metadata"][-1]["pair"] == 2
+
+    def test_catalog_failure_diagnostic(self):
+        result = self.run_review("catalog-failure")
+        assert result.returncode != 0
+        diagnostic = (self.home / "diagnostics/catalog.stderr.txt").read_text()
+        assert "authentication unavailable" in diagnostic
+        assert "fixture-catalog-secret" not in diagnostic
 
     def test_exact_pii_base(self):
         tools = self.home / "pii-tools"

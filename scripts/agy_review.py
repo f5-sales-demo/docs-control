@@ -507,7 +507,7 @@ def main() -> int:
         model: str | None
         requested = None
         reason = None
-        rc, catalog, _, _ = bounded(
+        rc, catalog, catalog_stderr, _ = bounded(
             ["agy", "models"],
             root,
             work,
@@ -522,6 +522,10 @@ def main() -> int:
             requested = eligible_catalog(catalog)
             model = requested
         except ValueError:
+            for suffix, text in (("stdout", catalog), ("stderr", catalog_stderr)):
+                (diagnostics / f"catalog.{suffix}.txt").write_text(
+                    str(redact(text))[:4096]
+                )
             model = fallback
             reason = "catalog-unavailable-or-ambiguous"
         results = {
