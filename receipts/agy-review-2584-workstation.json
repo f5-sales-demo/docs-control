@@ -1,0 +1,67 @@
+{
+  "evidence_tier": "workstation-native-review",
+  "ci_identity_qualified": false,
+  "target": {
+    "version": 2,
+    "mode": "code",
+    "base_sha": "26b7aec480d0977bebd7bf197ed0b7459eaa798b",
+    "merge_base_sha": "26b7aec480d0977bebd7bf197ed0b7459eaa798b",
+    "head_sha": "b6c4d5db4165592bcc0b32a6ecd089f05f447242",
+    "receipt": "9f29bb7bc61b346ac70354df8feadb84fd6914e07ce8b97d537433a085fc5452"
+  },
+  "model": {
+    "requested_model": "gemini-4-argon-high",
+    "actual_model": "gemini-4-argon-high",
+    "effort": "high",
+    "fallback_reason": null,
+    "latest_model_accepted": true,
+    "fallback_qualification": null
+  },
+  "sessions": {
+    "reviewer": {
+      "conversation_id": "65a30bcf-93e1-443f-88e1-d71b70950eeb",
+      "actual_model": "gemini-4-argon-high",
+      "effort": "high",
+      "effort_evidence": "explicit-cli-argument"
+    },
+    "verifier": {
+      "conversation_id": "39c444d2-d913-4579-99cb-365d057118a3",
+      "actual_model": "gemini-4-argon-high",
+      "effort": "high",
+      "effort_evidence": "explicit-cli-argument"
+    }
+  },
+  "source_stable": true,
+  "attempt_metadata": [
+    {
+      "phase": "reviewer",
+      "count": 1,
+      "class": "success",
+      "exit_status": 0,
+      "elapsed_seconds": 102,
+      "pair": 1
+    },
+    {
+      "phase": "verifier",
+      "count": 1,
+      "class": "success",
+      "exit_status": 0,
+      "elapsed_seconds": 98,
+      "pair": 1
+    }
+  ],
+  "outcomes": {
+    "reviewer": {
+      "verdict": "approve",
+      "coverage_status": "complete",
+      "denied_read_count": 0,
+      "finding_count": 0
+    },
+    "verifier": {
+      "verdict": "approve",
+      "coverage_status": "complete",
+      "denied_read_count": 0,
+      "finding_count": 0
+    }
+  }
+}

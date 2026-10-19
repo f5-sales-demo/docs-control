@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": ["verdict", "summary", "findings", "next_steps", "review_target_receipt"],
+  "required": ["verdict", "summary", "findings", "next_steps", "review_target_receipt", "coverage"],
   "properties": {
     "verdict": {
       "type": "string",
@@ -23,23 +23,73 @@
             "type": "string",
             "enum": ["critical", "high", "medium", "low"]
           },
-          "title": { "type": "string", "minLength": 1 },
-          "body": { "type": "string", "minLength": 1 },
-          "file": { "type": "string", "minLength": 1 },
-          "line_start": { "type": "integer", "minimum": 1 },
-          "line_end": { "type": "integer", "minimum": 1 },
-          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-          "recommendation": { "type": "string" }
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1
+          },
+          "file": {
+            "type": "string",
+            "minLength": 1
+          },
+          "line_start": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "line_end": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "recommendation": {
+            "type": "string"
+          }
         }
       }
     },
     "next_steps": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 }
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "review_target_receipt": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "read_files", "denied_reads"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["complete", "incomplete"]
+        },
+        "read_files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "denied_reads": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
     }
   }
 }

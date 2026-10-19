@@ -1,0 +1,78 @@
+{
+  "evidence_tier": "github-actions-controlled-qualification",
+  "run_url": "https://github.com/f5-sales-demo/docs-control/actions/runs/39338067443",
+  "ci_identity_qualified": true,
+  "target": {
+    "version": 2,
+    "mode": "code",
+    "base_sha": "26b7aec480d0977bebd7bf197ed0b7459eaa798b",
+    "merge_base_sha": "26b7aec480d0977bebd7bf197ed0b7459eaa798b",
+    "head_sha": "d7caa3b4baa974dbedc2c440bd4a4531005acd17",
+    "receipt": "7d3b10a515621974897c6393be8e38a866e4376fc3b6ca9cd3b6acce11b8eb66"
+  },
+  "receipt": {
+    "repository": "f5-sales-demo/docs-control",
+    "base_sha": "26b7aec480d0977bebd7bf197ed0b7459eaa798b",
+    "head_sha": "d7caa3b4baa974dbedc2c440bd4a4531005acd17",
+    "workflow_sha": "d7caa3b4baa974dbedc2c440bd4a4531005acd17",
+    "agy_version": "1.4.2",
+    "tools_sha": "e0b7e3f15a0e693a0354012fb8da58e6a340c374",
+    "model": "gemini-4-argon-high",
+    "tool_status": 0
+  },
+  "model": {
+    "requested_model": "gemini-4-argon-high",
+    "actual_model": "gemini-4-argon-high",
+    "effort": "high",
+    "fallback_reason": null,
+    "latest_model_accepted": true,
+    "fallback_qualification": null
+  },
+  "sessions": {
+    "reviewer": {
+      "conversation_id": "5ef5e6c3-e1d8-4f61-92ae-cf73d19570a3",
+      "actual_model": "gemini-4-argon-high",
+      "effort": "high",
+      "effort_evidence": "explicit-cli-argument"
+    },
+    "verifier": {
+      "conversation_id": "96bac9dc-22ae-4b89-b604-77805e45babd",
+      "actual_model": "gemini-4-argon-high",
+      "effort": "high",
+      "effort_evidence": "explicit-cli-argument"
+    }
+  },
+  "source_stable": true,
+  "attempt_metadata": [
+    {
+      "phase": "reviewer",
+      "count": 1,
+      "class": "success",
+      "exit_status": 0,
+      "elapsed_seconds": 105,
+      "pair": 1
+    },
+    {
+      "phase": "verifier",
+      "count": 1,
+      "class": "success",
+      "exit_status": 0,
+      "elapsed_seconds": 102,
+      "pair": 1
+    }
+  ],
+  "outcomes": {
+    "reviewer": {
+      "verdict": "approve",
+      "coverage_status": "complete",
+      "denied_read_count": 0,
+      "finding_count": 0
+    },
+    "verifier": {
+      "verdict": "approve",
+      "coverage_status": "complete",
+      "denied_read_count": 0,
+      "finding_count": 0
+    }
+  }
+}

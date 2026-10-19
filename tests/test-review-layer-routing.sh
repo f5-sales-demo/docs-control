@@ -139,8 +139,8 @@ rejects "$REVIEW_WORKFLOW" 'context.issue.number' \
   "Antigravity reusable workflow does not depend on event issue context"
 contains "$REVIEW_WORKFLOW" 'const findings = [...new Map(' \
   "Antigravity review comments deduplicate independently verified findings"
-contains "$REVIEW_WORKFLOW" 'cp scripts/agy-review.sh scripts/run-with-progress.sh' \
-  "Antigravity review captures the trusted progress runner before head checkout"
+contains "$REVIEW_WORKFLOW" 'repository: f5-sales-demo/docs-control' \
+  "Antigravity review checks out central immutable tools separately"
 for translation_source in "$REPO_ROOT/.github/workflows/antigravity-translate.yml" "$REPO_ROOT/workflows/antigravity-translate.yml"; do
   if [ ! -e "$translation_source" ]; then
     pass "translation workflow source is absent"

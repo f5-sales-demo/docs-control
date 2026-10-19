@@ -24,6 +24,11 @@ on:
         required: true
   workflow_dispatch:
     inputs:
+      qualification_only:
+        description: Run exact-target qualification without fleet enablement or publication
+        required: false
+        default: false
+        type: boolean
       pr_number:
         description: Same-repository pilot pull request number
         required: true
@@ -46,26 +51,36 @@ concurrency:
 jobs:
   review:
     name: PR review with Antigravity
-    if: vars.ANTIGRAVITY_REVIEW_ENABLED == 'true'
+    if: vars.ANTIGRAVITY_REVIEW_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && github.repository == 'f5-sales-demo/docs-control' && inputs.qualification_only)
     runs-on: managed-socketless
-    timeout-minutes: 45
+    timeout-minutes: 50
     permissions:
       contents: read
     env:
       AGY_CLI_DISABLE_AUTO_UPDATE: "true"
-      AGY_VERSION: "1.1.10"
-      AGY_URL: https://storage.googleapis.com/antigravity-public/antigravity-cli/1.1.10-6423386432339968/linux-x64/cli_linux_x64.tar.gz
-      AGY_SHA512: e64d4e58ede0f8440f2b3dc021f9d6d36b05f5c2f74d5a9215c1f11b20d536c8c2e020f4ce5257aa67e940e94c94d5a16d3aa6461cda18ee7f3e74d3a20ca1ac
+      AGY_VERSION: "1.4.2"
+      AGY_URL: https://storage.googleapis.com/antigravity-public/antigravity-cli/1.4.2-4835981233356800/linux-x64/cli_linux_x64.tar.gz
+      AGY_SHA512: 4a393afc1369cee94e817c1b430c9128d02b12ebd4d5703ace5cd47b2333e216d673fb0097cbf7195f757b110163ba9850e9eea3fdbbaddd4b25668b82c03f05
+      AGY_TOOLS_SHA: "b848d64f28057d77fccf66d61799040293f1892e"
       BASE_SHA: ${{ inputs.expected_base_sha }}
       HEAD_SHA: ${{ inputs.expected_head_sha }}
       PR_NUMBER: ${{ inputs.pr_number }}
 
     steps:
+      - name: Checkout immutable review tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: f5-sales-demo/docs-control
+          ref: b848d64f28057d77fccf66d61799040293f1892e
+          path: review-tools
+          persist-credentials: false
+
       - name: Checkout trusted base
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.expected_base_sha }}
           fetch-depth: 0
+          path: review-target
           persist-credentials: false
 
       - name: Validate exact pull-request head
@@ -74,7 +89,7 @@ jobs:
           script: |
             const path = require('path');
             const {readPrimaryRateLimit, retryGitHub} = require(
-              path.join(process.env.GITHUB_WORKSPACE, 'scripts/github-api-resilience.cjs'),
+              path.join(process.env.GITHUB_WORKSPACE, 'review-tools/scripts/github-api-resilience.cjs'),
             );
             const pullNumber = Number(process.env.PR_NUMBER);
             const response = await retryGitHub(
@@ -92,16 +107,12 @@ jobs:
             }
 
       - name: Fetch exact pull-request head as data
+        working-directory: review-target
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$BASE_SHA"
           git fetch --no-tags origin "+refs/pull/${PR_NUMBER}/head:refs/agy/pr-head"
           test "$(git rev-parse refs/agy/pr-head)" = "$HEAD_SHA"
-          tool_dir="$RUNNER_TEMP/agy-review-tool"
-          mkdir -p "$tool_dir"
-          cp scripts/agy-review.sh scripts/run-with-progress.sh \
-            scripts/agy-review-output.schema.json "$tool_dir/"
-          chmod 0555 "$tool_dir/agy-review.sh" "$tool_dir/run-with-progress.sh"
           git checkout --detach "$HEAD_SHA"
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
 
@@ -148,6 +159,7 @@ jobs:
           mkdir -p "$credential_dir"
           case "$ANTIGRAVITY_TOKEN" in
             agy-oauth-file-base64:*)
+              echo "[review] credential transport: OAuth file"
               credential_payload=${ANTIGRAVITY_TOKEN#agy-oauth-file-base64:}
               unset ANTIGRAVITY_TOKEN
               credential_tmp=$(mktemp "$credential_dir/.antigravity-oauth-token.XXXXXX")
@@ -173,9 +185,21 @@ jobs:
             go-keyring-base64:*)
               credential_payload=${ANTIGRAVITY_TOKEN#go-keyring-base64:}
               unset ANTIGRAVITY_TOKEN
-              printf '%s' "$credential_payload" | base64 -d |
-                python3 -c 'import keyring,sys; keyring.set_password("gemini", "antigravity", sys.stdin.read())'
+              credential_tmp=$(mktemp "$credential_dir/.antigravity-oauth-token.XXXXXX")
+              trap 'rm -f "$credential_tmp"' EXIT
+              printf '%s' "$credential_payload" | base64 -d >"$credential_tmp"
               unset credential_payload
+              if jq -e 'type == "object" and .auth_method == "gcp" and
+                (.token.refresh_token | type == "string" and length > 0)' "$credential_tmp" >/dev/null 2>&1; then
+                echo "[review] credential transport: legacy keyring with GCP OAuth document"
+                chmod 0600 "$credential_tmp"
+                mv "$credential_tmp" "$credential_dir/antigravity-oauth-token"
+              else
+                echo "[review] credential transport: legacy keyring"
+                python3 -c 'import keyring,sys; keyring.set_password("gemini", "antigravity", sys.stdin.read())' <"$credential_tmp"
+                rm -f "$credential_tmp"
+              fi
+              trap - EXIT
               ;;
             *)
               unset ANTIGRAVITY_TOKEN
@@ -183,45 +207,65 @@ jobs:
               exit 1
               ;;
           esac
-          jq -n --arg project "$GCP_PROJECT_ID" --arg workspace "$GITHUB_WORKSPACE" '{
+          if [ -f "$credential_dir/antigravity-oauth-token" ]; then
+            jq '{credential_shape: {has_id_token: (.id_token | type == "string" and length > 0), has_access_token: (.token.access_token | type == "string" and length > 0), has_refresh_token: (.token.refresh_token | type == "string" and length > 0), has_expiry: (.token.expiry | type == "string" and length > 0), has_project: (.project_id | type == "string" and length > 0)}}' "$credential_dir/antigravity-oauth-token"
+          fi
+          if [ -f "$credential_dir/antigravity-oauth-token" ]; then
+            credential_tmp=$(mktemp "$credential_dir/.antigravity-oauth-token.XXXXXX")
+            trap 'rm -f "$credential_tmp"' EXIT
+            jq --arg project "$GCP_PROJECT_ID" '.project_id = $project | .region = "global"' \
+              "$credential_dir/antigravity-oauth-token" >"$credential_tmp"
+            chmod 0600 "$credential_tmp"
+            mv "$credential_tmp" "$credential_dir/antigravity-oauth-token"
+            trap - EXIT
+          fi
+          jq -n --arg project "$GCP_PROJECT_ID" --arg workspace "$GITHUB_WORKSPACE/review-target" '{
             gcp: {project: $project, location: "global"},
-            model: "Gemini 3.6 Flash (High)",
             trustedWorkspaces: [$workspace]
           }' >"$HOME/.gemini/antigravity-cli/settings.json"
+          cd "$GITHUB_WORKSPACE/review-target"
           set +e
           AGY_REVIEW_SKIP_LOCAL_PII=1 \
             AGY_REVIEW_REPORT_FILE="$RUNNER_TEMP/review-artifact/report.json" \
             AGY_REVIEW_DIAGNOSTIC_DIR="$RUNNER_TEMP/review-artifact/diagnostics" \
-            bash "$RUNNER_TEMP/agy-review-tool/agy-review.sh" code --base "$BASE_SHA" \
+            bash "$GITHUB_WORKSPACE/review-tools/scripts/agy-review.sh" code --base "$BASE_SHA" \
             2>&1 | tee "$RUNNER_TEMP/review.log"
           review_rc=${PIPESTATUS[0]}
           set -e
           printf '%s\n' "$review_rc" >"$RUNNER_TEMP/review-artifact/tool-status"
-          target_receipt=$(printf 'agy-review-target-v1\ncode\n%s\n%s\n' "$BASE_SHA" "$HEAD_SHA" |
-            sha256sum | awk '{print $1}')
+          merge_base=$(git merge-base "$BASE_SHA" "$HEAD_SHA")
           if [ ! -s "$RUNNER_TEMP/review-artifact/report.json" ]; then
-            jq -n --argjson status "$review_rc" --arg receipt "$target_receipt" '{
-              reviewer: {verdict: "needs-attention", summary: "The review wrapper failed before producing a report.", findings: [{severity: "critical", title: "Review wrapper execution failed", body: "No approval was granted because the review wrapper did not produce a report.", file: ".github/workflows/antigravity-review.yml", line_start: 1, line_end: 1, confidence: 1, recommendation: "Repair and rerun the review workflow."}], next_steps: ["Rerun the review workflow."], review_target_receipt: $receipt},
-              verifier: {verdict: "needs-attention", summary: "Independent verification was unavailable.", findings: [], next_steps: ["Rerun the review workflow."], review_target_receipt: $receipt},
-              attempt_metadata: [{phase: "wrapper", count: 1, class: "wrapper-catastrophe", exit_status: $status, elapsed_seconds: 0}]
-            }' >"$RUNNER_TEMP/review-artifact/report.json"
+            python3 "$GITHUB_WORKSPACE/review-tools/scripts/agy_review_catastrophe.py" \
+              "$RUNNER_TEMP/review-artifact/report.json" "$BASE_SHA" "$merge_base" "$HEAD_SHA"
           fi
           INNER
           sha512sum --check --strict "$RUNNER_TEMP/agy-review-bin.sha512"
           jq --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" \
             --arg head "$HEAD_SHA" --arg workflow "$GITHUB_WORKFLOW_SHA" \
-            --arg version "$AGY_VERSION" --arg status "$(cat "$RUNNER_TEMP/review-artifact/tool-status")" '. + {
+            --arg version "$AGY_VERSION" --arg tools "$AGY_TOOLS_SHA" --arg status "$(cat "$RUNNER_TEMP/review-artifact/tool-status")" '. + {
               receipt: {
                 repository: $repository,
                 base_sha: $base,
                 head_sha: $head,
                 workflow_sha: $workflow,
                 agy_version: $version,
-                model: "Gemini 3.6 Flash (High)",
+                tools_sha: $tools,
+                model: .model.actual_model,
                 tool_status: ($status | tonumber)
               }
             }' "$RUNNER_TEMP/review-artifact/report.json" >"$RUNNER_TEMP/review-artifact/report.final.json"
           mv "$RUNNER_TEMP/review-artifact/report.final.json" "$RUNNER_TEMP/review-artifact/report.json"
+
+      - name: Validate controlled qualification
+        if: inputs.qualification_only
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/review-artifact/report.json"
+          merge_base=$(git -C "$GITHUB_WORKSPACE/review-target" merge-base "$BASE_SHA" "$HEAD_SHA")
+          python3 "$GITHUB_WORKSPACE/review-tools/scripts/agy_review_report.py" "$report" \
+            --repository "$GITHUB_REPOSITORY" --base "$BASE_SHA" --head "$HEAD_SHA" \
+            --merge-base "$merge_base" --workflow "$GITHUB_WORKFLOW_SHA" --version "$AGY_VERSION" --tools "$AGY_TOOLS_SHA"
+          python3 "$GITHUB_WORKSPACE/review-tools/scripts/agy_review_report.py" "$report" --gate
 
       - name: Upload review receipt
         if: always()
@@ -234,7 +278,7 @@ jobs:
 
   publish:
     name: Publish exact-head review
-    if: always() && vars.ANTIGRAVITY_REVIEW_ENABLED == 'true'
+    if: always() && vars.ANTIGRAVITY_REVIEW_ENABLED == 'true' && !inputs.qualification_only
     needs: review
     runs-on: managed-socketless
     timeout-minutes: 10
@@ -242,17 +286,28 @@ jobs:
       contents: read
       pull-requests: write # publish an exact-head review comment
     env:
-      AGY_VERSION: "1.1.10"
+      AGY_VERSION: "1.4.2"
+      AGY_TOOLS_SHA: "b848d64f28057d77fccf66d61799040293f1892e"
       BASE_SHA: ${{ inputs.expected_base_sha }}
       HEAD_SHA: ${{ inputs.expected_head_sha }}
       PR_NUMBER: ${{ inputs.pr_number }}
       WORKFLOW_SHA: ${{ github.workflow_sha }}
 
     steps:
-      - name: Checkout trusted retry helper
+      - name: Checkout immutable review tools
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.expected_base_sha }}
+          repository: f5-sales-demo/docs-control
+          ref: b848d64f28057d77fccf66d61799040293f1892e
+          path: review-tools
+          persist-credentials: false
+
+      - name: Checkout exact target objects
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.expected_head_sha }}
+          fetch-depth: 0
+          path: review-target
           persist-credentials: false
 
       - name: Download review receipt
@@ -265,47 +320,10 @@ jobs:
         run: |
           set -euo pipefail
           report="$RUNNER_TEMP/review-artifact/report.json"
-          target_receipt=$(printf 'agy-review-target-v1\ncode\n%s\n%s\n' "$BASE_SHA" "$HEAD_SHA" |
-            sha256sum | awk '{print $1}')
-          jq -e --arg repository "$GITHUB_REPOSITORY" --arg base "$BASE_SHA" \
-            --arg head "$HEAD_SHA" --arg workflow "$WORKFLOW_SHA" --arg version "$AGY_VERSION" --arg receipt "$target_receipt" '
-            (.receipt.tool_status) as $tool_status |
-            (
-            .receipt.repository == $repository and
-            .receipt.base_sha == $base and
-            .receipt.head_sha == $head and
-            .receipt.workflow_sha == $workflow and
-            .receipt.agy_version == $version and
-            .receipt.model == "Gemini 3.6 Flash (High)" and
-            (.receipt.tool_status | type == "number") and
-            (.attempt_metadata | type == "array" and length >= 1 and length <= 6) and
-            (.attempt_metadata | all(.[];
-              type == "object" and
-              (keys | sort) == ["class", "count", "elapsed_seconds", "exit_status", "phase"] and
-              (.phase == "reviewer" or .phase == "verifier" or .phase == "wrapper") and
-              (.count | type == "number" and floor == . and . >= 1 and . <= 3) and
-              (.class | type == "string" and length > 0 and length <= 64) and
-              (.exit_status | type == "number" and floor == . and . >= 0 and . <= 255) and
-              (.elapsed_seconds | type == "number" and floor == . and . >= 0 and . <= 900)
-            )) and
-            ([.reviewer, .verifier] | all(.[];
-              type == "object" and
-              (.verdict == "approve" or .verdict == "needs-attention") and
-              (.summary | type == "string" and length > 0) and
-              (if $tool_status == 0 then .review_target_receipt == $receipt
-               else ((.review_target_receipt | type) == "string" and .review_target_receipt == $receipt)
-               end) and
-              (.next_steps | type == "array" and all(.[]; type == "string" and length > 0)) and
-              (.findings | type == "array" and all(.[];
-                (keys | sort) == ["body", "confidence", "file", "line_end", "line_start", "recommendation", "severity", "title"] and
-                (.severity == "critical" or .severity == "high" or .severity == "medium" or .severity == "low") and
-                (.title | type == "string" and length > 0) and (.body | type == "string" and length > 0) and
-                (.file | type == "string" and length > 0) and (.line_start | type == "number" and floor == . and . >= 1) and
-                (.line_end | type == "number" and floor == . and . >= 1) and (.confidence | type == "number" and . >= 0 and . <= 1) and
-                (.recommendation | type == "string")
-              ))))
-            )
-          ' "$report" >/dev/null
+          merge_base=$(git -C "$GITHUB_WORKSPACE/review-target" merge-base "$BASE_SHA" "$HEAD_SHA")
+          python3 "$GITHUB_WORKSPACE/review-tools/scripts/agy_review_report.py" "$report" \
+            --repository "$GITHUB_REPOSITORY" --base "$BASE_SHA" --head "$HEAD_SHA" \
+            --merge-base "$merge_base" --workflow "$WORKFLOW_SHA" --version "$AGY_VERSION" --tools "$AGY_TOOLS_SHA"
 
       - name: Validate exact current head
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -313,7 +331,7 @@ jobs:
           script: |
             const path = require('path');
             const {readPrimaryRateLimit, retryGitHub} = require(
-              path.join(process.env.GITHUB_WORKSPACE, 'scripts/github-api-resilience.cjs'),
+              path.join(process.env.GITHUB_WORKSPACE, 'review-tools/scripts/github-api-resilience.cjs'),
             );
             const pullNumber = Number(process.env.PR_NUMBER);
             const response = await retryGitHub(
@@ -339,7 +357,7 @@ jobs:
             const fs = require('fs');
             const path = require('path');
             const {readPrimaryRateLimit, retryGitHub} = require(
-              path.join(process.env.GITHUB_WORKSPACE, 'scripts/github-api-resilience.cjs'),
+              path.join(process.env.GITHUB_WORKSPACE, 'review-tools/scripts/github-api-resilience.cjs'),
             );
             const report = JSON.parse(fs.readFileSync(process.env.REPORT_PATH, 'utf8'));
             const pullNumber = Number(process.env.PR_NUMBER);
@@ -357,11 +375,12 @@ jobs:
             const blocking = findings.filter((finding) => ['critical', 'high'].includes(finding.severity));
             const failedAttempt = report.receipt.tool_status === 0 ? undefined :
               (report.attempt_metadata || []).filter((attempt) => attempt.class !== 'success').at(-1);
-            const lines = [marker, '## Antigravity PR review', '', `Head: \`${report.receipt.head_sha}\``, `Model: ${report.receipt.model}`, ''];
+            const lines = [marker, '## Antigravity PR review', '', `Head: \`${report.receipt.head_sha}\``, `Model: ${report.model.actual_model || 'unavailable'}; effort: ${report.model.effort}`, `Fallback: ${report.model.fallback_reason || 'none'}`, ''];
             if (failedAttempt) {
               lines.push('Review execution failed — no approval was granted.', '', `Phase: ${failedAttempt.phase}`, `Retry count: ${failedAttempt.count}`, `Failure class: ${failedAttempt.class}`, '', 'Please re-run this workflow after the provider is available.');
             } else {
-              lines.push(blocking.length ? `Blocking findings: ${blocking.length}` : 'No critical or high findings remain.');
+              lines.push(blocking.length ? `Blocking findings: ${blocking.length}` :
+                (report.reviewer.verdict === 'approve' && report.verifier.verdict === 'approve' ? 'Two explicit approvals; no critical or high findings remain.' : 'Approval withheld.'));
             }
             for (const finding of findings) {
               lines.push('', `- **${finding.severity.toUpperCase()}** ${finding.title} — \`${finding.file}:${finding.line_start}\``, `  ${finding.body}`);
@@ -393,9 +412,4 @@ jobs:
         run: |
           set -euo pipefail
           report="$RUNNER_TEMP/review-artifact/report.json"
-          jq -e '
-            .receipt.tool_status == 0 and
-            ([.reviewer.findings[], .verifier.findings[]] |
-              map(select(.severity == "critical" or .severity == "high")) |
-              length == 0)
-          ' "$report" >/dev/null
+          python3 "$GITHUB_WORKSPACE/review-tools/scripts/agy_review_report.py" "$report" --gate
