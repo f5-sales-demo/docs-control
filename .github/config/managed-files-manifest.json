@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "016e5b696db856f9cac89392c1ab253df3db80d2",
+  "source_commit": "e1f9716f95bcaf8606b3060901da09a2970bb230",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "7cfd07fa48afed9102718f74532e89d1167f7cf8",
-      "size": 9340,
+      "sha": "2f2b2a22f4b0d01b796b435788ead5db6d377fed",
+      "size": 9520,
       "mode": "100644"
     },
     {
@@ -355,8 +355,8 @@
     {
       "path": "scripts/check-pii.sh",
       "src": "scripts/check-pii.sh",
-      "sha": "1aa5dfecda8ce7d28e45a74b029f224810e8f751",
-      "size": 8687,
+      "sha": "faca97f0d4261229688e0751f3dc41d531d1cfd4",
+      "size": 8990,
       "mode": "100755"
     },
     {
@@ -488,14 +488,19 @@
     ".github/workflows/dependabot-auto-merge.yml",
     ".github/workflows/enforce-repo-settings.yml",
     "actionlint.yml",
+    "scripts/agy-model-policy.json",
     "scripts/agy-pre-push-review.sh",
     "scripts/agy-review-output.schema.json",
+    "scripts/agy-review-policy.txt",
     "scripts/agy-review.sh",
+    "scripts/agy_review.py",
+    "scripts/agy_review_catastrophe.py",
+    "scripts/agy_review_report.py",
     "scripts/antigravity-translate-staged.sh",
     "scripts/parse-translation-trigger.sh",
     "scripts/workflow-security-validator.py",
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:02f1467be4d0c7392ab2e24131cdad41c741b7fd6d27473890cad95d36d7eb5b"
+  "state_digest": "sha256:b13c8892ea4ea48bca43043ff91323121e8c884c2cbb90d69ef8e428a1798093"
 }
