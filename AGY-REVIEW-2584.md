@@ -16,8 +16,8 @@ Lite and previews. `--effort high` is explicit invocation evidence; the init eve
 currently expose an effort field. Thinking-token usage in live probes corroborates reasoning
 execution but cannot independently establish the effort setting.
 
-Fallback is disabled until the governed policy contains a live qualification under the
-intended CI identity. Catalog ambiguity/failure or unavailable models may use that qualified
+Fallback is governed by scripts/agy-model-policy.json and the successful controlled CI
+qualification receipt receipts/agy-review-2584-ci.json. Catalog ambiguity/failure or unavailable models may use that qualified
 model; findings and invalid output cannot trigger fallback. Any fallback discards the pair.
 Fallback approvals never claim latest-model acceptance.
 
@@ -33,7 +33,7 @@ files avoid FIFO draining or inherited descriptors keeping the wrapper alive.
 - [x] Implement receipt, verdict, coverage, session, catalog, redaction and lifecycle repairs.
 - [x] 17 real-wrapper regressions and executable exact-head workflow UAT pass on Ubuntu.
 - [x] Existing PII suite, 67 routing, 11 suspension, 6 control-verifier and 239 guidance checks pass; Ruff, ShellCheck and Actionlint pass.
-- [ ] Qualify two exact-target sessions under intended CI identity; promote governed fallback.
+- [x] CI run 39338067443: two explicit Argon High approvals, distinct sessions, complete coverage, stable input; sanitized receipt committed and fallback promoted.
 - [ ] Commit/push implementation, linked PR repair loop and merge.
 - [ ] Update governed caller pins and prove downstream manifest convergence.
 

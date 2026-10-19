@@ -1,5 +1,16 @@
 {
   "version": 1,
-  "last_verified_model": null,
-  "qualification": null
+  "last_verified_model": "gemini-4-argon-high",
+  "qualification": {
+    "run_url": "https://github.com/f5-sales-demo/docs-control/actions/runs/39338067443",
+    "receipt_file": "receipts/agy-review-2584-ci.json",
+    "target_receipt": "7d3b10a515621974897c6393be8e38a866e4376fc3b6ca9cd3b6acce11b8eb66",
+    "head_sha": "d7caa3b4baa974dbedc2c440bd4a4531005acd17",
+    "tools_sha": "e0b7e3f15a0e693a0354012fb8da58e6a340c374",
+    "agy_version": "1.4.2",
+    "effort": "high",
+    "effort_evidence": "explicit-cli-argument",
+    "conversation_ids": ["5ef5e6c3-e1d8-4f61-92ae-cf73d19570a3", "96bac9dc-22ae-4b89-b604-77805e45babd"],
+    "identity": "github-actions-configured-ANTIGRAVITY_TOKEN"
+  }
 }
