@@ -207,6 +207,9 @@ jobs:
               exit 1
               ;;
           esac
+          if [ -f "$credential_dir/antigravity-oauth-token" ]; then
+            jq '{credential_shape: {has_id_token: (.id_token | type == "string" and length > 0), has_access_token: (.token.access_token | type == "string" and length > 0), has_refresh_token: (.token.refresh_token | type == "string" and length > 0), has_expiry: (.token.expiry | type == "string" and length > 0), has_project: (.project_id | type == "string" and length > 0)}}' "$credential_dir/antigravity-oauth-token"
+          fi
           jq -n --arg project "$GCP_PROJECT_ID" --arg workspace "$GITHUB_WORKSPACE/review-target" '{
             gcp: {project: $project, location: "global"},
             trustedWorkspaces: [$workspace]
