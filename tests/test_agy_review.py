@@ -137,7 +137,6 @@ class WrapperTests(unittest.TestCase):
             "wrong-receipt",
             "same-session",
             "malformed",
-            "catalog-failure",
         ):
             with self.subTest(scenario=scenario):
                 result = self.run_review(scenario)
@@ -259,7 +258,16 @@ class WrapperTests(unittest.TestCase):
 
     def test_catalog_failure_diagnostic(self):
         result = self.run_review("catalog-failure")
-        assert result.returncode != 0
+        policy = json.loads((ROOT / "scripts/agy-model-policy.json").read_text())
+        if policy.get("qualification"):
+            assert result.returncode == 0
+            report = json.loads(self.report.read_text())
+            assert report["model"]["latest_model_accepted"] is False
+            assert (
+                report["model"]["fallback_reason"] == "catalog-unavailable-or-ambiguous"
+            )
+        else:
+            assert result.returncode != 0
         diagnostic = (self.home / "diagnostics/catalog.stderr.txt").read_text()
         assert "authentication unavailable" in diagnostic
         assert "fixture-catalog-secret" not in diagnostic
