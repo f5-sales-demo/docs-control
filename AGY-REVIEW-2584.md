@@ -31,7 +31,7 @@ files avoid FIFO draining or inherited descriptors keeping the wrapper alive.
 
 - [x] Reproduce failing real-wrapper regression tests before repair.
 - [x] Implement receipt, verdict, coverage, session, catalog, redaction and lifecycle repairs.
-- [x] 16 real-wrapper regressions and executable exact-head workflow UAT pass on Ubuntu.
+- [x] 17 real-wrapper regressions and executable exact-head workflow UAT pass on Ubuntu.
 - [x] Existing PII suite, 67 routing, 11 suspension, 6 control-verifier and 239 guidance checks pass; Ruff, ShellCheck and Actionlint pass.
 - [ ] Qualify two exact-target sessions under intended CI identity; promote governed fallback.
 - [ ] Commit/push implementation, linked PR repair loop and merge.
@@ -39,4 +39,4 @@ files avoid FIFO draining or inherited descriptors keeping the wrapper alive.
 
 Disabled PII and Antigravity controls remain unchanged. The explicitly authorized enable of
 `aiplatform.googleapis.com` succeeded, and a bounded Argon High probe returned SUCCESS.
-That workstation probe does not establish CI identity acceptance.
+A full native pair subsequently returned two explicit approvals with distinct conversations, complete coverage and stable input at b6c4d5db4165592bcc0b32a6ecd089f05f447242. The sanitized receipt is receipts/agy-review-2584-workstation.json. Workstation evidence does not establish CI identity acceptance.
