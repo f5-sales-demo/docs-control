@@ -56,7 +56,7 @@ jobs:
       AGY_VERSION: "1.4.2"
       AGY_URL: https://storage.googleapis.com/antigravity-public/antigravity-cli/1.4.2-4835981233356800/linux-x64/cli_linux_x64.tar.gz
       AGY_SHA512: 4a393afc1369cee94e817c1b430c9128d02b12ebd4d5703ace5cd47b2333e216d673fb0097cbf7195f757b110163ba9850e9eea3fdbbaddd4b25668b82c03f05
-      AGY_TOOLS_SHA: "002c6c82e22f80fcc1e12cdc7db363edd4437664"
+      AGY_TOOLS_SHA: "62247db182b324ae125e09727be476fb8664a960"
       BASE_SHA: ${{ inputs.expected_base_sha }}
       HEAD_SHA: ${{ inputs.expected_head_sha }}
       PR_NUMBER: ${{ inputs.pr_number }}
@@ -66,7 +66,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: f5-sales-demo/docs-control
-          ref: 002c6c82e22f80fcc1e12cdc7db363edd4437664
+          ref: 62247db182b324ae125e09727be476fb8664a960
           path: review-tools
           persist-credentials: false
 
@@ -246,7 +246,7 @@ jobs:
       pull-requests: write # publish an exact-head review comment
     env:
       AGY_VERSION: "1.4.2"
-      AGY_TOOLS_SHA: "002c6c82e22f80fcc1e12cdc7db363edd4437664"
+      AGY_TOOLS_SHA: "62247db182b324ae125e09727be476fb8664a960"
       BASE_SHA: ${{ inputs.expected_base_sha }}
       HEAD_SHA: ${{ inputs.expected_head_sha }}
       PR_NUMBER: ${{ inputs.pr_number }}
@@ -257,7 +257,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: f5-sales-demo/docs-control
-          ref: 002c6c82e22f80fcc1e12cdc7db363edd4437664
+          ref: 62247db182b324ae125e09727be476fb8664a960
           path: review-tools
           persist-credentials: false
 
