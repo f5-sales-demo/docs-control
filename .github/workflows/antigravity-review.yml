@@ -210,6 +210,15 @@ jobs:
           if [ -f "$credential_dir/antigravity-oauth-token" ]; then
             jq '{credential_shape: {has_id_token: (.id_token | type == "string" and length > 0), has_access_token: (.token.access_token | type == "string" and length > 0), has_refresh_token: (.token.refresh_token | type == "string" and length > 0), has_expiry: (.token.expiry | type == "string" and length > 0), has_project: (.project_id | type == "string" and length > 0)}}' "$credential_dir/antigravity-oauth-token"
           fi
+          if [ -f "$credential_dir/antigravity-oauth-token" ]; then
+            credential_tmp=$(mktemp "$credential_dir/.antigravity-oauth-token.XXXXXX")
+            trap 'rm -f "$credential_tmp"' EXIT
+            jq --arg project "$GCP_PROJECT_ID" '.project_id = $project | .region = "global"' \
+              "$credential_dir/antigravity-oauth-token" >"$credential_tmp"
+            chmod 0600 "$credential_tmp"
+            mv "$credential_tmp" "$credential_dir/antigravity-oauth-token"
+            trap - EXIT
+          fi
           jq -n --arg project "$GCP_PROJECT_ID" --arg workspace "$GITHUB_WORKSPACE/review-target" '{
             gcp: {project: $project, location: "global"},
             trustedWorkspaces: [$workspace]
