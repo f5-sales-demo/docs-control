@@ -2,21 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "verdict",
-    "summary",
-    "findings",
-    "next_steps",
-    "review_target_receipt",
-    "coverage"
-  ],
+  "required": ["verdict", "summary", "findings", "next_steps", "review_target_receipt", "coverage"],
   "properties": {
     "verdict": {
       "type": "string",
-      "enum": [
-        "approve",
-        "needs-attention"
-      ]
+      "enum": ["approve", "needs-attention"]
     },
     "summary": {
       "type": "string",
@@ -27,25 +17,11 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "severity",
-          "title",
-          "body",
-          "file",
-          "line_start",
-          "line_end",
-          "confidence",
-          "recommendation"
-        ],
+        "required": ["severity", "title", "body", "file", "line_start", "line_end", "confidence", "recommendation"],
         "properties": {
           "severity": {
             "type": "string",
-            "enum": [
-              "critical",
-              "high",
-              "medium",
-              "low"
-            ]
+            "enum": ["critical", "high", "medium", "low"]
           },
           "title": {
             "type": "string",
@@ -92,18 +68,11 @@
     "coverage": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "status",
-        "read_files",
-        "denied_reads"
-      ],
+      "required": ["status", "read_files", "denied_reads"],
       "properties": {
         "status": {
           "type": "string",
-          "enum": [
-            "complete",
-            "incomplete"
-          ]
+          "enum": ["complete", "incomplete"]
         },
         "read_files": {
           "type": "array",
