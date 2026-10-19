@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Shared exact-target producer/consumer validation; no model claims from prompts."""
 
+# Exact integer types reject booleans; early returns audit every receipt field.
+# pylint: disable=too-many-arguments,too-many-return-statements,unidiomatic-typecheck
 # Receipt field-by-field early returns keep the fail-closed contract inspectable.
 # ruff: noqa: PLR0911, PLR2004, TRY300
 

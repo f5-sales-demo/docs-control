@@ -7,7 +7,7 @@ from pathlib import Path
 from agy_review import atomic_json, digest, failure
 
 output, base, merge_base, head = sys.argv[1:]
-receipt = digest("agy-review-target-v2", "code", base, merge_base, head)
+RECEIPT = digest("agy-review-target-v2", "code", base, merge_base, head)
 atomic_json(
     Path(output),
     {
@@ -18,7 +18,7 @@ atomic_json(
             "base_sha": base,
             "merge_base_sha": merge_base,
             "head_sha": head,
-            "receipt": receipt,
+            "receipt": RECEIPT,
             "required_paths": ["unavailable"],
         },
         "source_stable": False,
@@ -31,8 +31,8 @@ atomic_json(
             "fallback_qualification": None,
         },
         "sessions": {},
-        "reviewer": failure(receipt, "wrapper-catastrophe"),
-        "verifier": failure(receipt, "wrapper-catastrophe"),
+        "reviewer": failure(RECEIPT, "wrapper-catastrophe"),
+        "verifier": failure(RECEIPT, "wrapper-catastrophe"),
         "attempt_metadata": [],
     },
 )

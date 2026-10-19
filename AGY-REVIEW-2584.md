@@ -1,6 +1,6 @@
 # Exact-head AGY review repair
 
-Issue: https://github.com/f5-sales-demo/docs-control/issues/2584
+Issue: [#2584](https://github.com/f5-sales-demo/docs-control/issues/2584)
 
 ## Contract
 

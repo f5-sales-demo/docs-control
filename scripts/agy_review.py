@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+# pylint: disable=too-many-return-statements,too-many-locals,too-many-branches,too-many-statements,consider-using-with,unidiomatic-typecheck
 # Argument arrays are intentional; strict validators use explicit early failure returns.
 # ruff: noqa: S603, S607, PLR0911, PLR2004, TRY301
 import argparse
@@ -17,6 +18,7 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import cast
 
 from redact_automation_log import redact_line
 
@@ -502,6 +504,7 @@ def main() -> int:
         fallback = (
             policy.get("last_verified_model") if policy.get("qualification") else None
         )
+        model: str | None
         requested = None
         reason = None
         rc, catalog, _, _ = bounded(
@@ -716,7 +719,7 @@ def main() -> int:
             **results,
             "attempt_metadata": attempts,
         }
-        report = redact(report)
+        report = cast("dict", redact(report))
         if report_path:
             atomic_json(report_path, report)
         print(json.dumps(report, indent=2))

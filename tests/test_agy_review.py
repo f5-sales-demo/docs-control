@@ -1,5 +1,7 @@
 """Exercise the production wrapper across a deterministic AGY process boundary."""
 
+# unittest cleanup and explicit process reaping own fixture resources.
+# pylint: disable=consider-using-with
 # Real process fixtures intentionally execute trusted argument arrays and load central scripts.
 # ruff: noqa: E402, INP001, S603, S607, PT027
 
@@ -322,7 +324,7 @@ class WrapperTests(unittest.TestCase):
     def test_atomic_report(self):
         agy_review.atomic_json(self.report, {"complete": True})
         assert json.loads(self.report.read_text()) == {"complete": True}
-        assert list(self.home.glob(".report.json.*")) == []
+        assert not list(self.home.glob(".report.json.*"))
 
     def test_catalog_selection(self):
         assert (

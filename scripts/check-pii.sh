@@ -20,7 +20,10 @@ EOF
 while [ "$#" -gt 0 ]; do
   case "$1" in
   --base)
-    [ "$#" -ge 2 ] || { usage >&2; exit 2; }
+    [ "$#" -ge 2 ] || {
+      usage >&2
+      exit 2
+    }
     BASE_REF=$2
     shift 2
     ;;
@@ -148,7 +151,10 @@ materialize_changed() {
   fi
 
   if [ -n "$BASE_REF" ]; then
-    base_sha=$(git merge-base "$BASE_REF" HEAD) || { echo "PII scan error: invalid base" >&2; exit 2; }
+    base_sha=$(git merge-base "$BASE_REF" HEAD) || {
+      echo "PII scan error: invalid base" >&2
+      exit 2
+    }
   elif base_sha=$(git merge-base '@{upstream}' HEAD 2>/dev/null); then
     :
   elif base_sha=$(git rev-parse --verify HEAD^ 2>/dev/null); then
