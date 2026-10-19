@@ -20,6 +20,12 @@ function script(name) {
 }
 
 assert.match(workflow, /timeout-minutes: 50/);
+assert.match(
+  workflow,
+  /github.event_name == 'workflow_dispatch' && github.repository == 'f5-sales-demo\/docs-control' && inputs.qualification_only/,
+);
+assert.match(workflow, /vars.ANTIGRAVITY_REVIEW_ENABLED == 'true' && !inputs.qualification_only/);
+assert.match(workflow, /name: Validate controlled qualification/);
 assert.match(workflow, /repository: f5-sales-demo\/docs-control/);
 assert.match(workflow, /path: review-tools/);
 assert.match(workflow, /path: review-target/);

@@ -24,6 +24,11 @@ on:
         required: true
   workflow_dispatch:
     inputs:
+      qualification_only:
+        description: Run exact-target qualification without fleet enablement or publication
+        required: false
+        default: false
+        type: boolean
       pr_number:
         description: Same-repository pilot pull request number
         required: true
@@ -46,7 +51,7 @@ concurrency:
 jobs:
   review:
     name: PR review with Antigravity
-    if: vars.ANTIGRAVITY_REVIEW_ENABLED == 'true'
+    if: vars.ANTIGRAVITY_REVIEW_ENABLED == 'true' || (github.event_name == 'workflow_dispatch' && github.repository == 'f5-sales-demo/docs-control' && inputs.qualification_only)
     runs-on: managed-socketless
     timeout-minutes: 50
     permissions:
@@ -226,6 +231,17 @@ jobs:
             }' "$RUNNER_TEMP/review-artifact/report.json" >"$RUNNER_TEMP/review-artifact/report.final.json"
           mv "$RUNNER_TEMP/review-artifact/report.final.json" "$RUNNER_TEMP/review-artifact/report.json"
 
+      - name: Validate controlled qualification
+        if: inputs.qualification_only
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/review-artifact/report.json"
+          merge_base=$(git -C "$GITHUB_WORKSPACE/review-target" merge-base "$BASE_SHA" "$HEAD_SHA")
+          python3 "$GITHUB_WORKSPACE/review-tools/scripts/agy_review_report.py" "$report" \
+            --repository "$GITHUB_REPOSITORY" --base "$BASE_SHA" --head "$HEAD_SHA" \
+            --merge-base "$merge_base" --workflow "$GITHUB_WORKFLOW_SHA" --version "$AGY_VERSION" --tools "$AGY_TOOLS_SHA"
+          python3 "$GITHUB_WORKSPACE/review-tools/scripts/agy_review_report.py" "$report" --gate
+
       - name: Upload review receipt
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -237,7 +253,7 @@ jobs:
 
   publish:
     name: Publish exact-head review
-    if: always() && vars.ANTIGRAVITY_REVIEW_ENABLED == 'true'
+    if: always() && vars.ANTIGRAVITY_REVIEW_ENABLED == 'true' && !inputs.qualification_only
     needs: review
     runs-on: managed-socketless
     timeout-minutes: 10
