@@ -504,7 +504,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             for repository, routes in policy.arc_scale_sets.items()
             if routes["socketless"]["label"] == "managed-socketless"
         }
-        self.assertEqual(len(managed), 38)
+        self.assertEqual(len(managed), 39)
         self.assertIn("f5-sales-demo/blindfold-contract", managed)
         self.assertIn("f5-sales-demo/custom-responses", managed)
         self.assertIn("f5-sales-demo/statistics", managed)
