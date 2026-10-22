@@ -10,11 +10,13 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-REVISION = "".join(("c25d01b0ae4bb828e2af", "ec9152e579ea6178e397"))
+REVISION = "".join(("c25d01b0ae4bb828e2af", "ec9152e579ea6178e397"))  # noqa: FLY002 - construct scanner fixture at runtime.
 
 
 class TestCeRevisionGitleaks:
     def scan(self, key, value):
+        scanner = shutil.which("gitleaks")
+        assert scanner is not None, "gitleaks must be installed for these tests"
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)
             (path / "input.json").write_text(
@@ -23,7 +25,7 @@ class TestCeRevisionGitleaks:
             report = path / "report.json"
             result = subprocess.run(  # noqa: S603 - fixed scanner argv and generated private fixtures.
                 [
-                    shutil.which("gitleaks"),
+                    scanner,
                     "dir",
                     str(path),
                     "--config",
