@@ -83,6 +83,7 @@ MANAGED_ARC_COHORT = frozenset(
         "console",
         "csd",
         "custom-responses",
+        "prompt-charity",
         "ddos",
         "demo-resource-template",
         "demo-resources",
