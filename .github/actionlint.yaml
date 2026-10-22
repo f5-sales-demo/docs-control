@@ -19,7 +19,6 @@ self-hosted-runner:
     - container-build
     - csd
     - custom-responses
-    - prompt-charity
     - ddos
     - demo-resource-template
     - demo-resources
@@ -46,6 +45,7 @@ self-hosted-runner:
     - nginx
     - observability
     - origin-server
+    - prompt-charity
     - starlight-llms-txt
     - starlight-mega-menu
     - statistics
