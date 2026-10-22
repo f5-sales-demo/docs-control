@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "856a603959dfb0c5e5f35ce85baa1826f373d4d2",
+  "source_commit": "34921edc117195ef9524b325942c2bd5ecba6a61",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -26,8 +26,8 @@
     {
       "path": ".claude/governance.json",
       "src": ".claude/governance.json",
-      "sha": "2f2b2a22f4b0d01b796b435788ead5db6d377fed",
-      "size": 9520,
+      "sha": "1087566559fe57400becac1047220cb092eecab4",
+      "size": 9555,
       "mode": "100644"
     },
     {
@@ -103,15 +103,15 @@
     {
       "path": ".github/actionlint.yaml",
       "src": ".github/actionlint.yaml",
-      "sha": "e2d785b686b38f0d881c6f079f3bc1bb8f41cdef",
-      "size": 1903,
+      "sha": "0e5e103821be5366f298622259278a6f8aa6300c",
+      "size": 1924,
       "mode": "100644"
     },
     {
       "path": ".github/config/self-hosted-runner-policy.json",
       "src": ".github/config/self-hosted-runner-policy.json",
-      "sha": "27a3e0a8a9715cec313d7c7c82a507750ec135fc",
-      "size": 52533,
+      "sha": "ec2804b4768ea029d8d39d7cd93050ca8e50b301",
+      "size": 53158,
       "mode": "100644"
     },
     {
@@ -348,8 +348,8 @@
     {
       "path": "scripts/audit-runner-workflows.py",
       "src": "scripts/audit-runner-workflows.py",
-      "sha": "aa6048bb21dd04eaf39db30e0ffe4889d66a40c2",
-      "size": 46759,
+      "sha": "e1a4e5f083536fa23567e4916a603c9714bbdec9",
+      "size": 46785,
       "mode": "100755"
     },
     {
@@ -418,8 +418,8 @@
     {
       "path": "scripts/workflow_security_validator.py",
       "src": "scripts/workflow_security_validator.py",
-      "sha": "27e5de0ee00998099100a92a977111be2bb46ed8",
-      "size": 65356,
+      "sha": "006c9f6c5ca50e1a11c874843c64dc985cd2d61e",
+      "size": 65382,
       "mode": "100755"
     },
     {
@@ -502,5 +502,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:0fad086616c05c173ab288bfddfab7f34cdbe6e5e9953338f530aff55d030769"
+  "state_digest": "sha256:59bfc8ab4df352299163cf19ea44deca5d91c348223f67cb4748166f0a46293f"
 }
