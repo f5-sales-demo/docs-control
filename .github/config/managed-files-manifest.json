@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "c4d822a7c18b2f3c2097c415e45641f982d08986",
+  "source_commit": "856a603959dfb0c5e5f35ce85baa1826f373d4d2",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -208,8 +208,8 @@
     {
       "path": ".gitleaks.toml",
       "src": ".gitleaks.toml",
-      "sha": "bf13a0b73fe127df379d72edfb6734aefe488747",
-      "size": 1238,
+      "sha": "74241d494d1f6dd5eb8dcc26352c268a9093846d",
+      "size": 1327,
       "mode": "100644"
     },
     {
@@ -502,5 +502,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:6a3630551abf0cd3bbad466de56d11c03abadc9df7278bd020fed7f2ded99443"
+  "state_digest": "sha256:0fad086616c05c173ab288bfddfab7f34cdbe6e5e9953338f530aff55d030769"
 }
