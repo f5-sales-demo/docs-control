@@ -421,5 +421,15 @@
       "contract": "v1",
       "mode": "consume"
     }
+  },
+  {
+    "label": "Prompt Charity",
+    "url": "https://f5-sales-demo.github.io/prompt-charity/llms-full.txt",
+    "description": "Categorized, harness-agnostic prompts for reviewable plans before implementation.",
+    "readme_english_only": true,
+    "shared_shell": {
+      "contract": "v1",
+      "mode": "consume"
+    }
   }
 ]

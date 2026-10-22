@@ -119,6 +119,12 @@
         "homepage": "https://f5-sales-demo.github.io/gitops/",
         "description": "Branch deployments with F5 Distributed Cloud, Terraform, and Kubernetes state"
       }
+    },
+    "prompt-charity": {
+      "repository": {
+        "description": "Categorized, harness-agnostic prompts for reviewable plans before implementation. English source.",
+        "homepage": "https://f5-sales-demo.github.io/prompt-charity/en/"
+      }
     }
   },
   "consumer_shell_tests": {
@@ -666,6 +672,7 @@
   },
   "readme_sources": {
     "gitops": "content/gitops/README.md",
-    "certificate-management": "content/certificate-management/README.md"
+    "certificate-management": "content/certificate-management/README.md",
+    "prompt-charity": "content/prompt-charity/README.md"
   }
 }
