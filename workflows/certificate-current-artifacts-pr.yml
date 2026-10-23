@@ -7,6 +7,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   schema:
+    if: github.repository == 'f5-sales-demo/certificate-management'
     name: Current published schema
     runs-on: managed-socketless
     steps:
@@ -86,11 +87,11 @@ jobs:
         if-no-files-found: error
         retention-days: 14
     needs: trust-gate
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.repository == 'f5-sales-demo/certificate-management' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
   trust-gate:
     name: Verify trusted artifact invocation
     runs-on: managed-socketless
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: github.repository == 'f5-sales-demo/certificate-management' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     steps:
     - name: Accept guarded invocation
       run: test "$GITHUB_REPOSITORY" = "f5-sales-demo/certificate-management"
