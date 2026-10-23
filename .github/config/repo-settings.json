@@ -320,17 +320,20 @@
       {
         "src": "workflows/certificate-current-artifacts-pr.yml",
         "dest": ".github/workflows/certificate-current-artifacts-pr.yml",
-        "only_repos": ["certificate-management"]
+        "only_repos": ["certificate-management"],
+        "absent_repos": ["prompt-charity"]
       },
       {
         "src": "workflows/certificate-current-artifacts.yml",
         "dest": ".github/workflows/certificate-current-artifacts.yml",
-        "only_repos": ["certificate-management"]
+        "only_repos": ["certificate-management"],
+        "absent_repos": ["prompt-charity"]
       },
       {
         "src": "workflows/certificate-wingman-image.yml",
         "dest": ".github/workflows/certificate-wingman-image.yml",
-        "only_repos": ["certificate-management"]
+        "only_repos": ["certificate-management"],
+        "absent_repos": ["prompt-charity"]
       },
       {
         "src": "workflows/github-pages-deploy.yml",
