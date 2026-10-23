@@ -37,6 +37,16 @@ assert.throws(() => validateManifest(config, {...manifest,state_digest:`sha256:$
 assert.throws(() => validateManifest(config, {...manifest,absent_paths:[]}), /configuration and manifest/);
 assert.throws(() => validateManifest(config, makeManifest(manifest.files, ['a','retired'])), /sorted and unique/);
 assert.deepEqual(contentDiff({tree:[{path:'a',type:'blob',sha:'c'.repeat(40),mode:'100644'},{path:'retired',type:'blob',sha:sha,mode:'100644'}]}, desiredEntries(config, manifest, 'one')).map(x => x.action), ['upsert','upsert','delete']);
+const scopedRetirement = structuredClone(config);
+scopedRetirement.managed_files.files[1].absent_repos = ['two'];
+assert.deepEqual(desiredEntries(scopedRetirement, manifest, 'two').deletes, ['b', 'retired']);
+assert.deepEqual(desiredEntries(scopedRetirement, manifest, 'one').deletes, ['retired']);
+scopedRetirement.managed_files.skip_files.two.push('b');
+assert.deepEqual(desiredEntries(scopedRetirement, manifest, 'two').deletes, ['retired']);
+scopedRetirement.managed_files.files[1].absent_repos = ['one'];
+assert.throws(() => desiredEntries(scopedRetirement, manifest, 'one'), /present and absent/);
+scopedRetirement.managed_files.files[1].absent_repos = 'two';
+assert.throws(() => desiredEntries(scopedRetirement, manifest, 'two'), /absent_repos/);
 const subtreeSha = 'd'.repeat(40);
 const managedPaths = {files:[{path:'scripts/one.py',sha,mode:'100644'},{path:'scripts/two.py',sha,mode:'100755'}],deletes:['retired']};
 const treeCalls = [];

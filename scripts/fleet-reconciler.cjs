@@ -121,7 +121,18 @@ function desiredEntries(config, manifest, repo) {
     files.sort((left, right) => left.path.localeCompare(right.path));
   }
   const deletes = manifest.absent_paths.filter((entry) => !(skip[repo] || []).includes(entry));
-  return { files, deletes };
+  for (const entry of source.values()) {
+    const absentRepos = entry.absent_repos ?? [];
+    if (
+      !Array.isArray(absentRepos) ||
+      absentRepos.some((name) => typeof name !== 'string' || !/^[a-z0-9][a-z0-9.-]*$/.test(name))
+    )
+      fail('managed absent_repos must be an array of repository names');
+    if (!absentRepos.includes(repo)) continue;
+    if (repositoryApplies(entry, repo, {})) fail(`managed path cannot be present and absent in ${repo}: ${entry.dest}`);
+    if (!(skip[repo] || []).includes(entry.dest)) deletes.push(entry.dest);
+  }
+  return { files, deletes: [...new Set(deletes)].sort() };
 }
 function contentDiff(tree, desired) {
   const actual = new Map(

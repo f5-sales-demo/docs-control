@@ -1116,6 +1116,10 @@ jobs:
         if: hashFiles('tests/test-lint-mdx-prose.sh') != ''
         run: bash tests/test-lint-mdx-prose.sh
 
+      - name: Run certificate workflow scope test
+        if: hashFiles('tests/test-certificate-workflow-scope.sh') != ''
+        run: bash tests/test-certificate-workflow-scope.sh
+
       # Consumer repos: run their OWN hermetic tests/test-*.sh through canonical
       # docs-control selection. The default remains every matching script. A repo
       # that mixes unit and environment tests can have a complete, fail-closed
