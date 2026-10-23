@@ -4,8 +4,9 @@ Useful prompts, freely shared. Review a plan, then approve the complete workflow
 
 Prompt Charity is an English library of categorized use cases and copyable prompts
 that begin in the planning mode of your chosen AI harness and guide implementation
-after explicit approval. The prompt text is independent of
-vendor commands, plugins, tools, and operating systems.
+after explicit approval. The prompt uses instructions shared across AI harnesses
+and operating systems; your agent discovers the required tools and appropriate
+native commands.
 
 [Browse the prompt library](https://f5-sales-demo.github.io/prompt-charity/en/).
 
