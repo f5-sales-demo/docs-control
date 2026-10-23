@@ -28,6 +28,12 @@ present-file receipts and required absence. Reconciliation rejects disagreement 
 configuration and manifest, updates present files only when their Git blob SHA differs, and deletes
 every required-absent path that exists downstream.
 
+An entry may also declare `absent_repos` to retire its exact destination from named repositories
+outside its `only_repos` ownership scope. This is an explicit retirement rule, separate from skipping
+an update. Reconciliation rejects a path that is both applicable and required absent in the same
+repository, and preserves `skip_files` opt-outs. Use this for known stray managed copies; it does not
+infer deletions from a missing applicability match.
+
 Dependency automation is owned by the self-hosted organization Renovate App. Repository-local
 Dependabot configuration and its auto-merge workflow are required absent; they are not generated or
 restored by reconciliation. Run `python3 scripts/audit-dependency-automation.py` to fail closed on

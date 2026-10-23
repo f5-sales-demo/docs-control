@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "34921edc117195ef9524b325942c2bd5ecba6a61",
+  "source_commit": "02de9f811af97d90ce3e761d267bf875a41d36c8",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -131,8 +131,8 @@
     {
       "path": ".github/workflows/certificate-current-artifacts-pr.yml",
       "src": "workflows/certificate-current-artifacts-pr.yml",
-      "sha": "681a72970aa874e6dccc808e781a8b34e2e49fbb",
-      "size": 3949,
+      "sha": "bb004a194616ca053984c19113a2c7f2d142237a",
+      "size": 4143,
       "mode": "100644"
     },
     {
@@ -502,5 +502,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:59bfc8ab4df352299163cf19ea44deca5d91c348223f67cb4748166f0a46293f"
+  "state_digest": "sha256:d2a935ad3ea819d0c42587e7e9d3feff0b347f91837785b82a2543e5c53698b3"
 }
