@@ -1859,12 +1859,12 @@ def source_generated_identity_name(
     fragments. Masked source must retain the assignment key, and the complete
     template must end with its own generic field noun and a statement boundary.
     """
+    source_key = context.source_structure[match.start("key") : match.end("key")]
     if (
         not context.source_code
         or match.group("separator") != "="
         or match.group("quote") != "`"
-        or context.source_structure[match.start("key") : match.end("key")]
-        != match.group("key")
+        or source_key != match.group("key")
     ):
         return False
     interpolation = source_template_interpolation(line, match.start("value"))
