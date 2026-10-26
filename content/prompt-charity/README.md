@@ -2,7 +2,7 @@
 
 Useful prompts, freely shared. Review a plan, then approve the complete workflow.
 
-Prompt Charity is an English library of categorized use cases and copyable prompts
+Prompt Charity is an English library of use cases and copyable prompts
 that begin in the planning mode of your chosen AI harness and guide implementation
 after explicit approval. The prompt uses instructions shared across AI harnesses
 and operating systems; your agent discovers the required tools and appropriate
@@ -24,7 +24,7 @@ and keep write tools disabled. Prompt wording does not enforce permissions.
 
 ## First use case
 
-[Operations → Deploy a Customer Edge in GCP](https://f5-sales-demo.github.io/prompt-charity/en/use-cases/operations/gcp-customer-edge/)
+[Deploy a Customer Edge in GCP](https://f5-sales-demo.github.io/prompt-charity/en/use-cases/gcp-customer-edge/)
 provides a complete copyable prompt, plain-text download and step-by-step Terraform
 fallback for one dual-interface Secure Mesh Site v2. Obtain an invitation to the
 private `F5Networks/terraform-provider-f5xc-preview` repository and authenticate
