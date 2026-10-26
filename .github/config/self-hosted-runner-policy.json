@@ -389,6 +389,16 @@
       }
     },
     "f5-sales-demo/xcsh": {
+      ".github/workflows/voice-native-qualification.yml": {
+        "documentation": {
+          "runs_on": "ubuntu-24.04",
+          "reason": "canonical voice documentation inputs must match the hosted native qualification builds"
+        },
+        "native": {
+          "runs_on": "matrix",
+          "reason": "immutable native voice qualification requires platform-specific Linux and Apple silicon toolchains"
+        }
+      },
       ".github/workflows/zig-cache-prime.yml": {
         "prime": {
           "runs_on": "matrix",
@@ -504,6 +514,10 @@
         }
       },
       ".github/workflows/container.yml": {
+        "container-build-arm64": {
+          "runs_on": "ubuntu-24.04-arm",
+          "reason": "native ARM64 container qualification requires a hosted ARM64 Docker environment"
+        },
         "publish-ghcr-arm64": {
           "runs_on": "ubuntu-24.04-arm",
           "reason": "native ARM64 container publication requires a hosted ARM64 Docker environment"
