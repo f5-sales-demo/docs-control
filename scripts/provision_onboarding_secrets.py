@@ -45,21 +45,21 @@ def selected_repository(root: Path, name: str) -> str:
         raise ProvisionError(ProvisionError.INVALID_NAME)
     try:
         config = root / ".github/config"
-        inventory = json.loads((config / "downstream-repos.json").read_text())
+        enrolled = json.loads((config / "downstream-repos.json").read_text())
         settings = json.loads((config / "repo-settings.json").read_text())
         manifest = settings["secrets_manifest"]
         roles = manifest["repo_roles"].get(name, manifest["repo_roles"]["_default"])
         canonical = manifest["roles"]["governance"]
     except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
         raise ProvisionError(ProvisionError.INVALID_MANIFEST) from error
+    if not isinstance(enrolled, list) or not enrolled:
+        raise ProvisionError(ProvisionError.INVALID_MANIFEST)
+    if any(
+        not isinstance(item, str) or not NAME.fullmatch(item) for item in enrolled
+    ) or len(set(enrolled)) != len(enrolled):
+        raise ProvisionError(ProvisionError.INVALID_MANIFEST)
     if (
-        not isinstance(inventory, list)
-        or not inventory
-        or any(
-            not isinstance(item, str) or not NAME.fullmatch(item) for item in inventory
-        )
-        or len(set(inventory)) != len(inventory)
-        or name not in inventory
+        name not in enrolled
         or not isinstance(roles, list)
         or "governance" not in roles
         or canonical != list(SECRETS)

@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts/provision-onboarding-secrets.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts/provision_onboarding_secrets.py"
 SPEC = importlib.util.spec_from_file_location("onboarding_secrets", SCRIPT)
 assert SPEC is not None
 assert SPEC.loader is not None
@@ -34,9 +34,9 @@ class ProvisionTests(unittest.TestCase):
     """Every fixture stays local and checks the concrete transport boundary."""
 
     def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        "Create isolated enrollment data and patched canonical credentials."
+        # TestCase.enterContext registers context exit with fixture cleanup.
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))  # pylint: disable=consider-using-with
         self.config = self.root / ".github/config"
         self.config.mkdir(parents=True)
         (self.config / "downstream-repos.json").write_text(json.dumps(["target"]))
@@ -62,9 +62,11 @@ class ProvisionTests(unittest.TestCase):
         self.addCleanup(env.stop)
 
     def write_settings(self) -> None:
+        "Persist the current canonical role manifest."
         (self.config / "repo-settings.json").write_text(json.dumps(self.settings))
 
     def test_preview_never_writes(self) -> None:
+        "Preview never writes."
         with patch.object(MODULE.subprocess, "run", return_value=response([])) as run:
             result = MODULE.provision(self.root, "target", dry_run=True)
         self.assertEqual(run.call_count, 1)
@@ -72,6 +74,7 @@ class ProvisionTests(unittest.TestCase):
         self.assertEqual(result["missing_before"], list(MODULE.SECRETS))
 
     def test_only_missing_secret_crosses_stdin(self) -> None:
+        "Only missing secret crosses stdin."
         with patch.object(
             MODULE.subprocess,
             "run",
@@ -100,6 +103,7 @@ class ProvisionTests(unittest.TestCase):
         self.assertNotIn(SYNC, json.dumps(result))
 
     def test_both_missing_credentials_cross_stdin(self) -> None:
+        "Both missing credentials cross stdin."
         with patch.object(
             MODULE.subprocess,
             "run",
@@ -120,11 +124,13 @@ class ProvisionTests(unittest.TestCase):
             self.assertNotIn(SYNC, json.dumps(call.args))
 
     def test_missing_cli_is_safe(self) -> None:
+        "Missing cli is safe."
         with patch.object(MODULE.shutil, "which", return_value=None):
             with self.assertRaises(MODULE.ProvisionError):
                 MODULE.provision(self.root, "target", dry_run=True)
 
     def test_existing_secrets_are_not_rewritten(self) -> None:
+        "Existing secrets are not rewritten."
         with patch.object(
             MODULE.subprocess, "run", return_value=response(list(MODULE.SECRETS))
         ) as run:
@@ -133,6 +139,7 @@ class ProvisionTests(unittest.TestCase):
         self.assertEqual(result["written_secret_names"], [])
 
     def test_invalid_and_unenrolled_names_fail_before_cli(self) -> None:
+        "Invalid and unenrolled names fail before cli."
         for name in ("../target", "owner/target", "target\n", "unknown"):
             with self.subTest(name=name), patch.object(MODULE.subprocess, "run") as run:
                 with self.assertRaises(MODULE.ProvisionError):
@@ -140,6 +147,7 @@ class ProvisionTests(unittest.TestCase):
                 run.assert_not_called()
 
     def test_changed_secret_role_is_rejected(self) -> None:
+        "Changed secret role is rejected."
         self.settings["secrets_manifest"]["roles"]["governance"] = ["OTHER"]
         self.write_settings()
         with patch.object(MODULE.subprocess, "run") as run:
@@ -148,11 +156,13 @@ class ProvisionTests(unittest.TestCase):
             run.assert_not_called()
 
     def test_duplicate_inventory_is_rejected(self) -> None:
+        "Duplicate inventory is rejected."
         (self.config / "downstream-repos.json").write_text('["target", "target"]')
         with self.assertRaises(MODULE.ProvisionError):
             MODULE.provision(self.root, "target", dry_run=True)
 
     def test_missing_or_wrong_source_credentials_fail_before_cli(self) -> None:
+        "Missing or wrong source credentials fail before cli."
         for name in (*MODULE.SECRETS, "GH_TOKEN"):
             with (
                 self.subTest(name=name),
@@ -164,6 +174,7 @@ class ProvisionTests(unittest.TestCase):
                 run.assert_not_called()
 
     def test_api_failures_do_not_disclose_responses(self) -> None:
+        "Api failures do not disclose responses."
         for responses in ([response([], 1)], [response([]), response([], 1)]):
             with (
                 self.subTest(responses=responses),
@@ -174,6 +185,7 @@ class ProvisionTests(unittest.TestCase):
                 self.assertNotIn(SYNC, str(error.exception))
 
     def test_malformed_secret_metadata_is_rejected(self) -> None:
+        "Malformed secret metadata is rejected."
         for raw in (
             "{}",
             "not JSON",
@@ -192,6 +204,7 @@ class ProvisionTests(unittest.TestCase):
                     MODULE.provision(self.root, "target", dry_run=True)
 
     def test_unconfirmed_write_cannot_pass(self) -> None:
+        "Unconfirmed write cannot pass."
         with patch.object(
             MODULE.subprocess,
             "run",
