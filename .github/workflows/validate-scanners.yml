@@ -1,0 +1,32 @@
+---
+name: Validate Scanner Reconciliation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scanner-validation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Scanner Reconciliation Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '26.11.1'
+      - name: Test scoped scanner lifecycle and original reconciliation
+        run: |
+          node --test tests/scanner-scope-contract.test.cjs tests/scanner-lifecycle.test.cjs
+          bash tests/test-fleet-reconciler.sh
+          bash tests/test-github-api-resilience.sh

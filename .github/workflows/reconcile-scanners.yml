@@ -1,0 +1,85 @@
+---
+name: Reconcile Canonical Scanners
+
+on:
+  workflow_dispatch:
+    inputs:
+      scanner_paths:
+        description: Exact canonical four-file scanner scope as a JSON array.
+        required: true
+        default: '[".gitleaks.toml","scripts/check-pii.sh","scripts/check_pii.py","tests/test-check-pii.sh"]'
+        type: string
+      source_sha:
+        description: Exact canonical source commit; defaults to the manifest receipt.
+        required: false
+        type: string
+      mode:
+        description: Reconciliation mode.
+        required: false
+        default: dry-run
+        type: choice
+        options: [dry-run, pilot, full]
+      operation:
+        description: Reconcile content or retire exact selected current owners without replacement.
+        required: false
+        default: reconcile
+        type: choice
+        options: [reconcile, retire-only]
+      repositories:
+        description: Optional comma-separated downstream repositories; required for retire-only.
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fleet-content-reconciler-v2
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Reconcile canonical scanners
+    environment: repository-settings
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APP_ID: ${{ secrets.AUTOMATION_APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Resolve governed repository scope
+        id: repository-scope
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = '.github/config/downstream-repos.json';
+          const repositories = JSON.parse(fs.readFileSync(path, 'utf8'));
+          if (!Array.isArray(repositories) || repositories.some((item) => typeof item !== 'string' || item.length === 0)) {
+            throw new Error('downstream repository inventory must be a non-empty string array');
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `repositories=${[...new Set(['docs-control', ...repositories])].join(',')}\n`);
+          NODE
+      - id: app-token
+        if: env.APP_ID != '' && env.APP_PRIVATE_KEY != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ env.APP_ID }}
+          private-key: ${{ env.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.repository-scope.outputs.repositories }}
+          permission-contents: write
+          permission-issues: write
+          permission-pull-requests: write
+          permission-statuses: write
+      - name: Reconcile canonical scanners
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.REPO_SETTINGS_TOKEN }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          SCANNER_PATHS: ${{ inputs.scanner_paths }}
+          RECONCILE_MODE: ${{ inputs.mode || 'dry-run' }}
+          RECONCILE_OPERATION: ${{ inputs.operation || 'reconcile' }}
+          REPOSITORIES: ${{ inputs.repositories }}
+        run: node scripts/scanner-reconciler.cjs
