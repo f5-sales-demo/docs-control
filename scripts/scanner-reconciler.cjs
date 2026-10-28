@@ -28,6 +28,14 @@ const safePath = (value) =>
   /^[A-Za-z0-9._/-]+$/.test(value) &&
   !value.startsWith('/') &&
   value.split('/').every((p) => p && p !== '.' && p !== '..');
+class ScannerApiQueue extends ApiQueue {
+  async request(endpoint, options = {}) {
+    // Identity rechecks need a complete fresh body, not an ETag-only 304.
+    // Keep the shared retry and write-pacing contracts without changing full reconciliation.
+    this.etags.delete(endpoint);
+    return super.request(endpoint, options);
+  }
+}
 function scannerIdentity(sourceSha, repo, desired, baseSha) {
   requireSha(sourceSha);
   requireSha(baseSha);
@@ -424,7 +432,7 @@ async function main() {
   if (!process.env.GH_TOKEN) fail('GH_TOKEN is required');
   if (!process.env.SCANNER_PATHS) fail('Explicit scanner path scope is required');
   const options = {
-    api: new ApiQueue({ token: process.env.GH_TOKEN }),
+    api: new ScannerApiQueue({ token: process.env.GH_TOKEN }),
     owner: (process.env.GITHUB_REPOSITORY || 'f5-sales-demo/docs-control').split('/')[0],
     sourceSha: process.env.SOURCE_SHA || manifest.source_commit,
     sourceRoot: root,
@@ -443,4 +451,4 @@ if (require.main === module)
     console.error(error.stack || error.message);
     process.exit(error instanceof GitHubRetryDeferredError ? 84 : 1);
   });
-module.exports = { SCANNER_PATHS, scannerIdentity, reconcileScannerContent };
+module.exports = { SCANNER_PATHS, scannerIdentity, reconcileScannerContent, ScannerApiQueue };

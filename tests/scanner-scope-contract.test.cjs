@@ -1,7 +1,9 @@
 'use strict';
 const assert = require('node:assert/strict');
-const { desiredEntries: fullDesiredEntries, manifestStateDigest } = require(process.argv[2]);
-const { desiredScopedEntries: desiredEntries } = require(process.argv[3]);
+const { desiredEntries: fullDesiredEntries, manifestStateDigest } = require(
+  process.argv[2] || '../scripts/fleet-reconciler.cjs',
+);
+const { desiredScopedEntries: desiredEntries } = require(process.argv[3] || '../scripts/scoped-managed-content.cjs');
 const scannerPaths = ['.gitleaks.toml', 'scripts/check-pii.sh', 'scripts/check_pii.py', 'tests/test-check-pii.sh'];
 const entries = [...scannerPaths, 'AGENTS.md']
   .sort()

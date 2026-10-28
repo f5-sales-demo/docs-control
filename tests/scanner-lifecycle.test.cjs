@@ -6,7 +6,12 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { manifestStateDigest } = require('../scripts/fleet-reconciler.cjs');
-const { reconcileScannerContent, scannerIdentity, SCANNER_PATHS } = require('../scripts/scanner-reconciler.cjs');
+const {
+  reconcileScannerContent,
+  scannerIdentity,
+  SCANNER_PATHS,
+  ScannerApiQueue,
+} = require('../scripts/scanner-reconciler.cjs');
 const sha = 'a'.repeat(40),
   baseSha = 'b'.repeat(40),
   headSha = 'c'.repeat(40);
@@ -358,3 +363,29 @@ test('producer controls may remain when the manifest retires them only downstrea
     assert.equal(result.repositories[0].status, 'would-create');
     assert.equal(f.state.writes.length, 0);
   }));
+
+test('scanner identity rechecks request fresh bodies while retaining write pacing', async () => {
+  const requests = [];
+  const waits = [];
+  const api = new ScannerApiQueue({
+    token: 'synthetic-test-token',
+    now: () => 1000,
+    sleep: async (milliseconds) => waits.push(milliseconds),
+    fetch: async (url, options) => {
+      requests.push({ url, ...options });
+      assert.equal(options.headers['if-none-match'], undefined, 'fresh identity evidence requires a body');
+      return new Response(JSON.stringify({ number: 5 }), {
+        status: 200,
+        headers: { etag: '"synthetic-etag"', 'content-type': 'application/json' },
+      });
+    },
+  });
+  const endpoint = 'repos/example/one/pulls/5';
+  assert.deepEqual(await api.request(endpoint), { number: 5 });
+  assert.deepEqual(await api.request(endpoint), { number: 5 });
+  await api.request('repos/example/one/issues', { method: 'POST', body: { title: 'synthetic' } });
+  await api.request('repos/example/one/issues', { method: 'POST', body: { title: 'synthetic' } });
+  assert.equal(requests.length, 4);
+  assert.equal(waits.length, 1);
+  assert(waits[0] > 0, 'the shared write-gap contract remains active');
+});

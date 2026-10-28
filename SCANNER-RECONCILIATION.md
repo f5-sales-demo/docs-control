@@ -23,7 +23,9 @@ and original base. Recovery verifies the issue and PR owner, exact commit, compl
 file inventory, and current head/ref identity. Partial branches require an exact
 comparison before recovery. A PR changing a scanner path defers new delivery;
 unrelated full-content owners remain untouched. Stale or foreign scoped owners
-fail explicitly. Dry-run performs no writes, including recovered auto-merge.
+fail explicitly. Dry-run performs no writes, including recovered auto-merge. Identity rechecks
+request complete fresh response bodies while retaining the shared API retry and
+write-pacing contracts.
 
 `retire-only` retires only an exact selected scanner owner for the current source
 and desired tree. It verifies ownership before closing its PR and tracker or
@@ -36,6 +38,8 @@ receipts must verify the exact main commit and four file blobs/modes. Source tes
 a request acknowledgement or an archived skip cannot establish fleet convergence.
 Scanner convergence does not qualify CE interface transitions or release UAT.
 
-Run focused checks with `bash tests/test-scanner-scope.sh` and
-`bash tests/test-scanner-lifecycle.sh`, followed by the existing reconciler suite,
-workflow validation and repository checks.
+Run focused checks with `node --test tests/scanner-scope-contract.test.cjs
+tests/scanner-lifecycle.test.cjs`, followed by the existing reconciler suite,
+workflow validation and repository checks. The dedicated read-only scanner
+validation workflow runs these suites on pull requests; the managed shared
+workflow remains unchanged.
