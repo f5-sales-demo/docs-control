@@ -30,6 +30,105 @@ class WorkflowAuditTests(unittest.TestCase):
         with self.assertRaises(MODULE.AuditError):
             MODULE.remote_dependency("unapproved/action@main")
 
+    def _certificate_docker_workflow(self):
+        return yaml.safe_load(
+            (ROOT / "workflows/certificate-current-artifacts-pr.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+
+    def _certificate_docker_errors(
+        self,
+        workflow,
+        repository="f5-sales-demo/certificate-management",
+        relative=".github/workflows/certificate-current-artifacts-pr.yml",
+        job_id="customization",
+    ):
+        routes = {
+            "kind": "arc",
+            "profiles_by_label": {
+                "managed-socketless": "ubuntu-24.04",
+                "managed-container-build": "container-build",
+            },
+        }
+        return MODULE.audit_docker_route(
+            workflow,
+            relative,
+            job_id,
+            workflow["jobs"][job_id],
+            self.data["profiles"],
+            routes,
+            repository,
+            "container-build",
+        )
+
+    def test_certificate_canonical_owner_bound_docker_guard(self):
+        workflow = self._certificate_docker_workflow()
+        self.assertEqual(self._certificate_docker_errors(workflow), [])
+
+    def test_certificate_docker_guard_rejects_changed_identity_and_predicates(self):
+        original = self._certificate_docker_workflow()
+        exact = original["jobs"]["customization"]["if"]
+        guards = [
+            MODULE.PULL_REQUEST_GUARD,
+            exact.replace("certificate-management", "foreign"),
+            exact.replace(" && ", " || ", 1),
+            exact.replace("pull_request", "pull_request_target", 1),
+            exact.replace(" == github.repository", " != github.repository"),
+            exact.replace(" && " + MODULE.PULL_REQUEST_SOURCE, ""),
+            exact + " || true",
+        ]
+        for guard in guards:
+            with self.subTest(guard=guard):
+                workflow = json.loads(json.dumps(original))
+                workflow["jobs"]["customization"]["if"] = guard
+                errors = self._certificate_docker_errors(workflow)
+                self.assertTrue(any("same-repository guard" in e for e in errors))
+        for repository, relative, job_id in [
+            (
+                "f5-sales-demo/foreign",
+                ".github/workflows/certificate-current-artifacts-pr.yml",
+                "customization",
+            ),
+            (
+                "f5-sales-demo/certificate-management",
+                ".github/workflows/ci.yml",
+                "customization",
+            ),
+            (
+                "f5-sales-demo/certificate-management",
+                ".github/workflows/certificate-current-artifacts-pr.yml",
+                "reader",
+            ),
+        ]:
+            with self.subTest(repository=repository, relative=relative, job_id=job_id):
+                workflow = json.loads(json.dumps(original))
+                if job_id != "customization":
+                    workflow["jobs"][job_id] = workflow["jobs"].pop("customization")
+                errors = self._certificate_docker_errors(
+                    workflow, repository, relative, job_id
+                )
+                self.assertTrue(any("same-repository guard" in e for e in errors))
+
+    def test_certificate_docker_guard_preserves_socketless_dependency_checks(self):
+        for mutation, expected in [
+            ("missing", "socketless trust-gate"),
+            ("docker", "socketless trust-gate job"),
+            ("cycle", "acyclic"),
+        ]:
+            with self.subTest(mutation=mutation):
+                workflow = self._certificate_docker_workflow()
+                if mutation == "missing":
+                    del workflow["jobs"]["customization"]["needs"]
+                elif mutation == "docker":
+                    workflow["jobs"]["trust-gate"]["runs-on"] = (
+                        "managed-container-build"
+                    )
+                else:
+                    workflow["jobs"]["trust-gate"]["needs"] = "customization"
+                errors = self._certificate_docker_errors(workflow)
+                self.assertTrue(any(expected in e for e in errors))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
