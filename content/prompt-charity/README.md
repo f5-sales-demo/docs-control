@@ -32,6 +32,9 @@ fallback for one dual-interface Secure Mesh Site v2. Obtain an invitation to the
 private `F5Networks/terraform-provider-f5xc-preview` repository and authenticate
 release access before starting; missing private-repository access can appear as a 404.
 
+Recommend at least 120 GB of `pd-balanced` boot storage per CE for headroom during code upgrades.
+Increase this when current service or image requirements demand it.
+
 Completion requires stable `ONLINE`, verified SLO/SLI interface roles, disk evidence and
 a zero-change post-registration Terraform plan followed by another `ONLINE` observation. Qualification evidence is candidate-specific;
 see the use-case page for its current status. Keep credentials, sensitive state,
