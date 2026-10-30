@@ -3,8 +3,8 @@
 Useful prompts, freely shared. Review a plan, then approve the complete workflow.
 
 Prompt Charity is an English library of use cases and copyable prompts
-that begin in the planning mode of your chosen AI harness and guide implementation
-after explicit approval. The prompt uses instructions shared across AI harnesses
+that describe desired outcomes, essential constraints and observable success criteria.
+Use your chosen AI harness's native planning and approval controls and continue approved work through verification. The prompt uses instructions shared across AI harnesses
 and operating systems; your agent discovers the required tools and appropriate
 native commands.
 
@@ -14,13 +14,15 @@ native commands.
 
 1. Choose a use case and copy its prompt.
 2. Replace the bracketed inputs with your context and constraints.
-3. Enable your harness's planning mode, then submit the prompt.
-4. Review the assumptions, proposed steps, verification, and acceptance criteria.
-5. Explicitly approve the scoped plan when ready, then keep the same session active
-   through implementation, verification and authorized cleanup.
+3. Submit the prompt using your harness's native planning and approval controls.
+4. Review infrastructure scope, cost, assumptions, verification and acceptance criteria.
+5. Approve the scoped infrastructure plan when ready and continue through implementation,
+   verification and authorized cleanup. Preserve approved scope, identities, ownership
+   and original deadlines across supported handoffs or resumes.
 
-If planning mode is unavailable, ask for a written plan with read-only investigation
-and keep write tools disabled. Prompt wording does not enforce permissions.
+Let the harness manage ordinary planning artifacts and execution choices within workspace
+conventions. Use read-only discovery before dependent operations and review infrastructure
+changes before applying their saved Terraform plans.
 
 ## First use case
 
@@ -30,8 +32,11 @@ fallback for one dual-interface Secure Mesh Site v2. Obtain an invitation to the
 private `F5Networks/terraform-provider-f5xc-preview` repository and authenticate
 release access before starting; missing private-repository access can appear as a 404.
 
-Completion requires `ONLINE`, verified SLO/SLI interface roles and a zero-change
-post-registration Terraform plan. Qualification evidence is candidate-specific;
+Recommend at least 120 GB of `pd-balanced` boot storage per CE for headroom during code upgrades.
+Increase this when current service or image requirements demand it.
+
+Completion requires stable `ONLINE`, verified SLO/SLI interface roles, disk evidence and
+a zero-change post-registration Terraform plan followed by another `ONLINE` observation. Qualification evidence is candidate-specific;
 see the use-case page for its current status. Keep credentials, sensitive state,
 VM metadata and raw transcripts private. Teardown must prove owned resources and
 the XC site are absent.
