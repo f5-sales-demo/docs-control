@@ -1331,6 +1331,14 @@ jobs:
         self.write_policy()
         self.assertEqual(self.audit(), [])
 
+    def test_canonical_repository_runner_routes_are_complete(self):
+        errors = MODULE.audit_repository(
+            ROOT,
+            "f5-sales-demo/docs-control",
+            ROOT / ".github/config/self-hosted-runner-policy.json",
+        )
+        self.assertEqual(errors, [])
+
     def test_canada_managed_security_audit_route(self):
         policy = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text()
@@ -1376,6 +1384,18 @@ jobs:
         self.assertEqual(
             exception,
             {
+                ".github/workflows/reconcile-scanners.yml": {
+                    "reconcile": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "canonical scanner reconciliation requires available hosted governance automation",
+                    }
+                },
+                ".github/workflows/validate-scanners.yml": {
+                    "test": {
+                        "runs_on": "ubuntu-latest",
+                        "reason": "credential-free canonical scanner validation uses hosted tooling",
+                    }
+                },
                 ".github/workflows/attest-manifest-linked-issue.yml": {
                     "attest": {
                         "runs_on": "ubuntu-latest",

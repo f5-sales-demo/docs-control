@@ -360,6 +360,18 @@
           "runs_on": "ubuntu-latest",
           "reason": "read-only pull request workflow security audit"
         }
+      },
+      ".github/workflows/reconcile-scanners.yml": {
+        "reconcile": {
+          "runs_on": "ubuntu-latest",
+          "reason": "canonical scanner reconciliation requires available hosted governance automation"
+        }
+      },
+      ".github/workflows/validate-scanners.yml": {
+        "test": {
+          "runs_on": "ubuntu-latest",
+          "reason": "credential-free canonical scanner validation uses hosted tooling"
+        }
       }
     },
     "f5-sales-demo/vscode-xcsh": {
