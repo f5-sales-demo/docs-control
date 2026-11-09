@@ -460,7 +460,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 )
             )
 
-    def test_xcsh_toolchain_image_promotion_is_complete_and_pilot_verified(self):
+    def test_runner_image_pins_match_qualified_publication(self):
         raw = json.loads(
             (ROOT / ".github/config/self-hosted-runner-policy.json").read_text(
                 encoding="utf-8"
@@ -468,11 +468,11 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         )
         standard = (
             "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
-            "1fadcbbdaf80f69c81b028b14cd1238d9a4631d95e035dbfd810a5487cd3e1ca"
+            "72612c6227b25ab2edd672ef0ddcb62fea2a5b1fd5810dc93bfbd3090073030e"
         )
         container_build = (
             "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
-            "676d9ff1789084e33bc92eac08d247c1d9f3be4fa3ed594ba7a68c7644783e9e"
+            "4b75d6b2a57f35ca9b57843e88bfd013965b2e7f22122bd21cf01b4dd4cf1f0f"
         )
         for profile in ("ubuntu-24.04", "ubuntu-24.04-secondary", "automation"):
             self.assertEqual(standard, raw["profiles"][profile]["image"])
