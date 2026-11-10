@@ -468,11 +468,11 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         )
         standard = (
             "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
-            "72612c6227b25ab2edd672ef0ddcb62fea2a5b1fd5810dc93bfbd3090073030e"
+            "6b0b70dcb48235aea026041b73b031477eddee9bc3ffe1ddd511a34078fd6100"
         )
         container_build = (
             "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
-            "4b75d6b2a57f35ca9b57843e88bfd013965b2e7f22122bd21cf01b4dd4cf1f0f"
+            "ca013c3324f0ac3c6aa6973bfe8314c44b2a6ff47b28ebfae3b162b802bed7dc"
         )
         for profile in ("ubuntu-24.04", "ubuntu-24.04-secondary", "automation"):
             self.assertEqual(standard, raw["profiles"][profile]["image"])

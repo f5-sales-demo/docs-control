@@ -169,7 +169,7 @@ policy = json.load(open(sys.argv[1], encoding="utf-8"))
 assert policy["schema_version"] == 5
 provider = "f5-sales-demo/terraform-provider-xcsh"
 xcsh = "f5-sales-demo/xcsh"
-digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:72612c6227b25ab2edd672ef0ddcb62fea2a5b1fd5810dc93bfbd3090073030e"
+digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:6b0b70dcb48235aea026041b73b031477eddee9bc3ffe1ddd511a34078fd6100"
 candidate_digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:37844f6be57177fa574ce96e9241499663c5194453e2477f0ce0ea8225094e7c"
 assert policy["arc_attestations"] == {
     "gitops-terraform": {
