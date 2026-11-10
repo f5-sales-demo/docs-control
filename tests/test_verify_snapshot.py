@@ -324,6 +324,37 @@ def refresh_receipt(release: Path) -> str:
 
 
 class EnrichmentAliasTests(unittest.TestCase):
+    def test_source_refresh_aliases_use_the_same_closed_graph_guards(self) -> None:
+        verifier = load_verifier()
+        _, manifest = fixture_files()
+        manifest["refresh"] = {"artifact_sha256": "a" * 64}
+        aliases = [
+            {
+                "path": "content/source-a/old/index.md",
+                "target": "content/source-a/page/index.md",
+                "url": "https://source-a.example.invalid/old",
+            }
+        ]
+        manifest["aliases"] = aliases
+        verifier.validate_enrichment_aliases(manifest)
+        for field, value in (
+            ("target", "content/source-a/missing/index.md"),
+            ("path", "content/source-a/page/index.md"),
+            ("path", "content/source-a/../old/index.md"),
+        ):
+            with self.subTest(field=field, value=value):
+                previous = aliases[0][field]
+                aliases[0][field] = value
+                with self.assertRaises(ValueError):
+                    verifier.validate_enrichment_aliases(manifest)
+                aliases[0][field] = previous
+        manifest["refresh"] = {"artifact_sha256": "stale"}
+        with self.assertRaisesRegex(ValueError, "pin"):
+            verifier.validate_enrichment_aliases(manifest)
+        del manifest["refresh"]
+        with self.assertRaisesRegex(ValueError, "pinned refresh"):
+            verifier.validate_enrichment_aliases(manifest)
+
     def test_pinned_aliases_are_safe_and_target_canonical_documents(self) -> None:
         verifier = load_verifier()
         _, manifest = fixture_files()

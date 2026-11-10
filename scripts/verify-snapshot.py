@@ -234,14 +234,20 @@ def _validate_asset(
 
 
 def validate_enrichment_aliases(manifest: dict[str, object]) -> None:
-    enrichment = manifest.get("enrichment")
+    enrichment = (
+        manifest.get("refresh") if "aliases" in manifest else manifest.get("enrichment")
+    )
     if enrichment is None:
+        if "aliases" in manifest:
+            raise ValueError("alias mapping requires a pinned refresh artifact")
         return
     if not isinstance(enrichment, dict) or not re.fullmatch(
         r"[0-9a-f]{64}", str(enrichment.get("artifact_sha256", ""))
     ):
         raise ValueError("invalid enrichment artifact pin")
-    aliases = enrichment.get("aliases")
+    aliases = (
+        manifest.get("aliases") if "aliases" in manifest else enrichment.get("aliases")
+    )
     if not isinstance(aliases, list):
         raise ValueError("invalid enrichment alias mapping")
     documents = manifest["documents"]
