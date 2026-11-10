@@ -383,6 +383,48 @@ class EnrichmentAliasTests(unittest.TestCase):
 
 
 class SnapshotWorkflowTests(unittest.TestCase):
+    def test_composed_snapshot_requires_every_present_transform_pin(self) -> None:
+        verifier = load_verifier()
+        _, manifest = fixture_files()
+        manifest["aliases"] = []
+        manifest["refresh"] = {"artifact_sha256": "a" * 64}
+        manifest["enrichment"] = {"artifact_sha256": "b" * 64, "aliases": []}
+        verifier.validate_enrichment_aliases(manifest)
+        for field in ("refresh", "enrichment"):
+            saved = manifest[field]["artifact_sha256"]
+            manifest[field]["artifact_sha256"] = "stale"
+            with self.assertRaisesRegex(ValueError, "pin"):
+                verifier.validate_enrichment_aliases(manifest)
+            manifest[field]["artifact_sha256"] = saved
+
+    def test_composed_refresh_checks_each_admission_pin_and_selected_source(
+        self,
+    ) -> None:
+        verifier = load_verifier()
+        _, manifest = fixture_files()
+        manifest["aliases"] = []
+        entry = {
+            "admission_sha256": "a" * 64,
+            "content_sha256": "b" * 64,
+            "inventory_sha256": "c" * 64,
+        }
+        manifest["refresh"] = {
+            "schema_version": 2,
+            "artifact_sha256": "d" * 64,
+            "refreshed_sources": ["source-a"],
+            "source_inputs": {"source-a": entry},
+        }
+        verifier.validate_enrichment_aliases(manifest)
+        for field in ("admission_sha256", "content_sha256", "inventory_sha256"):
+            saved = entry[field]
+            entry[field] = "stale"
+            with self.assertRaisesRegex(ValueError, "pin"):
+                verifier.validate_enrichment_aliases(manifest)
+            entry[field] = saved
+        manifest["refresh"]["refreshed_sources"] = ["not-in-corpus"]
+        with self.assertRaisesRegex(ValueError, "source"):
+            verifier.validate_enrichment_aliases(manifest)
+
     def test_reusable_workflow_has_fail_closed_snapshot_contract(self) -> None:
         workflow = yaml.safe_load(WORKFLOW_PATH.read_text())
         inputs = workflow[True]["workflow_call"]["inputs"]
