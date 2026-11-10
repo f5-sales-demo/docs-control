@@ -387,15 +387,16 @@ class SnapshotWorkflowTests(unittest.TestCase):
         verifier = load_verifier()
         _, manifest = fixture_files()
         manifest["aliases"] = []
-        manifest["refresh"] = {"artifact_sha256": "a" * 64}
-        manifest["enrichment"] = {"artifact_sha256": "b" * 64, "aliases": []}
+        refresh: dict[str, Any] = {"artifact_sha256": "a" * 64}
+        enrichment: dict[str, Any] = {"artifact_sha256": "b" * 64, "aliases": []}
+        manifest["refresh"], manifest["enrichment"] = refresh, enrichment
         verifier.validate_enrichment_aliases(manifest)
-        for field in ("refresh", "enrichment"):
-            saved = manifest[field]["artifact_sha256"]
-            manifest[field]["artifact_sha256"] = "stale"
+        for evidence in (refresh, enrichment):
+            saved = evidence["artifact_sha256"]
+            evidence["artifact_sha256"] = "stale"
             with self.assertRaisesRegex(ValueError, "pin"):
                 verifier.validate_enrichment_aliases(manifest)
-            manifest[field]["artifact_sha256"] = saved
+            evidence["artifact_sha256"] = saved
 
     def test_composed_refresh_checks_each_admission_pin_and_selected_source(
         self,
@@ -408,12 +409,13 @@ class SnapshotWorkflowTests(unittest.TestCase):
             "content_sha256": "b" * 64,
             "inventory_sha256": "c" * 64,
         }
-        manifest["refresh"] = {
+        refresh: dict[str, Any] = {
             "schema_version": 2,
             "artifact_sha256": "d" * 64,
             "refreshed_sources": ["source-a"],
             "source_inputs": {"source-a": entry},
         }
+        manifest["refresh"] = refresh
         verifier.validate_enrichment_aliases(manifest)
         for field in ("admission_sha256", "content_sha256", "inventory_sha256"):
             saved = entry[field]
@@ -421,7 +423,7 @@ class SnapshotWorkflowTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "pin"):
                 verifier.validate_enrichment_aliases(manifest)
             entry[field] = saved
-        manifest["refresh"]["refreshed_sources"] = ["not-in-corpus"]
+        refresh["refreshed_sources"] = ["not-in-corpus"]
         with self.assertRaisesRegex(ValueError, "source"):
             verifier.validate_enrichment_aliases(manifest)
 

@@ -233,7 +233,8 @@ def _validate_asset(
         raise ValueError(f"manifest asset media type mismatch: {path}")
 
 
-def validate_enrichment_aliases(manifest: dict[str, object]) -> None:
+def validate_transform_pins(manifest: dict[str, object]) -> None:
+    """Verify every supplied transformation, independently of alias selection."""
     for name in ("refresh", "enrichment"):
         if name in manifest:
             evidence = manifest[name]
@@ -250,7 +251,10 @@ def validate_enrichment_aliases(manifest: dict[str, object]) -> None:
             not isinstance(selected, list)
             or not isinstance(inputs, dict)
             or not isinstance(roots, dict)
-            or not selected
+        ):
+            raise ValueError("invalid refreshed source inventory")
+        if (
+            not selected
             or any(not isinstance(source, str) for source in selected)
             or len(selected) != len(set(selected))
             or set(selected) != set(inputs)
@@ -263,6 +267,10 @@ def validate_enrichment_aliases(manifest: dict[str, object]) -> None:
                 for field in ("admission_sha256", "content_sha256", "inventory_sha256")
             ):
                 raise ValueError(f"invalid source admission pin: {source}")
+
+
+def validate_enrichment_aliases(manifest: dict[str, object]) -> None:
+    validate_transform_pins(manifest)
     enrichment = (
         manifest.get("refresh") if "aliases" in manifest else manifest.get("enrichment")
     )
