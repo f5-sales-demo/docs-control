@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "c6be1d1cb1f953fba443a94f4fa8e9ffdfa546a1",
+  "source_commit": "73a50bf9c1fe75583e346a316b1c37d564a3cc5f",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -110,7 +110,7 @@
     {
       "path": ".github/config/self-hosted-runner-policy.json",
       "src": ".github/config/self-hosted-runner-policy.json",
-      "sha": "e091484c82693bd2f8c0abd9f0c5e2a94eba9808",
+      "sha": "7b3ba848f175d273be093c2a78d0ae0daaa19b6c",
       "size": 53606,
       "mode": "100644"
     },
@@ -502,5 +502,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:d0a5ef11e6487ed3356edd86d7df6ab9e78b6d4e96ad0dae2e22737227ad7c47"
+  "state_digest": "sha256:55ba0ea04e1d079f624dd409b7483953127075ca5921c60a0db4fde2ff204328"
 }
