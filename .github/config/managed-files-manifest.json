@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "73a50bf9c1fe75583e346a316b1c37d564a3cc5f",
+  "source_commit": "6d2fe69a7bb029f8275eaf6701494ac3ee1780f2",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -313,8 +313,8 @@
     {
       "path": "CONTRIBUTING.md",
       "src": "CONTRIBUTING.md",
-      "sha": "63ff32029afe8ce9db595da8001d90525b4a21e4",
-      "size": 31786,
+      "sha": "ccdfbc9a8594d11db28804a72e9a2550a1d60960",
+      "size": 31826,
       "mode": "100644"
     },
     {
@@ -502,5 +502,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:55ba0ea04e1d079f624dd409b7483953127075ca5921c60a0db4fde2ff204328"
+  "state_digest": "sha256:2cbab724226d339ec90841329d926c8803197b9e553dd39cba6108dac4d3be8c"
 }
