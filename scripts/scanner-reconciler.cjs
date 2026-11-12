@@ -123,6 +123,79 @@ async function stablePrFiles(api, prefix, listed) {
   if (fresh.head?.sha !== pr.head.sha || fresh.state !== pr.state) fail('Concurrent PR change blocks scanner delivery');
   return { pr, files };
 }
+function scannerSignature(tree) {
+  if (!Array.isArray(tree?.tree) || tree.truncated !== false) fail('Incomplete scanner path tree');
+  const selected = tree.tree.filter((entry) => SCANNER_PATHS.includes(entry.path));
+  if (new Set(selected.map((entry) => entry.path)).size !== selected.length)
+    fail('Duplicate scanner path tree entries');
+  return SCANNER_PATHS.map((name) => {
+    const entry = selected.find((item) => item.path === name);
+    if (!entry) return null;
+    requireSha(entry.sha);
+    if (!['blob', 'tree', 'commit'].includes(entry.type) || !/^[0-7]{6}$/.test(entry.mode))
+      fail('Malformed scanner path tree entry');
+    return [entry.path, entry.sha, entry.mode, entry.type];
+  });
+}
+async function foreignScannerScope(api, owner, repo, listed) {
+  const prefix = `repos/${owner}/${repo}`;
+  try {
+    const pr = await api.request(`${prefix}/pulls/${listed.number}`);
+    if (
+      pr?.number !== listed.number ||
+      pr.state !== 'open' ||
+      pr.head?.sha !== listed.head?.sha ||
+      !Number.isSafeInteger(pr.commits) ||
+      pr.commits < 1 ||
+      pr.commits > 250
+    )
+      return 'unverified';
+    requireSha(pr.head.sha);
+    // GitHub exposes at most 250 PR commits. Require the complete introduced graph,
+    // then compare only the governed paths at every immutable boundary ancestor.
+    const commits = await listAll(api, `${prefix}/pulls/${pr.number}/commits`);
+    const graph = new Map();
+    if (commits.length !== pr.commits) return 'unverified';
+    for (const commit of commits) {
+      requireSha(commit.sha);
+      if (!Array.isArray(commit.parents) || !commit.parents.length || commit.parents.length > 32) return 'unverified';
+      const parents = commit.parents.map((parent) => requireSha(parent.sha));
+      if (graph.has(commit.sha) || new Set(parents).size !== parents.length) return 'unverified';
+      graph.set(commit.sha, parents);
+    }
+    if (!graph.has(pr.head.sha)) return 'unverified';
+    const visited = new Set(),
+      visiting = new Set(),
+      boundaries = new Set();
+    const visit = (sha) => {
+      if (visiting.has(sha)) fail('Cyclic foreign commit graph');
+      if (visited.has(sha)) return;
+      visiting.add(sha);
+      for (const parent of graph.get(sha)) {
+        if (graph.has(parent)) visit(parent);
+        else boundaries.add(parent);
+      }
+      visiting.delete(sha);
+      visited.add(sha);
+    };
+    visit(pr.head.sha);
+    if (visited.size !== graph.size || !boundaries.size || boundaries.size > 64) return 'unverified';
+    const desired = { files: SCANNER_PATHS.map((name) => ({ path: name })), deletes: [] };
+    const head = scannerSignature(await readManagedTree(api, owner, repo, pr.head.sha, desired));
+    let result = 'clear';
+    for (const boundary of boundaries) {
+      const base = scannerSignature(await readManagedTree(api, owner, repo, boundary, desired));
+      if (!same(head, base)) result = 'collision';
+    }
+    const fresh = await api.request(`${prefix}/pulls/${pr.number}`);
+    if (fresh.state !== pr.state || fresh.head?.sha !== pr.head.sha || fresh.commits !== pr.commits)
+      return 'unverified';
+    return result;
+  } catch (error) {
+    if (error instanceof GitHubRetryDeferredError) throw error;
+    return 'unverified';
+  }
+}
 async function ownerEvidence(api, prefix, repo, owner, listed, sourceSha, desired) {
   const { pr, files } = await stablePrFiles(api, prefix, listed);
   const match =
@@ -314,13 +387,18 @@ async function reconcileScannerContent(options) {
       continue;
     }
     let collision = false;
+    let unverified = false;
     for (const pr of open) {
-      const observed = await stablePrFiles(api, prefix, pr);
-      if (observed.files.some((f) => SCANNER_PATHS.includes(f.filename) || SCANNER_PATHS.includes(f.previous_filename)))
-        collision = true;
+      const scope = await foreignScannerScope(api, owner, repo, pr);
+      collision ||= scope !== 'clear';
+      unverified ||= scope === 'unverified';
     }
     if (collision) {
-      result.repositories.push({ repo, status: 'deferred-collision' });
+      result.repositories.push({
+        repo,
+        status: 'deferred-collision',
+        reason: unverified ? 'unverified-foreign-scanner-scope' : 'foreign-scanner-path-change',
+      });
       result.deferred = true;
       continue;
     }
@@ -451,4 +529,4 @@ if (require.main === module)
     console.error(error.stack || error.message);
     process.exit(error instanceof GitHubRetryDeferredError ? 84 : 1);
   });
-module.exports = { SCANNER_PATHS, scannerIdentity, reconcileScannerContent, ScannerApiQueue };
+module.exports = { SCANNER_PATHS, scannerIdentity, reconcileScannerContent, ScannerApiQueue, foreignScannerScope };

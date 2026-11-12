@@ -11,6 +11,7 @@ const {
   scannerIdentity,
   SCANNER_PATHS,
   ScannerApiQueue,
+  foreignScannerScope,
 } = require('../scripts/scanner-reconciler.cjs');
 const sha = 'a'.repeat(40),
   baseSha = 'b'.repeat(40),
@@ -223,7 +224,9 @@ test('foreign overlapping PR is deferred and untouched; non-overlap still counts
       head: { ref: `governance/reconcile/${number}`, sha: headSha },
       files: [{ filename: 'AGENTS.md' }],
       changed_files: 1,
+      commits: 1,
     }));
+    f.state.tree = { truncated: false, tree: [] };
     assert.equal((await reconcileScannerContent(f.options)).repositories[0].status, 'deferred-capacity');
     assert.equal(f.state.writes.length, 0);
   }));
@@ -388,4 +391,130 @@ test('scanner identity rechecks request fresh bodies while retaining write pacin
   assert.equal(requests.length, 4);
   assert.equal(waits.length, 1);
   assert(waits[0] > 0, 'the shared write-gap contract remains active');
+});
+
+function foreignFixture({ commits = 1, graph, trees, changeHead = false } = {}) {
+  const first = 'd'.repeat(40),
+    last = 'e'.repeat(40),
+    boundary = 'f'.repeat(40);
+  const introduced = graph || [{ sha: first, parents: [{ sha: boundary }] }];
+  const head = introduced.length > 1 ? last : first;
+  const pr = {
+    number: 2024,
+    state: 'open',
+    commits,
+    changed_files: 54,
+    head: { sha: head, ref: 'release/generated-specifications' },
+  };
+  const calls = [];
+  const baseTree = {
+    truncated: false,
+    tree: SCANNER_PATHS.map((name) => ({
+      path: name,
+      type: 'blob',
+      mode: '100644',
+      sha: '1'.repeat(40),
+    })),
+  };
+  let reads = 0;
+  const api = {
+    async request(endpoint) {
+      calls.push(endpoint);
+      if (endpoint.includes('/files?')) throw Error('GitHub cannot generate this unrelated diff');
+      if (endpoint.endsWith('/pulls/2024')) {
+        reads += 1;
+        return { ...pr, head: { ...pr.head, sha: changeHead && reads > 1 ? boundary : pr.head.sha } };
+      }
+      if (endpoint.includes('/commits?')) return introduced;
+      const match = endpoint.match(/\/git\/trees\/([a-f0-9]{40})\?recursive=1$/);
+      if (match) return trees?.[match[1]] || baseTree;
+      throw Error('Unexpected scoped read: ' + endpoint);
+    },
+  };
+  return { api, listed: pr, calls, first, last, boundary, baseTree };
+}
+
+test('foreign scanner scope uses complete immutable path evidence without an expensive full diff', async () => {
+  const f = foreignFixture();
+  assert.equal(await foreignScannerScope(f.api, 'example', 'one', f.listed), 'clear');
+  assert(!f.calls.some((endpoint) => endpoint.includes('/files?')));
+  assert.equal(f.calls.filter((endpoint) => endpoint.endsWith('/pulls/2024')).length, 2);
+});
+
+test('scoped propagation progresses past an unrelated unrenderable foreign diff', () =>
+  using(async (f) => {
+    const foreignHead = 'd'.repeat(40);
+    f.state.prs.push({
+      number: 2024,
+      state: 'open',
+      commits: 1,
+      changed_files: 54,
+      head: { sha: foreignHead, ref: 'release/generated-specifications' },
+    });
+    const original = f.api.request.bind(f.api);
+    f.api.request = async (endpoint, options) => {
+      if (endpoint.includes('/pulls/2024/files?')) throw Error('GitHub cannot render the unrelated diff');
+      if (endpoint.includes('/pulls/2024/commits?')) return [{ sha: foreignHead, parents: [{ sha: baseSha }] }];
+      if (endpoint.includes('/git/trees/' + foreignHead)) return { truncated: false, tree: [] };
+      return original(endpoint, options);
+    };
+    const result = await reconcileScannerContent(f.options);
+    assert.equal(result.repositories[0].status, 'created');
+    assert.equal(f.state.prs[0].state, 'open');
+    assert(
+      f.state.writes
+        .filter((write) => write.endpoint.endsWith('/git/trees'))
+        .every((write) => write.body.tree.every((entry) => SCANNER_PATHS.includes(entry.path))),
+    );
+  }));
+
+test('foreign changes, removals, additions, modes and symlinks into scanner paths still collide', async () => {
+  for (const action of ['change', 'remove', 'add', 'mode', 'symlink']) {
+    const f = foreignFixture();
+    const head = structuredClone(f.baseTree),
+      base = structuredClone(f.baseTree);
+    if (action === 'change') head.tree[0].sha = '2'.repeat(40);
+    if (action === 'remove') head.tree.shift();
+    if (action === 'add') base.tree.shift();
+    if (action === 'mode') head.tree[0].mode = '100755';
+    if (action === 'symlink') head.tree[0].mode = '120000';
+    const ready = foreignFixture({ trees: { [f.first]: head, [f.boundary]: base } });
+    assert.equal(await foreignScannerScope(ready.api, 'example', 'one', ready.listed), 'collision', action);
+  }
+});
+
+test('complete boundary evidence accepts net-zero edits and rejects uncertain merge boundaries', async () => {
+  const graph = [
+    { sha: 'd'.repeat(40), parents: [{ sha: 'f'.repeat(40) }] },
+    { sha: 'e'.repeat(40), parents: [{ sha: 'd'.repeat(40) }] },
+  ];
+  const f = foreignFixture({ commits: 2, graph });
+  const intermediate = structuredClone(f.baseTree);
+  intermediate.tree[0].sha = '2'.repeat(40);
+  const ready = foreignFixture({ commits: 2, graph, trees: { [f.first]: intermediate } });
+  assert.equal(await foreignScannerScope(ready.api, 'example', 'one', ready.listed), 'clear');
+  graph[1].parents.push({ sha: 'a'.repeat(40) });
+  const ambiguous = foreignFixture({ commits: 2, graph, trees: { ['a'.repeat(40)]: intermediate } });
+  assert.equal(await foreignScannerScope(ambiguous.api, 'example', 'one', ambiguous.listed), 'collision');
+});
+
+test('incomplete or malformed graphs and concurrent foreign heads cannot prove clear scope', async () => {
+  for (const setup of [
+    { commits: 2 },
+    { commits: 251 },
+    { changeHead: true },
+    { graph: [{ sha: 'd'.repeat(40), parents: [] }] },
+    { graph: [{ sha: 'd'.repeat(40), parents: [{ sha: 'invalid' }] }] },
+    { graph: [{ sha: 'd'.repeat(40), parents: [{ sha: 'd'.repeat(40) }, { sha: 'f'.repeat(40) }] }] },
+    {
+      commits: 2,
+      graph: [
+        { sha: 'd'.repeat(40), parents: [{ sha: 'f'.repeat(40) }] },
+        { sha: 'e'.repeat(40), parents: [{ sha: 'a'.repeat(40) }] },
+      ],
+    },
+  ]) {
+    const f = foreignFixture(setup);
+    assert.equal(await foreignScannerScope(f.api, 'example', 'one', f.listed), 'unverified');
+  }
 });
