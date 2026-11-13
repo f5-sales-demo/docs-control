@@ -543,3 +543,40 @@ test('foreign base identity changes before scoped writes block delivery', () =>
     await assert.rejects(reconcileScannerContent(f.options), /Concurrent repository change/);
     assert.equal(f.state.writes.length, 0);
   }));
+
+test('exact current canonical scanner heads permit reconciliation despite older scanner ancestry', () =>
+  using(async (f) => {
+    f.state.prs.push({
+      number: 9,
+      state: 'open',
+      commits: 1,
+      base: { ref: 'main', sha: baseSha },
+      head: { ref: 'feature/demo', sha: headSha },
+    });
+    f.state.tree = {
+      truncated: false,
+      tree: f.entries
+        .filter((entry) => SCANNER_PATHS.includes(entry.path))
+        .map((entry) => ({ ...entry, type: 'blob' })),
+    };
+    const result = await reconcileScannerContent({ ...f.options, mode: 'dry-run' });
+    assert.equal(result.repositories[0].status, 'would-create');
+    assert.equal(f.state.writes.length, 0);
+  }));
+
+test('partial canonical head evidence remains a blocking observation', () =>
+  using(async (f) => {
+    f.state.prs.push({
+      number: 9,
+      state: 'open',
+      commits: 1,
+      base: { ref: 'main', sha: baseSha },
+      head: { ref: 'feature/demo', sha: headSha },
+    });
+    f.state.tree = { truncated: true, tree: [] };
+    assert.equal(
+      (await reconcileScannerContent({ ...f.options, mode: 'dry-run' })).repositories[0].status,
+      'deferred-collision',
+    );
+    assert.equal(f.state.writes.length, 0);
+  }));

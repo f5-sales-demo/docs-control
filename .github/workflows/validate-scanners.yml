@@ -27,6 +27,6 @@ jobs:
           node-version: '26.11.1'
       - name: Test scoped scanner lifecycle and original reconciliation
         run: |
-          node --test tests/scanner-scope-contract.test.cjs tests/scanner-lifecycle.test.cjs tests/scanner-large-pr-paths.test.cjs
+          node --test tests/scanner-scope-contract.test.cjs tests/scanner-lifecycle.test.cjs tests/scanner-large-pr-paths.test.cjs tests/scanner-branch-refresh.test.cjs
           bash tests/test-fleet-reconciler.sh
           bash tests/test-github-api-resilience.sh

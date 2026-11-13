@@ -1,0 +1,73 @@
+---
+name: Refresh Reviewed Scanner Branches
+
+on:
+  workflow_dispatch:
+    inputs:
+      input:
+        description: JSON with explicit targets/sourceSha to plan, or an exact reviewed plan to execute.
+        required: true
+        type: string
+      mode:
+        description: Dry-run performs no writes; pilot executes one reviewed target.
+        required: true
+        default: dry-run
+        type: choice
+        options: [dry-run, pilot, full]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fleet-content-reconciler-v2
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    name: Refresh reviewed scanner branches
+    environment: repository-settings
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      APP_ID: ${{ secrets.AUTOMATION_APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.AUTOMATION_APP_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '26.11.1'
+      - name: Resolve explicit reviewed repository scope
+        id: repository-scope
+        env:
+          BRANCH_REFRESH_INPUT: ${{ inputs.input }}
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const input = JSON.parse(process.env.BRANCH_REFRESH_INPUT);
+          const targets = input.plan ? input.plan.targets : input.targets;
+          const inventory = JSON.parse(fs.readFileSync('.github/config/downstream-repos.json', 'utf8'));
+          if (!Array.isArray(targets) || !targets.length || targets.length > 100 ||
+              targets.some((target) => typeof target.repo !== 'string' || !inventory.includes(target.repo))) {
+            throw Error('Explicit scanner branch repository scope differs');
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,
+            `repositories=${[...new Set(['docs-control', ...targets.map((target) => target.repo)])].join(',')}\n`);
+          NODE
+      - id: app-token
+        if: env.APP_ID != '' && env.APP_PRIVATE_KEY != ''
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ env.APP_ID }}
+          private-key: ${{ env.APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.repository-scope.outputs.repositories }}
+          permission-contents: write
+          permission-pull-requests: read
+      - name: Plan or execute reviewed scanner refresh
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.REPO_SETTINGS_TOKEN }}
+          BRANCH_REFRESH_INPUT: ${{ inputs.input }}
+          BRANCH_REFRESH_MODE: ${{ inputs.mode }}
+        run: node scripts/scanner-branch-refresh.cjs
