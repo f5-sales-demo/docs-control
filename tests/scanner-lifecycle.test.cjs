@@ -428,7 +428,7 @@ function foreignFixture({ commits = 1, graph, trees, changeHead = false } = {}) 
       if (endpoint.includes('/commits?')) return introduced;
       const match = endpoint.match(/\/git\/trees\/([a-f0-9]{40})\?recursive=1$/);
       if (match) return trees?.[match[1]] || baseTree;
-      throw Error('Unexpected scoped read: ' + endpoint);
+      throw Error(`Unexpected scoped read: ${endpoint}`);
     },
   };
   return { api, listed: pr, calls, first, last, boundary, baseTree };
@@ -455,7 +455,7 @@ test('scoped propagation progresses past an unrelated unrenderable foreign diff'
     f.api.request = async (endpoint, options) => {
       if (endpoint.includes('/pulls/2024/files?')) throw Error('GitHub cannot render the unrelated diff');
       if (endpoint.includes('/pulls/2024/commits?')) return [{ sha: foreignHead, parents: [{ sha: baseSha }] }];
-      if (endpoint.includes('/git/trees/' + foreignHead)) return { truncated: false, tree: [] };
+      if (endpoint.includes(`/git/trees/${foreignHead}`)) return { truncated: false, tree: [] };
       return original(endpoint, options);
     };
     const result = await reconcileScannerContent(f.options);
@@ -518,3 +518,28 @@ test('incomplete or malformed graphs and concurrent foreign heads cannot prove c
     assert.equal(await foreignScannerScope(f.api, 'example', 'one', f.listed), 'unverified');
   }
 });
+
+test('foreign base identity changes before scoped writes block delivery', () =>
+  using(async (f) => {
+    f.state.prs.push({
+      number: 9,
+      state: 'open',
+      head: { ref: 'feature/demo', sha: headSha },
+      base: { ref: 'main', sha: baseSha },
+      commits: 1,
+    });
+    f.state.tree = { truncated: false, tree: [] };
+    const read = f.api.request.bind(f.api);
+    let openReads = 0;
+    f.api.request = async (endpoint, options) => {
+      const result = await read(endpoint, options);
+      if (endpoint.includes('/pulls?state=open')) {
+        const snapshot = structuredClone(result);
+        if (++openReads > 1) snapshot[0].base.sha = 'd'.repeat(40);
+        return snapshot;
+      }
+      return result;
+    };
+    await assert.rejects(reconcileScannerContent(f.options), /Concurrent repository change/);
+    assert.equal(f.state.writes.length, 0);
+  }));

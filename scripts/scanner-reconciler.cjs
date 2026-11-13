@@ -137,6 +137,46 @@ function scannerSignature(tree) {
     return [entry.path, entry.sha, entry.mode, entry.type];
   });
 }
+function foreignPrRefs(pr) {
+  return [pr.number, pr.state, pr.head?.sha, pr.base?.sha, pr.base?.ref];
+}
+async function unchangedLargePrPaths(api, prefix, listed, pr) {
+  // The files endpoint has its own complete-inventory contract. It does not
+  // qualify an introduced commit graph beyond GitHub's 250-commit limit.
+  requireSha(pr.base?.sha);
+  requireSha(listed.base?.sha);
+  if (
+    !same(foreignPrRefs(pr), foreignPrRefs(listed)) ||
+    typeof pr.base.ref !== 'string' ||
+    !pr.base.ref ||
+    !Number.isSafeInteger(pr.changed_files) ||
+    pr.changed_files < 0 ||
+    pr.changed_files > 3000
+  )
+    fail('Large PR path snapshot is incomplete');
+  const files = await listAll(api, `${prefix}/pulls/${pr.number}/files`);
+  if (
+    files.length !== pr.changed_files ||
+    new Set(files.map((file) => file.filename)).size !== files.length ||
+    files.some(
+      (file) =>
+        !safePath(file.filename) ||
+        (file.previous_filename !== undefined && !safePath(file.previous_filename)) ||
+        (file.status === 'renamed' && !safePath(file.previous_filename)),
+    )
+  )
+    fail('Large PR path inventory is incomplete');
+  const fresh = await api.request(`${prefix}/pulls/${pr.number}`);
+  if (
+    !same(foreignPrRefs(pr), foreignPrRefs(fresh)) ||
+    fresh.commits !== pr.commits ||
+    fresh.changed_files !== pr.changed_files
+  )
+    fail('Large PR path snapshot changed');
+  return files.some((file) => SCANNER_PATHS.includes(file.filename) || SCANNER_PATHS.includes(file.previous_filename))
+    ? 'unverified'
+    : 'clear';
+}
 async function foreignScannerScope(api, owner, repo, listed) {
   const prefix = `repos/${owner}/${repo}`;
   try {
@@ -146,11 +186,11 @@ async function foreignScannerScope(api, owner, repo, listed) {
       pr.state !== 'open' ||
       pr.head?.sha !== listed.head?.sha ||
       !Number.isSafeInteger(pr.commits) ||
-      pr.commits < 1 ||
-      pr.commits > 250
+      pr.commits < 1
     )
       return 'unverified';
     requireSha(pr.head.sha);
+    if (pr.commits > 250) return await unchangedLargePrPaths(api, prefix, listed, pr);
     // GitHub exposes at most 250 PR commits. Require the complete introduced graph,
     // then compare only the governed paths at every immutable boundary ancestor.
     const commits = await listAll(api, `${prefix}/pulls/${pr.number}/commits`);
@@ -414,10 +454,7 @@ async function reconcileScannerContent(options) {
     // Sharing the full workflow concurrency group serializes governed fleet writers.
     const freshMain = await api.request(`${prefix}/commits/main`);
     const freshOpen = await listAll(api, `${prefix}/pulls?state=open`);
-    if (
-      freshMain.sha !== main.sha ||
-      !same(freshOpen.map((p) => [p.number, p.head.sha]).sort(), open.map((p) => [p.number, p.head.sha]).sort())
-    )
+    if (freshMain.sha !== main.sha || !same(freshOpen.map(foreignPrRefs).sort(), open.map(foreignPrRefs).sort()))
       fail('Concurrent repository change before scanner writes');
     let commit = await optionalRef(api, prefix, identity.branch);
     if (commit === undefined) {
