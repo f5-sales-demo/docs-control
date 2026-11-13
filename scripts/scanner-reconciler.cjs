@@ -177,6 +177,24 @@ async function unchangedLargePrPaths(api, prefix, listed, pr) {
     ? 'unverified'
     : 'clear';
 }
+async function currentCanonicalPrHead(api, owner, repo, listed, wanted) {
+  // The caller derives wanted only after full immutable source verification.
+  if (!listed.base?.sha) return 'not-attempted';
+  try {
+    requireSha(listed.head?.sha);
+    requireSha(listed.base.sha);
+    const prefix = `repos/${owner}/${repo}`;
+    const pr = await api.request(`${prefix}/pulls/${listed.number}`);
+    if (pr.state !== 'open' || !same(foreignPrRefs(pr), foreignPrRefs(listed))) return 'unverified';
+    const tree = await readManagedTree(api, owner, repo, pr.head.sha, wanted);
+    if (contentDiff(tree, wanted).length) return 'different';
+    const fresh = await api.request(`${prefix}/pulls/${pr.number}`);
+    return same(foreignPrRefs(pr), foreignPrRefs(fresh)) ? 'canonical' : 'unverified';
+  } catch (error) {
+    if (error instanceof GitHubRetryDeferredError) throw error;
+    return 'unverified';
+  }
+}
 async function foreignScannerScope(api, owner, repo, listed) {
   const prefix = `repos/${owner}/${repo}`;
   try {
@@ -429,7 +447,13 @@ async function reconcileScannerContent(options) {
     let collision = false;
     let unverified = false;
     for (const pr of open) {
-      const scope = await foreignScannerScope(api, owner, repo, pr);
+      const canonical = await currentCanonicalPrHead(api, owner, repo, pr, wanted);
+      const scope =
+        canonical === 'canonical'
+          ? 'clear'
+          : canonical === 'unverified'
+            ? 'unverified'
+            : await foreignScannerScope(api, owner, repo, pr);
       collision ||= scope !== 'clear';
       unverified ||= scope === 'unverified';
     }
@@ -566,4 +590,11 @@ if (require.main === module)
     console.error(error.stack || error.message);
     process.exit(error instanceof GitHubRetryDeferredError ? 84 : 1);
   });
-module.exports = { SCANNER_PATHS, scannerIdentity, reconcileScannerContent, ScannerApiQueue, foreignScannerScope };
+module.exports = {
+  SCANNER_PATHS,
+  scannerIdentity,
+  reconcileScannerContent,
+  ScannerApiQueue,
+  foreignScannerScope,
+  sourceEvidence,
+};
