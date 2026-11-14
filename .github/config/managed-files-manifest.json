@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "d399671b66ac621fb9d849fc705894a813172890",
+  "source_commit": "e416d0e9e23c6bfb3be44ada65e79d14a45247ae",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -355,8 +355,8 @@
     {
       "path": "scripts/audit_repository_rename.py",
       "src": "scripts/audit_repository_rename.py",
-      "sha": "260e07fcf234887accec0ec79deb07318c6f591b",
-      "size": 4780,
+      "sha": "2c6ca0db042037c1b403559fe3d2e4a85a900edf",
+      "size": 4912,
       "mode": "100755"
     },
     {
@@ -509,5 +509,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:5183b7de93d09425b2aec079c5c533edd54fc69d4d78090055947c46481ca8a1"
+  "state_digest": "sha256:c4a895a4491251bbab277ee34811de3e2385b2e9835288d83ae57b2442c9d858"
 }
