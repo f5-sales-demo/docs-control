@@ -1,11 +1,11 @@
-# ruff: noqa: INP001 -- standalone standard-library test
 """Verify all personalized sites publish the Statistics navigation builder."""
 
-import re
 import unittest
 from pathlib import Path
 
 import yaml
+
+from tests.builder_publication_contract import require_shared_builder_selector
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -15,9 +15,7 @@ class NavigationPublication(unittest.TestCase):
         source = (ROOT / "workflows/github-pages-deploy.yml").read_text()
         workflow = yaml.safe_load(source)
         selector = workflow["jobs"]["docs"]["with"]["builder-image"]
-        assert re.fullmatch(
-            r"ghcr.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}", selector
-        )
+        require_shared_builder_selector(selector)
         assert workflow["jobs"]["docs"]["with"]["shared-mode"] == "auto"
 
 
