@@ -1,0 +1,1078 @@
+{
+  "schema_version": 1,
+  "verified_utc": "2026-11-14T22:37:26.899681+00:00",
+  "coordination_issue": "https://github.com/f5-sales-demo/docs-control/issues/2654",
+  "repository": {
+    "owner": "f5-sales-demo",
+    "previous_name": "csd",
+    "name": "client-side-defense",
+    "id": 1157276685,
+    "cutover_ref_count": 696,
+    "cutover_refs_preserved": true
+  },
+  "sources": [
+    {
+      "repository": "f5-sales-demo/docs-control",
+      "baseline_sha": "17642df1a0ea7448bbe1a69ce2280b00430c716b",
+      "implementation_pr": "https://github.com/f5-sales-demo/docs-control/pull/2656",
+      "implementation_merge_sha": "d399671b66ac621fb9d849fc705894a813172890"
+    },
+    {
+      "repository": "f5-sales-demo/client-side-defense",
+      "baseline_sha": "f2286edf3e92f22967e12be225fefc1828ba941a",
+      "implementation_pr": "https://github.com/f5-sales-demo/client-side-defense/pull/1373",
+      "implementation_merge_sha": "d46e7ecd432ca7d3e20750074d05e02fa80d20bb"
+    },
+    {
+      "repository": "f5-sales-demo/self-hosted-runner",
+      "baseline_sha": "efb7ade603a318a4dc3df823e8224fda7d57ae36",
+      "implementation_pr": "https://github.com/f5-sales-demo/self-hosted-runner/pull/261",
+      "implementation_merge_sha": "e1507f2ebb5dbd18e5622725b55e9fac7aeb87eb"
+    },
+    {
+      "repository": "f5-sales-demo/f5-sales-demo.github.io",
+      "baseline_sha": "9f44324ba8212fd17a5d8118251e449befe6c302",
+      "implementation_pr": "https://github.com/f5-sales-demo/f5-sales-demo.github.io/pull/1252",
+      "implementation_merge_sha": "238503d558c039afdf1ab2dd9641b94df90f14ca"
+    },
+    {
+      "repository": "f5-sales-demo/docs-builder",
+      "baseline_sha": "83bdd25c7298261f05c5e72d7d598b49a69c99ac",
+      "implementation_pr": "https://github.com/f5-sales-demo/docs-builder/pull/1734",
+      "implementation_merge_sha": "d026da18e991af77c92e3feb56b76ec6dc848e16"
+    },
+    {
+      "repository": "f5-sales-demo/starlight-llms-txt",
+      "baseline_sha": "148eacdfda779353edd95750199d47fa733fb73c",
+      "implementation_pr": "https://github.com/f5-sales-demo/starlight-llms-txt/pull/724",
+      "implementation_merge_sha": "4b32f84c276a7e1a022697e92070c5701de360e1"
+    },
+    {
+      "repository": "f5-sales-demo/.github",
+      "baseline_sha": "276cd8e926099ee414df0f6e44f5545af5a87c88",
+      "implementation_pr": "https://github.com/f5-sales-demo/.github/pull/22",
+      "implementation_merge_sha": "ce7bd8dcfff931a12a10c6d7cb871e9a3e363e00"
+    }
+  ],
+  "qualification_and_reference_repairs": [
+    {
+      "repository": "f5-sales-demo/client-side-defense",
+      "pr": "https://github.com/f5-sales-demo/client-side-defense/pull/1377",
+      "merge_sha": "9d7c0791cf2e5dd9b89865860e57228c2c2d7a84"
+    },
+    {
+      "repository": "f5-sales-demo/docs-builder",
+      "pr": "https://github.com/f5-sales-demo/docs-builder/pull/1738",
+      "merge_sha": "a584f7f23c0c904b454e49dd62d699bb7b22bdb4"
+    },
+    {
+      "repository": "f5-sales-demo/docs-control",
+      "pr": "https://github.com/f5-sales-demo/docs-control/pull/2660",
+      "merge_sha": "e416d0e9e23c6bfb3be44ada65e79d14a45247ae"
+    },
+    {
+      "repository": "f5-sales-demo/docs-builder",
+      "pr": "https://github.com/f5-sales-demo/docs-builder/pull/1742",
+      "merge_sha": "8bfafc46b583a148aa6e5884ffec8153a138523a"
+    },
+    {
+      "repository": "f5-sales-demo/docs-builder",
+      "pr": "https://github.com/f5-sales-demo/docs-builder/pull/1748",
+      "merge_sha": "48868da7bc73346afb7cb81c76e217d6ca18648e"
+    },
+    {
+      "repository": "f5-sales-demo/terraform-provider-xcsh",
+      "pr": "https://github.com/f5-sales-demo/terraform-provider-xcsh/pull/2725",
+      "merge_sha": "985995c8365cdb1e61518e3dfef981515a2ffc29"
+    },
+    {
+      "repository": "f5-sales-demo/traffic-generator",
+      "pr": "https://github.com/f5-sales-demo/traffic-generator/pull/803",
+      "merge_sha": "88e9b17619db1ae3ddff7260eb10939cdd5da40a"
+    }
+  ],
+  "preservation": {
+    "repository_id": true,
+    "collaborators": true,
+    "teams": true,
+    "rulesets": true,
+    "environments": true,
+    "hooks": true,
+    "action-permissions": true,
+    "workflow-permissions": true,
+    "deploy-keys": true,
+    "oidc_native_rename_transition": {
+      "use_default_preserved": true,
+      "immutable_subject_verified": true,
+      "documentation": "https://docs.github.com/en/actions/reference/security/oidc#immutable-subject-claims",
+      "reason": "GitHub automatically moves renamed repositories to immutable subjects after July 15, 2026; those IDs cannot be removed."
+    },
+    "aws_oidc_trust_inventory": {
+      "roles_reviewed": 110,
+      "github_oidc_trusts": 0
+    },
+    "oidc_active_pages_integration": {
+      "callers": [".github/workflows/github-pages-deploy.yml"],
+      "successful_run": 43555980457,
+      "url": "https://github.com/f5-sales-demo/client-side-defense/actions/runs/43555980457"
+    },
+    "original_non_main_branch_and_tag_refs": 2,
+    "draft_prs_preserved": [1268, 1269],
+    "original_issue_and_pr_identity_count": 1371,
+    "pages_settings_preserved": true
+  },
+  "runners": {
+    "final_checks": {
+      "timestamp_utc": "2026-11-14T19:18:32.854721+00:00",
+      "acl_existing_entries_preserved": true,
+      "approved_entry_present": true,
+      "old_namespaces_and_releases_absent": true,
+      "profiles": [
+        {
+          "profile": "socketless",
+          "repository_url_verified": true,
+          "min_runners": 0,
+          "max_runners": 3,
+          "original_images_preserved": true,
+          "deployed": true
+        },
+        {
+          "profile": "container-build",
+          "repository_url_verified": true,
+          "min_runners": 0,
+          "max_runners": 1,
+          "original_images_preserved": true,
+          "deployed": true
+        }
+      ]
+    },
+    "qualified_jobs": [
+      {
+        "profile": "socketless",
+        "run_id": 43552167278,
+        "job_id": 132316867340,
+        "url": "https://github.com/f5-sales-demo/client-side-defense/actions/runs/43552167278/job/132316867340",
+        "conclusion": "success"
+      },
+      {
+        "profile": "container-build",
+        "run_id": 43552618493,
+        "job_id": 132318355654,
+        "url": "https://github.com/f5-sales-demo/client-side-defense/actions/runs/43552618493/job/132318355654",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "publication": {
+    "timestamp_utc": "2026-11-14T20:59:46.130985+00:00",
+    "revisions": {
+      "client-side-defense": {
+        "url": "https://f5-sales-demo.github.io/client-side-defense/api/revision.json",
+        "source_sha": "9d7c0791cf2e5dd9b89865860e57228c2c2d7a84",
+        "run_id": 43555980457,
+        "revision": {
+          "content_ref": "9d7c0791cf2e5dd9b89865860e57228c2c2d7a84",
+          "commit": "9d7c0791cf2e5dd9b89865860e57228c2c2d7a84",
+          "builder_image": "ghcr.io/f5-sales-demo/docs-builder@sha256:8fcc5e4171f6b4cb44133e44619aaca352d168b5a34e0c95a5715041d721bcda",
+          "snapshot_tag": "",
+          "publication_sha256": "",
+          "snapshot_source_commit": ""
+        }
+      },
+      "shared-root": {
+        "url": "https://f5-sales-demo.github.io/api/revision.json",
+        "source_sha": "238503d558c039afdf1ab2dd9641b94df90f14ca",
+        "run_id": 43553719637,
+        "revision": {
+          "content_ref": "238503d558c039afdf1ab2dd9641b94df90f14ca",
+          "commit": "238503d558c039afdf1ab2dd9641b94df90f14ca",
+          "builder_image": "ghcr.io/f5-sales-demo/docs-builder@sha256:049219671eb53fb884af5a529ab638ba01894492ac6918da76bc17a069607e72",
+          "snapshot_tag": "",
+          "publication_sha256": "",
+          "snapshot_source_commit": ""
+        }
+      },
+      "docs-control": {
+        "url": "https://f5-sales-demo.github.io/docs-control/api/revision.json",
+        "source_sha": "7a8186beb9a2037f53593d3c39a6173d42bd7824",
+        "run_id": 43553728028,
+        "revision": {
+          "content_ref": "7a8186beb9a2037f53593d3c39a6173d42bd7824",
+          "commit": "7a8186beb9a2037f53593d3c39a6173d42bd7824",
+          "builder_image": "ghcr.io/f5-sales-demo/docs-builder@sha256:27d7fdef234f5cb3d8f479b4c412644a24cb2b6f32de227b775a25b32081e2f3",
+          "snapshot_tag": "",
+          "publication_sha256": "",
+          "snapshot_source_commit": ""
+        }
+      }
+    },
+    "shared_pointer": {
+      "contract": "v1",
+      "release": {
+        "url": "https://f5-sales-demo.github.io/shared/v1/releases/635048ca6e8173ae62c57b659b360e66a4748f1742b32416b449f41fa89a965b.json",
+        "sha256": "635048ca6e8173ae62c57b659b360e66a4748f1742b32416b449f41fa89a965b",
+        "bytes": 5766
+      }
+    },
+    "crawled_documents": 287,
+    "verified_assets": 39,
+    "metadata_and_indexes": 8,
+    "crawl_failures": 0,
+    "browser_pages": [
+      {
+        "url": "https://f5-sales-demo.github.io/client-side-defense/en/",
+        "canonical": "https://f5-sales-demo.github.io/client-side-defense/en/",
+        "status": 200,
+        "stale_links": 0,
+        "page_errors": 0
+      },
+      {
+        "url": "https://f5-sales-demo.github.io/client-side-defense/fr/",
+        "canonical": "https://f5-sales-demo.github.io/client-side-defense/fr/",
+        "status": 200,
+        "stale_links": 0,
+        "page_errors": 0
+      },
+      {
+        "url": "https://f5-sales-demo.github.io/client-side-defense/ja/",
+        "canonical": "https://f5-sales-demo.github.io/client-side-defense/ja/",
+        "status": 200,
+        "stale_links": 0,
+        "page_errors": 0
+      },
+      {
+        "url": "https://f5-sales-demo.github.io/en/",
+        "canonical": "https://f5-sales-demo.github.io/en/",
+        "status": 200,
+        "stale_links": 0,
+        "page_errors": 0
+      }
+    ]
+  },
+  "builder_acceptance": {
+    "version": "1.13.4",
+    "source_sha": "48868da7bc73346afb7cb81c76e217d6ca18648e",
+    "image": "ghcr.io/f5-sales-demo/docs-builder@sha256:25a1aec1c2afea3b9da8f10c0334ba4c9b9c181bcce35829aeebddba7c6abdaf",
+    "publication_run": "https://github.com/f5-sales-demo/docs-builder/actions/runs/43639030732",
+    "acceptance_run": "https://github.com/f5-sales-demo/certificate-management/actions/runs/43555543458/attempts/4",
+    "browser_combinations": 200,
+    "conclusion": "success"
+  },
+  "managed_convergence": {
+    "source_sha": "e416d0e9e23c6bfb3be44ada65e79d14a45247ae",
+    "manifest_pr": "https://github.com/f5-sales-demo/docs-control/pull/2661",
+    "manifest_merge_sha": "f66ac6f84602e3d38d728d6bfdf05e2c5010bc9d",
+    "state_digest": "sha256:c4a895a4491251bbab277ee34811de3e2385b2e9835288d83ae57b2442c9d858",
+    "executor": "verified Ubuntu through direct SSH; unchanged canonical reconciler CLI",
+    "active_matching": 44,
+    "archived_skipped": 1,
+    "no_change": true,
+    "deferred": false,
+    "repositories": [
+      {
+        "repo": "docs-builder",
+        "status": "matching",
+        "tree_sha": "48868da7bc73346afb7cb81c76e217d6ca18648e",
+        "expected_files": 57,
+        "expected_absent": 21
+      },
+      {
+        "repo": "docs-theme",
+        "status": "matching",
+        "tree_sha": "f81156f050272ea8dea0e88458a191b89ba365ce",
+        "expected_files": 57,
+        "expected_absent": 21
+      },
+      {
+        "repo": "f5-sales-demo.github.io",
+        "status": "matching",
+        "tree_sha": "961a24405eda8d469ce8e6d10df104c73d576bb2",
+        "expected_files": 57,
+        "expected_absent": 21
+      },
+      {
+        "repo": "administration",
+        "status": "matching",
+        "tree_sha": "fce50cb9a5511f4108e224c46973be54c20f7de0",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "nginx",
+        "status": "matching",
+        "tree_sha": "a9db9f41fddf1dcaf7b971a6dd9b54ad8e5a6483",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "observability",
+        "status": "matching",
+        "tree_sha": "f8df6fd53b7fa34a6d822ae70fb9bbaf91b937ee",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "statistics",
+        "status": "matching",
+        "tree_sha": "557c216ec9530bc5ecf4843b8114c2ed269bd9e7",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "certificate-management",
+        "status": "matching",
+        "tree_sha": "65ced7e22856da59d954f4b779983895d0bc4d0c",
+        "expected_files": 67,
+        "expected_absent": 21
+      },
+      {
+        "repo": "was",
+        "status": "matching",
+        "tree_sha": "d4b8174ce93233421fe381700b82d60f55676c78",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "multi-cloud-networking",
+        "status": "matching",
+        "tree_sha": "b943efea8eeeb36008e660072801b3eb2ac5a373",
+        "expected_files": 64,
+        "expected_absent": 21
+      },
+      {
+        "repo": "canada",
+        "status": "matching",
+        "tree_sha": "aaa0f95d703ca1e4a9f34c490c7a2cc31aff7497",
+        "expected_files": 64,
+        "expected_absent": 21
+      },
+      {
+        "repo": "dns",
+        "status": "matching",
+        "tree_sha": "a6d0151ec77aee9adc36aa64581c3ae0a6a5909f",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "cdn",
+        "status": "matching",
+        "tree_sha": "def6bc6b661ab0aa5287595635a315b9dbeff142",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "bot-standard",
+        "status": "matching",
+        "tree_sha": "2a92808fef5c66db21b5852e56f88e6415a3d1c4",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "bot-advanced",
+        "status": "matching",
+        "tree_sha": "4d3f72c1d81ac6b343b04e88432e14e90c1edf06",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "ddos",
+        "status": "matching",
+        "tree_sha": "43d0af152efc0da59e54c32aaf274f0ebecc6bf3",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "api-protection",
+        "status": "matching",
+        "tree_sha": "2660041a4b3d29ade8474fe21b976f008b93885d",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "webapp-api-protection",
+        "status": "matching",
+        "tree_sha": "402be0d0aa02dd50a20fb2c6627f0200b9e9c0ea",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "api-specs",
+        "status": "matching",
+        "tree_sha": "6233ac4ddf4df27c5aa1f4c66876461994a63a5c",
+        "expected_files": 60,
+        "expected_absent": 21
+      },
+      {
+        "repo": "api-specs-enriched",
+        "status": "matching",
+        "tree_sha": "8e4c469e8d080ff7607fd2839e38df07af332f37",
+        "expected_files": 59,
+        "expected_absent": 21
+      },
+      {
+        "repo": "client-side-defense",
+        "status": "matching",
+        "tree_sha": "e359b56b9db7fc251e3bb7d1b58f8ee79716f44a",
+        "expected_files": 64,
+        "expected_absent": 21
+      },
+      {
+        "repo": "docs-icons",
+        "status": "matching",
+        "tree_sha": "228a12b467a5182d161933010b1b7b2a172285b9",
+        "expected_files": 59,
+        "expected_absent": 21
+      },
+      {
+        "repo": "html-to-markdown",
+        "status": "matching",
+        "tree_sha": "e9b40b43b62006338c68692d5ad44ac2277e04a1",
+        "expected_files": 58,
+        "expected_absent": 21
+      },
+      {
+        "repo": "terraform-provider-xcsh",
+        "status": "matching",
+        "tree_sha": "46ea9ccb5523d0271c3300734e654f52266f286b",
+        "expected_files": 62,
+        "expected_absent": 21
+      },
+      {
+        "repo": "devcontainer",
+        "status": "skipped-archived"
+      },
+      {
+        "repo": "marketplace",
+        "status": "matching",
+        "tree_sha": "14eb4ca429a445a43ed92f0e6e358ee9a5f871d7",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "xcsh",
+        "status": "matching",
+        "tree_sha": "723926aac26b6779892b90cbdeb9fc8007fca3d5",
+        "expected_files": 49,
+        "expected_absent": 21
+      },
+      {
+        "repo": "xcsh-action",
+        "status": "matching",
+        "tree_sha": "b0e1dc9b8398cdae6a4d29b8edbea5f86e3378cd",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "cdn-simulator",
+        "status": "matching",
+        "tree_sha": "6676d66e54fe93d6fafe46c0afa2399ea1cdd0a6",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "origin-server",
+        "status": "matching",
+        "tree_sha": "1672e27ea3dde01fd562068bd8aa26f7a2fed659",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "traffic-generator",
+        "status": "matching",
+        "tree_sha": "88e9b17619db1ae3ddff7260eb10939cdd5da40a",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "demo-resources",
+        "status": "matching",
+        "tree_sha": "c4ffc5c8768a54d817b6ff9e76b58e0aa862d50a",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "demo-resource-template",
+        "status": "matching",
+        "tree_sha": "c99e617628b3d7e12e3b086e821ff147f99c4159",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "vscode-xcsh",
+        "status": "matching",
+        "tree_sha": "0170ad6d3c2fe57ee478fd9ca0906019c83dd17b",
+        "expected_files": 60,
+        "expected_absent": 21
+      },
+      {
+        "repo": "starlight-llms-txt",
+        "status": "matching",
+        "tree_sha": "67dcd9862955c345af38cb9b9670536c46c40820",
+        "expected_files": 57,
+        "expected_absent": 21
+      },
+      {
+        "repo": "starlight-mega-menu",
+        "status": "matching",
+        "tree_sha": "313ed8aaf4cc7c46acb5fd1361db239797722a4a",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "apt-repo",
+        "status": "matching",
+        "tree_sha": "eb773ca2f7a691b1a2133311b920a7060fe8db39",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "i18n-core",
+        "status": "matching",
+        "tree_sha": "9d4d4d25ad2d7f23362d8230c85daef4e1b3adda",
+        "expected_files": 54,
+        "expected_absent": 21
+      },
+      {
+        "repo": "console",
+        "status": "matching",
+        "tree_sha": "6fc39d0413366110b4cf35d8494b3738006b2891",
+        "expected_files": 62,
+        "expected_absent": 21
+      },
+      {
+        "repo": "xcsh-chrome-extension",
+        "status": "matching",
+        "tree_sha": "6ddb632fe543730d2769fafa97932331fe324846",
+        "expected_files": 60,
+        "expected_absent": 21
+      },
+      {
+        "repo": "marketplace-claude-code",
+        "status": "matching",
+        "tree_sha": "80238d9a252a795a51e63cf02f9293c2a531edb2",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "custom-responses",
+        "status": "matching",
+        "tree_sha": "9b2459125b5aef8321e40fa111fc4d1171620595",
+        "expected_files": 64,
+        "expected_absent": 21
+      },
+      {
+        "repo": "blindfold-contract",
+        "status": "matching",
+        "tree_sha": "6dd98b986a63ece0dab51fa05e76a3f5582cb719",
+        "expected_files": 63,
+        "expected_absent": 21
+      },
+      {
+        "repo": "gitops",
+        "status": "matching",
+        "tree_sha": "c4725755e49125ddeb8cf1a41f662b47adc9ee17",
+        "expected_files": 64,
+        "expected_absent": 21
+      },
+      {
+        "repo": "prompt-charity",
+        "status": "matching",
+        "tree_sha": "9d7ac591356a33280db94906819a9424bf65ec1a",
+        "expected_files": 64,
+        "expected_absent": 24
+      }
+    ]
+  },
+  "maintained_reference_audit": {
+    "organization_repositories": 67,
+    "active_nonempty_passing": 64,
+    "verified_empty": 1,
+    "archived_preserved": 2,
+    "errors": 0,
+    "stale_operational_references": 0,
+    "repositories": [
+      {
+        "repository": "f5-sales-demo/.github",
+        "repository_id": 1119622805,
+        "source_sha": "ce7bd8dcfff931a12a10c6d7cb871e9a3e363e00",
+        "files_scanned": 14,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/administration",
+        "repository_id": 1157281404,
+        "source_sha": "fce50cb9a5511f4108e224c46973be54c20f7de0",
+        "files_scanned": 107,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/api-catalog",
+        "repository_id": 1300235537,
+        "source_sha": "3de4ab69162eb320eb20995812752924158b4c09",
+        "files_scanned": 7,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/api-protection",
+        "repository_id": 1158598234,
+        "source_sha": "2660041a4b3d29ade8474fe21b976f008b93885d",
+        "files_scanned": 80,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/api-specs",
+        "repository_id": 1194842971,
+        "source_sha": "6233ac4ddf4df27c5aa1f4c66876461994a63a5c",
+        "files_scanned": 570,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/api-specs-enriched",
+        "repository_id": 1194879022,
+        "source_sha": "8e4c469e8d080ff7607fd2839e38df07af332f37",
+        "files_scanned": 1187,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/apt-repo",
+        "repository_id": 1203500248,
+        "source_sha": "eb773ca2f7a691b1a2133311b920a7060fe8db39",
+        "files_scanned": 69,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/azure-llm",
+        "repository_id": 1201597908,
+        "source_sha": "058fdb359d69784beb04b7cf1652a83217ae0603",
+        "files_scanned": 129,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/blindfold-contract",
+        "repository_id": 1412164842,
+        "source_sha": "6dd98b986a63ece0dab51fa05e76a3f5582cb719",
+        "files_scanned": 73,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/bot-advanced",
+        "repository_id": 1157277719,
+        "source_sha": "4d3f72c1d81ac6b343b04e88432e14e90c1edf06",
+        "files_scanned": 80,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/bot-standard",
+        "repository_id": 1157277922,
+        "source_sha": "2a92808fef5c66db21b5852e56f88e6415a3d1c4",
+        "files_scanned": 80,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/canada",
+        "repository_id": 1403138990,
+        "source_sha": "aaa0f95d703ca1e4a9f34c490c7a2cc31aff7497",
+        "files_scanned": 189,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/cdn",
+        "repository_id": 1158305024,
+        "source_sha": "def6bc6b661ab0aa5287595635a315b9dbeff142",
+        "files_scanned": 80,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/cdn-simulator",
+        "repository_id": 1220842653,
+        "source_sha": "6676d66e54fe93d6fafe46c0afa2399ea1cdd0a6",
+        "files_scanned": 187,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/certificate-management",
+        "repository_id": 1409525471,
+        "source_sha": "65ced7e22856da59d954f4b779983895d0bc4d0c",
+        "files_scanned": 375,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/claude-code-proxy",
+        "repository_id": 1167251968,
+        "source_sha": "69edb79f3e0a6e69debb385ed1ff413b98892908",
+        "files_scanned": 83,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/claude-office",
+        "repository_id": 1300577597,
+        "source_sha": "1217fc56858c037db1924136cc0cddeda49ce088",
+        "files_scanned": 12,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/client-side-defense",
+        "repository_id": 1157276685,
+        "source_sha": "e359b56b9db7fc251e3bb7d1b58f8ee79716f44a",
+        "files_scanned": 369,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/codex-plugin-cc",
+        "repository_id": 1198036792,
+        "source_sha": "ee6a44444969bd08e0769530af3544e4371a095d",
+        "files_scanned": 58,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/console",
+        "repository_id": 1270640956,
+        "source_sha": "6fc39d0413366110b4cf35d8494b3738006b2891",
+        "files_scanned": 940,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/console-walkthrough",
+        "repository_id": 1119596039,
+        "source_sha": "4df79e44e43b760d4e0045c8dd83dffd98695a50",
+        "files_scanned": 278,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/custom-responses",
+        "repository_id": 1403815736,
+        "source_sha": "9b2459125b5aef8321e40fa111fc4d1171620595",
+        "files_scanned": 130,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/ddos",
+        "repository_id": 1157277396,
+        "source_sha": "43d0af152efc0da59e54c32aaf274f0ebecc6bf3",
+        "files_scanned": 173,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/demo-resource-template",
+        "repository_id": 1227573512,
+        "source_sha": "c99e617628b3d7e12e3b086e821ff147f99c4159",
+        "files_scanned": 188,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/demo-resources",
+        "repository_id": 1225699588,
+        "source_sha": "c4ffc5c8768a54d817b6ff9e76b58e0aa862d50a",
+        "files_scanned": 133,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/devcontainer",
+        "repository_id": 1164571945,
+        "status": "skipped-archived"
+      },
+      {
+        "repository": "f5-sales-demo/dns",
+        "repository_id": 1157278436,
+        "source_sha": "a6d0151ec77aee9adc36aa64581c3ae0a6a5909f",
+        "files_scanned": 180,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/docs-builder",
+        "repository_id": 1157273658,
+        "source_sha": "48868da7bc73346afb7cb81c76e217d6ca18648e",
+        "files_scanned": 253,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/docs-control",
+        "repository_id": 1157291419,
+        "source_sha": "9a6c6d10ef39f5ca99b46045f7ab608ca56e5ab7",
+        "files_scanned": 326,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/docs-icons",
+        "repository_id": 1159670983,
+        "source_sha": "228a12b467a5182d161933010b1b7b2a172285b9",
+        "files_scanned": 1060,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/docs-template",
+        "repository_id": 1157273869,
+        "status": "verified-empty"
+      },
+      {
+        "repository": "f5-sales-demo/docs-theme",
+        "repository_id": 1157276118,
+        "source_sha": "f81156f050272ea8dea0e88458a191b89ba365ce",
+        "files_scanned": 607,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/f5-sales-demo.github.io",
+        "repository_id": 1157291988,
+        "source_sha": "961a24405eda8d469ce8e6d10df104c73d576bb2",
+        "files_scanned": 167,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/f5-voice-assistant",
+        "repository_id": 1207554175,
+        "source_sha": "e57627a617972aca4988f7458bd87a387921c07e",
+        "files_scanned": 34,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/f5xc-loadgen",
+        "repository_id": 1152407806,
+        "source_sha": "18c673d7d23ae67a0aac8ee87463b976feb6642c",
+        "files_scanned": 26,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/ghostty-web",
+        "repository_id": 1187552467,
+        "source_sha": "1eb712ddb81e6ddad77f697b391ac88cce259b90",
+        "files_scanned": 64,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/gitops",
+        "repository_id": 1412394818,
+        "source_sha": "c4725755e49125ddeb8cf1a41f662b47adc9ee17",
+        "files_scanned": 87,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/herdr",
+        "repository_id": 1308325774,
+        "source_sha": "55f9bfff0f840dfdc129f56e96f6380f63fe643f",
+        "files_scanned": 3779,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/homebrew-tap",
+        "repository_id": 1187546825,
+        "source_sha": "9865c9fdd0c4c85c9d16443533398838a56de549",
+        "files_scanned": 14,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/html-to-markdown",
+        "repository_id": 1389224584,
+        "source_sha": "e9b40b43b62006338c68692d5ad44ac2277e04a1",
+        "files_scanned": 273,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/i18n-core",
+        "repository_id": 1267434009,
+        "source_sha": "9d4d4d25ad2d7f23362d8230c85daef4e1b3adda",
+        "files_scanned": 86,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/marketplace",
+        "repository_id": 1181081365,
+        "source_sha": "14eb4ca429a445a43ed92f0e6e358ee9a5f871d7",
+        "files_scanned": 1635,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/marketplace-claude-code",
+        "repository_id": 1259367470,
+        "source_sha": "80238d9a252a795a51e63cf02f9293c2a531edb2",
+        "files_scanned": 109,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/multi-cloud-networking",
+        "repository_id": 1157278746,
+        "source_sha": "b943efea8eeeb36008e660072801b3eb2ac5a373",
+        "files_scanned": 1099,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/mvp",
+        "repository_id": 1216087460,
+        "source_sha": "341c3e06dbfa40129c95f9c4404da860307582d4",
+        "files_scanned": 20,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/nginx",
+        "repository_id": 1157280052,
+        "source_sha": "a9db9f41fddf1dcaf7b971a6dd9b54ad8e5a6483",
+        "files_scanned": 80,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/observability",
+        "repository_id": 1157279793,
+        "source_sha": "f8df6fd53b7fa34a6d822ae70fb9bbaf91b937ee",
+        "files_scanned": 81,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/open-responses-server",
+        "repository_id": 1196891539,
+        "source_sha": "566e256dab6c25372f083ceaf0f4c72c5a8f6a9d",
+        "files_scanned": 99,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/origin-server",
+        "repository_id": 1220848160,
+        "source_sha": "1672e27ea3dde01fd562068bd8aa26f7a2fed659",
+        "files_scanned": 284,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/prompt-charity",
+        "repository_id": 1430315248,
+        "source_sha": "9d7ac591356a33280db94906819a9424bf65ec1a",
+        "files_scanned": 111,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/secure-the-anvils",
+        "repository_id": 1157222984,
+        "source_sha": "05ea30e86036185c851653a9c002fcd89ddc10b3",
+        "files_scanned": 307,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/self-hosted-runner",
+        "repository_id": 1339781945,
+        "source_sha": "8380663127ca65a2c2409c9a50bd8abdd3ce950a",
+        "files_scanned": 197,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/starlight-llms-txt",
+        "repository_id": 1217645281,
+        "source_sha": "67dcd9862955c345af38cb9b9670536c46c40820",
+        "files_scanned": 147,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/starlight-mega-menu",
+        "repository_id": 1263219004,
+        "source_sha": "313ed8aaf4cc7c46acb5fd1361db239797722a4a",
+        "files_scanned": 90,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/statistics",
+        "repository_id": 1406174567,
+        "source_sha": "557c216ec9530bc5ecf4843b8114c2ed269bd9e7",
+        "files_scanned": 114,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/terraform-provider-xcsh",
+        "repository_id": 1163826658,
+        "source_sha": "985995c8365cdb1e61518e3dfef981515a2ffc29",
+        "files_scanned": 36668,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/traffic-generator",
+        "repository_id": 1223946739,
+        "source_sha": "88e9b17619db1ae3ddff7260eb10939cdd5da40a",
+        "files_scanned": 426,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/vscode-xcsh",
+        "repository_id": 1242797126,
+        "source_sha": "0170ad6d3c2fe57ee478fd9ca0906019c83dd17b",
+        "files_scanned": 579,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/waf",
+        "repository_id": 1158598179,
+        "status": "skipped-archived"
+      },
+      {
+        "repository": "f5-sales-demo/was",
+        "repository_id": 1157279175,
+        "source_sha": "d4b8174ce93233421fe381700b82d60f55676c78",
+        "files_scanned": 80,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/webapp-api-protection",
+        "repository_id": 1293844386,
+        "source_sha": "402be0d0aa02dd50a20fb2c6627f0200b9e9c0ea",
+        "files_scanned": 364,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/xc-cc-exercise",
+        "repository_id": 1140666853,
+        "source_sha": "00fc1314fa8841184df50ff650e08f046d7a43b5",
+        "files_scanned": 118,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/xcsh",
+        "repository_id": 1205289431,
+        "source_sha": "723926aac26b6779892b90cbdeb9fc8007fca3d5",
+        "files_scanned": 6634,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/xcsh-action",
+        "repository_id": 1323347411,
+        "source_sha": "b0e1dc9b8398cdae6a4d29b8edbea5f86e3378cd",
+        "files_scanned": 117,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/xcsh-chrome-extension",
+        "repository_id": 1274786835,
+        "source_sha": "6ddb632fe543730d2769fafa97932331fe324846",
+        "files_scanned": 300,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/xcsh-office-pane",
+        "repository_id": 1310539077,
+        "source_sha": "00be7de76f283654c3d3c7e1c337d59d51e91c6a",
+        "files_scanned": 16,
+        "status": "passing"
+      },
+      {
+        "repository": "f5-sales-demo/xcsh-subagent",
+        "repository_id": 1205250785,
+        "source_sha": "f386f10838eb9175253d212a201a6dae2cfe5366",
+        "files_scanned": 19,
+        "status": "passing"
+      }
+    ]
+  },
+  "automation_restoration": {
+    "task_suspended_and_restored": 51,
+    "originally_disabled_preserved": 134,
+    "final_dry_run_source_sha": "e416d0e9e23c6bfb3be44ada65e79d14a45247ae",
+    "no_change": true,
+    "deferred": false
+  },
+  "cleanup": {
+    "task_worktrees_removed": 14,
+    "unrelated_work_and_original_drafts_preserved": true,
+    "receipt_worktree_lifecycle": "Retired after this receipt PR merges; terminal proof recorded on the coordination issue."
+  },
+  "boundaries": {
+    "demo_terraform_applies": 0,
+    "product_identifiers_and_shape_api_retained": true,
+    "locale_url_only_changes": true,
+    "aliases_shims_redirect_pages_added": false,
+    "raw_evidence_private": true
+  }
+}
