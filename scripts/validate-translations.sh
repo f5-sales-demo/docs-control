@@ -275,7 +275,14 @@ def repository_url_maintenance(target_raw: bytes, target: str) -> bool:
     prior = git("show", f"HEAD:{target}", check=False)
     old_base = b"https://f5-sales-demo.github.io/" + b"c" + b"sd" + b"/"
     new_base = b"https://f5-sales-demo.github.io/client-side-defense/"
-    if not prior or old_base not in prior or target_raw != prior.replace(old_base, new_base):
+    if not prior:
+        return False
+    expected = prior.replace(old_base, new_base)
+    old_name = b"c" + b"sd"
+    expected = re.sub(rb"(?<![a-zA-Z0-9:/.-])/" + old_name + rb"/", b"/client-side-defense/", expected)
+    expected = expected.replace(b"./" + old_name + b"/", b"./client-side-defense/")
+    expected = re.sub(rb"\bcd[ \t]+" + old_name + rb"(?=$|[\s;/])", b"cd client-side-defense", expected)
+    if expected == prior or target_raw != expected:
         return False
     actual, _translator = metadata(target_raw, target)
     print(f"[i18n] {target}: exact repository URL maintenance; existing sourceHash {actual} retained")

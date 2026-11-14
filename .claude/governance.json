@@ -184,7 +184,7 @@
     "SECURITY.md",
     "SUPPORT.md",
     ".github/CODEOWNERS",
-    "scripts/audit-repository-rename.py"
+    "scripts/audit_repository_rename.py"
   ],
   "repo_classes": {
     "_default": "developer",

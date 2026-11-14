@@ -9,8 +9,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location(
-    "rename_audit", ROOT / "scripts/audit-repository-rename.py"
+    "rename_audit", ROOT / "scripts/audit_repository_rename.py"
 )
+assert SPEC is not None
+assert SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 OLD_NAME = "c" + "sd"

@@ -46,12 +46,6 @@
         "matches": 1,
         "reason": "Dated prior campaign evidence"
       },
-      "audit/public-projects.json": {
-        "category": "historical",
-        "sha256": "2dc7cf1da48bc83dce2fc61942257f16133183e795a3704f002f1d712a707390",
-        "matches": 1,
-        "reason": "Dated prior campaign evidence"
-      },
       "audit/rendered-destinations.json": {
         "category": "historical",
         "sha256": "7c77f2bd37590f091d88d4e31b54e8b8b869db7650a6e094dc72fb055b1b21ea",

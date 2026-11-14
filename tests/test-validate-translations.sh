@@ -314,5 +314,45 @@ else
   pass "URL maintenance never marks the full corpus fresh"
 fi
 
+repo=$(make_repo)
+python3 - "$repo/docs/fr/page.mdx" <<'PY'
+from pathlib import Path
+import re
+import sys
+path = Path(sys.argv[1])
+name = "c" + "sd"
+text = re.sub(r'sourceHash: "[0-9a-f]+"', 'sourceHash: "000000000000"', path.read_text())
+text += "\n[Project](/" + name + "/fr/) [API](https://api.example.com/api/shape/" + name + "/domains)\n"
+path.write_text(text)
+PY
+git -C "$repo" add docs/fr/page.mdx
+git -C "$repo" commit -qm prior-relative-locale-evidence
+python3 - "$repo/docs/fr/page.mdx" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+old = "/" + "c" + "sd" + "/fr/"
+path.write_text(path.read_text().replace(old, "/client-side-defense/fr/"))
+PY
+git -C "$repo" add docs/fr/page.mdx
+if (cd "$repo" && bash "$SCRIPT" --staged); then
+  pass "relative documentation base-path maintenance preserves Shape API paths"
+else
+  fail "relative documentation base-path maintenance preserves Shape API paths" "validator rejected relative URL-only maintenance"
+fi
+python3 - "$repo/docs/fr/page.mdx" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+old = "/api/shape/" + "c" + "sd" + "/"
+path.write_text(path.read_text().replace(old, "/api/shape/client-side-defense/"))
+PY
+git -C "$repo" add docs/fr/page.mdx
+if (cd "$repo" && bash "$SCRIPT" --staged >/dev/null 2>&1); then
+  fail "repository maintenance cannot rename product API paths" "validator accepted changed Shape API path"
+else
+  pass "repository maintenance cannot rename product API paths"
+fi
+
 printf '\nResults: %d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]

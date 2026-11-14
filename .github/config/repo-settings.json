@@ -318,8 +318,8 @@
     },
     "files": [
       {
-        "src": "scripts/audit-repository-rename.py",
-        "dest": "scripts/audit-repository-rename.py"
+        "src": "scripts/audit_repository_rename.py",
+        "dest": "scripts/audit_repository_rename.py"
       },
       {
         "src": "workflows/github-pages-config-sources.yml",

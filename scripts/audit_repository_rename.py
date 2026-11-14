@@ -19,6 +19,7 @@ IDENTITY = re.compile(
     rf"|arc/repositories/{OLD_NAME}\.yaml"
     rf"|\b{OLD_NAME}#[0-9]+"
     rf"|(?<![a-zA-Z0-9:/.-])/{OLD_NAME}/|\./{OLD_NAME}/"
+    rf"|\bcd[ \t]+{OLD_NAME}(?=$|[\s;/])"
 )
 REPOSITORY_TOKEN = re.compile(
     rf"[\"']{OLD_NAME}[\"']|^\s*-\s+{OLD_NAME}\s*$", re.MULTILINE

@@ -3,7 +3,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 python3 -m unittest discover -s tests -p test_repository_rename_audit.py
-python3 scripts/audit-repository-rename.py --repository f5-sales-demo/docs-control \
+python3 scripts/audit_repository_rename.py --repository f5-sales-demo/docs-control \
   --classifications .github/config/repository-rename-classifications.json
 python3 - <<'PY'
 import json
