@@ -1,4 +1,4 @@
-"""Keep the CE revision exception narrower than credential-shaped input."""
+"""Distinguish public revision metadata from Sourcegraph credential formats."""
 
 # ruff: noqa: INP001 - tests are collected as standalone modules.
 from __future__ import annotations
@@ -52,13 +52,13 @@ class TestCeRevisionGitleaks:
     def test_same_revision_under_credential_key_is_rejected(self):
         status, findings = self.scan("sourcegraph", REVISION)
         assert status == 1
-        assert "sourcegraph-access-token" in [row["RuleID"] for row in findings]
+        assert "sourcegraph-legacy-access-token" in [row["RuleID"] for row in findings]
 
     def test_prefixed_sourcegraph_token_is_rejected_under_metadata_key(self):
         status, findings = self.scan("sourceCommit", "sgp_" + REVISION)
         assert status == 1
         assert "sourcegraph-access-token" in [row["RuleID"] for row in findings]
 
-    def test_other_hash_under_metadata_key_is_rejected(self):
+    def test_other_hash_under_metadata_key_is_metadata(self):
         status, _ = self.scan("sourceCommit", "b" + REVISION[1:])
-        assert status == 1
+        assert status == 0

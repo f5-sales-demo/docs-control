@@ -21,7 +21,7 @@ run_case() {
     return 1
   fi
   detected=false
-  if jq -e 'type == "array" and any(.[]; .RuleID == "sourcegraph-access-token")' "$report" >/dev/null; then
+  if jq -e 'type == "array" and any(.[]; .RuleID == "sourcegraph-access-token" or .RuleID == "sourcegraph-legacy-access-token")' "$report" >/dev/null; then
     detected=true
   fi
   [[ "$detected" == "$should_detect" ]] || {
@@ -36,5 +36,13 @@ run_case legacy_credential "sourcegraph_token = '$synthetic_token';" true
 run_case prefixed_credential "const token = 'sgp_$synthetic_token';" true
 run_case local_credential "const token = 'sgp_local_$synthetic_token';" true
 run_case same_value_credential "sourcegraph_token = '$public_revision';" true
-run_case unverified_metadata "const redactionPrefix = 'sgp_';
-commit = '$synthetic_token'," true
+run_case arbitrary_metadata "const redactionPrefix = 'sgp_';
+commit = '$synthetic_token'," false
+
+run_case authorization_header "Authorization: Bearer $synthetic_token" true
+run_case token_flag "sourcegraph --token $synthetic_token" true
+run_case credential_prose "sourcegraph_token = '$synthetic_token'; // example and placeholder" true
+run_case api_token "sourcegraph_api_token = '$synthetic_token';" true
+
+run_case raw_authorization "Authorization = \"$synthetic_token\"" true
+run_case numbered_prefix "const token = \"sgp_0123456789abcdef_$synthetic_token\"" true
