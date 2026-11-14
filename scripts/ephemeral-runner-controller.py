@@ -81,7 +81,7 @@ MANAGED_ARC_COHORT = frozenset(
         "cdn",
         "cdn-simulator",
         "console",
-        "csd",
+        "client-side-defense",
         "custom-responses",
         "prompt-charity",
         "ddos",

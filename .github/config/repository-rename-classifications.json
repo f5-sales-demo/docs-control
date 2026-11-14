@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "repositories": {
+    "f5-sales-demo/docs-control": {
+      ".github/config/backlog-inventory-2026-09-01.json": {
+        "category": "historical",
+        "sha256": "c41c03d8d8ee47c41c0f3138fc562ec7e99f912736f2ef8e887167767e83e576",
+        "matches": 2,
+        "reason": "Dated prior campaign evidence"
+      },
+      ".github/config/backlog-inventory-2026-09-02.json": {
+        "category": "historical",
+        "sha256": "161336401c89809368336fbf0dfeba73f822a982a8dc49f94d6ccd67ae507396",
+        "matches": 8,
+        "reason": "Dated prior campaign evidence"
+      }
+    },
+    "f5-sales-demo/f5-sales-demo.github.io": {
+      "audit/all-content-links.json": {
+        "category": "historical",
+        "sha256": "9fae8530bc3e5725d2952777745b66d623677c2fd730722e6761e643957c613e",
+        "matches": 3,
+        "reason": "Dated prior campaign evidence"
+      },
+      "audit/content-links.json": {
+        "category": "historical",
+        "sha256": "e1d6e17434ee4b15fd15712f9ed4737ccb0601d368b10924d574d7631d8675de",
+        "matches": 1,
+        "reason": "Dated prior campaign evidence"
+      },
+      "audit/link-status-results.json": {
+        "category": "historical",
+        "sha256": "bbe87307b1c83ef899507c3ded3d0e25543c9f65bfebec7a71d59d597980c015",
+        "matches": 2,
+        "reason": "Dated prior campaign evidence"
+      },
+      "audit/menu-links.json": {
+        "category": "historical",
+        "sha256": "ff95a1e7a4419160bfc6f56795410b1e9e50fcd16a90e3c172b51e7573e37346",
+        "matches": 1,
+        "reason": "Dated prior campaign evidence"
+      },
+      "audit/navigation-links.json": {
+        "category": "historical",
+        "sha256": "3d1c55f265a2b2d1393d2d4453f2dcbcd5251fcc112613211f0665a45bbf6a2a",
+        "matches": 1,
+        "reason": "Dated prior campaign evidence"
+      },
+      "audit/public-projects.json": {
+        "category": "historical",
+        "sha256": "2dc7cf1da48bc83dce2fc61942257f16133183e795a3704f002f1d712a707390",
+        "matches": 1,
+        "reason": "Dated prior campaign evidence"
+      },
+      "audit/rendered-destinations.json": {
+        "category": "historical",
+        "sha256": "7c77f2bd37590f091d88d4e31b54e8b8b869db7650a6e094dc72fb055b1b21ea",
+        "matches": 2,
+        "reason": "Dated prior campaign evidence"
+      },
+      "audit/shared-shell-fleet.json": {
+        "category": "historical",
+        "sha256": "c067971934c708cb7331bd4a9b624189891aa518c4b5b367c28f5611ed2a0f87",
+        "matches": 6,
+        "reason": "Dated prior campaign evidence"
+      },
+      "shared/assets/19767147b4c42c8e95c7554c8f375752d91742cce3d09816e3c471a4dcbadd7d.json": {
+        "category": "historical",
+        "sha256": "19767147b4c42c8e95c7554c8f375752d91742cce3d09816e3c471a4dcbadd7d",
+        "matches": 1,
+        "reason": "Retained immutable shared-shell release; current release is verified separately"
+      },
+      "shared/assets/5d3c50f2b701ffe2f937635bc2bccde78b42afe6859a29ff0d970228f945b5b0.json": {
+        "category": "historical",
+        "sha256": "5d3c50f2b701ffe2f937635bc2bccde78b42afe6859a29ff0d970228f945b5b0",
+        "matches": 1,
+        "reason": "Retained immutable shared-shell release; current release is verified separately"
+      },
+      "shared/assets/a8f1a7cccfe3d220a4ea3511cd1dac2879b42247da8e7cc6607374957b185b72.json": {
+        "category": "historical",
+        "sha256": "a8f1a7cccfe3d220a4ea3511cd1dac2879b42247da8e7cc6607374957b185b72",
+        "matches": 1,
+        "reason": "Retained immutable shared-shell release; current release is verified separately"
+      },
+      "shared/assets/e034f99d12c75a123efbeaaf1a4e39de4bdaa82371b184887e4cf09ae7b75f5c.json": {
+        "category": "historical",
+        "sha256": "e034f99d12c75a123efbeaaf1a4e39de4bdaa82371b184887e4cf09ae7b75f5c",
+        "matches": 1,
+        "reason": "Retained immutable shared-shell release; current release is verified separately"
+      }
+    },
+    "f5-sales-demo/starlight-llms-txt": {
+      "plans/2026-04-22-starlight-llms-txt-fork-v1.md": {
+        "category": "historical",
+        "sha256": "f52bf0131f2e202579fb0c886331636bcfdc16a19bdf7889fe535a3ad97241c2",
+        "matches": 11,
+        "reason": "Dated April 2026 implementation plan; maintained federation fixtures are updated separately"
+      }
+    }
+  }
+}

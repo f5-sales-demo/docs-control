@@ -62,6 +62,11 @@
     }
   ],
   "repo_overrides": {
+    "client-side-defense": {
+      "repository": {
+        "homepage": "https://f5-sales-demo.github.io/client-side-defense/"
+      }
+    },
     "blindfold-contract": {
       "repository": {
         "description": "Versioned native Blindfold protocol, normalization and reconciliation contract"
@@ -312,6 +317,10 @@
       "blindfold-contract": ["README.md"]
     },
     "files": [
+      {
+        "src": "scripts/audit-repository-rename.py",
+        "dest": "scripts/audit-repository-rename.py"
+      },
       {
         "src": "workflows/github-pages-config-sources.yml",
         "dest": ".github/workflows/github-pages-config-sources.yml",
@@ -658,7 +667,7 @@
       "ddos": ["governance"],
       "api-protection": ["governance"],
       "webapp-api-protection": ["governance"],
-      "csd": ["governance"],
+      "client-side-defense": ["governance"],
       "devcontainer": ["governance"],
       "marketplace": ["governance"],
       "cdn-simulator": ["governance"],
@@ -674,6 +683,7 @@
     }
   },
   "readme_sources": {
+    "client-side-defense": "content/client-side-defense/README.md",
     "gitops": "content/gitops/README.md",
     "certificate-management": "content/certificate-management/README.md",
     "prompt-charity": "content/prompt-charity/README.md"

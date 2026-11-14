@@ -77,9 +77,9 @@ ITEM_POLICY: dict[str, dict[str, Any]] = {
         "gate": "authorized live tenant and cloud credentials for CRUD verification",
         "wave": 5,
     },
-    "csd#355": {"gate": "authentic dark-theme capture and human brand acceptance"},
-    "csd#356": {"gate": "authentic dark-theme capture and human brand acceptance"},
-    "csd#357": {"gate": "authentic dark-theme capture and human brand acceptance"},
+    "client-side-defense#355": {"gate": "authentic dark-theme capture and human brand acceptance"},
+    "client-side-defense#356": {"gate": "authentic dark-theme capture and human brand acceptance"},
+    "client-side-defense#357": {"gate": "authentic dark-theme capture and human brand acceptance"},
     "devcontainer#777": {
         "lifecycle": "active",
         "priority": "p0",
