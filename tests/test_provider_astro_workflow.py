@@ -1,10 +1,11 @@
-# ruff: noqa: INP001
 """Contract for canonical provider publication through the shared builder."""
 
 import unittest
 from pathlib import Path
 
 import yaml
+
+from tests.builder_publication_contract import require_shared_builder_selector
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -23,9 +24,22 @@ class ProviderAstroWorkflow(unittest.TestCase):
         config_sources = (
             ROOT / "workflows/github-pages-config-sources.yml"
         ).read_text()
-        assert pages.count(image) == 1
-        assert "shared-mode: auto" in pages
-        assert "builder-image: " + image in pages
+        caller = yaml.safe_load(pages)["jobs"]["docs"]["with"]
+        require_shared_builder_selector(caller["builder-image"])
+        assert caller["shared-mode"] == "auto"
+        reusable = yaml.safe_load(
+            (ROOT / ".github/workflows/github-pages-deploy.yml").read_text()
+        )
+        resolution = next(
+            step
+            for step in reusable["jobs"]["build"]["steps"]
+            if step.get("name") == "Resolve approved documentation builder"
+        )
+        assert resolution["env"]["REQUESTED_IMAGE"] == (
+            "${{ github.repository == 'f5-sales-demo/terraform-provider-xcsh' && '"
+            + image
+            + "' || inputs.builder-image }}"
+        )
         assert config_sources.count(image) == 1
 
     def test_hierarchy_output_replaces_flat_index_comparison(self):

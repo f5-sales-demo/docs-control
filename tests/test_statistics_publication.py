@@ -1,12 +1,16 @@
-# ruff: noqa: PT009, INP001 -- standard-library unittest assertions
+# ruff: noqa: PT009 -- standard-library unittest assertions
 """Verify Statistics publication shares the qualified immutable builder."""
 
 import json
-import re
 import unittest
 from pathlib import Path
 
 import yaml
+
+from tests.builder_publication_contract import (
+    SHARED_BUILDER_IMAGE,
+    require_shared_builder_selector,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,9 +21,7 @@ class StatisticsPublicationTests(unittest.TestCase):
             (ROOT / "workflows/github-pages-deploy.yml").read_text()
         )
         selector = workflow["jobs"]["docs"]["with"]["builder-image"]
-        selector = re.findall(
-            r"ghcr.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}", selector
-        )[-1]
+        selector = require_shared_builder_selector(selector)
         self.assertRegex(
             selector, r"^ghcr.io/f5-sales-demo/docs-builder@sha256:[0-9a-f]{64}$"
         )
@@ -34,9 +36,7 @@ class StatisticsPublicationTests(unittest.TestCase):
         )
         selector = workflow["jobs"]["docs"]["with"]["builder-image"]
         self.assertEqual(
-            selector,
-            "ghcr.io/f5-sales-demo/docs-builder@sha256:"
-            "8fcc5e4171f6b4cb44133e44619aaca352d168b5a34e0c95a5715041d721bcda",
+            require_shared_builder_selector(selector), SHARED_BUILDER_IMAGE
         )
 
     def test_statistics_identity_and_existing_source_destinations(self):

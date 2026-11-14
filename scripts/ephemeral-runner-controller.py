@@ -220,6 +220,32 @@ PROVIDER_CANDIDATE_SCALE_SETS = {
         "attestation": "terraform-provider-xcsh-32vcpu-candidate",
     },
 }
+PROVIDER_TOOLCHAIN_CANARY_REPOSITORY = "f5-sales-demo/terraform-provider-xcsh"
+PROVIDER_TOOLCHAIN_CANARY_PROFILE = "compute-toolchain-canary"
+PROVIDER_TOOLCHAIN_CANARY_LABEL = "terraform-provider-xcsh-toolchain-canary"
+PROVIDER_TOOLCHAIN_CANARY_SCALE_SETS = {
+    PROVIDER_TOOLCHAIN_CANARY_PROFILE: {
+        "label": PROVIDER_TOOLCHAIN_CANARY_LABEL,
+        "attestation": PROVIDER_TOOLCHAIN_CANARY_LABEL,
+    },
+}
+PROVIDER_TOOLCHAIN_CANARY_GRANTS = frozenset(
+    (PROVIDER_TOOLCHAIN_CANARY_REPOSITORY, workflow, job)
+    for workflow, job in (
+        (".github/workflows/_build-test.yml", "build"),
+        (".github/workflows/_build-test.yml", "vet"),
+        (".github/workflows/_build-test.yml", "race"),
+        (".github/workflows/_build-test.yml", "lint"),
+        (".github/workflows/_generate-docs.yml", "generate"),
+        (".github/workflows/_generate-provider.yml", "generate"),
+        (".github/workflows/_tag-release.yml", "preflight"),
+        (".github/workflows/_tag-release.yml", "publish"),
+        (".github/workflows/ci.yml", "validate-docs-generation"),
+        (".github/workflows/ci.yml", "validate-mock-fixtures"),
+        (".github/workflows/on-merge.yml", "publish-regeneration"),
+    )
+)
+
 RESERVED_ARC_LABELS = frozenset(
     {
         "gitops-terraform",
@@ -229,6 +255,7 @@ RESERVED_ARC_LABELS = frozenset(
         "managed-container-build",
         "managed-socketless",
         "terraform-provider-xcsh-compute",
+        PROVIDER_TOOLCHAIN_CANARY_LABEL,
         "terraform-provider-xcsh-32vcpu-candidate",
         "xcsh-container-build",
         "xcsh-compute",
@@ -257,8 +284,46 @@ def arc_scale_sets_match_contract(repository, scale_sets):
     if repository == "f5-sales-demo/xcsh":
         return scale_sets == {**expected, **XCSH_CANDIDATE_SCALE_SETS}
     if repository == "f5-sales-demo/terraform-provider-xcsh":
-        return scale_sets == {**expected, **PROVIDER_CANDIDATE_SCALE_SETS}
+        return any(
+            scale_sets == contract
+            for contract in (
+                {**expected, **PROVIDER_CANDIDATE_SCALE_SETS},
+                {**expected, **PROVIDER_TOOLCHAIN_CANARY_SCALE_SETS},
+                {
+                    **expected,
+                    **PROVIDER_CANDIDATE_SCALE_SETS,
+                    **PROVIDER_TOOLCHAIN_CANARY_SCALE_SETS,
+                },
+            )
+        )
     return False
+
+
+def validate_provider_toolchain_canary_grants(
+    repository, scale_sets, restricted_routes
+):
+    """Require the exact provider toolchain jobs, without benchmark or foreign grants."""
+    if (
+        repository != PROVIDER_TOOLCHAIN_CANARY_REPOSITORY
+        or PROVIDER_TOOLCHAIN_CANARY_PROFILE not in scale_sets
+    ):
+        return
+    grants = (restricted_routes or {}).get(PROVIDER_TOOLCHAIN_CANARY_LABEL, [])
+    fields = {"repository", "workflow", "job"}
+    if (
+        not isinstance(grants, list)
+        or len(grants) != len(PROVIDER_TOOLCHAIN_CANARY_GRANTS)
+        or any(not isinstance(grant, dict) or set(grant) != fields for grant in grants)
+    ):
+        raise FleetError("provider toolchain canary grants are invalid")
+    for grant in grants:
+        if any(not isinstance(value, str) for value in grant.values()):
+            raise FleetError("provider toolchain canary grant fields must be strings")
+    actual = {
+        (grant["repository"], grant["workflow"], grant["job"]) for grant in grants
+    }
+    if actual != PROVIDER_TOOLCHAIN_CANARY_GRANTS:
+        raise FleetError("provider toolchain canary grants are invalid")
 
 
 class FleetError(RuntimeError):
@@ -767,6 +832,9 @@ class FleetPolicy:
             parsed,
         ):
             raise FleetError(f"{full_name} ARC scale-set contract is invalid")
+        validate_provider_toolchain_canary_grants(
+            full_name, parsed, self.raw["restricted_routes"]
+        )
         if expected is None:
             leaked = labels & RESERVED_ARC_LABELS
             if leaked:

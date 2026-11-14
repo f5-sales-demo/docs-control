@@ -1039,6 +1039,21 @@ jobs:
             tests/test_verify_snapshot.py \
             tests/test_workflow_security_validator.py
 
+      - name: Run provider toolchain canary contract tests
+        if: hashFiles('tests/test_provider_toolchain_canary.py') != ''
+        run: python3 -m unittest tests/test_provider_toolchain_canary.py
+
+      - name: Run current builder publication contract tests
+        if: hashFiles('tests/test_builder_digest_resolution.py') != ''
+        run: |
+          python3 -m unittest \
+            tests/test_builder_digest_resolution.py \
+            tests/test_shared_form_publication.py \
+            tests/test_statistics_navigation_publication.py \
+            tests/test_statistics_publication.py \
+            tests/test_provider_astro_workflow.py \
+            tests/test_certificate_latest_builder.py
+
       - name: Run backlog consolidation verifier tests
         if: hashFiles('tests/test-backlog-consolidation.sh') != ''
         run: bash tests/test-backlog-consolidation.sh

@@ -481,7 +481,13 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         for name, attestation in raw["arc_attestations"].items():
             if name == provider_candidate:
                 continue
-            self.assertEqual(standard, attestation["image"])
+            expected_image = (
+                "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
+                "fde65009b9224b7ee9bd6d38e53641c6c5ea3c75d32e094cfca7ff074c189786"
+                if name == "terraform-provider-xcsh-toolchain-canary"
+                else standard
+            )
+            self.assertEqual(expected_image, attestation["image"])
         self.assertEqual(
             "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
             "37844f6be57177fa574ce96e9241499663c5194453e2477f0ce0ea8225094e7c",
@@ -540,6 +546,10 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 expected["compute-32-vcpu-density-candidate"] = {
                     "label": "terraform-provider-xcsh-32vcpu-candidate",
                     "attestation": "terraform-provider-xcsh-32vcpu-candidate",
+                }
+                expected["compute-toolchain-canary"] = {
+                    "label": "terraform-provider-xcsh-toolchain-canary",
+                    "attestation": "terraform-provider-xcsh-toolchain-canary",
                 }
             if repository == "f5-sales-demo/gitops":
                 expected["terraform"] = {
