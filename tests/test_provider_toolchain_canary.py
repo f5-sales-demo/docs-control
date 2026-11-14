@@ -166,7 +166,7 @@ class GovernedProviderCanaryTest(unittest.TestCase):
                     {"repository": repository, "workflow": workflow, "job": job}
                     for repository, workflow, job in sorted(GRANTS)
                 ]
-                wrong_type = copy.deepcopy(grants)
+                wrong_type: list[dict[str, object]] = [dict(grant) for grant in grants]
                 wrong_type[0]["job"] = ["build"]
                 unknown_field = copy.deepcopy(grants)
                 unknown_field[0]["extra"] = "unreviewed"

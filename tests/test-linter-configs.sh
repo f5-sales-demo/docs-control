@@ -197,6 +197,16 @@ assert policy["arc_attestations"] == {
         "docker_socket": False,
         "repositories": [provider],
     },
+    "terraform-provider-xcsh-toolchain-canary": {
+        "label": "terraform-provider-xcsh-toolchain-canary",
+        "runner_profile": "compute",
+        "image": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:fde65009b9224b7ee9bd6d38e53641c6c5ea3c75d32e094cfca7ff074c189786",
+        "vm_size": "m6a.4xlarge",
+        "cpu_limit": 15,
+        "memory_limit_bytes": 56 * 1024**3,
+        "docker_socket": False,
+        "repositories": [provider],
+    },
     "terraform-provider-xcsh-32vcpu-candidate": {
         "label": "terraform-provider-xcsh-32vcpu-candidate",
         "runner_profile": "compute-32-vcpu-density-candidate",
@@ -251,6 +261,22 @@ assert policy["restricted_routes"] == {
             (".github/workflows/on-merge.yml", "publish-regeneration"),
         )
     ],
+    "terraform-provider-xcsh-toolchain-canary": [
+        {"repository": provider, "workflow": workflow, "job": job}
+        for workflow, job in (
+            (".github/workflows/_build-test.yml", "build"),
+            (".github/workflows/_build-test.yml", "vet"),
+            (".github/workflows/_build-test.yml", "race"),
+            (".github/workflows/_build-test.yml", "lint"),
+            (".github/workflows/_generate-docs.yml", "generate"),
+            (".github/workflows/_generate-provider.yml", "generate"),
+            (".github/workflows/_tag-release.yml", "preflight"),
+            (".github/workflows/_tag-release.yml", "publish"),
+            (".github/workflows/ci.yml", "validate-docs-generation"),
+            (".github/workflows/ci.yml", "validate-mock-fixtures"),
+            (".github/workflows/on-merge.yml", "publish-regeneration"),
+        )
+    ],
     "terraform-provider-xcsh-32vcpu-candidate": [{
         "repository": provider,
         "workflow": ".github/workflows/workload-benchmark.yml",
@@ -287,6 +313,10 @@ assert provider_routes["socketless"] == {
 assert provider_routes["compute"] == {
     "label": "terraform-provider-xcsh-compute",
     "attestation": "terraform-provider-xcsh-d16",
+}
+assert provider_routes["compute-toolchain-canary"] == {
+    "label": "terraform-provider-xcsh-toolchain-canary",
+    "attestation": "terraform-provider-xcsh-toolchain-canary",
 }
 assert provider_routes["compute-32-vcpu-density-candidate"] == {
     "label": "terraform-provider-xcsh-32vcpu-candidate",
