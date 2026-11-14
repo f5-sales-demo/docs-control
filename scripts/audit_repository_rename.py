@@ -22,7 +22,8 @@ IDENTITY = re.compile(
     rf"|\bcd[ \t]+{OLD_NAME}(?=$|[\s;/])"
 )
 REPOSITORY_TOKEN = re.compile(
-    rf"[\"']{OLD_NAME}[\"']|^\s*-\s+{OLD_NAME}\s*$", re.MULTILINE
+    rf"[\"']{OLD_NAME}[\"']|^\s*-\s+{OLD_NAME}\s*$",
+    re.MULTILINE,
 )
 CATALOG_PATHS = {
     ".claude/governance.json",
@@ -45,11 +46,14 @@ def findings(path: str, content: bytes) -> list[dict]:
     patterns = [IDENTITY]
     if path in CATALOG_PATHS:
         patterns.append(REPOSITORY_TOKEN)
-    offsets = sorted(
-        {match.start() for pattern in patterns for match in pattern.finditer(text)}
-    )
+    matches = {hit.start() for pattern in patterns for hit in pattern.finditer(text)}
+    offsets = sorted(matches)
     return [
-        {"path": path, "line": text.count("\n", 0, offset) + 1} for offset in offsets
+        {
+            "path": path,
+            "line": text.count("\n", 0, offset) + 1,
+        }
+        for offset in offsets
     ]
 
 
@@ -100,7 +104,11 @@ def audit(root: Path, repository: str, classifications: dict) -> dict:
                 )
                 continue
             accepted.append(
-                {"path": name, "category": record["category"], "matches": len(matches)}
+                {
+                    "path": name,
+                    "category": record["category"],
+                    "matches": len(matches),
+                },
             )
         else:
             rejected.extend(matches)
