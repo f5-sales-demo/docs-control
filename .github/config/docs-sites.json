@@ -232,7 +232,7 @@
   },
   {
     "label": "Client-Side Defense",
-    "url": "https://f5-sales-demo.github.io/csd/llms-full.txt",
+    "url": "https://f5-sales-demo.github.io/client-side-defense/llms-full.txt",
     "description": "F5 XC client-side defense",
     "shared_shell": {
       "contract": "v1",

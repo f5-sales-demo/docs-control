@@ -1068,6 +1068,10 @@ jobs:
         if: hashFiles('tests/test-translation-release-policy.sh') != ''
         run: bash tests/test-translation-release-policy.sh
 
+      - name: Run client-side-defense identity test
+        if: hashFiles('tests/test-client-side-defense-identity.sh') != ''
+        run: bash tests/test-client-side-defense-identity.sh
+
       - name: Run deterministic translation-validator test
         if: hashFiles('tests/test-validate-translations.sh') != ''
         run: bash tests/test-validate-translations.sh
