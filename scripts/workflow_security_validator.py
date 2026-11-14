@@ -455,16 +455,13 @@ def validate_xcsh_candidate_grants(repository, scale_sets, restricted_routes):
             raise PolicyError(f"xcsh candidate grants are invalid for {label}")
 
 
-def validate_provider_toolchain_canary_grants(
-    repository, scale_sets, restricted_routes
-):
+def validate_toolchain_canary_grants(repository, scale_sets, routes):
     """Require the exact provider toolchain jobs, without benchmark or foreign grants."""
-    if (
-        repository != PROVIDER_TOOLCHAIN_CANARY_REPOSITORY
-        or PROVIDER_TOOLCHAIN_CANARY_PROFILE not in scale_sets
-    ):
+    if repository != PROVIDER_TOOLCHAIN_CANARY_REPOSITORY:
         return
-    grants = (restricted_routes or {}).get(PROVIDER_TOOLCHAIN_CANARY_LABEL, [])
+    if PROVIDER_TOOLCHAIN_CANARY_PROFILE not in scale_sets:
+        return
+    grants = (routes or {}).get(PROVIDER_TOOLCHAIN_CANARY_LABEL, [])
     fields = {"repository", "workflow", "job"}
     if (
         not isinstance(grants, list)
@@ -472,12 +469,11 @@ def validate_provider_toolchain_canary_grants(
         or any(not isinstance(grant, dict) or set(grant) != fields for grant in grants)
     ):
         raise PolicyError("provider toolchain canary grants are invalid")
+    actual: set[tuple[str, str, str]] = set()
     for grant in grants:
         if any(not isinstance(value, str) for value in grant.values()):
             raise PolicyError("provider toolchain canary grant fields must be strings")
-    actual = {
-        (grant["repository"], grant["workflow"], grant["job"]) for grant in grants
-    }
+        actual.add((grant["repository"], grant["workflow"], grant["job"]))
     if actual != PROVIDER_TOOLCHAIN_CANARY_GRANTS:
         raise PolicyError("provider toolchain canary grants are invalid")
 
@@ -731,9 +727,7 @@ def repository_runner_routes(
                 raise PolicyError(f"{repository} ARC scale-set contract is invalid")
         validate_xcsh_candidate_grants(repository, scale_sets, restricted_routes)
         validate_provider_candidate_grants(repository, scale_sets, restricted_routes)
-        validate_provider_toolchain_canary_grants(
-            repository, scale_sets, restricted_routes
-        )
+        validate_toolchain_canary_grants(repository, scale_sets, restricted_routes)
         if expected is None:
             leaked = set(profiles_by_label) & RESERVED_ARC_LABELS
             if leaked:

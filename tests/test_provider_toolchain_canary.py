@@ -128,7 +128,7 @@ class GovernedProviderCanaryTest(unittest.TestCase):
                     {"repository": repository, "workflow": workflow, "job": job}
                     for repository, workflow, job in sorted(GRANTS)
                 ]
-                module.validate_provider_toolchain_canary_grants(
+                module.validate_toolchain_canary_grants(
                     REPOSITORY, scales, {LABEL: grants}
                 )
                 for altered in (
@@ -152,7 +152,7 @@ class GovernedProviderCanaryTest(unittest.TestCase):
                 ):
                     assert_refuses(
                         policy_error(module),
-                        module.validate_provider_toolchain_canary_grants,
+                        module.validate_toolchain_canary_grants,
                         REPOSITORY,
                         scales,
                         {LABEL: altered},
@@ -182,7 +182,7 @@ class GovernedProviderCanaryTest(unittest.TestCase):
                     with self.subTest(altered=altered):
                         assert_refuses(
                             error,
-                            module.validate_provider_toolchain_canary_grants,
+                            module.validate_toolchain_canary_grants,
                             REPOSITORY,
                             scales,
                             {LABEL: altered},
