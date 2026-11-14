@@ -592,7 +592,7 @@ CODESPELL_EXCLUDE=$(awk '
   in_codespell && /exclude:/ { sub(/^[^:]*:[[:space:]]*/, ""); print; exit }
 ' "$REPO_ROOT/.pre-commit-config.yaml")
 
-for path in dist/index.js build/output.js release/bundle.js vendor/library.js docs/fr/guide.md README.de.md README.zh-tw.md src/i18n/mega-menu-translations.ts research/benchmarks/uat-matrix/corpora/i18n.yaml; do
+for path in dist/index.js build/output.js release/bundle.js vendor/library.js plugins/example/dist/runtime.js packages/example/build/output.js modules/example/release/bundle.js plugins/example/vendor/library.js docs/fr/guide.md README.de.md README.zh-tw.md src/i18n/mega-menu-translations.ts research/benchmarks/uat-matrix/corpora/i18n.yaml; do
   if [[ "$path" =~ $CODESPELL_EXCLUDE ]]; then
     pass "5.x codespell pre-commit excludes '$path'"
   else
@@ -600,13 +600,32 @@ for path in dist/index.js build/output.js release/bundle.js vendor/library.js do
   fi
 done
 
-for path in README.md docs/en/guide.md src/i18n/translator.ts; do
+for path in README.md docs/en/guide.md src/i18n/translator.ts plugins/example/src/runtime.ts plugins/distribution/src/index.ts packages/rebuild/output.js modules/released/source.js plugins/vendor-tools/source.js; do
   if [[ "$path" =~ $CODESPELL_EXCLUDE ]]; then
     fail "5.x codespell pre-commit checks '$path'" "unexpectedly matched by hook exclude regex"
   else
     pass "5.x codespell pre-commit checks '$path'"
   fi
 done
+
+# The selection fix must keep the actual checker effective for authored prose.
+# Split the synthetic error so this regression source itself has clean spelling.
+CODESPELL_SCOPE_TMP=$(mktemp -d)
+printf 'This is correct prose.\n' >"$CODESPELL_SCOPE_TMP/source.md"
+if codespell "$CODESPELL_SCOPE_TMP/source.md" >/dev/null 2>&1; then
+  pass "5.x codespell accepts correct authored prose"
+else
+  fail "5.x codespell accepts correct authored prose" "actual checker failed"
+fi
+printf 'This is %s%s error.\n' t eh >"$CODESPELL_SCOPE_TMP/source.md"
+if codespell "$CODESPELL_SCOPE_TMP/source.md" >/dev/null 2>&1; then
+  fail "5.x codespell rejects incorrect authored prose" "actual checker accepted an error"
+elif [ "$?" -eq 65 ]; then
+  pass "5.x codespell rejects incorrect authored prose"
+else
+  fail "5.x codespell rejects incorrect authored prose" "actual checker failed for another reason"
+fi
+rm -rf "$CODESPELL_SCOPE_TMP"
 
 # Markdown parser fixtures intentionally exercise syntax that the published
 # documentation style rejects. Linting or autofixing them destroys parser
