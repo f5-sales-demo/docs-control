@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "e416d0e9e23c6bfb3be44ada65e79d14a45247ae",
+  "source_commit": "4174c7ccfe1a5be13296369c1a860afe09bfbf10",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -110,21 +110,21 @@
     {
       "path": ".github/config/self-hosted-runner-policy.json",
       "src": ".github/config/self-hosted-runner-policy.json",
-      "sha": "b3fac4f445158179f3531136f4a5d41db35380a3",
-      "size": 53638,
+      "sha": "3d090b77e0b0679a74d94a60eebf6d819ffc9ef1",
+      "size": 56164,
       "mode": "100644"
     },
     {
       "path": ".github/workflows/antigravity-review.yml",
       "src": "workflows/antigravity-review.yml",
-      "sha": "ea23ff7e8bfd1edb580eba390d827019e55974fb",
+      "sha": "b9e5f23ceeb6c947b974a2f0b832a81a75da58a4",
       "size": 1309,
       "mode": "100644"
     },
     {
       "path": ".github/workflows/auto-merge.yml",
       "src": "workflows/auto-merge.yml",
-      "sha": "3b1fb9fd6f1179a5feec1391b5a11a3b457947e8",
+      "sha": "5d89c52a66ea27f2e9ed8fd99cfab239c1ebc2dc",
       "size": 3422,
       "mode": "100644"
     },
@@ -152,14 +152,14 @@
     {
       "path": ".github/workflows/github-pages-config-sources.yml",
       "src": "workflows/github-pages-config-sources.yml",
-      "sha": "b09c56906d62475f2211e0bfeb5393755f13625c",
+      "sha": "067a24ecd3abc8ee289857679acda383b18427b6",
       "size": 1027,
       "mode": "100644"
     },
     {
       "path": ".github/workflows/github-pages-deploy.yml",
       "src": "workflows/github-pages-deploy.yml",
-      "sha": "8242316afd87ad51068cf20dd02fe87bea2798e2",
+      "sha": "7915dcd08ccfad3e297d633517388f58747630de",
       "size": 1643,
       "mode": "100644"
     },
@@ -180,7 +180,7 @@
     {
       "path": ".github/workflows/super-linter.yml",
       "src": "workflows/super-linter.yml",
-      "sha": "727202c59355df3edf667aba6c419fe92b69dd90",
+      "sha": "b0c1668339dea6035619b66b179a69d27bdc381c",
       "size": 6957,
       "mode": "100644"
     },
@@ -243,8 +243,8 @@
     {
       "path": ".pre-commit-config.yaml",
       "src": ".pre-commit-config.yaml",
-      "sha": "118a205aace0b8602b4f53db2dde820fa37174b0",
-      "size": 12908,
+      "sha": "26191dd48ad6cf3ceb210a6ddc419fa34ce82f9b",
+      "size": 12916,
       "mode": "100644"
     },
     {
@@ -348,8 +348,8 @@
     {
       "path": "scripts/audit-runner-workflows.py",
       "src": "scripts/audit-runner-workflows.py",
-      "sha": "01caeeadb4dbd0ce45ca8b34f873f2fea4428124",
-      "size": 47314,
+      "sha": "1ba9ee97e2a9286def4d5936483ff323a7913299",
+      "size": 50678,
       "mode": "100755"
     },
     {
@@ -425,8 +425,8 @@
     {
       "path": "scripts/workflow_security_validator.py",
       "src": "scripts/workflow_security_validator.py",
-      "sha": "957fbdbf35e907c734ed55e7333d8d0fc8b9b919",
-      "size": 65398,
+      "sha": "9227fa568bff88a6afce7638f9aebc213f495c02",
+      "size": 68704,
       "mode": "100755"
     },
     {
@@ -509,5 +509,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:c4a895a4491251bbab277ee34811de3e2385b2e9835288d83ae57b2442c9d858"
+  "state_digest": "sha256:6c0f20801e718ffd0428e3b08a4242577a97425587864a1bea00d0283b6235fb"
 }
