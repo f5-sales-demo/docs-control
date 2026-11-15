@@ -592,7 +592,7 @@ CODESPELL_EXCLUDE=$(awk '
   in_codespell && /exclude:/ { sub(/^[^:]*:[[:space:]]*/, ""); print; exit }
 ' "$REPO_ROOT/.pre-commit-config.yaml")
 
-for path in dist/index.js build/output.js release/bundle.js vendor/library.js docs/fr/guide.md README.de.md README.zh-tw.md src/i18n/mega-menu-translations.ts research/benchmarks/uat-matrix/corpora/i18n.yaml; do
+for path in dist/index.js build/output.js release/bundle.js vendor/library.js plugins/example/dist/runtime.js packages/example/build/output.js modules/example/release/bundle.js plugins/example/vendor/library.js docs/fr/guide.md README.de.md README.zh-tw.md src/i18n/mega-menu-translations.ts research/benchmarks/uat-matrix/corpora/i18n.yaml; do
   if [[ "$path" =~ $CODESPELL_EXCLUDE ]]; then
     pass "5.x codespell pre-commit excludes '$path'"
   else
@@ -600,13 +600,58 @@ for path in dist/index.js build/output.js release/bundle.js vendor/library.js do
   fi
 done
 
-for path in README.md docs/en/guide.md src/i18n/translator.ts; do
+for path in README.md docs/en/guide.md src/i18n/translator.ts plugins/example/src/runtime.ts plugins/distribution/src/index.ts packages/rebuild/output.js modules/released/source.js plugins/vendor-tools/source.js; do
   if [[ "$path" =~ $CODESPELL_EXCLUDE ]]; then
     fail "5.x codespell pre-commit checks '$path'" "unexpectedly matched by hook exclude regex"
   else
     pass "5.x codespell pre-commit checks '$path'"
   fi
 done
+
+# The selection fix must keep the actual checker effective for authored prose.
+# Split the synthetic error so this regression source itself has clean spelling.
+CODESPELL_SCOPE_TMP=$(mktemp -d)
+printf 'This is correct prose.\n' >"$CODESPELL_SCOPE_TMP/source.md"
+if codespell "$CODESPELL_SCOPE_TMP/source.md" >/dev/null 2>&1; then
+  pass "5.x codespell accepts correct authored prose"
+else
+  fail "5.x codespell accepts correct authored prose" "actual checker failed"
+fi
+printf 'This is %s%s error.\n' t eh >"$CODESPELL_SCOPE_TMP/source.md"
+if codespell "$CODESPELL_SCOPE_TMP/source.md" >/dev/null 2>&1; then
+  fail "5.x codespell rejects incorrect authored prose" "actual checker accepted an error"
+elif [ "$?" -eq 65 ]; then
+  pass "5.x codespell rejects incorrect authored prose"
+else
+  fail "5.x codespell rejects incorrect authored prose" "actual checker failed for another reason"
+fi
+rm -rf "$CODESPELL_SCOPE_TMP"
+
+# Real checker regressions need an explicitly provisioned isolated CLI in CI.
+if python3 - "$SUPER_LINTER_WORKFLOW" <<'PYTOOLS'; then
+import sys
+import yaml
+
+workflow = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+steps = workflow["jobs"]["shell-unit-tests"]["steps"]
+names = [step.get("name") for step in steps]
+setup = steps[names.index("Install linter configuration test tools")]
+assert setup["if"] == "hashFiles('tests/test-linter-configs.sh') != ''"
+assert names.index(setup["name"]) < names.index("Run linter-configs test")
+assert setup["env"] == {
+    "LINTER_CONFIG_TOOLS": "${{ runner.temp }}/linter-config-tools"
+}
+assert setup["run"].splitlines() == [
+    'python3 -m venv "$LINTER_CONFIG_TOOLS"',
+    '"$LINTER_CONFIG_TOOLS/bin/python" -m pip install --only-binary=codespell codespell==2.4.3 PyYAML==6.0.3',
+    "printf '%s\\n' \"$LINTER_CONFIG_TOOLS/bin\" >> \"$GITHUB_PATH\"",
+]
+PYTOOLS
+  pass "5.x linter checker dependencies are isolated and installed before regressions"
+else
+  fail "5.x linter checker dependencies are isolated and installed before regressions" \
+    "the guarded CI test environment must provide the pinned real checker"
+fi
 
 # Markdown parser fixtures intentionally exercise syntax that the published
 # documentation style rejects. Linting or autofixing them destroys parser

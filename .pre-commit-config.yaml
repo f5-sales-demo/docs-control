@@ -225,7 +225,7 @@ repos:
         # Filter generated artifacts, translation docs, and source catalogs
         # here so generated identifiers and foreign-language words never reach
         # codespell. See issues #579, #934, and #1234.
-        exclude: ^(dist/|build/|release/|vendor/|docs/(ar|de|es|fr|hi|it|ja|ko|pt-br|th|zh-cn|zh-tw)/|README\.(ar|de|es|fr|hi|it|ja|ko|pt-br|th|zh-cn|zh-tw)\.md$|src/i18n/.*translations|research/benchmarks/uat-matrix/corpora/i18n\.yaml$)
+        exclude: ^(([^/]+/)*(dist|build|release|vendor)/|docs/(ar|de|es|fr|hi|it|ja|ko|pt-br|th|zh-cn|zh-tw)/|README\.(ar|de|es|fr|hi|it|ja|ko|pt-br|th|zh-cn|zh-tw)\.md$|src/i18n/.*translations|research/benchmarks/uat-matrix/corpora/i18n\.yaml$)
 
   # ===========================================================================
   # EditorConfig conformance — config: .editorconfig-checker.json

@@ -994,6 +994,15 @@ jobs:
         if: hashFiles('tests/test-gitleaks-release-revision.sh') != ''
         run: bash tests/test-gitleaks-release-revision.sh
 
+      - name: Install linter configuration test tools
+        if: hashFiles('tests/test-linter-configs.sh') != ''
+        env:
+          LINTER_CONFIG_TOOLS: ${{ runner.temp }}/linter-config-tools
+        run: |
+          python3 -m venv "$LINTER_CONFIG_TOOLS"
+          "$LINTER_CONFIG_TOOLS/bin/python" -m pip install --only-binary=codespell codespell==2.4.3 PyYAML==6.0.3
+          printf '%s\n' "$LINTER_CONFIG_TOOLS/bin" >> "$GITHUB_PATH"
+
       - name: Run linter-configs test
         if: hashFiles('tests/test-linter-configs.sh') != ''
         run: bash tests/test-linter-configs.sh
