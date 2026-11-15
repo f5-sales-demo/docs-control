@@ -643,7 +643,7 @@ assert setup["env"] == {
 }
 assert setup["run"].splitlines() == [
     'python3 -m venv "$LINTER_CONFIG_TOOLS"',
-    '"$LINTER_CONFIG_TOOLS/bin/python" -m pip install --only-binary=:all: codespell==2.4.3 PyYAML==6.0.3',
+    '"$LINTER_CONFIG_TOOLS/bin/python" -m pip install --only-binary=codespell codespell==2.4.3 PyYAML==6.0.3',
     "printf '%s\\n' \"$LINTER_CONFIG_TOOLS/bin\" >> \"$GITHUB_PATH\"",
 ]
 PYTOOLS
