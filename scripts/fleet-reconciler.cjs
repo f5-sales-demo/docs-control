@@ -578,8 +578,8 @@ async function createContentPr(
     });
     const headTree = await readManagedTree(api, owner, repo, recovered.head.sha, desired);
     assertAttestableRecovery({ pr: recovered, note, changes, files, headTree, desired });
-    await enableManagedAutoMerge(api, repo, recovered.node_id);
-    return { status: 'recovered', pr: recovered.number };
+    if (mode !== 'dry-run') await enableManagedAutoMerge(api, repo, recovered.node_id);
+    return { status: mode === 'dry-run' ? 'would-recover' : 'recovered', pr: recovered.number };
   }
   if (mode === 'dry-run') return { status: 'would-create', changes: changes.length };
   if (!capacityAvailable) return { status: 'deferred-capacity' };

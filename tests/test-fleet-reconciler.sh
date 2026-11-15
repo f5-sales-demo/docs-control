@@ -353,15 +353,20 @@ const archivedResult = await reconcileContent({api:fleetApi, owner:'f5', sourceS
 assert.deepEqual(archivedResult.repositories.map((entry) => entry.status), ['skipped-archived']);
 assert.equal(writes.length, writesBeforeArchived);
 const recoveryWrites=[];
+let rejectRecoveryWrites=false;
+let existingRecoveryOwners=['one','two'];
 const recoveryDesired={files:[{path:'README',sha,mode:'100644',src:'README.md'}],deletes:[]};
 const recoveryTree=require('node:crypto').createHash('sha256').update(JSON.stringify(recoveryDesired)).digest('hex');
 const recoveryNote=`<!-- governance-reconciler source=${sha} desired-tree=${recoveryTree} -->`;
 const recoveryApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.MAX_SAFE_INTEGER, fetch:async(url, request) => {
-  const route=String(url); const method=request.method; if (method !== 'GET') recoveryWrites.push(route);
+  const route=String(url); const method=request.method; if (method !== 'GET') {
+    assert.equal(rejectRecoveryWrites,false,'dry-run must not submit a mutation');
+    recoveryWrites.push(route);
+  }
   let data={};
   if (route.includes('/pulls?state=open&per_page=100')) {
     const repo=route.match(/repos\/f5\/([^/]+)/)[1];
-    data=['one','two'].includes(repo) ? [{
+    data=existingRecoveryOwners.includes(repo) ? [{
       number:1,
       title:issueTitleForTest(sha),
       body:`${recoveryNote}\n\nCloses #1`,
@@ -376,17 +381,37 @@ const recoveryApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.M
     data={number:1,title:issueTitleForTest(sha),body:`${recoveryNote}\n\nCentral reconciliation of managed files.`,state:'open',user:{login:'automation'}};
   } else if (route.includes('/pulls?state=open&head=')) {
     const repo=route.match(/repos\/f5\/([^/]+)/)[1];
-    data=['one','two'].includes(repo) ? [{number:1,node_id:'P',base:{ref:'main'},body:`${recoveryNote}\n\nCloses #1`,head:{sha}}] : [];
+    data=existingRecoveryOwners.includes(repo) ? [{number:1,node_id:'P',base:{ref:'main'},body:`${recoveryNote}\n\nCloses #1`,head:{sha}}] : [];
   } else if (route.includes('/pulls/1/files')) data=[{filename:'README'}];
   else if (route.includes('/commits/main')) data={sha:'c'.repeat(40)};
   else if (route.includes(`/git/trees/${sha}`)) data={tree:[{path:'README',type:'blob',sha,mode:'100644'}],truncated:false};
   else if (route.includes('/git/trees/')) data={tree:[],truncated:false};
+  else if (route.includes('/git/commits/') && method === 'GET') data={tree:{sha:'t'.repeat(40)}};
+  else if (route.endsWith('/git/trees')) data={sha:'n'.repeat(40)};
+  else if (route.endsWith('/git/commits')) data={sha:'m'.repeat(40)};
+  else if (route.includes('/issues?') && method === 'GET') data=[];
+  else if (route.endsWith('/issues')) data={number:1};
+  else if (route.endsWith('/pulls')) data={number:1,node_id:'P'};
+
   return new Response(JSON.stringify(data),{status:200});
 }});
 const recovered = await reconcileContent({api:recoveryApi, owner:'f5', sourceSha:sha, mode:'full', inventory:['one','two','three'], selection:'', sourceRoot:process.cwd(), manifest:oneFileManifest, config:{managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}}}});
 assert.deepEqual(recovered.repositories.map(x => x.status), ['recovered','recovered','deferred-capacity']);
 assert.equal(recoveryWrites.filter(route => route.includes('/statuses/')).length, 0);
 assert.equal(recoveryWrites.filter(route => route.endsWith('/pulls')).length, 0);
+existingRecoveryOwners=['one'];
+const recoveredWithFreeCapacity = await reconcileContent({api:recoveryApi, owner:'f5', sourceSha:sha, mode:'full', inventory:['one','two','three'], selection:'', sourceRoot:process.cwd(), manifest:oneFileManifest, config:{managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}}}});
+assert.deepEqual(recoveredWithFreeCapacity.repositories.map(x => x.status), ['recovered','created','deferred-capacity']);
+existingRecoveryOwners=['one','two'];
+const recoveryWritesBeforeDryRun=recoveryWrites.length;
+rejectRecoveryWrites=true;
+const dryRecovery = await reconcileContent({api:recoveryApi, owner:'f5', sourceSha:sha, mode:'dry-run', inventory:['one','two','three'], selection:'', sourceRoot:process.cwd(), manifest:oneFileManifest, config:{managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}}}});
+assert.deepEqual(dryRecovery.repositories.map(x => x.status), ['would-recover','would-recover','would-create']);
+assert.equal(recoveryWrites.length,recoveryWritesBeforeDryRun);
+rejectRecoveryWrites=false;
+const pilotRecovery = await reconcileContent({api:recoveryApi, owner:'f5', sourceSha:sha, mode:'pilot', inventory:['one','two','three'], selection:'one', sourceRoot:process.cwd(), manifest:oneFileManifest, config:{managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}}}});
+assert.deepEqual(pilotRecovery.repositories.map(x => x.status), ['recovered']);
+assert.equal(recoveryWrites.length,recoveryWritesBeforeDryRun+1);
 const workflow = fs.readFileSync(path.join(path.dirname(process.argv[2]), '..', '.github/workflows/reconcile-fleet-content.yml'), 'utf8');
 assert.match(workflow, /^  group: fleet-content-reconciler-v2$/m);
 assert.match(workflow, /^  cancel-in-progress: false$/m);
