@@ -627,6 +627,32 @@ else
 fi
 rm -rf "$CODESPELL_SCOPE_TMP"
 
+# Real checker regressions need an explicitly provisioned isolated CLI in CI.
+if python3 - "$SUPER_LINTER_WORKFLOW" <<'PYTOOLS'; then
+import sys
+import yaml
+
+workflow = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+steps = workflow["jobs"]["shell-unit-tests"]["steps"]
+names = [step.get("name") for step in steps]
+setup = steps[names.index("Install linter configuration test tools")]
+assert setup["if"] == "hashFiles('tests/test-linter-configs.sh') != ''"
+assert names.index(setup["name"]) < names.index("Run linter-configs test")
+assert setup["env"] == {
+    "LINTER_CONFIG_TOOLS": "${{ runner.temp }}/linter-config-tools"
+}
+assert setup["run"].splitlines() == [
+    'python3 -m venv "$LINTER_CONFIG_TOOLS"',
+    '"$LINTER_CONFIG_TOOLS/bin/python" -m pip install --only-binary=:all: codespell==2.4.3 PyYAML==6.0.3',
+    "printf '%s\\n' \"$LINTER_CONFIG_TOOLS/bin\" >> \"$GITHUB_PATH\"",
+]
+PYTOOLS
+  pass "5.x linter checker dependencies are isolated and installed before regressions"
+else
+  fail "5.x linter checker dependencies are isolated and installed before regressions" \
+    "the guarded CI test environment must provide the pinned real checker"
+fi
+
 # Markdown parser fixtures intentionally exercise syntax that the published
 # documentation style rejects. Linting or autofixing them destroys parser
 # coverage, so the hook must exclude only that behavior-sensitive fixture tree.
