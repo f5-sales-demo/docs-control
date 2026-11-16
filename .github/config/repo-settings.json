@@ -126,11 +126,7 @@
       }
     },
     "html-to-markdown": {
-      "additional_contexts": [
-        "Python quality",
-        "Workflow lint",
-        "Workflow security audit"
-      ]
+      "additional_contexts": ["Python quality", "Workflow lint", "Workflow security audit"]
     },
     "prompt-charity": {
       "repository": {
