@@ -125,6 +125,13 @@
         "description": "Branch deployments with F5 Distributed Cloud, Terraform, and Kubernetes state"
       }
     },
+    "html-to-markdown": {
+      "additional_contexts": [
+        "Python quality",
+        "Workflow lint",
+        "Workflow security audit"
+      ]
+    },
     "prompt-charity": {
       "repository": {
         "description": "Categorized, harness-agnostic prompts for reviewable plans before implementation. English source.",
