@@ -68,3 +68,5 @@ for invalid in \
   fi
 done
 printf 'PASS: direct and single-wrapped check-run envelopes normalize fail closed\n'
+
+node "$root/tests/manifest-linked-issue-behavior.mjs" "$root"

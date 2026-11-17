@@ -30,9 +30,20 @@ function candidate(overrides = {}) {
     pull: {
       number: 42,
       state: 'open',
+      body: 'Closes #77',
+      user: { id: 101 },
       head: { repo: { [repoIdentityKey]: `${owner}/${repo}` }, ref: `sync/manifest-${source}`, sha: head },
       base: { repo: { [repoIdentityKey]: `${owner}/${repo}` }, ref: 'main' },
       ...overrides.pull,
+    },
+    issue: {
+      number: 77,
+      repository_url: `https://api.github.com/repos/${owner}/${repo}`,
+      state: 'open',
+      title: `Publish managed manifest @ ${source}`,
+      user: { id: 101 },
+      body: `<!-- manifest-linked-issue repo=${owner}/${repo} source=${source} head=${head} -->`,
+      ...overrides.issue,
     },
     main: { protected: true, commit: { sha: source }, ...overrides.main },
     commit: { sha: head, parents: [{ sha: source }], ...overrides.commit },
@@ -53,19 +64,20 @@ async function invoke({ state = candidate(), receipts = [], mutateAfterFirst = n
   const maybeFail = () => {
     if (apiError) throw new Error(apiError);
   };
-  const current = () => (pullReads >= 1 && mutateAfterFirst ? mutateAfterFirst : state);
+  const current = () => (pullReads >= 2 && mutateAfterFirst ? mutateAfterFirst : state);
   const github = {
     rest: {
       pulls: {
         get: async () => {
           maybeFail();
-          const value = current().pull;
+          const value = pullReads >= 1 && mutateAfterFirst ? mutateAfterFirst.pull : state.pull;
           pullReads += 1;
           return { data: value };
         },
         listCommits: async () => ({ data: current().commits }),
         listFiles: async () => ({ data: current().files }),
       },
+      issues: { get: async () => ({ data: current().issue }) },
       repos: { getBranch: async () => ({ data: current().main }) },
       git: { getCommit: async () => ({ data: current().commit }) },
       checks: {
@@ -87,7 +99,7 @@ async function invoke({ state = candidate(), receipts = [], mutateAfterFirst = n
   return { creates, infos, failures, error };
 }
 
-const externalId = `manifest-receipt:${owner}/${repo}:pr:42:source:${source}:head:${head}`;
+const externalId = `manifest-receipt:${owner}/${repo}:pr:42:source:${source}:head:${head}:issue:77`;
 const exactReceipt = {
   name: 'Check linked issues',
   external_id: externalId,
@@ -126,6 +138,14 @@ const exactReceipt = {
 }
 
 const invalidStates = [
+  candidate({ pull: { body: '' } }),
+  candidate({ pull: { body: 'Closes #77\nCloses #78' } }),
+  candidate({ issue: { user: { id: 202 } } }),
+  candidate({ issue: { repository_url: 'https://api.github.com/repos/foreign/other' } }),
+  candidate({ issue: { state: 'closed' } }),
+  candidate({ issue: { number: 78 } }),
+  candidate({ issue: { body: 'foreign issue binding' } }),
+  candidate({ issue: { pull_request: {} } }),
   candidate({ pull: { state: 'closed' } }),
   candidate({
     pull: { head: { repo: { [repoIdentityKey]: `${owner}/${repo}` }, ref: `sync/manifest-${sha('c')}`, sha: head } },
@@ -206,6 +226,7 @@ async function invokePr(pull) {
       return { repository: { pullRequest: { closingIssuesReferences: { nodes: [{ number: 1895 }] } } } };
     },
     rest: {
+      issues: { get: async () => ({ data: candidate().issue }) },
       git: { getCommit: async () => ({ data: { parents: [{ sha: source }] } }) },
       pulls: {
         listCommits: async () => ({ data: [{ sha: head }] }),
@@ -227,6 +248,8 @@ async function invokePr(pull) {
 }
 const manifestPull = {
   number: 42,
+  body: 'Closes #77',
+  user: { id: 101 },
   head: { ref: `sync/manifest-${source}`, sha: head, repo: { [repoIdentityKey]: `${owner}/${repo}` } },
   base: { ref: 'main', repo: { [repoIdentityKey]: `${owner}/${repo}` } },
 };
@@ -248,3 +271,21 @@ const manifestPull = {
 }
 console.log('PASS: ordinary and manifest PR contexts remain behaviorally separated');
 console.log('PASS: exact manifest attestor publishes only a unique verified receipt');
+
+{
+  const result = await invoke({
+    receipts: [exactReceipt],
+    mutateAfterFirst: candidate({ issue: { state: 'closed' } }),
+  });
+  assert.ok(result.error);
+  assert.equal(result.creates.length, 0);
+}
+
+{
+  const result = await invoke({
+    state: candidate({ pull: { body: 'Closes #78' }, issue: { number: 78 } }),
+    receipts: [exactReceipt],
+  });
+  assert.ok(result.error);
+  assert.equal(result.creates.length, 0);
+}
