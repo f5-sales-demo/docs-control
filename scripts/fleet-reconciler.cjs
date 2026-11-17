@@ -134,6 +134,68 @@ function desiredEntries(config, manifest, repo) {
   }
   return { files, deletes: [...new Set(deletes)].sort() };
 }
+function parseManagedPaths(value, config, manifest) {
+  validateManifest(config, manifest);
+  if (value === undefined || value === '') return null;
+  let paths;
+  try {
+    paths = JSON.parse(value);
+  } catch {
+    fail('managed paths must be a JSON array');
+  }
+  const allowed = new Set([...manifest.files.map((entry) => entry.path), ...manifest.absent_paths]);
+  if (
+    !Array.isArray(paths) ||
+    !paths.length ||
+    new Set(paths).size !== paths.length ||
+    paths.some((entry) => typeof entry !== 'string' || !allowed.has(entry))
+  )
+    fail('managed paths must be non-empty, unique canonical manifest paths');
+  return paths.sort();
+}
+function selectManagedEntries(desired, paths) {
+  if (paths === null) return desired;
+  const selected = new Set(paths);
+  return {
+    files: desired.files.filter((entry) => selected.has(entry.path)),
+    deletes: desired.deletes.filter((entry) => selected.has(entry)),
+  };
+}
+async function verifyScopedSource(api, owner, config, manifest, sourceSha, sourceRoot) {
+  if (manifest.source_commit !== sourceSha) fail('scoped source must match the complete manifest source');
+  const repository = config.managed_files?.source_repo || `${owner}/docs-control`;
+  validateSourceRepository(owner, repository);
+  const root = fs.realpathSync(sourceRoot);
+  const buffers = new Map();
+  const files = manifest.files.map((entry) => ({ ...entry, path: entry.src }));
+  if (
+    new Set(files.map((entry) => entry.path)).size !== files.length ||
+    files.some(
+      (entry) =>
+        !/^[A-Za-z0-9._/-]+$/.test(entry.path) ||
+        entry.path.startsWith('/') ||
+        entry.path.split('/').some((part) => !part || part === '.' || part === '..'),
+    )
+  )
+    fail('scoped source paths are unsafe or ambiguous');
+  for (const entry of files) {
+    const file = path.join(root, entry.path);
+    const info = fs.lstatSync(file);
+    if (!info.isFile() || info.isSymbolicLink() || fs.realpathSync(file) !== file)
+      fail('scoped source file custody differs');
+    const bytes = fs.readFileSync(file);
+    const blob = crypto
+      .createHash('sha1')
+      .update(Buffer.from(`blob ${bytes.length}\0`))
+      .update(bytes)
+      .digest('hex');
+    if (blob !== entry.sha || bytes.length !== entry.size) fail('scoped source blob digest differs');
+    buffers.set(entry.src, bytes);
+  }
+  const tree = await readManagedTree(api, owner, repository.split('/')[1], sourceSha, { files, deletes: [] });
+  if (contentDiff(tree, { files, deletes: [] }).length) fail('scoped source tree differs from the complete manifest');
+  return buffers;
+}
 function contentDiff(tree, desired) {
   const actual = new Map(
     (tree.tree || []).filter((entry) => entry.type === 'blob').map((entry) => [entry.path, entry]),
@@ -563,7 +625,20 @@ function assertAttestableRecovery({ pr, note, changes, files, headTree, desired 
 
 async function createContentPr(
   api,
-  { owner, repo, sourceSha, desiredTree, desired, baseSha, changes, sourceRoot, mode, capacityAvailable, branchPrefix },
+  {
+    owner,
+    repo,
+    sourceSha,
+    desiredTree,
+    desired,
+    baseSha,
+    changes,
+    sourceRoot,
+    sourceBuffers,
+    mode,
+    capacityAvailable,
+    branchPrefix,
+  },
 ) {
   const branch = branchName(sourceSha, repo, branchPrefix);
   const note = marker(sourceSha, desiredTree);
@@ -588,7 +663,8 @@ async function createContentPr(
   });
   const tree = changes.map((change) => {
     if (change.action === 'delete') return { path: change.path, mode: '100644', type: 'blob', sha: null };
-    const bytes = fs.readFileSync(path.join(sourceRoot, change.src));
+    const bytes = sourceBuffers ? sourceBuffers.get(change.src) : fs.readFileSync(path.join(sourceRoot, change.src));
+    if (!Buffer.isBuffer(bytes)) fail('scoped source buffer is missing');
     return { path: change.path, mode: change.mode, type: 'blob', content: bytes.toString('utf8') };
   });
   const createdTree = await api.request(`repos/${owner}/${repo}/git/trees`, {
@@ -644,11 +720,15 @@ async function reconcileContent(options) {
     manifest,
     sourceRoot,
     selection,
+    managedPaths,
     branchPrefix = 'governance/sync-managed-files',
   } = options;
   requireSha(sourceSha);
   if (!MODES.has(mode)) fail('mode must be dry-run, pilot, or full');
   reconciliationBranchPrefix(branchPrefix);
+  const paths = parseManagedPaths(managedPaths, config, manifest);
+  const sourceBuffers =
+    paths !== null ? await verifyScopedSource(api, owner, config, manifest, sourceSha, sourceRoot) : null;
   const repos = parseSelection(selection, inventory);
   const archived = new Set();
   for (const repo of inventory) {
@@ -660,18 +740,28 @@ async function reconcileContent(options) {
   }
   const activeInventory = inventory.filter((repo) => !archived.has(repo));
   const writableRepos = repos.filter((repo) => !archived.has(repo));
-  const retiredOwners = await retireSupersededContentPrs({
-    api,
-    owner,
-    sourceRepository: config.managed_files?.source_repo || `${owner}/docs-control`,
-    sourceSha,
-    repos: writableRepos,
-    mode,
-  });
+  const retiredOwners =
+    paths !== null
+      ? []
+      : await retireSupersededContentPrs({
+          api,
+          owner,
+          sourceRepository: config.managed_files?.source_repo || `${owner}/docs-control`,
+          sourceSha,
+          repos: writableRepos,
+          mode,
+        });
   const retired = new Set(
     retiredOwners.filter((entry) => entry.status === 'retired').map((entry) => `${entry.repo}#${entry.pull}`),
   );
-  const result = { sourceSha, mode, retiredOwners, repositories: [], deferred: false };
+  const result = {
+    sourceSha,
+    mode,
+    retiredOwners,
+    repositories: [],
+    deferred: false,
+    ...(paths !== null ? { managedPaths: paths } : {}),
+  };
   let active = await activeGovernancePrs(api, owner, activeInventory, retired);
   for (const repo of repos) {
     if (archived.has(repo)) {
@@ -681,12 +771,12 @@ async function reconcileContent(options) {
     const main = await api.request(`repos/${owner}/${repo}/commits/main`, {
       operationName: `read protected main for ${repo}`,
     });
-    const desired = desiredEntries(config, manifest, repo);
+    const desired = selectManagedEntries(desiredEntries(config, manifest, repo), paths);
     const tree = await readManagedTree(api, owner, repo, main.sha, desired);
     const changes = contentDiff(tree, desired);
     const desiredTree = require('node:crypto').createHash('sha256').update(JSON.stringify(desired)).digest('hex');
     if (!changes.length) {
-      const reconciledIssues = await closeMergedReconciliationIssues(api, owner, repo, mode);
+      const reconciledIssues = paths !== null ? [] : await closeMergedReconciliationIssues(api, owner, repo, mode);
       result.repositories.push({ repo, status: 'noop', reconciledIssues });
       continue;
     }
@@ -699,6 +789,7 @@ async function reconcileContent(options) {
       baseSha: main.sha,
       changes,
       sourceRoot,
+      sourceBuffers,
       mode,
       capacityAvailable: active < ACTIVE_PR_LIMIT,
       branchPrefix,
@@ -952,6 +1043,8 @@ async function main() {
   const api = new ApiQueue({ token });
   if (!['reconcile', 'retire-only'].includes(operation)) fail('content reconciliation operation is invalid');
   if (kind === 'settings' && operation !== 'reconcile') fail('settings reconciliation does not support retire-only');
+  if (process.env.MANAGED_PATHS && (kind !== 'content' || operation !== 'reconcile'))
+    fail('managed path selection supports content reconciliation only');
   const result =
     kind === 'settings'
       ? await reconcileSettings({ api, owner, inventory, config, selection: process.env.REPOSITORIES, mode })
@@ -976,6 +1069,7 @@ async function main() {
             config,
             manifest,
             sourceRoot: root,
+            managedPaths: process.env.MANAGED_PATHS,
             selection: process.env.REPOSITORIES,
             branchPrefix: reconciliationBranchPrefix(
               process.env.RECONCILE_BRANCH_PREFIX || 'governance/sync-managed-files',
@@ -1005,6 +1099,8 @@ module.exports = {
   manifestStateDigest,
   reconciliationBranchPrefix,
   parseSelection,
+  parseManagedPaths,
+  selectManagedEntries,
   readCurrentProtection,
   readManagedTree,
   reconcileContent,

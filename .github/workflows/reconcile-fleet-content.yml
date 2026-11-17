@@ -11,6 +11,10 @@ on:
       - 'content/gitops/README.md'
   workflow_dispatch:
     inputs:
+      managed_paths:
+        description: Optional exact canonical manifest paths as a JSON array; omitted selects all managed content.
+        required: false
+        type: string
       source_sha:
         description: Exact canonical source commit; defaults to the manifest receipt.
         required: false
@@ -80,6 +84,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token || secrets.REPO_SETTINGS_TOKEN }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          MANAGED_PATHS: ${{ inputs.managed_paths }}
           RECONCILE_MODE: ${{ inputs.mode || 'full' }}
           RECONCILE_KIND: content
           RECONCILE_OPERATION: ${{ inputs.operation || 'reconcile' }}
