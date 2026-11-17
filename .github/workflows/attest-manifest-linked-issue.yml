@@ -29,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read # validate immutable pull request receipts
+      issues: read # validate the exact owned closing issue
       contents: read # validate protected main and commit ancestry
       checks: write # publish the exact required receipt on the verified head
     steps:
@@ -52,10 +53,28 @@ jobs:
               core.setFailed("Manifest receipt inputs must be a positive PR number and exact lowercase SHA-1 values.");
               return;
             }
-            const externalId = `manifest-receipt:${owner}/${repo}:pr:${number}:source:${source}:head:${head}`;
+            const externalIdPrefix = `manifest-receipt:${owner}/${repo}:pr:${number}:source:${source}:head:${head}`;
+
+            async function readManifestLinkedIssue(pull, source, head) {
+              const matches = [...(pull.body || "").matchAll(/^Closes #([1-9][0-9]*)$/gm)];
+              if (matches.length !== 1 || !Number.isSafeInteger(Number(matches[0][1])))
+                throw new Error("Manifest closing-issue receipt is invalid.");
+              const number = Number(matches[0][1]);
+              const issue = (await github.rest.issues.get({ owner, repo, issue_number: number })).data;
+              const binding = `<!-- manifest-linked-issue repo=${owner}/${repo} source=${source} head=${head} -->`;
+              if (issue.number !== number || issue.state !== "open" || issue.pull_request !== undefined ||
+                  issue.repository_url !== `https://api.github.com/repos/${owner}/${repo}` ||
+                  !Number.isSafeInteger(pull.user?.id) || pull.user.id < 1 || issue.user?.id !== pull.user.id ||
+                  issue.title !== `Publish managed manifest @ ${source}` || typeof issue.body !== "string" ||
+                  issue.body.split("\n").filter(line => line.startsWith("<!-- manifest-linked-issue ")).length !== 1 ||
+                  !issue.body.split("\n").includes(binding))
+                throw new Error("Manifest linked-issue receipt is invalid.");
+              return { number, body: issue.body, author: issue.user.id };
+            }
 
             async function readCandidate() {
               const pull = (await github.rest.pulls.get({ owner, repo, pull_number: number })).data;
+              const linkedIssue = await readManifestLinkedIssue(pull, source, head);
               const main = (await github.rest.repos.getBranch({ owner, repo, branch: "main" })).data;
               const commit = (await github.rest.git.getCommit({ owner, repo, commit_sha: head })).data;
               const commits = (await github.rest.pulls.listCommits({ owner, repo, pull_number: number, per_page: 2 })).data;
@@ -72,6 +91,8 @@ jobs:
                 files.length === 1 && files[0].filename === manifestPath && files[0].status === "modified";
               if (!valid) throw new Error("Manifest PR, branch, base, head, parent, commit count, or diff receipt is invalid.");
               return JSON.stringify({
+                linkedIssue,
+                closingBody: pull.body,
                 pr: pull.number,
                 state: pull.state,
                 headRepo: pull.head.repo.full_name,
@@ -98,6 +119,7 @@ jobs:
             }
 
             const first = await readCandidate();
+            const externalId = `${externalIdPrefix}:issue:${JSON.parse(first).linkedIssue.number}`;
             const existing = await readRequiredReceipts();
             if (existing.length > 1) throw new Error("Duplicate required check receipts fail closed.");
             if (existing.length === 1) {
@@ -107,6 +129,8 @@ jobs:
                   receipt.app?.slug !== "github-actions") {
                 throw new Error("Foreign, mismatched, incomplete, or failed required check receipt exists.");
               }
+              const reused = await readCandidate();
+              if (reused !== first) throw new Error("Manifest issue or PR changed before receipt reuse.");
               core.info(`Reusing exact successful manifest receipt ${externalId}.`);
               return;
             }

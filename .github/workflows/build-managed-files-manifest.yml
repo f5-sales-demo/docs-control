@@ -452,8 +452,8 @@ jobs:
 
           manifest_receipt_external_id() {
             local pr_num="$1" expected_head="$2"
-            printf 'manifest-receipt:%s:pr:%s:source:%s:head:%s' \
-              "$GITHUB_REPOSITORY" "$pr_num" "$PROTECTED_MAIN_SHA" "$expected_head"
+            printf 'manifest-receipt:%s:pr:%s:source:%s:head:%s:issue:%s' \
+              "$GITHUB_REPOSITORY" "$pr_num" "$PROTECTED_MAIN_SHA" "$expected_head" "$MANIFEST_ISSUE_NUMBER"
           }
 
           read_linked_issue_receipts() {
@@ -636,6 +636,15 @@ jobs:
             echo "[ERROR] Immutable manifest branch already exists; only the exact prior receipt may be retried" >&2
             exit 1
           fi
+          MANIFEST_ISSUE_JSON=$(node scripts/manifest-linked-issue.cjs \
+            --repository "$GITHUB_REPOSITORY" --source "$PROTECTED_MAIN_SHA" --head "$EXPECTED_HEAD")
+          MANIFEST_ISSUE_NUMBER=$(printf '%s\n' "$MANIFEST_ISSUE_JSON" | jq -er ' .number | select(type == "number" and . > 0 and . == floor) ')
+          MANIFEST_PR_BODY=$(mktemp)
+          printf '%s\n' "$MANIFEST_ISSUE_JSON" | jq -er '
+            if type == "object" and (.number | type == "number" and . > 0 and . == floor) and
+              (.pullRequestBody | type == "string") then .pullRequestBody else error("invalid manifest issue receipt") end
+          ' >"$MANIFEST_PR_BODY"
+
           git push origin "HEAD:refs/heads/$BRANCH"
 
           # Re-inventory after the exact ordinary push. A concurrent PR must
@@ -652,7 +661,7 @@ jobs:
             PR_URL=$(gh pr create --repo "$GITHUB_REPOSITORY" \
               --base main --head "$BRANCH" \
               --title "chore(governance): regenerate managed-files-manifest.json" \
-              --body "Automated managed-files manifest refresh. Auto-merges once checks pass; sync reads this to take the fast path instead of per-file API fetches.")
+              --body-file "$MANIFEST_PR_BODY")
             PR_NUM=$(echo "$PR_URL" | grep -o '[0-9]*$')
             if ! printf '%s' "$PR_NUM" | grep -qE '^[1-9][0-9]*$'; then
               echo "[ERROR] Manifest PR creation returned an invalid URL" >&2
@@ -674,6 +683,8 @@ jobs:
           fi
           assert_manifest_pr_head "$PR_NUM" "$EXPECTED_HEAD"
           assert_manifest_pr_diff "$EXPECTED_HEAD"
+          node scripts/manifest-linked-issue.cjs --repository "$GITHUB_REPOSITORY" \
+            --source "$PROTECTED_MAIN_SHA" --head "$EXPECTED_HEAD" --pull-number "$PR_NUM" --issue-number "$MANIFEST_ISSUE_NUMBER"
           assert_no_foreign_linked_issue_receipt "$PR_NUM" "$EXPECTED_HEAD"
           dispatch_manifest_linked_issue_check "$PR_NUM" "$EXPECTED_HEAD"
           wait_for_exact_linked_issue_receipt "$PR_NUM" "$EXPECTED_HEAD"
@@ -696,6 +707,9 @@ jobs:
             echo "[ERROR] Manifest PR ownership changed after receipt publication" >&2
             exit 1
           fi
+          node scripts/manifest-linked-issue.cjs --repository "$GITHUB_REPOSITORY" \
+            --source "$PROTECTED_MAIN_SHA" --head "$EXPECTED_HEAD" --pull-number "$PR_NUM" --issue-number "$MANIFEST_ISSUE_NUMBER"
           gh pr merge "$PR_NUM" --repo "$GITHUB_REPOSITORY" \
             --squash --auto --delete-branch --match-head-commit "$EXPECTED_HEAD"
+          rm -f "$MANIFEST_PR_BODY"
           echo "[OK] Manifest PR has an exact receipt and auto-merge is enabled"

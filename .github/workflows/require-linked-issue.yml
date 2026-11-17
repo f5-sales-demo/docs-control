@@ -19,6 +19,7 @@ jobs:
     permissions:
       pull-requests: read # inspect the current pull request
       contents: read # inspect manifest candidate ancestry
+      issues: read # validate the exact owned closing issue
     steps:
       - name: Validate pull request policy
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -28,6 +29,23 @@ jobs:
           script: |
             const { owner, repo } = context.repo;
             const pull = context.payload.pull_request;
+            async function readManifestLinkedIssue(pull, source, head) {
+              const matches = [...(pull.body || "").matchAll(/^Closes #([1-9][0-9]*)$/gm)];
+              if (matches.length !== 1 || !Number.isSafeInteger(Number(matches[0][1])))
+                throw new Error("Manifest closing-issue receipt is invalid.");
+              const number = Number(matches[0][1]);
+              const issue = (await github.rest.issues.get({ owner, repo, issue_number: number })).data;
+              const binding = `<!-- manifest-linked-issue repo=${owner}/${repo} source=${source} head=${head} -->`;
+              if (issue.number !== number || issue.state !== "open" || issue.pull_request !== undefined ||
+                  issue.repository_url !== `https://api.github.com/repos/${owner}/${repo}` ||
+                  !Number.isSafeInteger(pull.user?.id) || pull.user.id < 1 || issue.user?.id !== pull.user.id ||
+                  issue.title !== `Publish managed manifest @ ${source}` || typeof issue.body !== "string" ||
+                  issue.body.split("\n").filter(line => line.startsWith("<!-- manifest-linked-issue ")).length !== 1 ||
+                  !issue.body.split("\n").includes(binding))
+                throw new Error("Manifest linked-issue receipt is invalid.");
+              return { number, body: issue.body, author: issue.user.id };
+            }
+
             if (pull.head?.ref?.startsWith("sync/manifest-")) {
               const match = /^sync\/manifest-([0-9a-f]{40})$/.exec(pull.head.ref);
               if (!match || pull.base.ref !== "main" || pull.base.repo.full_name !== `${owner}/${repo}`) {
@@ -38,6 +56,12 @@ jobs:
               const head = pull.head.sha;
               if (!/^[0-9a-f]{40}$/.test(head)) {
                 core.setFailed("Manifest candidate head is invalid.");
+                return;
+              }
+              try {
+                await readManifestLinkedIssue(pull, source, head);
+              } catch (error) {
+                core.setFailed(error.message);
                 return;
               }
               const [commit, commits, files] = await Promise.all([
