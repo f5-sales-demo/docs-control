@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "4174c7ccfe1a5be13296369c1a860afe09bfbf10",
+  "source_commit": "b3d73328df97ad8e0ae1421d2b87e3d7d0c018c4",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -117,14 +117,14 @@
     {
       "path": ".github/workflows/antigravity-review.yml",
       "src": "workflows/antigravity-review.yml",
-      "sha": "b9e5f23ceeb6c947b974a2f0b832a81a75da58a4",
+      "sha": "8644d8a4b14e73a5e935f9a40c7a470934dec0a1",
       "size": 1309,
       "mode": "100644"
     },
     {
       "path": ".github/workflows/auto-merge.yml",
       "src": "workflows/auto-merge.yml",
-      "sha": "5d89c52a66ea27f2e9ed8fd99cfab239c1ebc2dc",
+      "sha": "f87d1ef07b2cce2aa23d67eb42bef805e525bc82",
       "size": 3422,
       "mode": "100644"
     },
@@ -152,14 +152,14 @@
     {
       "path": ".github/workflows/github-pages-config-sources.yml",
       "src": "workflows/github-pages-config-sources.yml",
-      "sha": "067a24ecd3abc8ee289857679acda383b18427b6",
+      "sha": "561f79d45f7f13785fe0ff1ddb5db3c340483ca8",
       "size": 1027,
       "mode": "100644"
     },
     {
       "path": ".github/workflows/github-pages-deploy.yml",
       "src": "workflows/github-pages-deploy.yml",
-      "sha": "7915dcd08ccfad3e297d633517388f58747630de",
+      "sha": "9780b37fd924e9754657f44e1d25e767e62cf45e",
       "size": 1643,
       "mode": "100644"
     },
@@ -180,7 +180,7 @@
     {
       "path": ".github/workflows/super-linter.yml",
       "src": "workflows/super-linter.yml",
-      "sha": "b0c1668339dea6035619b66b179a69d27bdc381c",
+      "sha": "9d4675765a4995e0a42983f12d3020e027a020ab",
       "size": 6957,
       "mode": "100644"
     },
@@ -509,5 +509,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:6c0f20801e718ffd0428e3b08a4242577a97425587864a1bea00d0283b6235fb"
+  "state_digest": "sha256:d50738064d26140107db4e950d1d88eca005507d2f6271a48bbf8b7dbe8629bd"
 }
