@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "e0340f3233d1c93cce2fcfeb6aec954f84c551df",
+  "source_commit": "5325ce1e397c088127bdc6146f447363d49832b9",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -460,8 +460,8 @@
     {
       "path": "tests/test-translation-release-policy.sh",
       "src": "tests/test-translation-release-policy.sh",
-      "sha": "1032399e8e5d711b19a7fe6d5bcf7e6c277d4f80",
-      "size": 1328,
+      "sha": "8e1d64a7e2d8b975336f73c6e947738d755d7d09",
+      "size": 1742,
       "mode": "100755"
     },
     {
@@ -509,5 +509,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:94cd51d7512e5cc2ba53d30182019f5c3280a5b592df9048824d447398812714"
+  "state_digest": "sha256:bc6a4bc9c9104de36d8473f87142ddd48faf225db55d44f3244ebc85b9b6bbf8"
 }
