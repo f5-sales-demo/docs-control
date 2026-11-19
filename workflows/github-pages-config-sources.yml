@@ -17,7 +17,7 @@ concurrency:
 jobs:
   docs:
     if: github.repository == 'f5-sales-demo/custom-responses'
-    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@d3feec520fb922f8d6ae388ecddb2e1038924a45
+    uses: f5-sales-demo/docs-control/.github/workflows/github-pages-deploy.yml@5325ce1e397c088127bdc6146f447363d49832b9
     with:
       builder-image: ghcr.io/f5-sales-demo/docs-builder@sha256:049219671eb53fb884af5a529ab638ba01894492ac6918da76bc17a069607e72
       content-ref: ${{ github.sha }}
