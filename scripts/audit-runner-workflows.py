@@ -160,6 +160,10 @@ DOCS_AUTO_MERGE_ROUTE_LABELS = {
     DOCS_ICONS_REPOSITORY: "docs-socketless",
     "f5-sales-demo/starlight-llms-txt": "docs-socketless",
 }
+DOCS_ROUTE_LABELS_BY_EXPRESSION = {
+    DOCS_SOCKETLESS_ROUTE_EXPRESSION: DOCS_SOCKETLESS_ROUTE_LABELS,
+    DOCS_AUTO_MERGE_ROUTE_EXPRESSION: DOCS_AUTO_MERGE_ROUTE_LABELS,
+}
 RELEASE_CHAIN_REPOSITORIES = frozenset(
     {
         "f5-sales-demo/api-specs-enriched",
@@ -787,12 +791,8 @@ def canonical_route_label(value, repository):
         if repository in RELEASE_CHAIN_REPOSITORIES:
             return "ubuntu-latest"
         return DOCS_SOCKETLESS_ROUTE_LABELS.get(repository, "managed-socketless")
-    if value in {DOCS_AUTO_MERGE_ROUTE_EXPRESSION, DOCS_SOCKETLESS_ROUTE_EXPRESSION}:
-        labels = (
-            DOCS_AUTO_MERGE_ROUTE_LABELS
-            if value == DOCS_AUTO_MERGE_ROUTE_EXPRESSION
-            else DOCS_SOCKETLESS_ROUTE_LABELS
-        )
+    if value in DOCS_ROUTE_LABELS_BY_EXPRESSION:
+        labels = DOCS_ROUTE_LABELS_BY_EXPRESSION[value]
         return labels.get(repository, "managed-socketless")
     for label, expression in TRUSTED_COMPUTE_ROUTE_EXPRESSIONS.items():
         if value == expression:
