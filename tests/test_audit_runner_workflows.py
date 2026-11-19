@@ -1798,6 +1798,59 @@ class DocsConditionalRouteTests(unittest.TestCase):
             "managed-socketless",
         )
 
+    def test_auto_merge_routes_match_the_actual_repository_pools(self):
+        policy = json.loads(
+            (ROOT / ".github/config/self-hosted-runner-policy.json").read_text()
+        )
+        for filename, job in (
+            (".github/workflows/auto-merge.yml", "auto-merge"),
+            ("workflows/auto-merge.yml", "require-token"),
+        ):
+            expression = yaml.safe_load((ROOT / filename).read_text())["jobs"][job][
+                "runs-on"
+            ]
+            for repository in (
+                "f5-sales-demo/docs-icons",
+                "f5-sales-demo/starlight-llms-txt",
+                "f5-sales-demo/nginx",
+            ):
+                expected = policy["repositories"][repository]["runner"][
+                    "arc_scale_sets"
+                ]["socketless"]["label"]
+                with self.subTest(workflow=filename, repository=repository):
+                    self.assertEqual(
+                        MODULE.canonical_route_label(expression, repository), expected
+                    )
+
+    def test_auto_merge_route_does_not_normalize_foreign_expressions(self):
+        workflow = yaml.safe_load(
+            (ROOT / ".github/workflows/auto-merge.yml").read_text()
+        )
+        expression = workflow["jobs"]["auto-merge"]["runs-on"]
+        for changed in (
+            expression.replace("starlight-llms-txt", "foreign"),
+            expression.replace("docs-socketless", "ubuntu-latest"),
+            expression.replace(" || ", " && ", 1),
+        ):
+            if changed == expression:
+                continue
+            with self.subTest(expression=changed):
+                self.assertEqual(
+                    MODULE.canonical_route_label(
+                        changed, "f5-sales-demo/starlight-llms-txt"
+                    ),
+                    changed,
+                )
+
+    def test_existing_docs_expression_keeps_its_actual_meaning(self):
+        self.assertEqual(
+            MODULE.canonical_route_label(
+                MODULE.DOCS_SOCKETLESS_ROUTE_EXPRESSION,
+                "f5-sales-demo/starlight-llms-txt",
+            ),
+            "managed-socketless",
+        )
+
     def test_resolves_release_chain_linked_issue_route_by_repository(self):
         expression = MODULE.RELEASE_CHAIN_LINKED_ISSUE_ROUTE_EXPRESSION
         for repository in MODULE.RELEASE_CHAIN_REPOSITORIES:
