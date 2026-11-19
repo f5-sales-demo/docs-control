@@ -1806,13 +1806,17 @@ class DocsConditionalRouteTests(unittest.TestCase):
             (".github/workflows/auto-merge.yml", "auto-merge"),
             ("workflows/auto-merge.yml", "require-token"),
         ):
-            expression = yaml.safe_load((ROOT / filename).read_text())["jobs"][job]["runs-on"]
+            expression = yaml.safe_load((ROOT / filename).read_text())["jobs"][job][
+                "runs-on"
+            ]
             for repository in (
                 "f5-sales-demo/docs-icons",
                 "f5-sales-demo/starlight-llms-txt",
                 "f5-sales-demo/nginx",
             ):
-                expected = policy["repositories"][repository]["runner"]["arc_scale_sets"]["socketless"]["label"]
+                expected = policy["repositories"][repository]["runner"][
+                    "arc_scale_sets"
+                ]["socketless"]["label"]
                 with self.subTest(workflow=filename, repository=repository):
                     self.assertEqual(
                         MODULE.canonical_route_label(expression, repository), expected
@@ -1832,7 +1836,9 @@ class DocsConditionalRouteTests(unittest.TestCase):
                 continue
             with self.subTest(expression=changed):
                 self.assertEqual(
-                    MODULE.canonical_route_label(changed, "f5-sales-demo/starlight-llms-txt"),
+                    MODULE.canonical_route_label(
+                        changed, "f5-sales-demo/starlight-llms-txt"
+                    ),
                     changed,
                 )
 

@@ -787,10 +787,13 @@ def canonical_route_label(value, repository):
         if repository in RELEASE_CHAIN_REPOSITORIES:
             return "ubuntu-latest"
         return DOCS_SOCKETLESS_ROUTE_LABELS.get(repository, "managed-socketless")
-    if value == DOCS_AUTO_MERGE_ROUTE_EXPRESSION:
-        return DOCS_AUTO_MERGE_ROUTE_LABELS.get(repository, "managed-socketless")
-    if value == DOCS_SOCKETLESS_ROUTE_EXPRESSION:
-        return DOCS_SOCKETLESS_ROUTE_LABELS.get(repository, "managed-socketless")
+    if value in {DOCS_AUTO_MERGE_ROUTE_EXPRESSION, DOCS_SOCKETLESS_ROUTE_EXPRESSION}:
+        labels = (
+            DOCS_AUTO_MERGE_ROUTE_LABELS
+            if value == DOCS_AUTO_MERGE_ROUTE_EXPRESSION
+            else DOCS_SOCKETLESS_ROUTE_LABELS
+        )
+        return labels.get(repository, "managed-socketless")
     for label, expression in TRUSTED_COMPUTE_ROUTE_EXPRESSIONS.items():
         if value == expression:
             return label
