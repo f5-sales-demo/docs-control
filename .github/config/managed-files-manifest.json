@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "e0340f3233d1c93cce2fcfeb6aec954f84c551df",
+  "source_commit": "ddcc0b14e8c4f9cc5b711ebf18f467cd7f8e899a",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -117,14 +117,14 @@
     {
       "path": ".github/workflows/antigravity-review.yml",
       "src": "workflows/antigravity-review.yml",
-      "sha": "480e6852bd22618b5a4f2f432a2b2c77f66394ea",
+      "sha": "c0503a028540fd21fdc583e3893db855d9d0df8a",
       "size": 1309,
       "mode": "100644"
     },
     {
       "path": ".github/workflows/auto-merge.yml",
       "src": "workflows/auto-merge.yml",
-      "sha": "5e0e3a742549b2b47f25c4ec53a5ecc79c213e6f",
+      "sha": "4a7434a43ae0b7fb612ac0bcbf488883e1c8d7ac",
       "size": 3422,
       "mode": "100644"
     },
@@ -152,14 +152,14 @@
     {
       "path": ".github/workflows/github-pages-config-sources.yml",
       "src": "workflows/github-pages-config-sources.yml",
-      "sha": "72146c2275b009ba17b728b73510c8f837d4097c",
+      "sha": "f24bd54bbd29839199fe5f6b7a441cd3c17b2e17",
       "size": 1027,
       "mode": "100644"
     },
     {
       "path": ".github/workflows/github-pages-deploy.yml",
       "src": "workflows/github-pages-deploy.yml",
-      "sha": "a2f1ad3b48b87305ddd177ea9f1b873398646015",
+      "sha": "c43833000c04ec098ed0e96f3fbda2520ce5bda1",
       "size": 1643,
       "mode": "100644"
     },
@@ -180,7 +180,7 @@
     {
       "path": ".github/workflows/super-linter.yml",
       "src": "workflows/super-linter.yml",
-      "sha": "46c76fde66236030e4214ed2f38e48c239f09cdf",
+      "sha": "a99e8befcabc8a3f1339236a175087461830f151",
       "size": 6957,
       "mode": "100644"
     },
@@ -460,8 +460,8 @@
     {
       "path": "tests/test-translation-release-policy.sh",
       "src": "tests/test-translation-release-policy.sh",
-      "sha": "1032399e8e5d711b19a7fe6d5bcf7e6c277d4f80",
-      "size": 1328,
+      "sha": "8e1d64a7e2d8b975336f73c6e947738d755d7d09",
+      "size": 1742,
       "mode": "100755"
     },
     {
@@ -509,5 +509,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:94cd51d7512e5cc2ba53d30182019f5c3280a5b592df9048824d447398812714"
+  "state_digest": "sha256:babf5d6f74761c77e4795fb3f414de2e23606bd1aa800a73031baae315be186a"
 }
