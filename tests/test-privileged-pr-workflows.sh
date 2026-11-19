@@ -130,8 +130,8 @@ for file in "$REPO_ROOT/workflows/auto-merge.yml" "$REPO_ROOT/.github/workflows/
   require_literal "$file" "format('{0}', github.event.pull_request.user.id) != vars.RENOVATE_GITHUB_APP_BOT_ID" \
     "${file#"$REPO_ROOT/"} explicitly excludes the numeric Renovate identity"
 done
-require_literal "$REPO_ROOT/workflows/auto-merge.yml" "(github.repository == 'f5-sales-demo/docs-icons' || github.repository == 'f5-sales-demo/starlight-llms-txt') && 'docs-socketless' || 'managed-socketless'" \
-  'managed auto-merge caller selects approved documentation ARC scale sets'
+require_literal "$REPO_ROOT/workflows/auto-merge.yml" 'github.repository == '"'"'f5-sales-demo/xcsh'"'"' && '"'"'xcsh-socketless'"'"' || contains(fromJSON('"'"'["f5-sales-demo/docs-builder","f5-sales-demo/docs-icons","f5-sales-demo/docs-theme","f5-sales-demo/f5-sales-demo.github.io","f5-sales-demo/i18n-core","f5-sales-demo/starlight-llms-txt"]'"'"'), github.repository) && '"'"'docs-socketless'"'"' || '"'"'managed-socketless'"'"'' \
+  'managed auto-merge caller selects all approved socketless ARC scale sets'
 for retired in "$REPO_ROOT/.github/dependabot.yml" "$REPO_ROOT/.github/workflows/dependabot-auto-merge.yml" "$REPO_ROOT/workflows/dependabot-auto-merge.yml"; do
   if [ -e "$retired" ]; then fail "${retired#"$REPO_ROOT/"} is retired"; else pass "${retired#"$REPO_ROOT/"} is absent"; fi
 done

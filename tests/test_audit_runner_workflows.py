@@ -1809,14 +1809,13 @@ class DocsConditionalRouteTests(unittest.TestCase):
             expression = yaml.safe_load((ROOT / filename).read_text())["jobs"][job][
                 "runs-on"
             ]
-            for repository in (
-                "f5-sales-demo/docs-icons",
-                "f5-sales-demo/starlight-llms-txt",
-                "f5-sales-demo/nginx",
-            ):
-                expected = policy["repositories"][repository]["runner"][
-                    "arc_scale_sets"
-                ]["socketless"]["label"]
+            repository_pools = {
+                repository: settings["runner"]["arc_scale_sets"]["socketless"]["label"]
+                for repository, settings in policy["repositories"].items()
+                if "socketless" in settings.get("runner", {}).get("arc_scale_sets", {})
+            }
+            self.assertTrue(repository_pools)
+            for repository, expected in sorted(repository_pools.items()):
                 with self.subTest(workflow=filename, repository=repository):
                     self.assertEqual(
                         MODULE.canonical_route_label(expression, repository), expected
