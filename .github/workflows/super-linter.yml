@@ -1095,6 +1095,10 @@ jobs:
         if: hashFiles('tests/test-translation-release-policy.sh') != ''
         run: bash tests/test-translation-release-policy.sh
 
+      - name: Run translation release-policy inspection test
+        if: hashFiles('tests/test-translation-release-policy-errors.sh') != ''
+        run: bash tests/test-translation-release-policy-errors.sh
+
       - name: Run client-side-defense identity test
         if: hashFiles('tests/test-client-side-defense-identity.sh') != ''
         run: bash tests/test-client-side-defense-identity.sh
