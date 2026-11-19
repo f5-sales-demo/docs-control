@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "ddcc0b14e8c4f9cc5b711ebf18f467cd7f8e899a",
+  "source_commit": "1ef5d07e6cf7672c6f6b3388421811c9795c7bdd",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -124,8 +124,8 @@
     {
       "path": ".github/workflows/auto-merge.yml",
       "src": "workflows/auto-merge.yml",
-      "sha": "4a7434a43ae0b7fb612ac0bcbf488883e1c8d7ac",
-      "size": 3422,
+      "sha": "d1e135eb9e4a4588b6db468a8bccde2a66c01448",
+      "size": 3483,
       "mode": "100644"
     },
     {
@@ -348,8 +348,8 @@
     {
       "path": "scripts/audit-runner-workflows.py",
       "src": "scripts/audit-runner-workflows.py",
-      "sha": "1ba9ee97e2a9286def4d5936483ff323a7913299",
-      "size": 50678,
+      "sha": "d92997051de8baa378a899745ef1a90bd19f9970",
+      "size": 51245,
       "mode": "100755"
     },
     {
@@ -509,5 +509,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:babf5d6f74761c77e4795fb3f414de2e23606bd1aa800a73031baae315be186a"
+  "state_digest": "sha256:b4816de21cefccd23a480ffb2a6f49d97418426c31b5dfc37df6399f5823d5ac"
 }
