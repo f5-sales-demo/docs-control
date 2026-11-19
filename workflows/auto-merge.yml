@@ -32,7 +32,7 @@ jobs:
       github.event.pull_request.user.type == 'User' &&
       format('{0}', github.event.pull_request.user.id) != vars.RENOVATE_GITHUB_APP_BOT_ID &&
       github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ${{ github.repository == 'f5-sales-demo/docs-icons' && 'docs-socketless' || 'managed-socketless' }}
+    runs-on: ${{ (github.repository == 'f5-sales-demo/docs-icons' || github.repository == 'f5-sales-demo/starlight-llms-txt') && 'docs-socketless' || 'managed-socketless' }}
     steps:
       - name: Require downstream-triggering token
         env:

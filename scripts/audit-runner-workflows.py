@@ -151,6 +151,15 @@ CANDIDATE_GRANT_IDENTITIES = (
 DOCS_ICONS_REPOSITORY = "f5-sales-demo/docs-icons"
 DOCS_SOCKETLESS_ROUTE_EXPRESSION = "${{ github.repository == 'f5-sales-demo/docs-icons' && 'docs-socketless' || 'managed-socketless' }}"  # fmt: skip
 DOCS_SOCKETLESS_ROUTE_LABELS = {DOCS_ICONS_REPOSITORY: "docs-socketless"}
+DOCS_AUTO_MERGE_ROUTE_EXPRESSION = (
+    "${{ (github.repository == 'f5-sales-demo/docs-icons' || "
+    "github.repository == 'f5-sales-demo/starlight-llms-txt') && "
+    "'docs-socketless' || 'managed-socketless' }}"
+)
+DOCS_AUTO_MERGE_ROUTE_LABELS = {
+    DOCS_ICONS_REPOSITORY: "docs-socketless",
+    "f5-sales-demo/starlight-llms-txt": "docs-socketless",
+}
 RELEASE_CHAIN_REPOSITORIES = frozenset(
     {
         "f5-sales-demo/api-specs-enriched",
@@ -778,6 +787,8 @@ def canonical_route_label(value, repository):
         if repository in RELEASE_CHAIN_REPOSITORIES:
             return "ubuntu-latest"
         return DOCS_SOCKETLESS_ROUTE_LABELS.get(repository, "managed-socketless")
+    if value == DOCS_AUTO_MERGE_ROUTE_EXPRESSION:
+        return DOCS_AUTO_MERGE_ROUTE_LABELS.get(repository, "managed-socketless")
     if value == DOCS_SOCKETLESS_ROUTE_EXPRESSION:
         return DOCS_SOCKETLESS_ROUTE_LABELS.get(repository, "managed-socketless")
     for label, expression in TRUSTED_COMPUTE_ROUTE_EXPRESSIONS.items():
