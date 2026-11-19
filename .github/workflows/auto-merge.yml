@@ -28,7 +28,7 @@ concurrency:
 jobs:
   auto-merge:
     name: Enable trusted-author auto-merge
-    runs-on: ${{ (github.repository == 'f5-sales-demo/docs-icons' || github.repository == 'f5-sales-demo/starlight-llms-txt') && 'docs-socketless' || 'managed-socketless' }}
+    runs-on: ${{ github.repository == 'f5-sales-demo/xcsh' && 'xcsh-socketless' || contains(fromJSON('["f5-sales-demo/docs-builder","f5-sales-demo/docs-icons","f5-sales-demo/docs-theme","f5-sales-demo/f5-sales-demo.github.io","f5-sales-demo/i18n-core","f5-sales-demo/starlight-llms-txt"]'), github.repository) && 'docs-socketless' || 'managed-socketless' }}
     permissions:
       contents: write # merge trusted same-repository pull requests
       pull-requests: write # enable squash auto-merge

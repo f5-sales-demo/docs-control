@@ -151,18 +151,25 @@ CANDIDATE_GRANT_IDENTITIES = (
 DOCS_ICONS_REPOSITORY = "f5-sales-demo/docs-icons"
 DOCS_SOCKETLESS_ROUTE_EXPRESSION = "${{ github.repository == 'f5-sales-demo/docs-icons' && 'docs-socketless' || 'managed-socketless' }}"  # fmt: skip
 DOCS_SOCKETLESS_ROUTE_LABELS = {DOCS_ICONS_REPOSITORY: "docs-socketless"}
-DOCS_AUTO_MERGE_ROUTE_EXPRESSION = (
-    "${{ (github.repository == 'f5-sales-demo/docs-icons' || "
-    "github.repository == 'f5-sales-demo/starlight-llms-txt') && "
+AUTO_MERGE_DOCS_REPOSITORIES = (
+    "f5-sales-demo/docs-builder",
+    "f5-sales-demo/docs-icons",
+    "f5-sales-demo/docs-theme",
+    "f5-sales-demo/f5-sales-demo.github.io",
+    "f5-sales-demo/i18n-core",
+    "f5-sales-demo/starlight-llms-txt",
+)
+AUTO_MERGE_DOCS_JSON = json.dumps(AUTO_MERGE_DOCS_REPOSITORIES, separators=(",", ":"))
+AUTO_MERGE_ROUTE_EXPRESSION = (
+    "${{ github.repository == 'f5-sales-demo/xcsh' && 'xcsh-socketless' || "
+    f"contains(fromJSON('{AUTO_MERGE_DOCS_JSON}'), github.repository) && "
     "'docs-socketless' || 'managed-socketless' }}"
 )
-DOCS_AUTO_MERGE_ROUTE_LABELS = {
-    DOCS_ICONS_REPOSITORY: "docs-socketless",
-    "f5-sales-demo/starlight-llms-txt": "docs-socketless",
-}
+AUTO_MERGE_ROUTE_LABELS = dict.fromkeys(AUTO_MERGE_DOCS_REPOSITORIES, "docs-socketless")
+AUTO_MERGE_ROUTE_LABELS["f5-sales-demo/xcsh"] = "xcsh-socketless"
 DOCS_ROUTE_LABELS_BY_EXPRESSION = {
     DOCS_SOCKETLESS_ROUTE_EXPRESSION: DOCS_SOCKETLESS_ROUTE_LABELS,
-    DOCS_AUTO_MERGE_ROUTE_EXPRESSION: DOCS_AUTO_MERGE_ROUTE_LABELS,
+    AUTO_MERGE_ROUTE_EXPRESSION: AUTO_MERGE_ROUTE_LABELS,
 }
 RELEASE_CHAIN_REPOSITORIES = frozenset(
     {
