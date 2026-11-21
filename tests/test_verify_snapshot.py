@@ -526,3 +526,73 @@ class SnapshotBoundaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewControllerProvenanceTests(unittest.TestCase):
+    @staticmethod
+    def manifest(value=None):
+        entry = {
+            "admission_sha256": "a" * 64,
+            "content_sha256": "b" * 64,
+            "inventory_sha256": "c" * 64,
+        }
+        if value is not None:
+            entry["review_compatibility"] = value
+        return {
+            "source_roots": {"source-a": "https://source-a.example.invalid/"},
+            "refresh": {
+                "schema_version": 2,
+                "artifact_sha256": "d" * 64,
+                "refreshed_sources": ["source-a"],
+                "source_inputs": {"source-a": entry},
+            },
+        }
+
+    def test_existing_snapshot_without_compatibility_remains_valid(self):
+        load_verifier().validate_transform_pins(self.manifest())
+
+    def test_exact_safe_compatibility_provenance_is_valid(self):
+        value = {
+            "registry_sha256": "1" * 64,
+            "controller_sha256": "2" * 64,
+            "prior_request_context_sha256": ["3" * 64, "4" * 64],
+        }
+        load_verifier().validate_transform_pins(self.manifest(value))
+
+    def test_invalid_or_extra_compatibility_fields_are_rejected(self):
+        value = {
+            "registry_sha256": "1" * 64,
+            "controller_sha256": "2" * 64,
+            "prior_request_context_sha256": ["3" * 64, "4" * 64],
+        }
+        cases = [
+            {},
+            {**value, "extra": "unreviewed"},
+            {**value, "registry_sha256": "bad"},
+            {**value, "controller_sha256": 123},
+            {**value, "prior_request_context_sha256": []},
+            {**value, "prior_request_context_sha256": "3" * 64},
+            {**value, "prior_request_context_sha256": ["3" * 64, "3" * 64]},
+            {**value, "prior_request_context_sha256": ["4" * 64, "3" * 64]},
+            {**value, "prior_request_context_sha256": ["3" * 64, 4]},
+            {**value, "prior_request_context_sha256": ["bad"]},
+        ]
+        for malformed in cases:
+            with (
+                self.subTest(provenance=malformed),
+                self.assertRaisesRegex(ValueError, "controller compatibility"),
+            ):
+                load_verifier().validate_transform_pins(self.manifest(malformed))
+
+    def test_present_non_object_provenance_is_rejected(self):
+        values: tuple[object, ...] = (None, "unreviewed", [])
+        for value in values:
+            manifest = self.manifest()
+            manifest["refresh"]["source_inputs"]["source-a"]["review_compatibility"] = (
+                value
+            )
+            with (
+                self.subTest(provenance=value),
+                self.assertRaisesRegex(ValueError, "controller compatibility"),
+            ):
+                load_verifier().validate_transform_pins(manifest)

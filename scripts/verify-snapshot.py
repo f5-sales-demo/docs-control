@@ -233,6 +233,33 @@ def _validate_asset(
         raise ValueError(f"manifest asset media type mismatch: {path}")
 
 
+def _validate_review_compatibility(value: object, source: str) -> None:
+    error = f"invalid source controller compatibility provenance: {source}"
+    if not isinstance(value, dict) or set(value) != {
+        "registry_sha256",
+        "controller_sha256",
+        "prior_request_context_sha256",
+    }:
+        raise ValueError(error)
+    for key in ("registry_sha256", "controller_sha256"):
+        if not isinstance(value[key], str) or not re.fullmatch(
+            r"[0-9a-f]{64}", value[key]
+        ):
+            raise ValueError(error)
+    contexts = value["prior_request_context_sha256"]
+    if (
+        not isinstance(contexts, list)
+        or not contexts
+        or any(
+            not isinstance(item, str) or not re.fullmatch(r"[0-9a-f]{64}", item)
+            for item in contexts
+        )
+    ):
+        raise ValueError(error)
+    if contexts != sorted(set(contexts)):
+        raise ValueError(error)
+
+
 def validate_transform_pins(manifest: dict[str, object]) -> None:
     """Verify every supplied transformation, independently of alias selection."""
     for name in ("refresh", "enrichment"):
@@ -267,6 +294,8 @@ def validate_transform_pins(manifest: dict[str, object]) -> None:
                 for field in ("admission_sha256", "content_sha256", "inventory_sha256")
             ):
                 raise ValueError(f"invalid source admission pin: {source}")
+            if "review_compatibility" in entry:
+                _validate_review_compatibility(entry["review_compatibility"], source)
 
 
 def validate_enrichment_aliases(manifest: dict[str, object]) -> None:
