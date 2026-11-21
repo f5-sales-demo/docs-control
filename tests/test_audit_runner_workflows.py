@@ -1645,13 +1645,14 @@ jobs:
         )
         exceptions = policy["hosted_exceptions"]["f5-sales-demo/xcsh"]
         for workflow, job, route in (
-            ("ci.yml", "create-release", "macos-14"),
-            ("ci.yml", "update-homebrew", "macos-14"),
+            ("ci.yml", "create-release", "macos-26"),
+            ("ci.yml", "update-homebrew", "macos-26"),
             ("ci.yml", "verify-macos-pkg", "matrix"),
             ("ci.yml", "verify-standalone-install", "matrix"),
+            ("container.yml", "container-build-arm64", "ubuntu-24.04-arm"),
             ("container.yml", "publish-ghcr-arm64", "ubuntu-24.04-arm"),
             ("dependency-cache-prime.yml", "prime-hosted-bun", "ubuntu-24.04"),
-            ("release-github-backfill.yml", "backfill", "macos-14"),
+            ("release-github-backfill.yml", "backfill", "macos-latest"),
             ("spoofed-version-drift.yml", "check", "ubuntu-22.04"),
         ):
             with self.subTest(workflow=workflow, job=job):

@@ -502,11 +502,11 @@
           "reason": "Homebrew cask release verification requires Apple silicon and Intel macOS"
         },
         "create-release": {
-          "runs_on": "macos-14",
+          "runs_on": "macos-26",
           "reason": "immutable release assembly verifies signed Apple assets on native macOS"
         },
         "update-homebrew": {
-          "runs_on": "macos-14",
+          "runs_on": "macos-26",
           "reason": "Homebrew cask publication verifies signed Apple release assets on macOS"
         },
         "verify-macos-pkg": {
@@ -583,6 +583,10 @@
         }
       },
       ".github/workflows/container.yml": {
+        "container-build-arm64": {
+          "runs_on": "ubuntu-24.04-arm",
+          "reason": "native ARM64 container build requires the qualified hosted ARM64 Docker environment"
+        },
         "publish-ghcr-arm64": {
           "runs_on": "ubuntu-24.04-arm",
           "reason": "native ARM64 container publication requires a hosted ARM64 Docker environment"
@@ -596,7 +600,7 @@
       },
       ".github/workflows/release-github-backfill.yml": {
         "backfill": {
-          "runs_on": "macos-14",
+          "runs_on": "macos-latest",
           "reason": "immutable GitHub release recovery verifies signed Apple assets on native macOS"
         }
       },
