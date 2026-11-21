@@ -585,7 +585,8 @@ class ReviewControllerProvenanceTests(unittest.TestCase):
                 load_verifier().validate_transform_pins(self.manifest(malformed))
 
     def test_present_non_object_provenance_is_rejected(self):
-        for value in (None, "unreviewed", []):
+        values: tuple[object, ...] = (None, "unreviewed", [])
+        for value in values:
             manifest = self.manifest()
             manifest["refresh"]["source_inputs"]["source-a"]["review_compatibility"] = (
                 value
