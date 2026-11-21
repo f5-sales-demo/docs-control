@@ -260,6 +260,66 @@ def _validate_review_compatibility(value: object, source: str) -> None:
         raise ValueError(error)
 
 
+def _provenance_contexts(value: object) -> set[str]:
+    if not isinstance(value, dict) or set(value) != {
+        "registry_sha256",
+        "controller_sha256",
+        "prior_request_context_sha256",
+    }:
+        raise ValueError("invalid source controller provenance")
+    for field in ("registry_sha256", "controller_sha256"):
+        if not isinstance(value[field], str) or not SHA256_PATTERN.fullmatch(
+            value[field]
+        ):
+            raise ValueError("invalid source controller provenance pin")
+    contexts = value["prior_request_context_sha256"]
+    if (
+        not isinstance(contexts, list)
+        or not contexts
+        or any(
+            not isinstance(item, str) or not SHA256_PATTERN.fullmatch(item)
+            for item in contexts
+        )
+    ):
+        raise ValueError("invalid source controller provenance contexts")
+    if contexts != sorted(set(contexts)):
+        raise ValueError("source controller provenance contexts are not canonical")
+    return set(contexts)
+
+
+def _validate_source_transition(entry: dict[str, object]) -> None:
+    if "review_compatibility_transition" not in entry:
+        return
+    transition = entry["review_compatibility_transition"]
+    if not isinstance(transition, dict) or set(transition) != {
+        "version",
+        "original",
+        "current",
+        "history_sha256",
+        "source_receipt_sha256",
+        "source_and_decisions_unchanged",
+    }:
+        raise ValueError("invalid source controller provenance transition")
+    if (
+        transition["version"] != "source-controller-replay/1"
+        or transition["source_and_decisions_unchanged"] is not True
+        or transition["source_receipt_sha256"] != entry["admission_sha256"]
+        or transition["current"] != entry.get("review_compatibility")
+        or transition["original"] == transition["current"]
+    ):
+        raise ValueError("source controller provenance transition binding changed")
+    if not isinstance(
+        transition["history_sha256"], str
+    ) or not SHA256_PATTERN.fullmatch(transition["history_sha256"]):
+        raise ValueError("invalid source controller provenance history pin")
+    if not _provenance_contexts(transition["original"]) <= _provenance_contexts(
+        transition["current"]
+    ):
+        raise ValueError(
+            "source controller provenance transition loses original contexts"
+        )
+
+
 def validate_transform_pins(manifest: dict[str, object]) -> None:
     """Verify every supplied transformation, independently of alias selection."""
     for name in ("refresh", "enrichment"):
@@ -294,6 +354,7 @@ def validate_transform_pins(manifest: dict[str, object]) -> None:
                 for field in ("admission_sha256", "content_sha256", "inventory_sha256")
             ):
                 raise ValueError(f"invalid source admission pin: {source}")
+            _validate_source_transition(entry)
             if "review_compatibility" in entry:
                 _validate_review_compatibility(entry["review_compatibility"], source)
 
