@@ -9,7 +9,8 @@ ROOT = Path(__file__).resolve().parent.parent
 SPEC = importlib.util.spec_from_file_location(
     "xcsh_hosted_auditor", ROOT / "scripts/audit-runner-workflows.py"
 )
-assert SPEC is not None and SPEC.loader is not None
+assert SPEC is not None
+assert SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = MODULE
 SPEC.loader.exec_module(MODULE)
@@ -44,10 +45,14 @@ class XcshHostedPolicyTests(unittest.TestCase):
         for path, name, label in [
             (".github/workflows/ci.yml", "create-release", "macos-26"),
             (".github/workflows/ci.yml", "update-homebrew", "macos-26"),
-            (".github/workflows/release-github-backfill.yml", "backfill", "macos-latest"),
+            (
+                ".github/workflows/release-github-backfill.yml",
+                "backfill",
+                "macos-latest",
+            ),
         ]:
             with self.subTest(job=name):
-                self.assertEqual(self.audit(path, name, label), [])
+                assert self.audit(path, name, label) == []
 
     def test_old_mac_label_cannot_replace_current_routes(self):
         for path, name in [
@@ -56,17 +61,17 @@ class XcshHostedPolicyTests(unittest.TestCase):
             (".github/workflows/release-github-backfill.yml", "backfill"),
         ]:
             with self.subTest(job=name):
-                self.assertTrue(self.audit(path, name, "macos-14"))
+                assert self.audit(path, name, "macos-14")
 
     def test_exact_native_arm_container_build_route(self):
-        self.assertEqual(
+        assert (
             self.audit(
                 ".github/workflows/container.yml",
                 "container-build-arm64",
                 "ubuntu-24.04-arm",
                 docker=True,
-            ),
-            [],
+            )
+            == []
         )
 
     def test_wrong_arm_label_and_unknown_hosted_job_are_rejected(self):
@@ -75,15 +80,20 @@ class XcshHostedPolicyTests(unittest.TestCase):
             ("unqualified-arm-build", "ubuntu-24.04-arm"),
         ]:
             with self.subTest(job=name, label=label):
-                self.assertTrue(
-                    self.audit(".github/workflows/container.yml", name, label, docker=True)
+                assert self.audit(
+                    ".github/workflows/container.yml", name, label, docker=True
                 )
 
     def test_socketless_route_still_cannot_run_docker(self):
         errors = self.audit(
-            ".github/workflows/container.yml", "unqualified-build", "xcsh-socketless", docker=True
+            ".github/workflows/container.yml",
+            "unqualified-build",
+            "xcsh-socketless",
+            docker=True,
         )
-        self.assertTrue(any("Docker workload requires a Docker socket profile" in e for e in errors))
+        assert any(
+            "Docker workload requires a Docker socket profile" in e for e in errors
+        )
 
 
 if __name__ == "__main__":
