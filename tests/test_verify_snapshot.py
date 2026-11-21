@@ -383,6 +383,76 @@ class EnrichmentAliasTests(unittest.TestCase):
 
 
 class SnapshotWorkflowTests(unittest.TestCase):
+    def test_source_replay_transition_preserves_exact_admission_and_current_provenance(
+        self,
+    ) -> None:
+        verifier = load_verifier()
+        _, manifest = fixture_files()
+        original = {
+            "registry_sha256": "1" * 64,
+            "controller_sha256": "2" * 64,
+            "prior_request_context_sha256": ["3" * 64],
+        }
+        current = {
+            "registry_sha256": "4" * 64,
+            "controller_sha256": "5" * 64,
+            "prior_request_context_sha256": ["3" * 64, "6" * 64],
+        }
+        transition = {
+            "version": "source-controller-replay/1",
+            "original": original,
+            "current": current,
+            "history_sha256": "7" * 64,
+            "source_receipt_sha256": "a" * 64,
+            "source_and_decisions_unchanged": True,
+        }
+        entry = {
+            "admission_sha256": "a" * 64,
+            "content_sha256": "b" * 64,
+            "inventory_sha256": "c" * 64,
+            "review_compatibility": current,
+            "review_compatibility_transition": transition,
+        }
+        manifest["aliases"] = []
+        manifest["refresh"] = {
+            "schema_version": 2,
+            "artifact_sha256": "d" * 64,
+            "refreshed_sources": ["source-a"],
+            "source_inputs": {"source-a": entry},
+        }
+        verifier.validate_enrichment_aliases(manifest)
+        changes = [
+            ("version", "wrong"),
+            ("history_sha256", "stale"),
+            ("source_receipt_sha256", "e" * 64),
+            ("source_and_decisions_unchanged", False),
+            ("source_and_decisions_unchanged", 1),
+            ("current", original),
+            ("original", current),
+            ("original", {**original, "prior_request_context_sha256": ["f" * 64]}),
+            (
+                "current",
+                {**current, "prior_request_context_sha256": ["6" * 64, "3" * 64]},
+            ),
+            ("original", {**original, "controller_sha256": "invalid"}),
+        ]
+        for field, value in changes:
+            with self.subTest(field=field, value=value):
+                before = transition[field]
+                transition[field] = value
+                with self.assertRaisesRegex(ValueError, "provenance|transition"):
+                    verifier.validate_enrichment_aliases(manifest)
+                transition[field] = before
+        for field in list(transition):
+            with self.subTest(missing=field):
+                before = transition.pop(field)
+                with self.assertRaisesRegex(ValueError, "provenance|transition"):
+                    verifier.validate_enrichment_aliases(manifest)
+                transition[field] = before
+        entry.pop("review_compatibility")
+        with self.assertRaisesRegex(ValueError, "provenance|transition"):
+            verifier.validate_enrichment_aliases(manifest)
+
     def test_composed_snapshot_requires_every_present_transform_pin(self) -> None:
         verifier = load_verifier()
         _, manifest = fixture_files()
