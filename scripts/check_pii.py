@@ -141,7 +141,7 @@ REPOSITORY_FULL_NAME_RE = re.compile(
     r"[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}",
 )
 TERRAFORM_PROVIDER_FULL_NAME_RE = re.compile(
-    r"registry\.terraform\.io/hashicorp/(?P<name>[a-z0-9][a-z0-9-]{0,63})"
+    r"registry\.terraform\.io/hashicorp/(?P<name>[a-z0-9][a-z0-9-]{0,63})",
 )
 TERRAFORM_PROVIDER_VERSION_RE = re.compile(r"(?:=\s*)?[0-9]+\.[0-9]+\.[0-9]+")
 TERRAFORM_PROVIDER_LITERAL_PAIR_RE = re.compile(
@@ -943,7 +943,8 @@ def literal_provider_fields(text: str) -> dict[str, str] | None:
 
 
 def terraform_provider_full_name_columns(
-    path: str, text: str
+    path: str,
+    text: str,
 ) -> dict[int, frozenset[int]]:
     """Join a public HashiCorp provider address to literal name and exact version.
 
@@ -970,14 +971,20 @@ def terraform_provider_full_name_columns(
             fields is None
             or not {"name", "full_name", "version_constraint"} <= fields.keys()
             or fields.keys()
-            - {"name", "full_name", "version_constraint", "alias", "module_address"}
+            - {
+                "name",
+                "full_name",
+                "version_constraint",
+                "alias",
+                "module_address",
+            }
         ):
             continue
+        version_constraint = fields["version_constraint"]
         if (
             fields["full_name"] != value
             or fields["name"] != address.group("name")
-            or TERRAFORM_PROVIDER_VERSION_RE.fullmatch(fields["version_constraint"])
-            is None
+            or TERRAFORM_PROVIDER_VERSION_RE.fullmatch(version_constraint) is None
         ):
             continue
         line_number = text.count("\n", 0, key_start) + 1
@@ -2854,7 +2861,8 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
             localization_spans=localization_strings.get(line_number, ()),
             repository_full_name_columns=repository_names.get(line_number, frozenset()),
             terraform_provider_full_name_columns=provider_names.get(
-                line_number, frozenset()
+                line_number,
+                frozenset(),
             ),
             source_structure=source_structure,
             source_brace_depth=line_source_brace_depth,
