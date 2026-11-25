@@ -49,6 +49,70 @@ assert len(findings) == 1 and next(iter(findings)).category == "email", findings
 print("[OK] fixed supported-namespace prose preserves literal-identity enforcement")
 PYTEST
 
+python3 - "$PYTHON_SCANNER" <<'PROVIDERTEST'
+import importlib.util
+import json
+import sys
+
+spec = importlib.util.spec_from_file_location("scanner_provider_regression", sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+provider = {
+    "name": "google",
+    "full_name": "registry.terraform.io/hashicorp/google",
+    "version_constraint": "8.12.0",
+}
+cases = [
+    ("saved provider JSON", "fixture.json", json.dumps(provider), 0),
+    ("saved multiline JSON", "fixture.json", json.dumps(provider, indent=2), 0),
+    (
+        "literal TypeScript provider",
+        "fixture.ts",
+        "const provider = { name: 'google', full_name: 'registry.terraform.io/hashicorp/google', version_constraint: '8.12.0' };",
+        0,
+    ),
+    (
+        "multiline TypeScript provider",
+        "fixture.ts",
+        "const provider = {\n  version_constraint: '8.12.0',\n  full_name: 'registry.terraform.io/hashicorp/google',\n  name: 'google',\n};",
+        0,
+    ),
+]
+for label, change in [
+    ("contextless address", {"name": None, "version_constraint": None}),
+    ("missing provider name", {"name": None}),
+    ("mismatched provider name", {"name": "aws"}),
+    ("foreign provider namespace", {"full_name": "registry.terraform.io/foreign/google"}),
+    ("missing provider constraint", {"version_constraint": None}),
+    ("unrecognized provider constraint", {"version_constraint": "not-a-version"}),
+    ("literal personal name", {"full_name": "Literal Person"}),
+    ("unknown provider metadata", {"owner": "example-org"}),
+]:
+    changed = {**provider, **change}
+    changed = {key: value for key, value in changed.items() if value is not None}
+    cases.append((label, "fixture.json", json.dumps(changed), 1))
+cases.extend([
+    ("duplicate literal key", "fixture.ts", "const p = { name: 'google', name: 'aws', full_name: 'registry.terraform.io/hashicorp/google', version_constraint: '8.12.0' };", 1),
+    ("unresolved literal name", "fixture.ts", "const p = { name: selected, full_name: 'registry.terraform.io/hashicorp/google', version_constraint: '8.12.0' };", 1),
+    ("unclosed provider object", "fixture.ts", "const p = { name: 'google', full_name: 'registry.terraform.io/hashicorp/google', version_constraint: '8.12.0';", 1),
+    ("metadata in a sibling object", "fixture.json", json.dumps({"name": "google", "version_constraint": "8.12.0", "owner": {"full_name": provider["full_name"]}}), 1),
+    ("nested personal field", "fixture.json", json.dumps({"provider": provider, "owner": {"full_name": "Literal Person"}}), 1),
+    ("escaped unresolved literal", "fixture.ts", "const p = { name: 'google', full_name: 'registry.terraform.io/hashicorp/google', version_constraint: selected.version };", 1),
+])
+failures = []
+for label, path, text, expected in cases:
+    findings = set()
+    module.scan_text(path, text, findings)
+    names = [finding for finding in findings if finding.category == "person-name"]
+    passed = len(names) == expected
+    print(f"[{'OK' if passed else 'FAIL'}] provider identity: {label}")
+    if not passed:
+        failures.append(label)
+assert not failures, failures
+print(f"[OK] {len(cases)} provider identity and personal-name cases")
+PROVIDERTEST
+
 FAIL=0
 WORK=$(mktemp -d)
 cleanup() { rm -rf "$WORK"; }
