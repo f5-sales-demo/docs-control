@@ -25,6 +25,8 @@ from pathlib import Path
 from typing import Any, cast
 
 DEFAULT_ORG = "f5-sales-demo"
+HOST_MACHINE_ID = Path("/etc/machine-id")
+RUNNER_MACHINE_ID = "/etc/machine-id"
 HOST_ENTRYPOINT = Path("/opt/f5-actions-runner/runner-entrypoint.sh")
 HOST_TOOL_CACHE_INITIALIZER = Path(
     "/opt/f5-actions-runner/prepare-runner-tool-cache.sh"
@@ -987,6 +989,102 @@ class GitHubClient:
         self.request("DELETE", f"/repos/{full_name}/actions/runners/{runner_id}")
 
 
+def machine_id_metadata(descriptor=None):
+    """Read the fixed path without following links, or its already-open inode."""
+    if descriptor is None:
+        return HOST_MACHINE_ID.lstat()
+    return os.fstat(descriptor)
+
+
+def machine_id_fingerprint(metadata):
+    return tuple(
+        getattr(metadata, field)
+        for field in (
+            "st_dev",
+            "st_ino",
+            "st_mode",
+            "st_uid",
+            "st_gid",
+            "st_size",
+            "st_mtime_ns",
+            "st_ctime_ns",
+        )
+    )
+
+
+def verify_host_machine_identity(expected=None):
+    """Bind root-owned machine identity to stable file metadata and exact bytes.
+
+    Root's normal owner-write bit is allowed; group/other writes are forbidden.
+    The non-root runner must be able to read the identity. No identity value or
+    underlying operating-system diagnostic escapes this verification boundary.
+    """
+    try:
+        before = machine_id_metadata()
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_uid != 0
+            or before.st_gid != 0
+            or before.st_mode & (stat.S_IWGRP | stat.S_IWOTH)
+            or not before.st_mode & stat.S_IROTH
+        ):
+            raise FleetError("host machine identity file is untrusted")
+        descriptor = os.open(
+            HOST_MACHINE_ID,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK,
+        )
+        try:
+            fingerprint = machine_id_fingerprint(before)
+            if machine_id_fingerprint(machine_id_metadata(descriptor)) != fingerprint:
+                raise FleetError("host machine identity changed during verification")
+            raw = os.read(descriptor, 34)
+            # Same-length rewrites can share one filesystem timestamp tick.
+            # Compare the open inode's bytes again as well as its metadata.
+            if os.pread(descriptor, 34, 0) != raw:
+                raise FleetError("host machine identity changed during verification")
+            if (
+                machine_id_fingerprint(machine_id_metadata(descriptor)) != fingerprint
+                or machine_id_fingerprint(machine_id_metadata()) != fingerprint
+            ):
+                raise FleetError("host machine identity changed during verification")
+        finally:
+            os.close(descriptor)
+    except OSError:
+        raise FleetError("host machine identity is unavailable") from None
+    if not re.fullmatch(rb"[0-9a-f]{32}\n?", raw) or raw.rstrip(b"\n") == b"0" * 32:
+        raise FleetError("host machine identity is malformed")
+    identity = (*fingerprint, hashlib.sha256(raw).digest())
+    if expected is not None and identity != expected:
+        raise FleetError("host machine identity changed before submission")
+    return identity
+
+
+def valid_machine_identity_mount(mounts):
+    """Reject missing, writable, alternate and shadowing identity mappings."""
+    identity_mounts = [
+        mount
+        for mount in mounts
+        if isinstance(mount, dict)
+        and (
+            mount.get("Source") == str(HOST_MACHINE_ID)
+            or mount.get("Destination") in {RUNNER_MACHINE_ID, "/etc", "/"}
+        )
+    ]
+    return (
+        len(identity_mounts) == 1
+        and all(
+            identity_mounts[0].get(field) == value
+            for field, value in {
+                "Type": "bind",
+                "Source": str(HOST_MACHINE_ID),
+                "Destination": RUNNER_MACHINE_ID,
+                "RW": False,
+            }.items()
+        )
+        and identity_mounts[0].get("RW") is False
+    )
+
+
 class EphemeralController:  # pylint: disable=too-many-public-methods
     def __init__(
         self,
@@ -1558,7 +1656,8 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
                     raise FleetError(f"managed runner has an invalid id: {name}")
                 self.github.delete_runner(spec.full_name, runner_id)
 
-    def docker_command(self, spec, profile, slot):
+    def docker_command(self, spec, profile, slot, machine_identity=None):
+        verify_host_machine_identity(machine_identity)
         state = self.state_dir(spec, profile, slot)
         workspace = self.runtime_workspace(spec, profile, slot)
         self.command(
@@ -1606,6 +1705,8 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
             "--name",
             name,
             "--read-only",
+            "--mount",
+            f"type=bind,src={HOST_MACHINE_ID},dst={RUNNER_MACHINE_ID},readonly",
             "--cap-drop=all",
             "--security-opt=no-new-privileges=true",
             "--network",
@@ -1671,7 +1772,8 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
         command.append(profile.image)
         return command
 
-    def _run_outer(self, spec, profile, slot, command, token):
+    def _run_outer(self, spec, profile, slot, command, token, machine_identity=None):
+        verify_host_machine_identity(machine_identity)
         if self.popen is None:
             return self.command(
                 command,
@@ -1708,6 +1810,7 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
         maximum_slots = spec.replicas + int(profile in spec.standby_profiles)
         if not 0 <= slot < maximum_slots:
             raise FleetError(f"slot is invalid for profile {profile_name!r}")
+        machine_identity = verify_host_machine_identity()
         self.verify_engine()
         if profile.docker_socket:
             self.verify_engine(dedicated=True)
@@ -1716,13 +1819,15 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
             self.cleanup(spec, profile, slot)
             self.prepare_workspace(spec, profile, slot)
             self.reset_workspace(spec, profile, slot)
+            verify_host_machine_identity(machine_identity)
             token = self.github.registration_token(full_name)
             result = self._run_outer(
                 spec,
                 profile,
                 slot,
-                self.docker_command(spec, profile, slot),
+                self.docker_command(spec, profile, slot, machine_identity),
                 token,
+                machine_identity,
             )
             return result.returncode
         finally:
@@ -1810,6 +1915,8 @@ class EphemeralController:  # pylint: disable=too-many-public-methods
                 errors.append(f"managed Docker security options mismatch: {name}")
             if config.get("StopTimeout") != profile.stop_timeout:
                 errors.append(f"managed Docker stop timeout mismatch: {name}")
+            if not valid_machine_identity_mount(inspected["Mounts"]):
+                errors.append(f"managed Docker machine identity mount mismatch: {name}")
             socket_mounts = [
                 mount
                 for mount in inspected["Mounts"]
