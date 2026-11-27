@@ -468,11 +468,11 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
         )
         standard = (
             "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
-            "6b0b70dcb48235aea026041b73b031477eddee9bc3ffe1ddd511a34078fd6100"
+            "5bf2f1ca7ae7cb9c7cc0d29515988aef945ab675edb274bd8591c5d81d7adee5"
         )
         container_build = (
             "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
-            "ca013c3324f0ac3c6aa6973bfe8314c44b2a6ff47b28ebfae3b162b802bed7dc"
+            "a4ac6f1262ed035d7f3c73c7550ef2541081027da1366c8daeb598cb322da8d6"
         )
         for profile in ("ubuntu-24.04", "ubuntu-24.04-secondary", "automation"):
             self.assertEqual(standard, raw["profiles"][profile]["image"])
@@ -498,7 +498,7 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
             encoding="utf-8"
         )
         self.assertIn("verify-runner-tools standard", pilot)
-        self.assertEqual(1, pilot.count('test "$(zig version)" = "0.15.2"'))
+        self.assertEqual(1, pilot.count("verify-runner-tools container-build"))
 
     def test_production_inventory_is_fully_arc_managed(self):
         policy = MODULE.active_policy()

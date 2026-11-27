@@ -1,0 +1,29 @@
+{
+  "issue": 2727,
+  "builderRepository": "f5-sales-demo/self-hosted-runner",
+  "builderRevision": "38e5ae69c2c1d55a5fdb1d3bf2d7ad4dc3688f46",
+  "images": {
+    "standard": {
+      "reference": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:5bf2f1ca7ae7cb9c7cc0d29515988aef945ab675edb274bd8591c5d81d7adee5",
+      "provenanceVerified": true,
+      "sbomVerified": true,
+      "supportedPreloadSmokePassed": true
+    },
+    "container-build": {
+      "reference": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:a4ac6f1262ed035d7f3c73c7550ef2541081027da1366c8daeb598cb322da8d6",
+      "provenanceVerified": true,
+      "sbomVerified": true,
+      "supportedPreloadSmokePassed": true
+    }
+  },
+  "selectedTools": {
+    "bun": "1.4.5",
+    "biome": "2.6.9",
+    "terraform": "1.17.2",
+    "zig": "0.16.0"
+  },
+  "pilotBehavior": "Both profiles use the image-resident catalog verifier; the builder retains its owned socket requirement and Docker checks",
+  "livePilotAccepted": false,
+  "fleetConvergenceAccepted": false,
+  "marketplace1559Complete": false
+}
