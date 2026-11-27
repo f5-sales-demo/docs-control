@@ -993,6 +993,69 @@ def terraform_provider_full_name_columns(
     return {line: frozenset(values) for line, values in columns.items()}
 
 
+def arc_controller_namespace_columns(
+    path: str,
+    text: str,
+) -> dict[int, frozenset[int]]:
+    """Join ARC's namespace to its direct, literal controller account mapping.
+
+    This recognizes the documented Helm values mapping, rather than treating
+    its namespace as a safe customer identifier in unrelated fields or paths.
+    Ambiguous, nested, aliased and extended mappings remain review findings.
+    """
+    if PurePosixPath(path).suffix.lower() not in {".yaml", ".yml"}:
+        return {}
+    lines = text.splitlines()
+    headers = [
+        index
+        for index, line in enumerate(lines)
+        if re.match(
+            r"^(?:controllerServiceAccount|'controllerServiceAccount'|"
+            r'"controllerServiceAccount")\s*:',
+            line,
+        )
+    ]
+    header_pattern = r"controllerServiceAccount:[ \t]*(?:#.*)?"
+    if len(headers) != 1 or not re.fullmatch(header_pattern, lines[headers[0]]):
+        return {}
+    header = headers[0]
+    fields: dict[str, str] = {}
+    indentation = None
+    namespace_line = None
+    namespace_column = None
+    for index in range(header + 1, len(lines)):
+        line = lines[index]
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        if not line.startswith(" "):
+            break
+        pair = re.fullmatch(
+            r"(?P<indent> +)(?P<key>name|namespace):[ \t]*"
+            r"(?P<value>arc-gha-rs-controller|arc-systems|"
+            r"'arc-gha-rs-controller'|'arc-systems'|"
+            r'"arc-gha-rs-controller"|"arc-systems")'
+            r"[ \t]*(?:#.*)?",
+            line,
+        )
+        if pair is None or pair.group("key") in fields:
+            return {}
+        width = len(pair.group("indent"))
+        if indentation is not None and indentation != width:
+            return {}
+        indentation = width
+        fields[pair.group("key")] = pair.group("value").strip("'\"")
+        if pair.group("key") == "namespace":
+            namespace_line = index + 1
+            namespace_column = pair.start("key")
+    if (
+        fields != {"name": "arc-gha-rs-controller", "namespace": "arc-systems"}
+        or namespace_line is None
+        or namespace_column is None
+    ):
+        return {}
+    return {namespace_line: frozenset({namespace_column})}
+
+
 def localization_top_level_string_spans(
     path: str,
     text: str,
@@ -2332,12 +2395,35 @@ def is_documented_identity_expression(
     return bool(positional or lookup or fixed_query or supported_namespace)
 
 
+def is_dynamic_shell_identity_read(
+    path: str,
+    line: str,
+    match: re.Match[str],
+) -> bool:
+    """Recognize a matched jq field read from a runtime shell variable only."""
+    if PurePosixPath(path).suffix.lower() != ".sh" or match.group("separator") != "=":
+        return False
+    prefix = line[: match.start("key")].strip()
+    if prefix not in {"", "export"}:
+        return False
+    key = re.escape(match.group("key"))
+    filter_pattern = rf"(?:\.{key}|'[ \t]*\.{key}[ \t]*'|\"[ \t]*\.{key}[ \t]*\")"
+    variable = r"\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})"
+    pattern = (
+        rf"{key}=\$\(jq[ \t]+(?:-(?:er|re|r|e)[ \t]+)+{filter_pattern}"
+        rf"[ \t]+<<<[ \t]*\"{variable}\"[ \t]*\)"
+        r"(?:[ \t]*;.*|[ \t]+#.*|[ \t]*)"
+    )
+    return re.fullmatch(pattern, line[match.start("key") :]) is not None
+
+
 def scan_structured_identity(
     path: str,
     line_number: int,
     line: str,
     findings: set[Finding],
     context: LineScanContext,
+    controller_namespace_columns: frozenset[int],
 ) -> None:
     """Scan structured fields for customer identifiers and personal records."""
     for match in IDENTITY_FIELD_RE.finditer(line):
@@ -2346,6 +2432,10 @@ def scan_structured_identity(
         if not is_literal_structured_identity_field(path, line, match):
             continue
         value = structured_field_value(path, line, match)
+        controller_namespace = match.start("key") in controller_namespace_columns
+        dynamic_shell_read = is_dynamic_shell_identity_read(path, line, match)
+        if controller_namespace or dynamic_shell_read:
+            continue
         if (
             is_documented_identity_expression(line, match, value, context)
             or numeric_enum_member(match, value, context)
@@ -2686,6 +2776,7 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
     localization_strings = localization_top_level_string_spans(path, text)
     repository_names = repository_full_name_columns(path, text)
     provider_names = terraform_provider_full_name_columns(path, text)
+    controller_namespaces = arc_controller_namespace_columns(path, text)
     if yaml or suffix in PROSE_DOCUMENT_SUFFIXES:
         scan_yaml_identity_blocks(path, text, findings)
     scan_multiline_identity_fields(path, text, findings)
@@ -2888,6 +2979,7 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
             line,
             findings,
             context,
+            controller_namespaces.get(line_number, frozenset()),
         )
         scan_jq_identity_writes(path, line_number, line, findings, context)
         scan_query_parameters(path, line_number, line, findings)
