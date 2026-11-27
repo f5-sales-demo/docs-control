@@ -294,7 +294,6 @@ class ApiQueue {
     this.sleep = sleep;
     this.now = now;
     this.lastWrite = -Infinity;
-    this.etags = new Map();
   }
   async request(endpoint, options = {}) {
     const method = options.method || 'GET';
@@ -304,7 +303,6 @@ class ApiQueue {
       if (wait) await this.sleep(wait);
     }
     const headers = { ...(options.headers || {}) };
-    if (!isWrite && this.etags.has(endpoint)) headers['if-none-match'] = this.etags.get(endpoint);
     const data = await requestGitHubApi(endpoint, {
       token: this.token,
       fetch: this.fetch,
@@ -313,10 +311,6 @@ class ApiQueue {
       headers,
       operationName: options.operationName || `${method} ${endpoint}`,
       totalWaitBudgetSeconds: 900,
-      onResponse: ({ status, headers: responseHeaders }) => {
-        const etag = responseHeaders?.get?.('etag');
-        if (!isWrite && status === 200 && etag) this.etags.set(endpoint, etag);
-      },
     });
     if (isWrite) this.lastWrite = this.now();
     return data;
