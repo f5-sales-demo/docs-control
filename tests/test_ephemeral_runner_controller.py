@@ -65,6 +65,23 @@ class EphemeralRunnerTests(unittest.TestCase):
         (self.root / "state").mkdir()
         self.owner_change = mock.patch.object(MODULE.os, "fchown")
         self.owner_change.start()
+        # Fixtures model root metadata without changing ownership or reading
+        # the executing host's identity. Commands remain hermetic recorders.
+        self.machine_id = self.root / "machine-id"
+        self.machine_id.write_bytes(b"123456789abcdef0123456789abcdef0\n")
+        self.machine_id.chmod(0o644)
+        self.machine_id_uid = 0
+        self.machine_id_gid = 0
+        identity_path = mock.patch.object(
+            MODULE, "HOST_MACHINE_ID", self.machine_id, create=True
+        )
+        identity_path.start()
+        self.addCleanup(identity_path.stop)
+        metadata = mock.patch.object(
+            MODULE, "machine_id_metadata", self.fixture_machine_id_metadata, create=True
+        )
+        metadata.start()
+        self.addCleanup(metadata.stop)
         self.policy_path = self.root / "policy.json"
         self.policy_data: dict = {
             "schema_version": 5,
@@ -141,6 +158,253 @@ class EphemeralRunnerTests(unittest.TestCase):
 
     def policy(self):
         return MODULE.FleetPolicy(self.policy_path)
+
+    def fixture_machine_id_metadata(self, descriptor=None):
+        metadata = (
+            self.machine_id.lstat() if descriptor is None else os.fstat(descriptor)
+        )
+        fields = (
+            "st_dev",
+            "st_ino",
+            "st_mode",
+            "st_size",
+            "st_mtime_ns",
+            "st_ctime_ns",
+        )
+        return SimpleNamespace(
+            **{field: getattr(metadata, field) for field in fields},
+            st_uid=self.machine_id_uid,
+            st_gid=self.machine_id_gid,
+        )
+
+    def test_every_outer_runner_binds_verified_machine_identity_read_only(self):
+        for profile_name in ("ubuntu-24.04", "container-build"):
+            with self.subTest(profile=profile_name):
+                recorder = CommandRecorder()
+                controller = MODULE.EphemeralController(
+                    self.policy(), FakeGitHub(), self.root / "state", recorder
+                )
+                with mock.patch.object(
+                    controller, "docker_socket_group", return_value=997
+                ):
+                    controller.run_once("f5-sales-demo/fixture", profile_name)
+                command = next(
+                    call[0]
+                    for call in recorder.calls
+                    if call[0][:2] == ["docker", "run"]
+                )
+                mapping = (
+                    f"type=bind,src={self.machine_id},dst=/etc/machine-id,readonly"
+                )
+                self.assertEqual(command.count(mapping), 1)
+                self.assertEqual(command[command.index(mapping) - 1], "--mount")
+
+    def test_unsafe_host_identity_refuses_before_registration_or_any_command(self):
+        cases = (
+            "missing",
+            "empty",
+            "malformed",
+            "zero",
+            "uppercase",
+            "extra",
+            "symlink",
+            "directory",
+            "fifo",
+            "foreign-owner",
+            "foreign-group",
+            "group-writable",
+            "other-writable",
+            "unreadable",
+        )
+        for case in cases:
+            for profile_name in ("ubuntu-24.04", "container-build"):
+                with self.subTest(case=case, profile=profile_name):
+                    if self.machine_id.is_dir():
+                        self.machine_id.rmdir()
+                    else:
+                        self.machine_id.unlink(missing_ok=True)
+                    self.machine_id_uid = self.machine_id_gid = 0
+                    self.machine_id.write_bytes(b"123456789abcdef0123456789abcdef0\n")
+                    self.machine_id.chmod(0o644)
+                    if case == "missing":
+                        self.machine_id.unlink()
+                    elif case in {"empty", "malformed", "zero", "uppercase", "extra"}:
+                        self.machine_id.write_bytes(
+                            {
+                                "empty": b"",
+                                "malformed": b"private-invalid-identity",
+                                "zero": b"0" * 32 + b"\n",
+                                "uppercase": b"A" * 32 + b"\n",
+                                "extra": b"1" * 32 + b"\nextra",
+                            }[case]
+                        )
+                    elif case == "symlink":
+                        target = self.root / "identity-target"
+                        target.write_bytes(self.machine_id.read_bytes())
+                        self.machine_id.unlink()
+                        self.machine_id.symlink_to(target)
+                    elif case == "directory":
+                        self.machine_id.unlink()
+                        self.machine_id.mkdir()
+                    elif case == "fifo":
+                        self.machine_id.unlink()
+                        os.mkfifo(self.machine_id)
+                    elif case == "foreign-owner":
+                        self.machine_id_uid = 1000
+                    elif case == "foreign-group":
+                        self.machine_id_gid = 1000
+                    else:
+                        self.machine_id.chmod(
+                            {
+                                "group-writable": 0o664,
+                                "other-writable": 0o646,
+                                "unreadable": 0o600,
+                            }[case]
+                        )
+                    github = FakeGitHub()
+                    recorder = CommandRecorder()
+                    controller = MODULE.EphemeralController(
+                        self.policy(), github, self.root / "state", recorder
+                    )
+                    with self.assertRaises(MODULE.FleetError) as raised:
+                        controller.run_once("f5-sales-demo/fixture", profile_name)
+                    self.assertIn("host machine identity", str(raised.exception))
+                    self.assertNotIn("private-invalid", str(raised.exception))
+                    self.assertNotIn("123456789abcdef", str(raised.exception))
+                    self.assertEqual(github.requested, [])
+                    self.assertEqual(recorder.calls, [])
+
+    def test_identity_change_during_preparation_blocks_registration(self):
+        github = FakeGitHub()
+        recorder = CommandRecorder()
+        controller = MODULE.EphemeralController(
+            self.policy(), github, self.root / "state", recorder
+        )
+
+        def replace_identity(*_args):
+            # Retain the old inode so immediate allocator reuse cannot make
+            # this fixture accidentally identical at the filesystem boundary.
+            self.machine_id.rename(self.root / "original-machine-id")
+            self.machine_id.write_bytes(b"123456789abcdef0123456789abcdef0\n")
+            self.machine_id.chmod(0o644)
+
+        with (
+            mock.patch.object(
+                controller, "prepare_workspace", side_effect=replace_identity
+            ),
+            self.assertRaisesRegex(MODULE.FleetError, "host machine identity"),
+        ):
+            controller.run_once("f5-sales-demo/fixture", "ubuntu-24.04")
+        self.assertEqual(github.requested, [])
+        self.assertFalse(
+            any(call[0][:2] == ["docker", "run"] for call in recorder.calls)
+        )
+
+    def test_identity_change_during_registration_blocks_submission(self):
+        github = FakeGitHub()
+        recorder = CommandRecorder()
+        controller = MODULE.EphemeralController(
+            self.policy(), github, self.root / "state", recorder
+        )
+
+        def token_with_changed_identity(_repository):
+            self.machine_id.write_bytes(b"a" * 32 + b"\n")
+            return "registration-secret"
+
+        with (
+            mock.patch.object(
+                github, "registration_token", side_effect=token_with_changed_identity
+            ),
+            self.assertRaisesRegex(MODULE.FleetError, "host machine identity"),
+        ):
+            controller.run_once("f5-sales-demo/fixture", "ubuntu-24.04")
+        self.assertFalse(
+            any(call[0][:2] == ["docker", "run"] for call in recorder.calls)
+        )
+
+    def test_identity_change_during_command_preparation_blocks_submission(self):
+        recorder = CommandRecorder()
+
+        def recording_command(command, **kwargs):
+            if command[:1] == ["install"] and "0700" in command:
+                self.machine_id.write_bytes(b"b" * 32 + b"\n")
+            return recorder(command, **kwargs)
+
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", recording_command
+        )
+        with self.assertRaisesRegex(MODULE.FleetError, "host machine identity"):
+            controller.run_once("f5-sales-demo/fixture", "ubuntu-24.04")
+        self.assertFalse(
+            any(call[0][:2] == ["docker", "run"] for call in recorder.calls)
+        )
+
+    def test_identity_change_during_read_is_rejected_without_value_disclosure(self):
+        original_read = os.read
+
+        def read_then_change(descriptor, size):
+            result = original_read(descriptor, size)
+            self.machine_id.write_bytes(b"c" * 32 + b"\n")
+            return result
+
+        with (
+            mock.patch.object(MODULE.os, "read", side_effect=read_then_change),
+            self.assertRaisesRegex(
+                MODULE.FleetError, "host machine identity"
+            ) as raised,
+        ):
+            MODULE.verify_host_machine_identity()
+        self.assertNotIn("123456789abcdef", str(raised.exception))
+
+    def test_identity_path_replacement_during_read_is_rejected(self):
+        original_read = os.read
+
+        def read_then_replace(descriptor, size):
+            result = original_read(descriptor, size)
+            self.machine_id.rename(self.root / "original-machine-id")
+            self.machine_id.write_bytes(result)
+            self.machine_id.chmod(0o644)
+            return result
+
+        with (
+            mock.patch.object(MODULE.os, "read", side_effect=read_then_replace),
+            self.assertRaisesRegex(MODULE.FleetError, "host machine identity"),
+        ):
+            MODULE.verify_host_machine_identity()
+
+    def test_identity_io_denial_is_sanitized(self):
+        with (
+            mock.patch.object(
+                MODULE.os, "open", side_effect=PermissionError("private-os-detail")
+            ),
+            self.assertRaisesRegex(
+                MODULE.FleetError, "host machine identity"
+            ) as raised,
+        ):
+            MODULE.verify_host_machine_identity()
+        self.assertNotIn("private-os-detail", str(raised.exception))
+
+    def test_machine_identity_accepts_read_only_and_normal_root_owned_files(self):
+        for mode in (0o444, 0o644):
+            for newline in (b"", b"\n"):
+                with self.subTest(mode=mode, newline=newline):
+                    self.machine_id.chmod(0o644)
+                    self.machine_id.write_bytes(
+                        b"123456789abcdef0123456789abcdef0" + newline
+                    )
+                    self.machine_id.chmod(mode)
+                    MODULE.verify_host_machine_identity()
+
+    def test_direct_command_builder_refuses_untrusted_identity_before_changes(self):
+        self.machine_id_uid = 1000
+        recorder = CommandRecorder()
+        controller = MODULE.EphemeralController(
+            self.policy(), FakeGitHub(), self.root / "state", recorder
+        )
+        spec = self.policy().repository("f5-sales-demo/fixture")
+        with self.assertRaisesRegex(MODULE.FleetError, "host machine identity"):
+            controller.docker_command(spec, spec.profiles[0], 0)
+        self.assertEqual(recorder.calls, [])
 
     def test_run_command_bounds_docker_invocations(self):
         with mock.patch.object(MODULE.subprocess, "run") as run:
@@ -1599,9 +1863,15 @@ class EphemeralRunnerTests(unittest.TestCase):
             "Mounts": [
                 {
                     "Type": "bind",
+                    "Source": str(self.machine_id),
+                    "Destination": "/etc/machine-id",
+                    "RW": False,
+                },
+                {
+                    "Type": "bind",
                     "Source": "/run/f5-actions-runner/container-build/docker.sock",
                     "Destination": "/run/docker.sock",
-                }
+                },
             ],
         }
 
@@ -1620,6 +1890,29 @@ class EphemeralRunnerTests(unittest.TestCase):
             self.policy(), FakeGitHub(), self.root / "state", docker_fixture
         )
         self.assertEqual(controller.audit_containers("f5-sales-demo/fixture"), [])
+        identity = dict(payload["Mounts"][0])
+        socket = payload["Mounts"][1]
+        for mounts in (
+            [socket],
+            [dict(identity, RW=True), socket],
+            [dict(identity, Source="/foreign/machine-id"), socket],
+            [dict(identity, Type="volume"), socket],
+            [{key: value for key, value in identity.items() if key != "RW"}, socket],
+            [identity, dict(identity), socket],
+            [identity, dict(identity, Destination="/extra-identity"), socket],
+            [
+                identity,
+                {"Type": "bind", "Source": "/foreign", "Destination": "/etc"},
+                socket,
+            ],
+        ):
+            with self.subTest(mounts=mounts):
+                payload["Mounts"] = mounts
+                errors = controller.audit_containers("f5-sales-demo/fixture")
+                self.assertTrue(
+                    any("machine identity mount" in item for item in errors)
+                )
+        payload["Mounts"] = [identity, socket]
         payload["HostConfig"]["Memory"] = 1
         errors = controller.audit_containers("f5-sales-demo/fixture")
         self.assertTrue(any("resource mismatch" in item for item in errors))

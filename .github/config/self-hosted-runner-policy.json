@@ -502,11 +502,11 @@
           "reason": "Homebrew cask release verification requires Apple silicon and Intel macOS"
         },
         "create-release": {
-          "runs_on": "macos-26",
+          "runs_on": "macos-15",
           "reason": "immutable release assembly verifies signed Apple assets on native macOS"
         },
         "update-homebrew": {
-          "runs_on": "macos-26",
+          "runs_on": "macos-15",
           "reason": "Homebrew cask publication verifies signed Apple release assets on macOS"
         },
         "verify-macos-pkg": {
