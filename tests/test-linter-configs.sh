@@ -171,6 +171,7 @@ provider = "f5-sales-demo/terraform-provider-xcsh"
 xcsh = "f5-sales-demo/xcsh"
 digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:6b0b70dcb48235aea026041b73b031477eddee9bc3ffe1ddd511a34078fd6100"
 candidate_digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:37844f6be57177fa574ce96e9241499663c5194453e2477f0ce0ea8225094e7c"
+xcsh_digest = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:26b5415d6d62ce46d7f22c146954f3eabe0fcf228bc78791ce51fd77dc6a1bc3"
 assert policy["arc_attestations"] == {
     "gitops-terraform": {
         "label": "gitops-terraform", "runner_profile": "terraform", "image": digest,
@@ -220,7 +221,7 @@ assert policy["arc_attestations"] == {
     "xcsh-compute-16-vcpu-candidate": {
         "label": "xcsh-compute-16-vcpu-candidate",
         "runner_profile": "compute-16-vcpu-candidate",
-        "image": digest,
+        "image": xcsh_digest,
         "vm_size": "Standard_D16ads_v5",
         "cpu_limit": 15,
         "memory_limit_bytes": 56 * 1024**3,
@@ -230,7 +231,7 @@ assert policy["arc_attestations"] == {
     "xcsh-compute-f32-candidate": {
         "label": "xcsh-compute-f32-candidate",
         "runner_profile": "compute-f32-candidate",
-        "image": digest,
+        "image": xcsh_digest,
         "vm_size": "Standard_F32s_v2",
         "cpu_limit": 15,
         "memory_limit_bytes": 30 * 1024**3,
