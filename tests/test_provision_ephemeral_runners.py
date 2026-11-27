@@ -485,6 +485,9 @@ class ProvisionRunnerTests(unittest.TestCase):  # pylint: disable=too-many-publi
                 "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
                 "fde65009b9224b7ee9bd6d38e53641c6c5ea3c75d32e094cfca7ff074c189786"
                 if name == "terraform-provider-xcsh-toolchain-canary"
+                else "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:26b5415d6d62ce46d7f22c146954f3eabe0fcf228bc78791ce51fd77dc6a1bc3"
+                if name
+                in {"xcsh-compute-16-vcpu-candidate", "xcsh-compute-f32-candidate"}
                 else standard
             )
             self.assertEqual(expected_image, attestation["image"])
