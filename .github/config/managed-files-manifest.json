@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "source_commit": "1d65e3092aaff038334a9699f9a1ede9ccaf07e7",
+  "source_commit": "ce91a0d658352a3387f739ea1478c7bca947e405",
   "files": [
     {
       "path": ".agents/skills/demo-components/SKILL.md",
@@ -110,8 +110,8 @@
     {
       "path": ".github/config/self-hosted-runner-policy.json",
       "src": ".github/config/self-hosted-runner-policy.json",
-      "sha": "8c19777ff42d52efc6f9c24b8f3adc562dc9cfac",
-      "size": 56361,
+      "sha": "4cb31bcf990ee83d1a9813a0f7494627351b6e44",
+      "size": 56772,
       "mode": "100644"
     },
     {
@@ -348,8 +348,8 @@
     {
       "path": "scripts/audit-runner-workflows.py",
       "src": "scripts/audit-runner-workflows.py",
-      "sha": "8b955e6a16c5860f55668194bd3a152f3e4f92c0",
-      "size": 51603,
+      "sha": "8d71b547ae5b6eab75799ab018a4933777d95b5a",
+      "size": 52417,
       "mode": "100755"
     },
     {
@@ -425,8 +425,8 @@
     {
       "path": "scripts/workflow_security_validator.py",
       "src": "scripts/workflow_security_validator.py",
-      "sha": "9227fa568bff88a6afce7638f9aebc213f495c02",
-      "size": 68704,
+      "sha": "1210409576e8aa139fbba1ef270ad803ea320dfd",
+      "size": 69519,
       "mode": "100755"
     },
     {
@@ -509,5 +509,5 @@
     "tests/test-agy-pre-push-review.sh",
     "tests/test-antigravity-translate-staged.sh"
   ],
-  "state_digest": "sha256:c858bc8b62df9d4789e84aac48adc991022c930d81ec9934393b31f958643049"
+  "state_digest": "sha256:9f9802434c7c850e159f010b1f6de8f3a64641257b708ab763e11f0bbb70c5d1"
 }
