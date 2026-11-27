@@ -325,6 +325,9 @@ await assert.rejects(
   /source must match the managed manifest source/,
 );
 const writes=[];
+let issueSearchRows=[];
+const createdIssueBodies=[];
+const createdPullBodies=[];
 const fleetApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.MAX_SAFE_INTEGER, fetch:async(url, request) => {
   const route = String(url); const method = request.method; if (method !== 'GET') writes.push(route);
   let data = {};
@@ -336,9 +339,9 @@ const fleetApi = new ApiQueue({token:'x', sleep:async()=>{}, now:()=>Number.MAX_
   else if (route.includes('/git/commits/') && method === 'GET') data = {tree:{sha:'t'.repeat(40)}};
   else if (route.endsWith('/git/trees')) data = {sha:'n'.repeat(40)};
   else if (route.endsWith('/git/commits')) data = {sha:'m'.repeat(40)};
-  else if (route.includes('/issues?') && method === 'GET') data = [];
-  else if (route.endsWith('/issues')) data = {number:1};
-  else if (route.endsWith('/pulls')) data = {number:1,node_id:'P'};
+  else if (route.includes('/issues?') && method === 'GET') data = issueSearchRows;
+  else if (route.endsWith('/issues')) {createdIssueBodies.push(JSON.parse(request.body)); data = {number:1};}
+  else if (route.endsWith('/pulls')) {createdPullBodies.push(JSON.parse(request.body)); data = {number:1,node_id:'P'};}
   return new Response(JSON.stringify(data), {status:200});
 }});
 const oneFileManifest=makeManifest([{path:'README',src:'README.md',sha,size:1,mode:'100644'}]);
@@ -352,6 +355,22 @@ const writesBeforeArchived = writes.length;
 const archivedResult = await reconcileContent({api:fleetApi, owner:'f5', sourceSha:sha, mode:'full', inventory:['archived'], selection:'', sourceRoot:process.cwd(), manifest:oneFileManifest, config:{managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}}}});
 assert.deepEqual(archivedResult.repositories.map((entry) => entry.status), ['skipped-archived']);
 assert.equal(writes.length, writesBeforeArchived);
+const trackerConfig={managed_files:{files:[{src:'README.md',dest:'README'}],absent_files:[],skip_files:{}}};
+const trackerDesired=desiredEntries(trackerConfig,oneFileManifest,'one');
+const trackerTree=require('node:crypto').createHash('sha256').update(JSON.stringify(trackerDesired)).digest('hex');
+const trackerNote=`<!-- governance-reconciler source=${sha} desired-tree=${trackerTree} -->`;
+const matchingPull={number:44,title:issueTitleForTest(sha),body:trackerNote,pull_request:{url:'https://api.github.com/repos/f5/one/pulls/44'}};
+issueSearchRows=[matchingPull];
+const beforePullOnly=createdIssueBodies.length;
+await reconcileContent({api:fleetApi,owner:'f5',sourceSha:sha,mode:'full',inventory:['one'],selection:'one',sourceRoot:process.cwd(),manifest:oneFileManifest,config:trackerConfig});
+assert.equal(createdIssueBodies.length,beforePullOnly+1,'matching pull requests must not be reused as tracker issues');
+assert.match(createdPullBodies.at(-1).body,/Closes #1$/);
+issueSearchRows=[matchingPull,{number:77,title:issueTitleForTest(sha),body:trackerNote,pull_request:null}];
+const beforeRealIssue=createdIssueBodies.length;
+await reconcileContent({api:fleetApi,owner:'f5',sourceSha:sha,mode:'full',inventory:['one'],selection:'one',sourceRoot:process.cwd(),manifest:oneFileManifest,config:trackerConfig});
+assert.equal(createdIssueBodies.length,beforeRealIssue,'an existing real tracker must be reused');
+assert.match(createdPullBodies.at(-1).body,/Closes #77$/);
+issueSearchRows=[];
 const recoveryWrites=[];
 let rejectRecoveryWrites=false;
 let existingRecoveryOwners=['one','two'];
