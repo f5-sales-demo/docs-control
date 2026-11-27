@@ -3,6 +3,15 @@ name: Verify Runner Profiles
 
 on:
   workflow_dispatch:
+    inputs:
+      standard-image:
+        description: Reviewed standard runner image with an immutable manifest digest
+        required: true
+        type: string
+      container-build-image:
+        description: Reviewed container-build image with an immutable manifest digest
+        required: true
+        type: string
 
 permissions: {}
 
@@ -17,8 +26,14 @@ jobs:
     permissions: {}
     steps:
       - name: Verify socketless standard profile
+        env:
+          EXPECTED_RUNNER_IMAGE: ${{ inputs.standard-image }}
         run: |
           set -euo pipefail
+          image_pattern='^(ghcr\.io/f5-sales-demo|f5salesdemoarcca\.azurecr\.io|[0-9]{12}\.dkr\.ecr\.us-east-1\.amazonaws\.com)/self-hosted-runner@sha256:[0-9a-f]{64}$'
+          [[ "${EXPECTED_RUNNER_IMAGE:-}" =~ $image_pattern ]]
+          [[ "${RUNNER_IMAGE_DIGEST:-}" =~ $image_pattern ]]
+          [[ "${RUNNER_IMAGE_DIGEST##*@}" == "${EXPECTED_RUNNER_IMAGE##*@}" ]]
           verify-runner-tools standard
           cli=do"cker"
           if command -v "$cli" >/dev/null 2>&1; then
@@ -35,8 +50,14 @@ jobs:
     permissions: {}
     steps:
       - name: Verify Docker-enabled build profile
+        env:
+          EXPECTED_RUNNER_IMAGE: ${{ inputs.container-build-image }}
         run: |
           set -euo pipefail
+          image_pattern='^(ghcr\.io/f5-sales-demo|f5salesdemoarcca\.azurecr\.io|[0-9]{12}\.dkr\.ecr\.us-east-1\.amazonaws\.com)/self-hosted-runner@sha256:[0-9a-f]{64}$'
+          [[ "${EXPECTED_RUNNER_IMAGE:-}" =~ $image_pattern ]]
+          [[ "${RUNNER_IMAGE_DIGEST:-}" =~ $image_pattern ]]
+          [[ "${RUNNER_IMAGE_DIGEST##*@}" == "${EXPECTED_RUNNER_IMAGE##*@}" ]]
           verify-runner-tools container-build
           test -S /run/docker.sock
           docker version --format "client={{.Client.Version}} server={{.Server.Version}}"

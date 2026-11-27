@@ -34,6 +34,10 @@ class RunnerProfilePilotTests(unittest.TestCase):
             "PILOT_VERIFICATIONS": str(self.verifications),
             "PILOT_DOCKER_CALLS": str(self.docker_calls),
             "PILOT_VERIFIER_CODE": "0",
+            "EXPECTED_RUNNER_IMAGE": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
+            + "a" * 64,
+            "RUNNER_IMAGE_DIGEST": "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:"
+            + "a" * 64,
         }
         self.tool(
             "verify-runner-tools",
@@ -101,6 +105,78 @@ class RunnerProfilePilotTests(unittest.TestCase):
         result = self.run_pilot("container-build")
         assert result.returncode != 0
         assert self.docker_calls.read_text() == ""
+
+    def test_image_mismatch_prevents_catalog_and_docker_execution(self):
+        self.bind_builder()
+        self.env["RUNNER_IMAGE_DIGEST"] = (
+            "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:" + "b" * 64
+        )
+        result = self.run_pilot("container-build")
+        assert result.returncode != 0
+        assert self.verifications.read_text() == ""
+        assert self.docker_calls.read_text() == ""
+
+    def test_missing_or_invalid_image_identity_is_rejected(self):
+        for field in ("EXPECTED_RUNNER_IMAGE", "RUNNER_IMAGE_DIGEST"):
+            for value in (
+                "",
+                "latest",
+                "sha256:" + "a" * 64,
+                "foreign.example/self-hosted-runner@sha256:" + "a" * 64,
+                "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:" + "a" * 63,
+            ):
+                with self.subTest(field=field, value=value):
+                    original = self.env[field]
+                    self.env[field] = value
+                    try:
+                        result = self.run_pilot("standard")
+                        assert result.returncode != 0
+                    finally:
+                        self.env[field] = original
+        assert self.verifications.read_text() == ""
+
+    def test_reviewed_registry_mirrors_accept_identical_manifest_digest(self):
+        for registry in (
+            "280469140135.dkr.ecr.us-east-1.amazonaws.com",
+            "f5salesdemoarcca.azurecr.io",
+        ):
+            with self.subTest(registry=registry):
+                self.env["RUNNER_IMAGE_DIGEST"] = (
+                    registry + "/self-hosted-runner@sha256:" + "a" * 64
+                )
+                result = self.run_pilot("standard")
+                assert result.returncode == 0, result.stderr
+
+    def test_new_reviewed_image_has_no_version_or_age_hold(self):
+        image = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:" + "c" * 64
+        self.env["EXPECTED_RUNNER_IMAGE"] = image
+        self.env["RUNNER_IMAGE_DIGEST"] = image
+        result = self.run_pilot("standard")
+        assert result.returncode == 0, result.stderr
+
+    def test_image_input_is_never_evaluated_as_shell_source(self):
+        marker = self.folder / "injection-marker"
+        self.env["EXPECTED_RUNNER_IMAGE"] = "$(/usr/bin/touch " + str(marker) + ")"
+        result = self.run_pilot("standard")
+        assert result.returncode != 0
+        assert not marker.exists()
+        assert self.verifications.read_text() == ""
+
+    def test_workflow_requires_reviewed_images_without_defaults(self):
+        workflow = yaml.safe_load(
+            (ROOT / ".github/workflows/runner-profile-pilot.yml").read_text()
+        )
+        trigger = workflow.get("on", workflow.get(True))
+        inputs = trigger["workflow_dispatch"]["inputs"]
+        for profile in ("standard", "container-build"):
+            image_input = inputs[profile + "-image"]
+            assert image_input["required"] is True
+            assert "default" not in image_input
+            step = workflow["jobs"][profile]["steps"][0]
+            assert (
+                step["env"]["EXPECTED_RUNNER_IMAGE"]
+                == "${{ inputs." + profile + "-image }}"
+            )
 
 
 if __name__ == "__main__":
