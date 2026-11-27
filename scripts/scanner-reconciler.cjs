@@ -30,9 +30,8 @@ const safePath = (value) =>
   value.split('/').every((p) => p && p !== '.' && p !== '..');
 class ScannerApiQueue extends ApiQueue {
   async request(endpoint, options = {}) {
-    // Identity rechecks need a complete fresh body, not an ETag-only 304.
-    // Keep the shared retry and write-pacing contracts without changing full reconciliation.
-    this.etags.delete(endpoint);
+    // Scanner identity rechecks share the base queue fresh-body contract.
+    // Reuse its retry and write pacing without separate cache state.
     return super.request(endpoint, options);
   }
 }
