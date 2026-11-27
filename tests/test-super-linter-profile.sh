@@ -56,10 +56,10 @@ start = by_name["Start Super-Linter profiler"]
 assert start["if"] == "runner.environment == 'self-hosted'"
 assert start.get("continue-on-error") is True
 assert start["env"] == {
-    "SUPER_LINTER_ACTION_COMMIT": "4ce20838b8ab83717e78138c5b3a1407148e0918",
-    "SUPER_LINTER_IMAGE": "ghcr.io/super-linter/super-linter:v8.7.0",
-    "SUPER_LINTER_DIGEST": "sha256:c05768164eed53bac7c82aade7a14a76955206d4962cd41be97118db96fa5996",
-    "SUPER_LINTER_MANIFEST_DIGEST": "sha256:a38987de6efa8b7286ef98233eb8454cd1370ab58eeab8190ddd74fe0c7ca849",
+    "SUPER_LINTER_ACTION_COMMIT": "2da136927bd4a73596db63044b504547c62cb854",
+    "SUPER_LINTER_IMAGE": "ghcr.io/super-linter/super-linter:v9.0.0",
+    "SUPER_LINTER_DIGEST": "sha256:7620fb6f07a1908b0642d9ddc4f49da7d9f2b9497bcafee4d3d151d1e5567c0b",
+    "SUPER_LINTER_MANIFEST_DIGEST": "sha256:496fe2e10c487771d42eede90cacfc767324db5ac9ddc9f3b2f490afa0a1db73",
 }
 for fragment in (
     "RUNNER_TRACKING_ID=",
@@ -78,7 +78,7 @@ for fragment in (
 lint = by_name["Run Super-Linter"]
 assert lint["id"] == "super_linter"
 assert lint.get("continue-on-error") is True
-assert lint["uses"] == "super-linter/super-linter@4ce20838b8ab83717e78138c5b3a1407148e0918"
+assert lint["uses"] == "super-linter/super-linter@2da136927bd4a73596db63044b504547c62cb854"
 assert "IGNORE_GITIGNORED_FILES" not in lint.get("env", {})
 
 finalize = by_name["Finalize Super-Linter profile"]

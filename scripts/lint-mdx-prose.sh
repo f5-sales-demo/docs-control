@@ -5,7 +5,7 @@
 # Neither linter can see .mdx on its own:
 #   * pre-commit's markdownlint hook selects `types: [markdown]`, and `identify`
 #     tags .mdx as `mdx`, not `markdown`.
-#   * Super-Linter v8.7.0 routes only the `md` extension into its MARKDOWN and
+#   * Super-Linter v9.0.0 routes only the `md` extension into its MARKDOWN and
 #     NATURAL_LANGUAGE file arrays (lib/functions/buildFileList.sh).
 # A repository whose documentation is .mdx therefore passes both gates without
 # either linter having opened a file. See docs-control#847.
@@ -28,14 +28,14 @@ set -euo pipefail
 
 REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 
-# Pinned to the exact versions Super-Linter v8.7.0 ships in its container
+# Pinned to the exact versions Super-Linter v9.0.0 ships in its container
 # (super-linter/super-linter dependencies/package.json), so .md judged inside the
 # container and .mdx judged here cannot disagree about what is a finding. Bump
 # these in the same commit that bumps the Super-Linter SHA.
 #
 # Note the tool family: Super-Linter runs markdownlint-cli, not markdownlint-cli2.
 MARKDOWNLINT_PKG="markdownlint-cli@0.49.1"
-TEXTLINT_PKG="textlint@15.7.0"
+TEXTLINT_PKG="textlint@15.8.0"
 TEXTLINT_PLUGIN_PKG="textlint-plugin-mdx@1.0.1"
 TEXTLINT_RULE_PKG="textlint-rule-terminology@5.2.16"
 TEXTLINT_FILTER_PKG="textlint-filter-rule-comments@1.3.0"
