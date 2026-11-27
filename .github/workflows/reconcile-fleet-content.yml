@@ -31,6 +31,15 @@ on:
         default: reconcile
         type: choice
         options: [reconcile, retire-only]
+      branch_prefix:
+        description: Approved namespace for the selected managed scope.
+        required: false
+        default: governance/sync-managed-files
+        type: choice
+        options:
+          - governance/sync-managed-files
+          - governance/reconcile
+          - governance/bootstrap
       repositories:
         description: Optional comma-separated downstream repositories; required for retire-only.
         required: false
@@ -87,6 +96,7 @@ jobs:
           MANAGED_PATHS: ${{ inputs.managed_paths }}
           RECONCILE_MODE: ${{ inputs.mode || 'full' }}
           RECONCILE_KIND: content
+          RECONCILE_BRANCH_PREFIX: ${{ inputs.branch_prefix || 'governance/sync-managed-files' }}
           RECONCILE_OPERATION: ${{ inputs.operation || 'reconcile' }}
           REPOSITORIES: ${{ inputs.repositories }}
         run: node scripts/fleet-reconciler.cjs
