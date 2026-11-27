@@ -472,8 +472,19 @@ class EphemeralRunnerTests(unittest.TestCase):
         source = ROOT / ".github/config/self-hosted-runner-policy.json"
         policy = MODULE.FleetPolicy(source)
         expected = MODULE.expected_arc_scale_sets("f5-sales-demo/xcsh")
+        qualified = {
+            name: {
+                **route,
+                "image": (
+                    "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:2ad97a7dfa9e240e81b4771af9b9a47c1c48d89f5cd3d8449cdd46fccb879cc0"
+                    if name == "container-build"
+                    else "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:26b5415d6d62ce46d7f22c146954f3eabe0fcf228bc78791ce51fd77dc6a1bc3"
+                ),
+            }
+            for name, route in expected.items()
+        }
         self.assertEqual(
-            {**expected, **MODULE.XCSH_CANDIDATE_SCALE_SETS},
+            {**qualified, **MODULE.XCSH_CANDIDATE_SCALE_SETS},
             policy.arc_scale_sets["f5-sales-demo/xcsh"],
         )
 
