@@ -22,9 +22,23 @@ const digest = (value) =>
     .update(JSON.stringify(canonical(value)))
     .digest('hex');
 const equal = (a, b) => digest(a) === digest(b);
+class ScannerRefreshContractError extends Error {}
 const fail = (message) => {
-  throw Error(message);
+  throw new ScannerRefreshContractError(message);
 };
+function refreshFailureDiagnostic(error) {
+  const status = Number.isInteger(error?.status) && error.status >= 400 && error.status <= 599 ? error.status : null;
+  return {
+    kind: 'scanner-branch-refresh-failure',
+    reason:
+      error instanceof ScannerRefreshContractError
+        ? error.message
+        : status
+          ? 'github-api-failure'
+          : 'unexpected-failure',
+    ...(status ? { status } : {}),
+  };
+}
 const name = (value) => typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(value);
 const branch = (value) =>
   typeof value === 'string' &&
@@ -198,6 +212,29 @@ async function verifyRefresh(options, row, head, wanted, message) {
     fail('Scanner refresh PR state or identity differs');
   return scoped(tree, wanted);
 }
+async function waitForPublishedHead(options, row, head) {
+  const prefix = `repos/${options.owner}/${row.repo}`;
+  const identity = (({ repo, before, desiredSha256, changes, ...value }) => value)(row);
+  const wait = options.publicationWait || ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  // Poll reads only after the single ref update. Acknowledgements cannot satisfy publication.
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const pr = await options.api.request(`${prefix}/pulls/${row.pullRequest}`);
+    const ref = await options.api.request(`${prefix}/git/ref/heads/${encodeURIComponent(row.ref)}`);
+    if (
+      pr.state !== 'open' ||
+      pr.head?.repo?.full_name !== `${options.owner}/${row.repo}` ||
+      !equal({ ...refs(pr), headSha: row.headSha }, identity)
+    )
+      fail('Scanner PR metadata changed during publication');
+    requireSha(pr.head?.sha);
+    requireSha(ref?.object?.sha);
+    if (![row.headSha, head].includes(pr.head.sha) || ![row.headSha, head].includes(ref.object.sha))
+      fail('Foreign scanner head during publication');
+    if (pr.head.sha === head && ref.object.sha === head) return;
+    if (attempt < 15) await wait(2000);
+  }
+  fail('Scanner head publication did not converge');
+}
 async function executeBranchRefresh(options, plan) {
   const buffers = await prepare(options);
   if (!['dry-run', 'pilot', 'full'].includes(options.mode)) fail('Scanner refresh execution mode differs');
@@ -295,6 +332,7 @@ async function executeBranchRefresh(options, plan) {
       method: 'PATCH',
       body: { sha: commit.sha, force: false },
     });
+    await waitForPublishedHead(options, row, commit.sha);
     const after = await verifyRefresh(options, row, commit.sha, wanted, message);
     results.push({
       repo: row.repo,
@@ -344,8 +382,9 @@ async function main() {
   else console.log(JSON.stringify(plan, null, 2));
 }
 if (require.main === module)
-  main().catch(() => {
+  main().catch((error) => {
     console.error('Scanner branch refresh failed; preserve original reviewed state');
+    console.error(JSON.stringify(refreshFailureDiagnostic(error)));
     process.exitCode = 1;
   });
-module.exports = { planBranchRefresh, executeBranchRefresh };
+module.exports = { planBranchRefresh, executeBranchRefresh, waitForPublishedHead, refreshFailureDiagnostic };

@@ -7,7 +7,12 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { manifestStateDigest } = require('../scripts/fleet-reconciler.cjs');
 const { SCANNER_PATHS } = require('../scripts/scanner-reconciler.cjs');
-const { planBranchRefresh, executeBranchRefresh } = require('../scripts/scanner-branch-refresh.cjs');
+const {
+  planBranchRefresh,
+  executeBranchRefresh,
+  waitForPublishedHead,
+  refreshFailureDiagnostic,
+} = require('../scripts/scanner-branch-refresh.cjs');
 const sourceSha = 'a'.repeat(40),
   original = 'b'.repeat(40),
   next = 'c'.repeat(40);
@@ -122,6 +127,7 @@ function fixture() {
     inventory: ['demo'],
     targets: [{ repo: 'demo', pullRequest: 7, headSha: original }],
     mode: 'dry-run',
+    publicationWait: async () => {},
   };
   return { root, state, options, dispose: () => fs.rmSync(root, { recursive: true, force: true }) };
 }
@@ -233,7 +239,101 @@ test('successful ref acknowledgement without the expected PR head is not success
     const read = f.options.api.request.bind(f.options.api);
     f.options.api.request = async (endpoint, options) =>
       endpoint.includes('/git/refs/heads/') ? { object: { sha: next } } : read(endpoint, options);
-    await assert.rejects(executeBranchRefresh({ ...f.options, mode: 'pilot' }, plan), /identity differs/);
+    await assert.rejects(executeBranchRefresh({ ...f.options, mode: 'pilot' }, plan), /publication did not converge/);
+  }));
+
+test('delayed PR-head publication polls reads without repeating any writes', () =>
+  using(async (f) => {
+    const plan = await planBranchRefresh(f.options);
+    const read = f.options.api.request.bind(f.options.api);
+    let pending = false,
+      reads = 0,
+      waits = 0;
+    f.options.publicationWait = async () => {
+      waits++;
+    };
+    f.options.api.request = async (endpoint, options = {}) => {
+      const result = await read(endpoint, options);
+      if (options.method === 'PATCH') pending = true;
+      if (pending && endpoint.endsWith('/pulls/7') && reads++ < 2) result.head.sha = original;
+      return result;
+    };
+    const result = await executeBranchRefresh({ ...f.options, mode: 'pilot' }, plan);
+    assert.equal(result.targets[0].status, 'refreshed');
+    assert.equal(waits, 2);
+    assert.equal(f.state.writes.filter((row) => row.method === 'PATCH').length, 1);
+    assert.equal(f.state.writes.filter((row) => row.endpoint.endsWith('/git/commits')).length, 1);
+  }));
+
+test('publication timeout has a finite read budget and performs no mutation', () =>
+  using(async (f) => {
+    const plan = await planBranchRefresh(f.options);
+    let waits = 0,
+      reads = 0;
+    const read = f.options.api.request.bind(f.options.api);
+    f.options.publicationWait = async () => {
+      waits++;
+    };
+    f.options.api.request = async (...args) => {
+      reads++;
+      return read(...args);
+    };
+    await assert.rejects(waitForPublishedHead(f.options, plan.targets[0], next), /did not converge/);
+    assert.equal(waits, 15);
+    assert.equal(reads, 32);
+    assert.equal(f.state.writes.length, 0);
+  }));
+
+test('foreign publication heads and changed PR metadata fail immediately', () =>
+  using(async (f) => {
+    const plan = await planBranchRefresh(f.options);
+    for (const mutate of [
+      (pr) => {
+        pr.head.sha = 'e'.repeat(40);
+      },
+      (pr) => {
+        pr.draft = false;
+      },
+      (pr) => {
+        pr.base.sha = 'e'.repeat(40);
+      },
+      (pr) => {
+        pr.head.ref = 'feature/foreign';
+      },
+      (pr) => {
+        pr.state = 'closed';
+      },
+    ]) {
+      const before = structuredClone(f.state.pr);
+      mutate(f.state.pr);
+      await assert.rejects(waitForPublishedHead(f.options, plan.targets[0], next), /Foreign|metadata/);
+      f.state.pr = before;
+    }
+    const read = f.options.api.request.bind(f.options.api);
+    f.options.api.request = async (endpoint, options) =>
+      endpoint.includes('/git/ref/') ? { object: { sha: 'e'.repeat(40) } } : read(endpoint, options);
+    await assert.rejects(waitForPublishedHead(f.options, plan.targets[0], next), /Foreign/);
+    assert.equal(f.state.writes.length, 0);
+  }));
+
+test('publication service failures stay failures and diagnostics omit arbitrary messages', () =>
+  using(async (f) => {
+    const plan = await planBranchRefresh(f.options);
+    const error = Object.assign(Error('untrusted secret-bearing response'), { status: 403 });
+    f.options.api.request = async () => {
+      throw error;
+    };
+    await assert.rejects(waitForPublishedHead(f.options, plan.targets[0], next), (e) => e === error);
+    assert.deepEqual(refreshFailureDiagnostic(error), {
+      kind: 'scanner-branch-refresh-failure',
+      reason: 'github-api-failure',
+      status: 403,
+    });
+    assert.deepEqual(refreshFailureDiagnostic(Error('private arbitrary value')), {
+      kind: 'scanner-branch-refresh-failure',
+      reason: 'unexpected-failure',
+    });
+    assert.equal(f.state.writes.length, 0);
   }));
 test('independent full tree verification rejects an unrelated feature change', () =>
   using(async (f) => {
