@@ -4,6 +4,7 @@ import socket
 import subprocess
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 
 import yaml
@@ -11,13 +12,18 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 
 
+@contextmanager
+def pilot_directory():
+    """Keep the hermetic fixture alive until unittest runs its cleanups."""
+    with tempfile.TemporaryDirectory() as directory:
+        yield Path(directory)
+
+
 class RunnerProfilePilotTests(unittest.TestCase):
     """Verify catalog failure propagation and Docker isolation before deployment."""
 
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.folder = Path(self.temp.name)
+        self.folder = self.enterContext(pilot_directory())
         self.verifications = self.folder / "verifications"
         self.docker_calls = self.folder / "docker-calls"
         self.verifications.touch()
