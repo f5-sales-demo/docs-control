@@ -260,7 +260,8 @@ assert_customer_identifier() {
     FAIL=1
     return
   fi
-  if python3 - "${WORK}/stdout" <<'PY'
+  if {
+    python3 - "${WORK}/stdout" <<'PY'
 import json
 import sys
 
@@ -268,7 +269,7 @@ findings = json.load(open(sys.argv[1], encoding="utf-8"))["findings"]
 if len(findings) != 1 or findings[0]["category"] != "customer-identifier":
     raise SystemExit(1)
 PY
-  then
+  }; then
     echo "[OK] $label -> one customer-identifier finding"
   else
     echo "[FAIL] $label — expected exactly one customer-identifier finding"
@@ -288,7 +289,8 @@ assert_single_finding() {
     FAIL=1
     return
   fi
-  if python3 - "${WORK}/stdout" "$category" "$severity" <<'PY'
+  if {
+    python3 - "${WORK}/stdout" "$category" "$severity" <<'PY'
 import json
 import sys
 
@@ -298,7 +300,7 @@ actual = [(finding["category"], finding["severity"]) for finding in findings]
 if actual != [expected]:
     raise SystemExit(1)
 PY
-  then
+  }; then
     echo "[OK] $label -> one $severity $category finding"
   else
     echo "[FAIL] $label — expected exactly one $severity $category finding"
@@ -503,14 +505,15 @@ EOF
 git -C "$repo" add -A
 git -C "$repo" commit -qm source-field-display-label-boundary
 assert_violation "display labels remain enforced outside structural aliases" "$repo" --scope head --mode enforce
-if ! python3 - "${WORK}/stdout" <<'PYTEST'
+if ! {
+  python3 - "${WORK}/stdout" <<'PYTEST'
 import sys
 from pathlib import Path
 output = Path(sys.argv[1]).read_text()
 assert all(f"fixture.ts:{line}" in output for line in range(1, 5)), output
 assert "data.json:1" in output, output
 PYTEST
-then
+}; then
   echo "[FAIL] non-structural display labels remain enforced"
   FAIL=1
 fi
@@ -529,14 +532,15 @@ EOF
 git -C "$repo" add -A
 git -C "$repo" commit -qm source-field-alias-boundary
 assert_violation "comments, serialized records and identity fixtures remain enforced" "$repo" --scope head --mode enforce
-if ! python3 - "${WORK}/stdout" <<'PYTEST'
+if ! {
+  python3 - "${WORK}/stdout" <<'PYTEST'
 import sys
 from pathlib import Path
 output = Path(sys.argv[1]).read_text()
 assert all(f"fixture.ts:{line}" in output for line in range(1, 6)), output
 assert "generated.json:1" in output, output
 PYTEST
-then
+}; then
   echo "[FAIL] each non-structural field remains enforced"
   FAIL=1
 fi
