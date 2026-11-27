@@ -1,5 +1,6 @@
 """Behavioral coverage for current xcsh hosted route policy."""
 
+import copy
 import importlib.util
 import sys
 import unittest
@@ -17,6 +18,48 @@ SPEC.loader.exec_module(MODULE)
 
 
 class XcshHostedPolicyTests(unittest.TestCase):
+    def test_qualified_xcsh_images_keep_resource_profiles_and_socket_boundary(self):
+        shared_profiles = copy.deepcopy(self.policy["profiles"])
+        pins = {
+            "socketless": "26b5415d6d62ce46d7f22c146954f3eabe0fcf228bc78791ce51fd77dc6a1bc3",
+            "compute": "26b5415d6d62ce46d7f22c146954f3eabe0fcf228bc78791ce51fd77dc6a1bc3",
+            "container-build": "2ad97a7dfa9e240e81b4771af9b9a47c1c48d89f5cd3d8449cdd46fccb879cc0",
+        }
+        for route, digest in pins.items():
+            self.policy["repositories"]["f5-sales-demo/xcsh"]["runner"][
+                "arc_scale_sets"
+            ][route]["image"] = (
+                "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:" + digest
+            )
+        self.routes = MODULE.repository_routes(self.policy, "f5-sales-demo/xcsh")
+        assert shared_profiles == self.policy["profiles"]
+        assert (
+            self.routes["profiles_by_label"]["xcsh-container-build"]
+            == "container-build"
+        )
+        assert self.routes["profiles_by_label"]["xcsh-socketless"] == "ubuntu-24.04"
+        errors = self.audit(
+            ".github/workflows/ci.yml",
+            "unqualified",
+            "xcsh-container-build",
+            docker=True,
+        )
+        assert not any(
+            "Docker workload requires a Docker socket profile" in error
+            for error in errors
+        )
+        assert any("complete same-repository guard" in error for error in errors)
+        self.test_socketless_route_still_cannot_run_docker()
+        self.policy["repositories"]["f5-sales-demo/xcsh"]["runner"]["arc_scale_sets"][
+            "socketless"
+        ]["image"] = "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:" + "0" * 64
+        rejected = False
+        try:
+            MODULE.repository_routes(self.policy, "f5-sales-demo/xcsh")
+        except MODULE.AuditError:
+            rejected = True
+        assert rejected
+
     def setUp(self):
         self.policy, self.exceptions = MODULE.load_policy(
             ROOT / ".github/config/self-hosted-runner-policy.json",

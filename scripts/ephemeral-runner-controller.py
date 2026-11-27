@@ -282,7 +282,22 @@ def arc_scale_sets_match_contract(repository, scale_sets):
     if expected is None:
         return False
     if repository == "f5-sales-demo/xcsh":
-        return scale_sets == {**expected, **XCSH_CANDIDATE_SCALE_SETS}
+        qualified = {
+            name: {
+                **route,
+                "image": (
+                    "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:2ad97a7dfa9e240e81b4771af9b9a47c1c48d89f5cd3d8449cdd46fccb879cc0"
+                    if name == "container-build"
+                    else "ghcr.io/f5-sales-demo/self-hosted-runner@sha256:26b5415d6d62ce46d7f22c146954f3eabe0fcf228bc78791ce51fd77dc6a1bc3"
+                ),
+            }
+            for name, route in expected.items()
+        }
+        return scale_sets in (
+            {**expected, **XCSH_CANDIDATE_SCALE_SETS},
+            qualified,
+            {**qualified, **XCSH_CANDIDATE_SCALE_SETS},
+        )
     if repository == "f5-sales-demo/terraform-provider-xcsh":
         return any(
             scale_sets == contract
@@ -788,11 +803,14 @@ class FleetPolicy:
             validate_name(name, PROFILE_RE, "ARC scale-set route")
             if not isinstance(spec, dict) or set(spec) not in (
                 {"label", "profile"},
+                {"label", "profile", "image"},
                 {"label", "attestation"},
             ):
                 raise FleetError(
                     f"ARC scale set {name!r} must name one profile or attestation"
                 )
+            if "image" in spec and full_name != "f5-sales-demo/xcsh":
+                raise FleetError("repository-scoped image pins are restricted to xcsh")
             label = validate_name(spec["label"], PROFILE_RE, "ARC scale-set label")
             if label in labels:
                 raise FleetError(
@@ -820,7 +838,11 @@ class FleetPolicy:
                     raise FleetError(
                         f"unknown ARC scale-set profile for {full_name}: {profile_name}"
                     )
-                parsed[name] = {"label": label, "profile": profile_name}
+                parsed[name] = {
+                    "label": label,
+                    "profile": profile_name,
+                    **({"image": spec["image"]} if "image" in spec else {}),
+                }
             labels.add(label)
         expected = expected_arc_scale_sets(full_name)
         if expected is not None and not arc_scale_sets_match_contract(
