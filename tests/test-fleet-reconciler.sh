@@ -106,9 +106,20 @@ const renameRecovery = {
 };
 assert.doesNotThrow(() => assertAttestableRecovery(renameRecovery));
 assert.throws(() => assertAttestableRecovery({...renameRecovery,files:[{filename:'new.py',status:'renamed'}]}), /unexpected paths/);
-const calls=[]; const headers=[]; let now=0; const api = new ApiQueue({token:'x', now:()=>now, sleep:async(ms)=>{calls.push(ms); now += ms;}, fetch:async(_url, request)=>{headers.push(request.headers); return new Response('{}',{status:200,headers:{etag:'"fleet"'}});}});
+const calls=[]; const headers=[]; let now=0; let readVersion=0;
+const api = new ApiQueue({token:'x', now:()=>now, sleep:async(ms)=>{calls.push(ms); now += ms;}, fetch:async(_url, request)=>{
+  headers.push(request.headers);
+  if (request.method === 'GET') {
+    assert.equal(request.headers['if-none-match'],undefined,'governance reads require a fresh response body');
+    assert.equal(request.cache,'no-store');
+    return new Response(JSON.stringify({version:++readVersion}),{status:200,headers:{etag:'"fleet"'}});
+  }
+  return new Response('{}',{status:200});
+}});
 await api.request('one',{method:'POST'}); now=10; await api.request('two',{method:'PATCH'}); assert.deepEqual(calls,[990]);
-await api.request('read'); await api.request('read'); assert.equal(headers.at(-1)['if-none-match'], '"fleet"');
+assert.deepEqual(await api.request('read'),{version:1});
+assert.deepEqual(await api.request('read'),{version:2});
+assert.equal(headers.at(-1)['if-none-match'],undefined);
 const trackerWrites=[];
 const trackerApi={request:async(route, options={})=>{
   if (options.method === 'PATCH') { trackerWrites.push({route,body:options.body}); return {number:12}; }
