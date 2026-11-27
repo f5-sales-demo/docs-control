@@ -1645,8 +1645,8 @@ jobs:
         )
         exceptions = policy["hosted_exceptions"]["f5-sales-demo/xcsh"]
         for workflow, job, route in (
-            ("ci.yml", "create-release", "macos-26"),
-            ("ci.yml", "update-homebrew", "macos-26"),
+            ("ci.yml", "create-release", "macos-15"),
+            ("ci.yml", "update-homebrew", "macos-15"),
             ("ci.yml", "verify-macos-pkg", "matrix"),
             ("ci.yml", "verify-standalone-install", "matrix"),
             ("container.yml", "container-build-arm64", "ubuntu-24.04-arm"),

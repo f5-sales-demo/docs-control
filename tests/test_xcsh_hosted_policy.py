@@ -43,8 +43,8 @@ class XcshHostedPolicyTests(unittest.TestCase):
 
     def test_current_mac_release_and_recovery_routes(self):
         for path, name, label in [
-            (".github/workflows/ci.yml", "create-release", "macos-26"),
-            (".github/workflows/ci.yml", "update-homebrew", "macos-26"),
+            (".github/workflows/ci.yml", "create-release", "macos-15"),
+            (".github/workflows/ci.yml", "update-homebrew", "macos-15"),
             (
                 ".github/workflows/release-github-backfill.yml",
                 "backfill",
@@ -62,6 +62,12 @@ class XcshHostedPolicyTests(unittest.TestCase):
         ]:
             with self.subTest(job=name):
                 assert self.audit(path, name, "macos-14")
+
+    def test_other_hosted_labels_cannot_replace_pinned_arm_verification(self):
+        for name in ("create-release", "update-homebrew"):
+            for label in ("macos-26", "macos-15-intel", "ubuntu-24.04"):
+                with self.subTest(job=name, label=label):
+                    assert self.audit(".github/workflows/ci.yml", name, label)
 
     def test_exact_native_arm_container_build_route(self):
         assert (
