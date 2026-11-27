@@ -689,7 +689,9 @@ async function createContentPr(
   const issues = await api.request(`repos/${owner}/${repo}/issues?state=open&per_page=100`, {
     operationName: `find reconciliation issue for ${repo}`,
   });
-  let issue = issues.find((item) => item.title === issueTitle(sourceSha) && item.body?.includes(note));
+  let issue = issues.find(
+    (item) => !item.pull_request && item.title === issueTitle(sourceSha) && item.body?.includes(note),
+  );
   if (!issue)
     issue = await api.request(`repos/${owner}/${repo}/issues`, {
       method: 'POST',
