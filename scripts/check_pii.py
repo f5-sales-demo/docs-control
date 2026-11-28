@@ -344,7 +344,7 @@ DOTTED_VERSION_PREFIX_RE = re.compile(
     r")"
 )
 SOFTWARE_VERSION_LITERAL_RE = re.compile(
-    r"[0-9]+(?:\.[0-9]+){3}(?:[+-][A-Za-z0-9.-]+)?"
+    r"[0-9]+(?:\.[0-9]+){3}(?:[+-][A-Za-z0-9.-]+)?",
 )
 SOFTWARE_VERSION_OUTPUT_RE = re.compile(
     r'\b(?:openjdk|java)\s+version\s+(?P<quote>\\?")'
@@ -929,7 +929,9 @@ def json_software_version_spans(
 
     try:
         json.loads(
-            text, object_pairs_hook=unique_object, parse_constant=invalid_constant
+            text,
+            object_pairs_hook=unique_object,
+            parse_constant=invalid_constant,
         )
     except (ValueError, RecursionError):
         return {}
@@ -948,27 +950,19 @@ def json_software_version_spans(
             while cursor < len(text) and text[cursor] in " \t\r\n":
                 cursor += 1
             frame = frames[-1] if frames else None
-            if (
-                frame is not None
-                and frame.kind == "{"
-                and cursor < len(text)
-                and text[cursor] == ":"
-            ):
+            is_object = frame is not None and frame.kind == "{"
+            is_array = frame is not None and frame.kind == "["
+            is_key = cursor < len(text) and text[cursor] == ":"
+            if is_object and is_key:
                 frame.key = value.casefold()
             else:
-                scalar_version = (
-                    frame is not None and frame.kind == "{" and frame.key == "version"
-                )
-                array_version = (
-                    frame is not None and frame.kind == "[" and frame.version_array
-                )
-                if (
-                    scalar_version or array_version
-                ) and SOFTWARE_VERSION_LITERAL_RE.fullmatch(value):
-                    candidates.append(
-                        (index + 1, end, frame if array_version else None)
-                    )
-                if frame is not None and frame.kind == "{":
+                scalar = is_object and frame.key == "version"
+                array = is_array and frame.version_array
+                literal = SOFTWARE_VERSION_LITERAL_RE.fullmatch(value)
+                if (scalar or array) and literal:
+                    owner = frame if array else None
+                    candidates.append((index + 1, end, owner))
+                if is_object:
                     frame.key = None
             index = end + 1
             continue
@@ -991,15 +985,16 @@ def json_software_version_spans(
                 frames[-1].key = None
         index += 1
 
-    line_starts = [0, *(match.end() for match in re.finditer(r"\r\n?|\n", text))]
+    newlines = re.finditer(r"\r\n?|\n", text)
+    line_starts = [0, *(match.end() for match in newlines)]
     spans: dict[int, list[tuple[int, int]]] = {}
     for start, end, array in candidates:
         if array is not None and not array.strings_only:
             continue
         line_index = bisect_right(line_starts, start) - 1
-        spans.setdefault(line_index + 1, []).append(
-            (start - line_starts[line_index], end - line_starts[line_index])
-        )
+        offset = line_starts[line_index]
+        line_spans = spans.setdefault(line_index + 1, [])
+        line_spans.append((start - offset, end - offset))
     return {line: tuple(items) for line, items in spans.items()}
 
 
@@ -2695,15 +2690,10 @@ def scan_public_ips(
     software_spans: tuple[tuple[int, int], ...] = (),
 ) -> None:
     """Report public IPv4 values while attributing exact software-version spans."""
-    version_spans = sorted(
-        (
-            *software_spans,
-            *(
-                match.span("version")
-                for match in SOFTWARE_VERSION_OUTPUT_RE.finditer(line)
-            ),
-        )
-    )
+    version_spans = list(software_spans)
+    outputs = SOFTWARE_VERSION_OUTPUT_RE.finditer(line)
+    version_spans.extend(output.span("version") for output in outputs)
+    version_spans.sort()
     starts = [start for start, _ in version_spans]
     for match in IPV4_RE.finditer(line):
         version_index = bisect_right(starts, match.start()) - 1
@@ -3113,7 +3103,11 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
         scan_jq_identity_writes(path, line_number, line, findings, context)
         scan_query_parameters(path, line_number, line, findings)
         scan_public_ips(
-            path, line_number, line, findings, software_versions.get(line_number, ())
+            path,
+            line_number,
+            line,
+            findings,
+            software_versions.get(line_number, ()),
         )
 
         if source_code:
