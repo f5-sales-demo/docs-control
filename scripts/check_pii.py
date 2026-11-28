@@ -908,6 +908,110 @@ class JsonVersionFrame:
     strings_only: bool = True
 
 
+@dataclass(frozen=True)
+class JsonVersionCandidate:
+    """Retain exact literal coordinates and their array ownership evidence."""
+
+    start: int
+    end: int
+    array: JsonVersionFrame | None
+
+
+def unique_json_metadata(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    """Reject duplicate metadata keys before attributing literal version values."""
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError
+        result[key] = value
+    return result
+
+
+def reject_json_metadata_constant(_value: str) -> None:
+    """Reject nonfinite constants that are outside the JSON data grammar."""
+    raise ValueError
+
+
+def json_version_string(
+    text: str,
+    start: int,
+    frames: list[JsonVersionFrame],
+    candidates: list[JsonVersionCandidate],
+) -> int | None:
+    """Inspect one string token with an explicitly established container type."""
+    end = json_string_end(text, start)
+    if end is None:
+        return None
+    value: object = json.loads(text[start : end + 1])
+    if not isinstance(value, str):
+        return None
+    cursor = end + 1
+    while cursor < len(text) and text[cursor] in " \t\r\n":
+        cursor += 1
+    if not frames:
+        return end + 1
+    frame = frames[-1]
+    is_key = cursor < len(text) and text[cursor] == ":"
+    if frame.kind == "{" and is_key:
+        frame.key = value.casefold()
+        return end + 1
+    owner: JsonVersionFrame | None = None
+    if frame.kind == "{":
+        role = frame.key == "version"
+        frame.key = None
+    else:
+        role = frame.version_array
+        owner = frame
+    if role and SOFTWARE_VERSION_LITERAL_RE.fullmatch(value):
+        candidates.append(JsonVersionCandidate(start + 1, end, owner))
+    return end + 1
+
+
+def json_version_symbol(
+    character: str,
+    frames: list[JsonVersionFrame],
+) -> bool:
+    """Maintain container shape without inferring roles across nested values."""
+    if character in "[{":
+        versions = False
+        if frames:
+            parent = frames[-1]
+            if parent.kind == "[":
+                parent.strings_only = False
+            else:
+                versions = character == "[" and parent.key == "versions"
+                parent.key = None
+        frames.append(JsonVersionFrame(character, version_array=versions))
+    elif character in "]}":
+        if not frames:
+            return False
+        frames.pop()
+    elif character not in " \t\r\n,:" and frames:
+        if frames[-1].kind == "[":
+            frames[-1].strings_only = False
+        else:
+            frames[-1].key = None
+    return True
+
+
+def json_version_candidates(text: str) -> list[JsonVersionCandidate]:
+    """Walk validated JSON once and retain only exact literal-string candidates."""
+    frames: list[JsonVersionFrame] = []
+    candidates: list[JsonVersionCandidate] = []
+    index = 0
+    while index < len(text):
+        if text[index] == '"':
+            end = json_version_string(text, index, frames, candidates)
+            if end is None:
+                return []
+            index = end
+            continue
+        if not json_version_symbol(text[index], frames):
+            return []
+        index += 1
+    return candidates
+
+
 def json_software_version_spans(
     path: str,
     text: str,
@@ -915,86 +1019,24 @@ def json_software_version_spans(
     """Attribute literal versions in valid JSON without trusting nearby fields."""
     if PurePosixPath(path).suffix.lower() != ".json":
         return {}
-
-    def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
-        result: dict[str, object] = {}
-        for key, value in pairs:
-            if key in result:
-                raise ValueError
-            result[key] = value
-        return result
-
-    def invalid_constant(_value: str) -> None:
-        raise ValueError
-
     try:
         json.loads(
             text,
-            object_pairs_hook=unique_object,
-            parse_constant=invalid_constant,
+            object_pairs_hook=unique_json_metadata,
+            parse_constant=reject_json_metadata_constant,
         )
     except (ValueError, RecursionError):
         return {}
-
-    frames: list[JsonVersionFrame] = []
-    candidates: list[tuple[int, int, JsonVersionFrame | None]] = []
-    index = 0
-    while index < len(text):
-        character = text[index]
-        if character == '"':
-            end = json_string_end(text, index)
-            if end is None:
-                return {}
-            value = json.loads(text[index : end + 1])
-            cursor = end + 1
-            while cursor < len(text) and text[cursor] in " \t\r\n":
-                cursor += 1
-            frame = frames[-1] if frames else None
-            is_object = frame is not None and frame.kind == "{"
-            is_array = frame is not None and frame.kind == "["
-            is_key = cursor < len(text) and text[cursor] == ":"
-            if is_object and is_key:
-                frame.key = value.casefold()
-            else:
-                scalar = is_object and frame.key == "version"
-                array = is_array and frame.version_array
-                literal = SOFTWARE_VERSION_LITERAL_RE.fullmatch(value)
-                if (scalar or array) and literal:
-                    owner = frame if array else None
-                    candidates.append((index + 1, end, owner))
-                if is_object:
-                    frame.key = None
-            index = end + 1
-            continue
-        if character in "[{":
-            version_array = False
-            if frames:
-                parent = frames[-1]
-                if parent.kind == "[":
-                    parent.strings_only = False
-                else:
-                    version_array = character == "[" and parent.key == "versions"
-                    parent.key = None
-            frames.append(JsonVersionFrame(character, version_array=version_array))
-        elif character in "]}":
-            frames.pop()
-        elif character not in " \t\r\n,:" and frames:
-            if frames[-1].kind == "[":
-                frames[-1].strings_only = False
-            else:
-                frames[-1].key = None
-        index += 1
-
     newlines = re.finditer(r"\r\n?|\n", text)
     line_starts = [0, *(match.end() for match in newlines)]
     spans: dict[int, list[tuple[int, int]]] = {}
-    for start, end, array in candidates:
-        if array is not None and not array.strings_only:
+    for candidate in json_version_candidates(text):
+        if candidate.array is not None and not candidate.array.strings_only:
             continue
-        line_index = bisect_right(line_starts, start) - 1
+        line_index = bisect_right(line_starts, candidate.start) - 1
         offset = line_starts[line_index]
         line_spans = spans.setdefault(line_index + 1, [])
-        line_spans.append((start - offset, end - offset))
+        line_spans.append((candidate.start - offset, candidate.end - offset))
     return {line: tuple(items) for line, items in spans.items()}
 
 

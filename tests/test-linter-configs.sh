@@ -54,7 +54,8 @@ for f in .yamllint.yaml zizmor.yaml .checkov.yaml .textlintrc .github/actionlint
   fi
 done
 
-if python3 - "$REPO_ROOT/.github/actionlint.yaml" "$REPO_ROOT/.claude/governance.json" <<'PY'
+if {
+  python3 - "$REPO_ROOT/.github/actionlint.yaml" "$REPO_ROOT/.claude/governance.json" <<'PY'
 import json, sys, yaml
 config = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
 governance = json.load(open(sys.argv[2], encoding="utf-8"))
@@ -87,17 +88,18 @@ assert workflow_ignores == [
     "shellcheck reported issue in this script: SC2016:.+",
 ]
 PY
-then
+}; then
   pass "2.1 actionlint recognizes governed repository, builder, and ARM labels"
 else
   fail "2.1 actionlint recognizes governed repository, builder, and ARM labels" \
     "labels and narrow embedded-shell compatibility ignores must be exact"
 fi
 
-if python3 - \
-  "$REPO_ROOT/.github/config/self-hosted-runner-policy.json" \
-  "$REPO_ROOT/.github/config/repo-settings.json" \
-  "$REPO_ROOT/.claude/governance.json" <<'PY'
+if {
+  python3 - \
+    "$REPO_ROOT/.github/config/self-hosted-runner-policy.json" \
+    "$REPO_ROOT/.github/config/repo-settings.json" \
+    "$REPO_ROOT/.claude/governance.json" <<'PY'
 import json
 import sys
 
@@ -156,14 +158,15 @@ assert settings["managed_files"]["skip_files"]["html-to-markdown"] == [
     ".github/workflows/github-pages-deploy.yml",
 ]
 PY
-then
+}; then
   pass "2.1a documentation cohort has exact ARC routes and managed opt-outs"
 else
   fail "2.1a documentation cohort has exact ARC routes and managed opt-outs" \
     "routes, dispatcher exclusions, or paired managed opt-outs are not exact"
 fi
 
-if python3 - "$REPO_ROOT/.github/config/self-hosted-runner-policy.json" <<'PY'
+if {
+  python3 - "$REPO_ROOT/.github/config/self-hosted-runner-policy.json" <<'PY'
 import json
 import sys
 
@@ -343,7 +346,7 @@ for repository, workflows in policy["repositories"].items():
                 f"{repository}:{workflow}:{job} uses unknown ARC route {route!r}"
             )
 PY
-then
+}; then
   pass "2.1b ARC attestations and repository job routes are exact"
 else
   fail "2.1b ARC attestations and repository job routes are exact" \
@@ -383,7 +386,8 @@ fi
 
 # ════════════════════════════════════════════════════════════════════
 # Trivy runtime config contract
-if python3 - "$REPO_ROOT/trivy.yaml" <<'PY'
+if {
+  python3 - "$REPO_ROOT/trivy.yaml" <<'PY'
 import sys, yaml
 config = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
 assert "skip-dirs" not in config, "root-level skip-dirs is ignored by Trivy 0.71"
@@ -392,7 +396,7 @@ assert isinstance(scan, dict), "Trivy scan configuration must be a mapping"
 skip_dirs = scan.get("skip-dirs", [])
 assert skip_dirs == [".mypy_cache", ".ruff_cache", ".pytest_cache", "**/target"]
 PY
-then
+}; then
   pass "2.5 Trivy skips generated cache and Rust target trees"
 else
   fail "2.5 Trivy skips generated cache and Rust target trees" \
@@ -420,7 +424,8 @@ else
   fail "3.x .ruff.toml is valid TOML" "no available validator could parse it"
 fi
 
-if python3 - "$REPO_ROOT/.ruff.toml" "$REPO_ROOT" <<'PY'
+if {
+  python3 - "$REPO_ROOT/.ruff.toml" "$REPO_ROOT" <<'PY'
 import subprocess
 import sys
 import tomllib
@@ -453,7 +458,7 @@ raise SystemExit(
     else 1
 )
 PY
-then
+}; then
   pass "3.1 only the canonical hyphenated auditor is exempt from N999"
 else
   fail "3.1 only the canonical hyphenated auditor is exempt from N999" \
@@ -498,7 +503,8 @@ fi
 # The managed validator is linted under downstream profiles that may not
 # enable BLE001. Its CLI must catch expected input/I/O errors without an
 # inline BLE suppression that becomes an RUF100 unused-noqa failure.
-if python3 - "$REPO_ROOT/scripts/workflow_security_validator.py" <<'PY'
+if {
+  python3 - "$REPO_ROOT/scripts/workflow_security_validator.py" <<'PY'
 import ast
 import sys
 
@@ -533,7 +539,7 @@ raise SystemExit(
     else 1
 )
 PY
-then
+}; then
   pass "4.4 validator carries portable downstream lint and exception contracts"
 else
   fail "4.4 validator carries portable downstream lint and exception contracts" \
@@ -635,7 +641,8 @@ fi
 rm -rf "$CODESPELL_SCOPE_TMP"
 
 # Real checker regressions need an explicitly provisioned isolated CLI in CI.
-if python3 - "$SUPER_LINTER_WORKFLOW" <<'PYTOOLS'
+if {
+  python3 - "$SUPER_LINTER_WORKFLOW" <<'PYTOOLS'
 import sys
 import yaml
 
@@ -654,7 +661,7 @@ assert setup["run"].splitlines() == [
     "printf '%s\\n' \"$LINTER_CONFIG_TOOLS/bin\" >> \"$GITHUB_PATH\"",
 ]
 PYTOOLS
-then
+}; then
   pass "5.x linter checker dependencies are isolated and installed before regressions"
 else
   fail "5.x linter checker dependencies are isolated and installed before regressions" \
@@ -1837,7 +1844,8 @@ echo "=== Section 12: managed PII scanner Ruff portability ==="
 # sync PR cannot land. Linting at each width matters because SIM rules can become
 # applicable only when their replacement fits the configured line length.
 for width in 88 100 120; do
-  if python3 - "$SUPER_LINTER_WORKFLOW" "$width" <<'PY'
+  if {
+    python3 - "$SUPER_LINTER_WORKFLOW" "$width" <<'PY'
 import sys
 
 import yaml
@@ -1875,7 +1883,7 @@ for mode, args in (
     if inputs.get("args") != args:
         raise SystemExit(1)
 PY
-  then
+  }; then
     pass "12.x docs-control lints and formats canonical PII scanner at ${width} columns"
   else
     fail "12.x docs-control lints and formats canonical PII scanner at ${width} columns" \
@@ -1921,7 +1929,8 @@ else
     "the formatter pin is absent, duplicated, or mutable"
 fi
 
-if python3 - "$SUPER_LINTER_WORKFLOW" <<'PY'
+if {
+  python3 - "$SUPER_LINTER_WORKFLOW" <<'PY'
 import sys
 import yaml
 
@@ -1942,7 +1951,7 @@ for extension in ("*.js", "*.jsx", "*.ts", "*.tsx", "*.json", "*.jsonc", "*.css"
 for excluded in ("node_modules/*", ".terraform/*", "dist/*", "build/*", "vendor/*"):
     assert excluded in run
 PY
-then
+}; then
   pass "14.1a Super-Linter scopes Biome to changed supported files"
 else
   fail "14.1a Super-Linter scopes Biome to changed supported files" \
@@ -1956,7 +1965,8 @@ else
     "the group needs a reusable-workflow-specific prefix"
 fi
 
-if python3 - "$SUPER_LINTER_WORKFLOW" "$WORKFLOW_SECURITY_AUDIT" <<'PY'
+if {
+  python3 - "$SUPER_LINTER_WORKFLOW" "$WORKFLOW_SECURITY_AUDIT" <<'PY'
 import re
 import sys
 
@@ -1996,7 +2006,7 @@ assert terraform_setup_index < integration_index
 assert terraform_setup["uses"] == "hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd"
 assert terraform_setup["with"] == {"terraform_version": "1.16.3"}
 PY
-then
+}; then
   pass "14.3 shell tests install immutable uv and Terraform toolchains first"
 else
   fail "14.3 shell tests install immutable uv and Terraform toolchains first" \
@@ -2025,7 +2035,8 @@ fi
 echo ""
 echo "=== Section 15: complete shell-test CI inventory ==="
 
-if python3 - "$REPO_ROOT" "$SUPER_LINTER_WORKFLOW" <<'PY'
+if {
+  python3 - "$REPO_ROOT" "$SUPER_LINTER_WORKFLOW" <<'PY'
 import pathlib
 import re
 import sys
@@ -2057,7 +2068,7 @@ for step in steps:
 if len(observed) != len(set(observed)) or set(observed) != expected:
     raise SystemExit(1)
 PY
-then
+}; then
   pass "15.1 every shell test has exactly one guarded CI step"
 else
   fail "15.1 every shell test has exactly one guarded CI step" \
@@ -2130,7 +2141,8 @@ fi
 echo ""
 echo "=== Section 17: immutable one-job runner contract ==="
 
-if python3 - "$SUPER_LINTER_WORKFLOW" <<'PY'
+if {
+  python3 - "$SUPER_LINTER_WORKFLOW" <<'PY'
 import sys
 
 import yaml
@@ -2150,7 +2162,7 @@ for job_name in ("lint", "shell-unit-tests"):
         if "sudo" in command or "apt-get" in command:
             raise SystemExit(1)
 PY
-then
+}; then
   pass "17.1 one-job jobs contain no privileged workspace repair"
 else
   fail "17.1 one-job jobs contain no privileged workspace repair" \
