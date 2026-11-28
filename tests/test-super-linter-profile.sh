@@ -6,6 +6,7 @@ workflow="$repo_root/.github/workflows/super-linter.yml"
 
 python3 - "$workflow" <<'PYTEST'
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -53,13 +54,16 @@ for fragment in (
     assert fragment in install_actionlint["run"]
 
 start = by_name["Start Super-Linter profiler"]
+assert not re.search(r"\bkill(?:pg)?\b", start["run"])
+assert "docker-action-profile control wait-ready" in start["run"]
+assert "retaining existing profiler" in start["run"]
 assert start["if"] == "runner.environment == 'self-hosted'"
 assert start.get("continue-on-error") is True
 assert start["env"] == {
-    "SUPER_LINTER_ACTION_COMMIT": "4ce20838b8ab83717e78138c5b3a1407148e0918",
-    "SUPER_LINTER_IMAGE": "ghcr.io/super-linter/super-linter:v8.7.0",
-    "SUPER_LINTER_DIGEST": "sha256:c05768164eed53bac7c82aade7a14a76955206d4962cd41be97118db96fa5996",
-    "SUPER_LINTER_MANIFEST_DIGEST": "sha256:a38987de6efa8b7286ef98233eb8454cd1370ab58eeab8190ddd74fe0c7ca849",
+    "SUPER_LINTER_ACTION_COMMIT": "2da136927bd4a73596db63044b504547c62cb854",
+    "SUPER_LINTER_IMAGE": "ghcr.io/super-linter/super-linter:v9.0.0",
+    "SUPER_LINTER_DIGEST": "sha256:7620fb6f07a1908b0642d9ddc4f49da7d9f2b9497bcafee4d3d151d1e5567c0b",
+    "SUPER_LINTER_MANIFEST_DIGEST": "sha256:496fe2e10c487771d42eede90cacfc767324db5ac9ddc9f3b2f490afa0a1db73",
 }
 for fragment in (
     "RUNNER_TRACKING_ID=",
@@ -78,13 +82,14 @@ for fragment in (
 lint = by_name["Run Super-Linter"]
 assert lint["id"] == "super_linter"
 assert lint.get("continue-on-error") is True
-assert lint["uses"] == "super-linter/super-linter@4ce20838b8ab83717e78138c5b3a1407148e0918"
+assert lint["uses"] == "super-linter/super-linter@2da136927bd4a73596db63044b504547c62cb854"
 assert "IGNORE_GITIGNORED_FILES" not in lint.get("env", {})
 
 finalize = by_name["Finalize Super-Linter profile"]
 assert finalize["id"] == "super_linter_profile"
 assert finalize["if"] == "always() && runner.environment == 'self-hosted'"
 assert finalize.get("continue-on-error") is True
+assert not re.search(r"\bkill(?:pg)?\b", finalize["run"])
 for fragment in (
     "docker-action-profile.schema.json",
     "profile.schema_version !== 2",
@@ -97,7 +102,7 @@ for fragment in (
     "profile.timing.action_pull_seconds",
     "/opt/spectral/node_modules/ajv/dist/2020",
     "/opt/spectral/node_modules/ajv-formats",
-    "kill -TERM",
+    "docker-action-profile control wait-complete",
     "observer.result",
 ):
     assert fragment in finalize["run"]
@@ -413,6 +418,90 @@ for failed_outcome in spectral_gate["env"]:
     ).returncode != 0
 
 assert "Docker-capable lint is forbidden for fork pull requests." in text
+# Execute the managed shell paths with a bounded CLI fixture. Native ownership
+# and command closure are exercised separately by the installed control suite.
+import json
+
+with tempfile.TemporaryDirectory() as directory:
+    fixture = Path(directory)
+    binary = fixture / "docker-action-profile"
+    binary.write_text(
+        "#!/usr/bin/env python3\n"
+        "import json,os,sys\n"
+        "from pathlib import Path\n"
+        "args=sys.argv[1:]\n"
+        "with Path(os.environ['CONTROL_CALLS']).open('a') as stream:\n"
+        " stream.write(json.dumps(args)+'\\n')\n"
+        "if args[0]=='control':\n"
+        " operation=args[1]\n"
+        " code=int(os.environ.get({'wait-ready':'READY_EXIT','cancel':'CANCEL_EXIT','wait-complete':'CLOSURE_EXIT'}[operation],'0'))\n"
+        " print(json.dumps({'status':'complete' if code==0 else 'unresolved','operation':operation,'submissionRepeated':False}))\n"
+        " sys.exit(code)\n"
+    )
+    binary.chmod(0o700)
+    for ready_exit, cancel_exit in ((0, 0), (17, 0), (17, 19)):
+        scenario = fixture / f"ready-{ready_exit}-cancel-{cancel_exit}"
+        scenario.mkdir()
+        calls = scenario / "calls.jsonl"
+        runner_temp = scenario / "space $(literal)"
+        env = os.environ | start["env"] | {
+            "PATH": str(fixture) + os.pathsep + os.environ["PATH"],
+            "RUNNER_TEMP": str(runner_temp),
+            "CONTROL_CALLS": str(calls),
+            "READY_EXIT": str(ready_exit),
+            "CANCEL_EXIT": str(cancel_exit),
+        }
+        result = subprocess.run(
+            ["bash", "-c", start["run"]], env=env,
+            capture_output=True, check=False,
+        )
+        assert (result.returncode == 0) == (ready_exit == 0), result.stderr
+        records = [json.loads(line) for line in calls.read_text().splitlines()]
+        controls = [args for args in records if args[0] == "control"]
+        assert [args[1] for args in controls] == (
+            ["wait-ready"] if ready_exit == 0 else ["wait-ready", "cancel"]
+        )
+        profile = runner_temp / "workload-profile-super-linter/profile.json"
+        assert controls[0][controls[0].index("--output") + 1] == str(profile)
+        assert controls[0][-2:] == ["--wait", "10"]
+        assert controls[0][controls[0].index("--image") + 1] == start["env"]["SUPER_LINTER_IMAGE"]
+        retained = profile.parent / "original-evidence"
+        retained.write_text("retained original")
+        before = calls.read_bytes()
+        result = subprocess.run(
+            ["bash", "-c", start["run"]], env=env,
+            capture_output=True, check=False,
+        )
+        assert result.returncode != 0
+        assert retained.read_text() == "retained original"
+        assert calls.read_bytes() == before
+
+    closure = finalize["run"].split('if [[ ! -s "$profile" ]]; then', 1)[0]
+    assert "control wait-complete" in closure
+    for closure_exit in (0, 2):
+        scenario = fixture / f"closure-{closure_exit}"
+        scenario.mkdir()
+        profile_dir = scenario / "workload-profile-super-linter"
+        profile_dir.mkdir()
+        (profile_dir / "profile.json").write_text("{}")
+        calls = scenario / "calls.jsonl"
+        env = os.environ | finalize["env"] | {
+            "PATH": str(fixture) + os.pathsep + os.environ["PATH"],
+            "RUNNER_TEMP": str(scenario), "CONTROL_CALLS": str(calls),
+            "CLOSURE_EXIT": str(closure_exit),
+        }
+        result = subprocess.run(
+            ["bash", "-c", closure], env=env,
+            capture_output=True, check=False,
+        )
+        assert result.returncode == closure_exit, result.stderr
+        records = [json.loads(line) for line in calls.read_text().splitlines()]
+        assert len(records) == 1 and records[0][:2] == ["control", "wait-complete"]
+        assert records[0][-2:] == ["--wait", "20"]
+        assert json.loads((profile_dir / "control-closure.json").read_text())["status"] == (
+            "complete" if closure_exit == 0 else "unresolved"
+        )
+
 PYTEST
 
 echo "Super-Linter profiling workflow contract passed"
