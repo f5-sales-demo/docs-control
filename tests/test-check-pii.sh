@@ -9,6 +9,123 @@ SCANNER="${REPO_ROOT}/scripts/check-pii.sh"
 PYTHON_SCANNER="${REPO_ROOT}/scripts/check_pii.py"
 SYNTHETIC_USER=realperson
 
+# Run version-attribution regressions through the managed driver in every caller.
+python3 - "$PYTHON_SCANNER" <<'VERSIONREGRESSION'
+from __future__ import annotations
+
+import importlib.util
+import json
+import sys
+import unittest
+from pathlib import Path
+
+SPEC = importlib.util.spec_from_file_location(
+    "software_version_scanner", Path(sys.argv[1])
+)
+assert SPEC
+assert SPEC.loader
+scanner = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = scanner
+SPEC.loader.exec_module(scanner)
+PUBLIC = ".".join(str(part) for part in (8, 8, 4, 4))
+V17 = ".".join(str(part) for part in (17, 0, 21, 1))
+V21 = ".".join(str(part) for part in (21, 0, 13, 1))
+
+
+class SoftwareVersionTests(unittest.TestCase):
+    def public_findings(self, text, path="catalog/any-toolchain.json"):
+        findings = set()
+        scanner.scan_text(path, text, findings)
+        return sorted(
+            item.line for item in findings if item.category == "public-ip-review"
+        )
+
+    def test_quoted_json_scalar_version_is_metadata(self):
+        assert self.public_findings(json.dumps({"version": f"{V21}"})) == []
+
+    def test_flat_multiline_json_version_array_is_metadata(self):
+        assert (
+            self.public_findings(
+                json.dumps({"versions": [f"{V17}", f"{V21}"]}, indent=2)
+            )
+            == []
+        )
+
+    def test_supported_java_output_and_json_escaped_quotes_are_versions(self):
+        for name in ("openjdk", "java"):
+            for value in (f"{V17}", f"{V21}+9-LTS"):
+                output = f'{name} version "{value}"'
+                with self.subTest(name=name, value=value):
+                    assert self.public_findings(output, "version-output.txt") == []
+                    assert self.public_findings(json.dumps({"expected": output})) == []
+
+    def test_actual_five_catalog_version_cases_are_all_classified(self):
+        catalog = {
+            "setup_actions": {"setup-runtime": {"versions": [f"{V17}"]}},
+            "tools": [
+                {"version": f"{V21}", "expected": f'openjdk version "{V21}"'},
+                {"version": f"{V17}", "expected": f'openjdk version "{V17}"'},
+            ],
+        }
+        assert self.public_findings(json.dumps(catalog, indent=2)) == []
+
+    def test_neighbor_endpoints_remain_reported_without_line_exclusion(self):
+        cases = [
+            json.dumps({"version": f"{V21}", "endpoint": PUBLIC}),
+            json.dumps({"expected": f'openjdk version "{V21}"; endpoint ' + PUBLIC}),
+            f'openjdk version "{V21}"; endpoint ' + PUBLIC,
+        ]
+        for text in cases:
+            with self.subTest(case=cases.index(text)):
+                assert self.public_findings(text) == [1]
+
+    def test_invalid_and_duplicate_json_cannot_attribute_version_roles(self):
+        for text in [
+            f'{{"version": "{V21}",}}',
+            f'{{"version": "{V21}", "version": "{V17}"}}',
+            f'{{"version": "{V21}", "invalid": NaN}}',
+            f'{{"version": "{V21}"',
+        ]:
+            with self.subTest(case=text[:16]):
+                assert self.public_findings(text) == [1]
+
+    def test_nested_mixed_and_scalar_version_arrays_do_not_gain_roles(self):
+        cases = [
+            ({"versions": [[f"{V17}"]]}, 1),
+            ({"versions": [f"{V17}", {"endpoint": PUBLIC}]}, 2),
+            ({"version": [f"{V17}"]}, 1),
+        ]
+        for value, count in cases:
+            with self.subTest(case=list(value)):
+                assert len(self.public_findings(json.dumps(value, indent=2))) == count
+
+    def test_urls_cidrs_and_serialized_metadata_are_not_literal_versions(self):
+        cases = [
+            {"version": "https://" + PUBLIC + "/endpoint"},
+            {"version": PUBLIC + "/32"},
+            {"description": json.dumps({"version": f"{V21}"})},
+            {"versions": ["endpoint " + PUBLIC]},
+            {"expected": f'openjdk version "{PUBLIC}/32"'},
+        ]
+        for value in cases:
+            with self.subTest(case=list(value)):
+                assert self.public_findings(json.dumps(value)) == [1]
+
+    def test_normalization_preserves_exact_neighbor_attribution(self):
+        text = (
+            "\x1b[36m"
+            + json.dumps({"version": f"{V21}", "endpoint": PUBLIC})
+            + "\x1b[0m"
+        )
+        assert self.public_findings(text) == [1]
+        version = json.dumps({"version": f"{V21}"}, indent=2)
+        assert self.public_findings(version.replace("\n", "\r")) == []
+        assert self.public_findings("\x1b[36m" + version + "\x1b[0m") == []
+
+
+unittest.main(argv=["software-version-regressions"])
+VERSIONREGRESSION
+
 # Address-field matches share the structured-value interface with identity fields.
 python3 - "$PYTHON_SCANNER" <<'PYTEST'
 import importlib.util
