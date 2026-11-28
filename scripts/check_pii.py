@@ -26,6 +26,7 @@ import re
 import sys
 import unicodedata
 import urllib.parse
+from bisect import bisect_right
 from dataclasses import asdict, dataclass
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
@@ -341,6 +342,14 @@ DOTTED_VERSION_PREFIX_RE = re.compile(
     r"|[A-Za-z0-9_.-]*version[A-Za-z0-9_.-]*\s*[:=]\s*['\"`]?\s*$"
     r"|version[A-Za-z0-9_.-]*\)?\.to(?:be|equal)\(\s*['\"`]?\s*$"
     r")"
+)
+SOFTWARE_VERSION_LITERAL_RE = re.compile(
+    r"[0-9]+(?:\.[0-9]+){3}(?:[+-][A-Za-z0-9.-]+)?"
+)
+SOFTWARE_VERSION_OUTPUT_RE = re.compile(
+    r'\b(?:openjdk|java)\s+version\s+(?P<quote>\\?")'
+    r"(?P<version>[0-9]+(?:\.[0-9]+){3}(?:[+-][A-Za-z0-9.-]+)?)(?P=quote)",
+    re.IGNORECASE,
 )
 SVG_PATH_ATTRIBUTE_RE = re.compile(r"(?:^|\s)d\s*=\s*(?P<quote>['\"])", re.IGNORECASE)
 PDF_AUTHOR_RE = re.compile(
@@ -887,6 +896,111 @@ def json_string_end(text: str, start: int) -> int | None:
             return index
         index += 1
     return None
+
+
+@dataclass
+class JsonVersionFrame:
+    """Track a JSON container field and the shape of its version array."""
+
+    kind: str
+    key: str | None = None
+    version_array: bool = False
+    strings_only: bool = True
+
+
+def json_software_version_spans(
+    path: str,
+    text: str,
+) -> dict[int, tuple[tuple[int, int], ...]]:
+    """Attribute literal versions in valid JSON without trusting nearby fields."""
+    if PurePosixPath(path).suffix.lower() != ".json":
+        return {}
+
+    def unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError
+            result[key] = value
+        return result
+
+    def invalid_constant(_value: str) -> None:
+        raise ValueError
+
+    try:
+        json.loads(
+            text, object_pairs_hook=unique_object, parse_constant=invalid_constant
+        )
+    except (ValueError, RecursionError):
+        return {}
+
+    frames: list[JsonVersionFrame] = []
+    candidates: list[tuple[int, int, JsonVersionFrame | None]] = []
+    index = 0
+    while index < len(text):
+        character = text[index]
+        if character == '"':
+            end = json_string_end(text, index)
+            if end is None:
+                return {}
+            value = json.loads(text[index : end + 1])
+            cursor = end + 1
+            while cursor < len(text) and text[cursor] in " \t\r\n":
+                cursor += 1
+            frame = frames[-1] if frames else None
+            if (
+                frame is not None
+                and frame.kind == "{"
+                and cursor < len(text)
+                and text[cursor] == ":"
+            ):
+                frame.key = value.casefold()
+            else:
+                scalar_version = (
+                    frame is not None and frame.kind == "{" and frame.key == "version"
+                )
+                array_version = (
+                    frame is not None and frame.kind == "[" and frame.version_array
+                )
+                if (
+                    scalar_version or array_version
+                ) and SOFTWARE_VERSION_LITERAL_RE.fullmatch(value):
+                    candidates.append(
+                        (index + 1, end, frame if array_version else None)
+                    )
+                if frame is not None and frame.kind == "{":
+                    frame.key = None
+            index = end + 1
+            continue
+        if character in "[{":
+            version_array = False
+            if frames:
+                parent = frames[-1]
+                if parent.kind == "[":
+                    parent.strings_only = False
+                else:
+                    version_array = character == "[" and parent.key == "versions"
+                    parent.key = None
+            frames.append(JsonVersionFrame(character, version_array=version_array))
+        elif character in "]}":
+            frames.pop()
+        elif character not in " \t\r\n,:" and frames:
+            if frames[-1].kind == "[":
+                frames[-1].strings_only = False
+            else:
+                frames[-1].key = None
+        index += 1
+
+    line_starts = [0, *(match.end() for match in re.finditer(r"\r\n?|\n", text))]
+    spans: dict[int, list[tuple[int, int]]] = {}
+    for start, end, array in candidates:
+        if array is not None and not array.strings_only:
+            continue
+        line_index = bisect_right(line_starts, start) - 1
+        spans.setdefault(line_index + 1, []).append(
+            (start - line_starts[line_index], end - line_starts[line_index])
+        )
+    return {line: tuple(items) for line, items in spans.items()}
 
 
 def repository_full_name_columns(path: str, text: str) -> dict[int, frozenset[int]]:
@@ -2578,9 +2692,23 @@ def scan_public_ips(
     line_number: int,
     line: str,
     findings: set[Finding],
+    software_spans: tuple[tuple[int, int], ...] = (),
 ) -> None:
-    """Report globally routable unicast IPv4 values outside documentation ranges."""
+    """Report public IPv4 values while attributing exact software-version spans."""
+    version_spans = sorted(
+        (
+            *software_spans,
+            *(
+                match.span("version")
+                for match in SOFTWARE_VERSION_OUTPUT_RE.finditer(line)
+            ),
+        )
+    )
+    starts = [start for start, _ in version_spans]
     for match in IPV4_RE.finditer(line):
+        version_index = bisect_right(starts, match.start()) - 1
+        if version_index >= 0 and version_spans[version_index][1] >= match.end():
+            continue
         try:
             address = ipaddress.ip_address(match.group(0))
         except ValueError:
@@ -2774,6 +2902,7 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
     yaml = suffix in {".yaml", ".yml"}
     aliases: dict[str, bool] = {}
     localization_strings = localization_top_level_string_spans(path, text)
+    software_versions = json_software_version_spans(path, text)
     repository_names = repository_full_name_columns(path, text)
     provider_names = terraform_provider_full_name_columns(path, text)
     controller_namespaces = arc_controller_namespace_columns(path, text)
@@ -2983,7 +3112,9 @@ def scan_text(path: str, text: str, findings: set[Finding]) -> None:
         )
         scan_jq_identity_writes(path, line_number, line, findings, context)
         scan_query_parameters(path, line_number, line, findings)
-        scan_public_ips(path, line_number, line, findings)
+        scan_public_ips(
+            path, line_number, line, findings, software_versions.get(line_number, ())
+        )
 
         if source_code:
             source_brace_depth += source_structure.count("{")
